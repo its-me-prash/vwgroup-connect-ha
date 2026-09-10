@@ -33,7 +33,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha påkrævet",
-        "description": "Porsche kræver, at du løser en captcha for at fortsætte login.\n\n{captcha_img}\n\nLøs det kun én gang efter bedste evne — gentagne mislykkede forsøg har fået Porsche til at spærre konti for mistænkelig aktivitet.",
+        "description": "Porsche kræver, at du løser en captcha for at fortsætte login.\n\n{captcha_img}\n\nLøs det kun én gang efter bedste evne — gentagne mislykkede forsøg har fået Porsche til at spærre konti for mistænkelig aktivitet.\n\nDet, du indtaster her, forlader ikke din Home Assistant-instans. Hvis billedet ikke indlæses, eller du bliver ved med at få fejl, kan du rapportere det (vedhæft diagnostik): {report_url}",
         "data": {
           "captcha_code": "Captcha-kode"
         },
@@ -204,7 +204,9 @@
       "companion_app_not_found": "Der blev oprettet forbindelse til telefonen, men mærkets app er ikke installeret på den.",
       "companion_unknown_brand": "Det mærke har endnu ingen forudindstilling for hjælpetelefon.",
       "companion_agent_token_too_short": "Agent-tokenet er for kort. Indsæt det tilfældige token, agent-appen har genereret (mindst 32 tegn).",
-      "companion_host_required": "Angiv telefonens IP-adresse — eller sæt flueben ved agent-muligheden, hvis telefonen ringer til Home Assistant."
+      "companion_host_required": "Angiv telefonens IP-adresse — eller sæt flueben ved agent-muligheden, hvis telefonen ringer til Home Assistant.",
+      "missing_captcha": "Indtast de tegn, der vises i billedet ovenfor.",
+      "captcha_retry": "Løs den viste captcha ovenfor for at fortsætte."
     },
     "abort": {
       "already_configured": "Denne konto er allerede konfigureret.",
@@ -213,7 +215,11 @@
       "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login — backendet returnerede \"Unknown user\". Det betyder, at det er en nyere ID/MEB-model (ID.3/4/5, e-up osv.), der aldrig blev registreret i det ældre Car-Net/MBB-system, så det vedvarende login + fjernkommandoerne kan ikke nå det. Brug EU Data Act-portalkanalen (eller login med e-mail + adgangskode) til disse køretøjer i stedet. MBB-loginet er til ældre Car-Net-biler (de fleste PHEV-/forbrændingsmodeller).",
       "mbb_fallback_armed": "Reserveforbindelse oprettet. Hvis din Audis normale forbindelse en dag holder op med at tage imod fjernkommandoer, skifter lås/lås op, klima og opladning automatisk til reserven. I hverdagen ændrer der sig ingenting.",
       "no_devicegrant_audi": "Ingen passende Audi fundet. Denne reserve gælder kun for en Audi, du har tilføjet med QR-/app-login, og som ikke allerede har den. Tilføj din Audi på den måde først, og kom så tilbage hertil.",
-      "porsche_login_wall": "Dine loginoplysninger er i orden — loginnet kom forbi adgangskodetrinnet, men stoppede ved en Porsche captcha-/samtykkeskærm, som det ikke kan gennemføre automatisk (set på my.porsche.com). Det er en blokering på Porsches side, fulgt i #1337, ikke en forkert adgangskode. Prøv ikke igen i en løkke — gentagne forsøg har låst Porsche-konti."
+      "porsche_login_wall": "Dine loginoplysninger er i orden — loginnet kom forbi adgangskodetrinnet, men stoppede ved en Porsche captcha-/samtykkeskærm, som det ikke kan gennemføre automatisk (set på my.porsche.com). Det er en blokering på Porsches side, fulgt i #1337, ikke en forkert adgangskode. Prøv ikke igen i en løkke — gentagne forsøg har låst Porsche-konti. Hvis du kan, så rapportér det, så vi kan rette det (vedhæft diagnostik): {report_url}",
+      "porsche_captcha_failed": "Captchaen kunne ikke bekræftes og er nu brugt. Luk denne dialog, og start Porsche-loginet igen for at få en ny. Hvis du kan, så rapportér det, så vi kan rette det (vedhæft diagnostik): {report_url}",
+      "porsche_captcha_cooldown": "For mange captcha-forsøg. Gentagne forsøg kan få Porsche til midlertidigt at låse kontoen eller markere dit netværk, så processen blev stoppet for at beskytte din konto. Vent et par minutter, før du prøver igen. Hvis du kan, så rapportér det, så vi kan rette det (vedhæft diagnostik): {report_url}",
+      "reconfigure_failed": "Genkonfiguration mislykkedes: konfigurationsposten blev ikke fundet. Prøv igen.",
+      "reauth_failed": "Gengodkendelse mislykkedes: konfigurationsposten blev ikke fundet. Prøv igen."
     },
     "progress": {
       "awaiting_browser_login": "Åbn {verification_uri} i en hvilken som helst browser, log ind med din Brand ID-konto, og bekræft koden {user_code}.",

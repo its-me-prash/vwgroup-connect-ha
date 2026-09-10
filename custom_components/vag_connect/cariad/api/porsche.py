@@ -224,6 +224,7 @@ class PorscheClient:
         captcha_code: str | None = None,
         resume_state: str | None = None,
         resume_verifier: str | None = None,
+        captcha_resume: dict | None = None,
     ) -> None:
         """Auth0 PKCE login.
 
@@ -231,12 +232,15 @@ class PorscheClient:
         that was interrupted by :class:`PorscheCaptchaRequiredError` — see
         ``PorscheAuth.authenticate`` for why the state/verifier must be the
         ones captured when the captcha was first raised, not fresh ones.
+        ``captcha_resume`` (G5, #1337) carries the replay descriptor for a
+        post-password captcha; it is forwarded verbatim.
         """
         self._tokens = await self._auth.authenticate(
             self._email, self._password,
             captcha_code=captcha_code,
             resume_state=resume_state,
             resume_verifier=resume_verifier,
+            captcha_resume=captcha_resume,
         )
         _LOGGER.debug("Porsche Connect auth complete")
 

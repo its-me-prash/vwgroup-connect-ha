@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Wymagana captcha",
-        "description": "Porsche wymaga rozwiązania captchy, aby kontynuować logowanie.\n\n{captcha_img}\n\nRozwiąż to tylko raz, najlepiej jak potrafisz — powtarzające się nieudane próby doprowadziły już do blokowania kont Porsche z powodu podejrzanej aktywności.",
+        "description": "Porsche wymaga rozwiązania captchy, aby kontynuować logowanie.\n\n{captcha_img}\n\nRozwiąż to tylko raz, najlepiej jak potrafisz — powtarzające się nieudane próby doprowadziły już do blokowania kont Porsche z powodu podejrzanej aktywności.\n\nTo, co tu wpiszesz, nie opuszcza Twojej instancji Home Assistant. Jeśli obraz się nie ładuje lub ciągle pojawiają się błędy, możesz to zgłosić (dołącz diagnostykę): {report_url}",
         "data": {
           "captcha_code": "Kod captcha"
         },
@@ -204,7 +204,9 @@
       "companion_app_not_found": "Połączono z telefonem, ale aplikacja marki nie jest na nim zainstalowana.",
       "companion_unknown_brand": "Ta marka nie ma jeszcze gotowego profilu telefonu pomocniczego.",
       "companion_agent_token_too_short": "Token agenta jest za krótki. Wklej losowy token wygenerowany przez aplikację agenta (co najmniej 32 znaki).",
-      "companion_host_required": "Podaj adres IP telefonu — albo zaznacz opcję agenta, jeśli to telefon łączy się z Home Assistant."
+      "companion_host_required": "Podaj adres IP telefonu — albo zaznacz opcję agenta, jeśli to telefon łączy się z Home Assistant.",
+      "missing_captcha": "Wpisz znaki widoczne na obrazku powyżej.",
+      "captcha_retry": "Rozwiąż captchę widoczną powyżej, aby kontynuować."
     },
     "abort": {
       "already_configured": "To konto jest już skonfigurowane.",
@@ -213,7 +215,11 @@
       "mbb_not_eligible": "Twój pojazd nie kwalifikuje się do trwałego logowania MBB — backend zwrócił „Unknown user”. To nowszy model ID / MEB (ID.3/4/5, e-up itp.), który nigdy nie był zarejestrowany w starym systemie Car-Net/MBB, więc trwałe logowanie i polecenia zdalne nie mogą go osiągnąć. Dla takich pojazdów użyj kanału portalu EU Data Act (lub logowania e-mail + hasło). Logowanie MBB jest przeznaczone dla starszych aut Car-Net (większość modeli hybryd plug-in / spalinowych).",
       "mbb_fallback_armed": "Połączenie zapasowe skonfigurowane. Jeśli zwykłe połączenie Twojego Audi kiedyś przestanie przyjmować polecenia zdalne, ryglowanie/odryglowanie, klimatyzacja i ładowanie automatycznie przełączą się na zapasowe. Na co dzień nic się nie zmienia.",
       "no_devicegrant_audi": "Nie znaleziono pasującego Audi. To połączenie zapasowe dotyczy tylko Audi dodanego przez logowanie QR / aplikacją, które jeszcze go nie ma. Najpierw dodaj w ten sposób swoje Audi, a potem wróć tutaj.",
-      "porsche_login_wall": "Twoje dane logowania są poprawne — logowanie przeszło etap hasła, ale zatrzymało się na ekranie captcha/zgody Porsche, którego nie da się ukończyć automatycznie (widziany pod my.porsche.com). To blokada po stronie Porsche, śledzona w #1337, a nie błędne hasło. Nie ponawiaj w pętli — powtarzane próby blokowały konta Porsche."
+      "porsche_login_wall": "Twoje dane logowania są poprawne — logowanie przeszło etap hasła, ale zatrzymało się na ekranie captcha/zgody Porsche, którego nie da się ukończyć automatycznie (widziany pod my.porsche.com). To blokada po stronie Porsche, śledzona w #1337, a nie błędne hasło. Nie ponawiaj w pętli — powtarzane próby blokowały konta Porsche. Jeśli możesz, zgłoś to, abyśmy mogli to naprawić (dołącz diagnostykę): {report_url}",
+      "porsche_captcha_failed": "Nie udało się zweryfikować captchy i jest ona już zużyta. Zamknij to okno i uruchom logowanie Porsche ponownie, aby otrzymać nową. Jeśli możesz, zgłoś to, abyśmy mogli to naprawić (dołącz diagnostykę): {report_url}",
+      "porsche_captcha_cooldown": "Zbyt wiele prób captchy. Powtarzane próby mogą spowodować, że Porsche tymczasowo zablokuje konto lub oznaczy Twoją sieć, dlatego przerwano działanie, aby chronić Twoje konto. Odczekaj kilka minut przed ponowną próbą. Jeśli możesz, zgłoś to, abyśmy mogli to naprawić (dołącz diagnostykę): {report_url}",
+      "reconfigure_failed": "Ponowna konfiguracja nie powiodła się: nie znaleziono wpisu konfiguracji. Spróbuj ponownie.",
+      "reauth_failed": "Ponowne uwierzytelnianie nie powiodło się: nie znaleziono wpisu konfiguracji. Spróbuj ponownie."
     },
     "progress": {
       "awaiting_browser_login": "Otwórz {verification_uri} w dowolnej przeglądarce, zaloguj się na konto Brand ID i potwierdź kod {user_code}.",

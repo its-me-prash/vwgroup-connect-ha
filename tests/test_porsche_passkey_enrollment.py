@@ -22,8 +22,11 @@ from unittest.mock import MagicMock
 from custom_components.vag_connect.cariad.auth.porsche import PorscheAuth
 from custom_components.vag_connect.cariad.exceptions import (
     AuthenticationError,
+    PorscheCaptchaRequiredError,
     PorscheLoginWallError,
 )
+
+import pytest
 
 _CB = "my-porsche-app://auth0/callback"
 _PW_URL = "https://identity.porsche.com/u/login/password?state=xyz"
@@ -173,12 +176,30 @@ class TestAculScreenGeneralisation:
         assert _follow(session, "/u/mfa-enroll?state=xyz") is None
         session.post.assert_not_called()
 
-    def test_captcha_in_redirect_chain_dead_ends_without_post(self) -> None:
-        # A captcha rendered mid-chain can't be solved here (the config-flow
-        # captcha step only resumes the identifier POST) — stop cleanly, no POST.
+    def test_captcha_in_redirect_chain_is_surfaced_for_solving(self) -> None:
+        # G5 (#1337) — a captcha rendered mid-chain (post-password) WITH a
+        # parseable ACUL context is no longer a dead end: it is raised so the
+        # config-flow captcha step can show it, carrying a replay descriptor
+        # (url + state) so the solved answer goes back to THIS exact screen.
+        # No POST happens during the walk itself (the solve POST is later).
         session = _session(
             get_responses=[_Resp(200, text=_acul_html("login-id", captcha=True))],
         )
+        with pytest.raises(PorscheCaptchaRequiredError) as excinfo:
+            _follow(session, "/authorize/resume?state=xyz")
+        err = excinfo.value
+        assert err.captcha_image.startswith("data:image/svg")
+        assert err.resume is not None
+        assert err.resume["form"]["state"] == "s1"
+        assert err.resume["url"].endswith("/authorize/resume?state=xyz")
+        session.post.assert_not_called()
+
+    def test_captcha_without_parseable_context_still_dead_ends(self) -> None:
+        # A captcha image with NO ACUL context (no atob blob) can't be replayed,
+        # so it must still dead-end cleanly (→ honest wall + report link), never
+        # invent a POST against the one confirmed-working login path.
+        raw = '<img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=">'
+        session = _session(get_responses=[_Resp(200, text=raw)])
         assert _follow(session, "/authorize/resume?state=xyz") is None
         session.post.assert_not_called()
 

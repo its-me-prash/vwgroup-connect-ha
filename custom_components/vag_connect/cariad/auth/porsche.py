@@ -205,6 +205,7 @@ class PorscheAuth:
         captcha_code: str | None = None,
         resume_state: str | None = None,
         resume_verifier: str | None = None,
+        captcha_resume: dict | None = None,
     ) -> TokenSet:
         """Full PKCE flow → access_token + refresh_token.
 
@@ -220,7 +221,17 @@ class PorscheAuth:
         state/verifier captured when the captcha was first raised, rather
         than starting a brand new transaction that would produce a
         ``code_verifier`` mismatch at the final token exchange.
+
+        ``captcha_resume`` (G5, #1337) resumes a captcha that appeared LATER
+        than the identifier step — in the post-password redirect chain, which
+        the identifier re-drive above cannot reach. It replays the solved
+        captcha to the exact ACUL screen that presented it (``_resume_acul_
+        captcha``) and continues to the code from there.
         """
+        if captcha_code and captcha_resume:
+            return await self._resume_acul_captcha(
+                captcha_code, captcha_resume, resume_verifier or "",
+            )
         if captcha_code and resume_state and resume_verifier:
             verifier = resume_verifier
             auth0_state = resume_state
@@ -275,13 +286,22 @@ class PorscheAuth:
         # (possibly new/chained) captcha challenge (b19, CJNE-comparison §1.5)
         # — neither is the generic "wall" case.
         login_url = f"https://{_AUTH_SERVER}/u/login/identifier?state={auth0_state}"
+        # #1337 — match the identifier-POST field shape CJNE/pyporscheconnectapi
+        # uses (verified against their oauth2.py). We previously declared WebAuthn
+        # support (`webauthn-available: true`), which routed enrolled accounts into
+        # the passkey-enrollment screen and on to the unclearable my.porsche.com
+        # wall (@Hollywoodchaos, #1337). Declaring NO WebAuthn keeps Auth0 on the
+        # identifier/captcha path, where a captcha surfaces as a solvable HTTP 400
+        # the config-flow captcha step can show — instead of the post-password
+        # wall. Reference, not a code copy (that library has separate PKCE/state/
+        # plaintext-password issues we don't want).
         identifier_data = {
             "state":       auth0_state,
             "username":    email,
             "js-available":"true",
-            "webauthn-available": "true",
+            "webauthn-available": "false",
             "is-brave":    "false",
-            "webauthn-platform-authenticator-available": "false",
+            "webauthn-platform-available": "false",
             "action":      "default",
         }
         if captcha_code:
@@ -330,6 +350,10 @@ class PorscheAuth:
                 raise AuthenticationError("Porsche auth failed — wrong credentials")
             location = resp.headers.get("Location", "")
             status = resp.status
+            # G5 (#1337) — read the rendered page only when it did NOT redirect,
+            # so a captcha shown DIRECTLY at the password step (not just later in
+            # the redirect chain) is solvable rather than a dead wall.
+            body = "" if location else await resp.text()
         # b11 (#1337 Hollywoodchaos) — the Porsche auth path emitted zero log
         # lines, so a user's debug capture showed nothing but the final warning.
         # Log status + whether a redirect was handed back (hostnames/statuses
@@ -342,6 +366,19 @@ class PorscheAuth:
                  "captcha/consent step the headless flow can't clear)",
         )
 
+        # G5 (#1337) — a captcha rendered as the DIRECT body of the password POST
+        # (no redirect). Surface it for solving if we can replay it; otherwise
+        # step 4 below turns the empty location into the honest wall.
+        if body:
+            image = self._extract_captcha_image(body)
+            if image:
+                resume = self._acul_captcha_resume(password_url, body)
+                if resume is not None:
+                    raise PorscheCaptchaRequiredError(
+                        image, resume["form"].get("state", ""), verifier,
+                        resume=resume,
+                    )
+
         # Step 4: follow the Auth0 redirect chain to the code.
         #
         # In Auth0's Identifier-First flow the password POST does NOT redirect
@@ -351,7 +388,7 @@ class PorscheAuth:
         # required the callback immediately, so it ALWAYS fell through to
         # "wrong credentials or captcha" even with correct credentials — a
         # self-inflicted failure independent of the Porsche One migration.
-        code = await self._follow_to_code(location, password_url)
+        code = await self._follow_to_code(location, password_url, verifier)
         if not code:
             # b23 (#1337) — the identifier + password were ACCEPTED above (a 401/
             # 400 there already raised the "wrong credentials" error); reaching
@@ -452,7 +489,9 @@ class PorscheAuth:
             parts.append("markers=" + ",".join(markers))
         return "; ".join(parts) if parts else "no title/markers"
 
-    async def _follow_to_code(self, location: str, base_url: str) -> str | None:
+    async def _follow_to_code(
+        self, location: str, base_url: str, verifier: str = "",
+    ) -> str | None:
         """Walk the redirect chain from the password POST to the auth code.
 
         Each ``Location`` may be relative (``/authorize/resume?...``) or
@@ -520,10 +559,31 @@ class PorscheAuth:
                         "(stale state or unparseable context) — stopping",
                     )
                     return None
-                if self._extract_captcha_image(html):
+                image = self._extract_captcha_image(html)
+                if image:
+                    # G5 (#1337) — a captcha AFTER the password step. CJNE never
+                    # reaches this (their login completes), so there is no
+                    # reference to copy: the robust move is to replay the solved
+                    # captcha back to THIS exact screen. If the ACUL context is
+                    # parseable we hand the config flow everything it needs to do
+                    # that (``resume``); if it is not, we cannot replay it safely,
+                    # so we fall through to the honest wall + the report link
+                    # rather than guess at a screen we can't read.
+                    resume = self._acul_captcha_resume(target, html)
+                    if resume is not None:
+                        _LOGGER.debug(
+                            "Porsche auth: hop rendered a solvable CAPTCHA screen "
+                            "(host=%s) — surfacing it to the setup dialog",
+                            urlsplit(target).hostname or "?",
+                        )
+                        raise PorscheCaptchaRequiredError(
+                            image, resume["form"].get("state", ""), verifier,
+                            resume=resume,
+                        )
                     _LOGGER.debug(
-                        "Porsche auth: hop rendered a CAPTCHA screen (host=%s) — "
-                        "cannot be solved inside the redirect chain; no code",
+                        "Porsche auth: hop rendered a CAPTCHA screen (host=%s) "
+                        "with no parseable ACUL context — cannot replay it; no "
+                        "code",
                         urlsplit(target).hostname or "?",
                     )
                     return None
@@ -562,6 +622,10 @@ class PorscheAuth:
         state = context.get("transaction", {}).get("state")
         if not state:
             return None
+        if not self._is_porsche_host(url):
+            # G5/#1337 (privacy) — never POST the seeded ACUL form off Porsche's
+            # own domain, even to decline passkey enrollment.
+            return None
         data = dict(context.get("untrustedData", {}).get("submittedFormData") or {})
         data.update({
             "state": state,
@@ -582,6 +646,121 @@ class PorscheAuth:
             if resp.status not in (301, 302, 303, 307, 308):
                 return None
             return resp.headers.get("Location", "")
+
+    @staticmethod
+    def _is_porsche_host(url: str) -> bool:
+        """True only for an ``https`` URL on Porsche's own domain.
+
+        G5/#1337 (privacy, defense-in-depth) — the ACUL replay POSTs a seeded
+        form (the screen's own ``submittedFormData`` + the solved captcha) back
+        to the host that rendered the screen. That host comes from a redirect
+        ``Location`` header, so pin it to Porsche's own Auth0 domain before any
+        such POST: a subverted redirect chain must never divert the
+        credential-adjacent POST off-domain.
+        """
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        return parts.scheme == "https" and (
+            host == _AUTH_SERVER or host.endswith(".porsche.com")
+        )
+
+    def _acul_captcha_resume(self, url: str, html: str) -> dict | None:
+        """Build the replay descriptor for a post-password ACUL captcha screen.
+
+        G5 (#1337). Reads the same base64 ``atob("...")`` ACUL context the other
+        screen helpers use: ``transaction.state`` (required — without it the
+        screen cannot be POSTed back) plus any ``untrustedData.submittedFormData``
+        the page carried (seeded first, like ``_skip_passkey_enrollment``, in
+        case an ACUL version validates that expected fields are present). Returns
+        ``{"url": <this screen's POST url>, "form": {...submittedFormData,
+        "state": <state>}}``, or ``None`` when there is no parseable context /
+        state, or the screen is not on Porsche's own domain — the caller then
+        treats it as an unreplayable wall.
+        """
+        if not self._is_porsche_host(url):
+            return None
+        match = re.search(r'atob\("([A-Za-z0-9+/=]+)"', html)
+        if not match:
+            return None
+        try:
+            context = json.loads(base64.b64decode(match.group(1)).decode("utf-8"))
+        except (ValueError, json.JSONDecodeError):
+            return None
+        if not isinstance(context, dict):
+            return None
+        transaction = context.get("transaction")
+        state = transaction.get("state") if isinstance(transaction, dict) else None
+        if not isinstance(state, str) or not state:
+            return None
+        untrusted = context.get("untrustedData")
+        submitted = untrusted.get("submittedFormData") if isinstance(untrusted, dict) else None
+        form = dict(submitted) if isinstance(submitted, dict) else {}
+        form["state"] = state
+        return {"url": url, "form": form}
+
+    async def _resume_acul_captcha(
+        self, captcha_code: str, resume: dict, verifier: str,
+    ) -> TokenSet:
+        """Replay a solved post-password captcha to the screen that showed it.
+
+        G5 (#1337). POSTs the captcha back to ``resume["url"]`` with the seeded
+        ACUL form data (``resume["form"]`` carries the screen ``state``), the
+        solved ``captcha`` and ``action=default``, then continues down the
+        redirect chain to the authorization code and exchanges it — reusing the
+        ORIGINAL PKCE ``verifier`` so the token exchange still matches. A chained
+        captcha (another one comes back) re-raises
+        :class:`PorscheCaptchaRequiredError` so the config flow loops; anything
+        else that is not a redirect toward a code is the honest wall.
+
+        NOT LIVE-VERIFIED — no account here has produced a post-password captcha;
+        the shape mirrors ``_skip_passkey_enrollment`` (the one ACUL replay CJNE
+        does confirm) and any misfire surfaces through the in-flow report link.
+        """
+        url = str(resume.get("url") or "")
+        if not self._is_porsche_host(url):
+            # The descriptor is built with the same guard, so this should be
+            # unreachable; keep it as a hard stop against ever POSTing the
+            # seeded form off Porsche's domain.
+            raise PorscheLoginWallError()
+        form = dict(resume.get("form") or {})
+        form.update({
+            "captcha":  captcha_code,
+            "action":   "default",
+            "acul-sdk": "@auth0/auth0-acul-js@1.2.0",
+        })
+        async with self._session.post(
+            url,
+            timeout=_AUTH_TIMEOUT,
+            data=form,
+            headers={
+                "User-Agent":   _USER_AGENT,
+                "X-Client-ID":  _X_CLIENT,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            allow_redirects=False,
+        ) as resp:
+            status = resp.status
+            location = resp.headers.get("Location", "")
+            body = "" if status in (301, 302, 303, 307, 308) else await resp.text()
+        if status in (301, 302, 303, 307, 308) and location:
+            code = await self._follow_to_code(location, url, verifier)
+            if not code:
+                raise PorscheLoginWallError()
+            return await self._exchange_code(code, verifier)
+        if status == 200:
+            # The screen re-rendered instead of advancing: another captcha
+            # (chain it so the config flow can show the fresh one) or a wall.
+            image = self._extract_captcha_image(body)
+            if image:
+                nxt = self._acul_captcha_resume(url, body)
+                if nxt is not None:
+                    raise PorscheCaptchaRequiredError(
+                        image, nxt["form"].get("state", ""), verifier, resume=nxt,
+                    )
+            raise PorscheLoginWallError()
+        raise AuthenticationError(
+            f"Porsche captcha resume failed (HTTP {status})"
+        )
 
     async def refresh(self, refresh_token: str) -> TokenSet:
         """Refresh tokens using refresh_token.

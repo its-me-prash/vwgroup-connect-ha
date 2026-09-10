@@ -33,7 +33,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha required",
-        "description": "Porsche needs you to solve a captcha to continue signing in.\n\n{captcha_img}\n\nOnly solve this once with your best guess — repeated failed attempts have caused Porsche to lock accounts for suspicious activity.",
+        "description": "Porsche needs you to solve a captcha to continue signing in.\n\n{captcha_img}\n\nOnly solve this once with your best guess — repeated failed attempts have caused Porsche to lock accounts for suspicious activity.\n\nNothing you enter here leaves your Home Assistant instance. If the image will not load or you keep getting errors, you can report it (attach diagnostics): {report_url}",
         "data": {
           "captcha_code": "Captcha Code"
         },
@@ -204,7 +204,9 @@
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet.",
       "companion_agent_token_too_short": "The agent token is too short. Paste the random token the agent app generated (at least 32 characters).",
-      "companion_host_required": "Enter the phone's IP address — or tick the companion agent option if the phone calls Home Assistant instead."
+      "companion_host_required": "Enter the phone's IP address — or tick the companion agent option if the phone calls Home Assistant instead.",
+      "missing_captcha": "Please type the characters shown in the image above.",
+      "captcha_retry": "Please solve the captcha shown above to continue."
     },
     "abort": {
       "already_configured": "This account is already configured.",
@@ -213,7 +215,11 @@
       "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models).",
       "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
       "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here.",
-      "porsche_login_wall": "Your credentials are fine — the login got past the password step but stopped at a Porsche captcha/consent screen it can't complete automatically (seen at my.porsche.com). This is a Porsche-side wall, tracked in #1337, not a wrong password. Don't retry in a loop — repeated attempts have locked Porsche accounts."
+      "porsche_login_wall": "Your credentials are fine — the login got past the password step but stopped at a Porsche captcha/consent screen it can't complete automatically (seen at my.porsche.com). This is a Porsche-side wall, tracked in #1337, not a wrong password. Don't retry in a loop — repeated attempts have locked Porsche accounts. If you can, please report it so we can fix it (attach diagnostics): {report_url}",
+      "porsche_captcha_failed": "That captcha could not be verified and it is now used up. Please close this dialog and start the Porsche login again to get a fresh one. If you can, please report it so we can fix it (attach diagnostics): {report_url}",
+      "porsche_captcha_cooldown": "Too many captcha attempts. Repeated tries can make Porsche temporarily lock the account or flag your network, so this stopped to keep your account safe. Wait a few minutes before trying again. If you can, please report it so we can fix it (attach diagnostics): {report_url}",
+      "reconfigure_failed": "Reconfigure failed: the configuration entry could not be found. Please try again.",
+      "reauth_failed": "Re-authentication failed: the configuration entry could not be found. Please try again."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",

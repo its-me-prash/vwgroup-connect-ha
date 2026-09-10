@@ -42,7 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [4.7.6] - 2026-09-10 — More live fields from the Scout feed
+## [4.7.6] - 2026-09-10 — More live fields from the Scout feed, and an interactive Porsche captcha
 
 ### Added
 - **GPS position, heading, short-term consumption and an engine-starts count from the live Scout
@@ -50,6 +50,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   the car's GPS position (it does send coordinates under `persLocation`), its heading, the short-term
   average electric consumption and a total engine-starts counter now come through as sensors, and the
   trip id is consumed for correlation. Grounded on real Škoda Elroq and Audi captures (#1378, #1375).
+- **Porsche login now gets past the captcha wall — solve it right in the setup dialog.** Porsche's
+  login can put up an Auth0 captcha; the integration now shows it inline during setup,
+  re-authentication and reconfigure so you can type it and continue. The login also stops declaring
+  passkey support (matching a proven reference client), which keeps Porsche on the solvable captcha
+  path instead of bouncing to the unclearable `my.porsche.com` consent wall some accounts hit before —
+  confirmed working end-to-end on a real account. A captcha shown after the password step is replayed
+  to the exact screen that presented it (pinned to Porsche's own domain). Retries are bounded (too many
+  can lock a Porsche account), the challenge you enter never leaves your Home Assistant instance, and
+  any login that still can't be cleared gives an honest message plus a one-click report link with
+  auto-redacted diagnostics (#1337).
 
 ### Fixed
 - **Battery % right after plugging in: two more source fields covered.** The v4.7.5 fix that stops the
