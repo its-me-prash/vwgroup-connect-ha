@@ -42,6 +42,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.7] - 2026-09-10 — Porsche login remembers itself (captcha only once)
+
+### Fixed
+- **Porsche no longer asks for the captcha on every restart.** The Porsche login token is now kept
+  and reused across restarts — refreshed silently through the token endpoint the same way every other
+  brand's is, which is never captcha-gated. So the interactive login (the only place Porsche's captcha
+  appears) runs essentially once, at first setup, instead of on every Home Assistant restart. The
+  captcha you solve during setup is carried straight into the running integration, so setup no longer
+  trips a second captcha right after it (#1337).
+
 ## [4.7.6] - 2026-09-10 — More live fields from the Scout feed, and an interactive Porsche captcha
 
 ### Added

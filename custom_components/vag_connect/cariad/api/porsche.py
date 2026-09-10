@@ -202,6 +202,13 @@ class PorscheClient:
         self._password = password
         self._spin    = spin
         self._tokens: TokenSet | None = None
+        # v4.7.7 (#1337) — token persistence hook. The coordinator assigns
+        # ``_token_storage.save`` here (same contract as CariadBase) and calls
+        # ``set_persisted_tokens`` on startup, so a solved-captcha login is
+        # reused across restarts via the never-captcha-gated /oauth/token
+        # refresh instead of re-running the interactive login every time.
+        # Signature: ``async def on_tokens_changed(tokens: TokenSet) -> None``.
+        self.on_tokens_changed: Any | None = None
         self._auth = PorscheAuth(session)
         # v1.25.0 PR-B: refresh-storm protection state
         self._refresh_lock: asyncio.Lock | None = None
@@ -243,6 +250,32 @@ class PorscheClient:
             captcha_resume=captcha_resume,
         )
         _LOGGER.debug("Porsche Connect auth complete")
+        await self._emit_tokens()
+
+    def set_persisted_tokens(self, tokens: "TokenSet | None") -> None:
+        """Restore a stored token set so startup can skip the interactive login.
+
+        v4.7.7 (#1337). Mirrors ``CariadBase.set_persisted_tokens``: the
+        coordinator calls this before deciding whether to ``authenticate()``.
+        Only a token set carrying a usable ``refresh_token`` is restored — the
+        Porsche captcha lives on the interactive login, never on the
+        ``/oauth/token`` refresh, so a restored refresh token lets reads renew
+        silently. A refresh that has died (401/403) falls back to a full login
+        via the coordinator's existing not-a-portal retry path.
+        """
+        if tokens is not None and tokens.refresh_token:
+            self._tokens = tokens
+
+    async def _emit_tokens(self) -> None:
+        """Persist the current tokens via the coordinator's save hook (fail-soft)."""
+        if self.on_tokens_changed is None or self._tokens is None:
+            return
+        if not self._tokens.strategy:
+            self._tokens.strategy = "porsche"
+        try:
+            await self.on_tokens_changed(self._tokens)
+        except Exception:  # noqa: BLE001 — persistence is best-effort, never break auth
+            _LOGGER.debug("Porsche: token persistence hook failed", exc_info=True)
 
     async def get_vehicles(self) -> list[str]:
         """Return list of VINs from Porsche Connect garage."""
@@ -1212,6 +1245,7 @@ class PorscheClient:
             if self._tokens and self._tokens.refresh_token:
                 try:
                     self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                    await self._emit_tokens()  # v4.7.7 — persist the rotated token
                     return
                 except TokenExpiredError:
                     pass
