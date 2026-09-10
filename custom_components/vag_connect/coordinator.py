@@ -1405,6 +1405,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # up on a subsequent config_flow update.
                 await self._token_storage.save(persisted)
 
+            # v4.7.7 (#1337) — Porsche: the config flow already solved the
+            # captcha and got a token; it stashed it in entry.data so the FIRST
+            # coordinator setup reuses it (via the never-captcha-gated
+            # /oauth/token refresh) instead of running a SECOND interactive login
+            # — another captcha — right after setup. Promote it into the
+            # persistent store; from then on it's a normal cached-token restart.
+            porsche_initial = self.entry.data.get("porsche_initial_tokens")
+            if persisted is None and porsche_initial:
+                from .cariad.models import TokenSet  # noqa: PLC0415
+                persisted = TokenSet(
+                    access_token=str(porsche_initial.get("access_token", "")),
+                    refresh_token=str(porsche_initial.get("refresh_token", "")),
+                    id_token=str(porsche_initial.get("id_token", "")),
+                    expires_at=float(porsche_initial.get("expires_at", 0.0) or 0.0),
+                    strategy=str(porsche_initial.get("strategy", "") or "porsche"),
+                )
+                _LOGGER.debug(
+                    "VW Group Connect: bootstrapping Porsche with the config-flow "
+                    "login token for %s — skipping a second interactive login",
+                    brand,
+                )
+                await self._token_storage.save(persisted)
+
         # VW EU Two-Way (650d46ca): when armed, the modern-BFF device-grant token
         # is the PRIMARY. Activate it from entry.data on the config_flow reload
         # (overriding an older primary); once the re-mint has saved a device_grant

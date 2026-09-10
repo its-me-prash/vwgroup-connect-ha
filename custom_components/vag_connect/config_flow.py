@@ -191,7 +191,7 @@ async def _validate_credentials(
     captcha_state: str | None = None,
     captcha_verifier: str | None = None,
     captcha_resume: dict | None = None,
-) -> None:
+) -> dict[str, Any] | None:
     """Validate credentials by authenticating with the CARIAD API.
 
     ``captcha_code``/``captcha_state``/``captcha_verifier`` (b19, #1337,
@@ -308,6 +308,22 @@ async def _validate_credentials(
                 "".join(traceback.format_tb(err.__traceback__)),
             )
             raise ValueError("cannot_connect") from err
+
+        # v4.7.7 (#1337) — on a successful Porsche login, return the token set so
+        # the config flow can bridge it into the entry (porsche_initial_tokens).
+        # The coordinator then reuses it via the never-captcha-gated /oauth/token
+        # refresh instead of running a SECOND interactive login (another captcha)
+        # at first setup. Other brands / no token → None (unchanged behaviour).
+        _t = getattr(client, "_tokens", None)
+        if isinstance(client, PorscheClient) and _t is not None:
+            return {
+                "access_token":  _t.access_token,
+                "refresh_token": _t.refresh_token,
+                "id_token":      _t.id_token,
+                "expires_at":    _t.expires_at,
+                "strategy":      _t.strategy or "porsche",
+            }
+    return None
 
 
 def _map_error(err_code: str) -> str:
@@ -759,7 +775,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
 
             try:
-                await _validate_credentials(
+                _tok = await _validate_credentials(
                     self.hass, brand, username, password, country=country
                 )
             except PorscheCaptchaRequiredError as err:
@@ -830,6 +846,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._dag_user_id = ""
                     self._dag_error = ""
                     return await self.async_step_browser_login_pending()
+                if _tok:  # v4.7.7 (#1337) — bridge a Porsche login token (no-captcha path)
+                    portal_data = {**portal_data, "porsche_initial_tokens": _tok}
                 return self.async_create_entry(
                     title=f"{_brand_label(brand)} — {username}",
                     data=portal_data,
@@ -2012,6 +2030,46 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             pass
         return f'<img src="{data_uri}" />'
 
+    async def _persist_porsche_token_store(
+        self, entry_id: str, tok: dict[str, Any] | None
+    ) -> None:
+        """v4.7.7 (#1337) — on Porsche reauth/reconfigure, OVERWRITE the per-entry
+        token store with the freshly solved-captcha token.
+
+        The coordinator prefers the persisted token store; the entry.data bridge
+        (``porsche_initial_tokens``) is only promoted when that store is EMPTY. On
+        a reauth the store still holds the old, now-dead token, so without this
+        overwrite the reload would restore the dead token and loop straight back
+        to reauth. Mirrors the DAG QR reauth's store overwrite. Fail-soft: a
+        storage error must not block the (otherwise successful) reauth.
+        """
+        if not tok:
+            return
+        try:
+            from homeassistant.helpers.storage import Store  # noqa: PLC0415
+
+            from .cariad.auth._token_storage import (  # noqa: PLC0415
+                _STORAGE_VERSION,
+                TokenStorage,
+                storage_key_for_entry,
+            )
+            from .cariad.models import TokenSet  # noqa: PLC0415
+            fresh = TokenSet(
+                access_token=str(tok.get("access_token", "")),
+                refresh_token=str(tok.get("refresh_token", "")),
+                id_token=str(tok.get("id_token", "")),
+                expires_at=float(tok.get("expires_at", 0.0) or 0.0),
+                strategy=str(tok.get("strategy", "") or "porsche"),
+            )
+            store: Store[dict[str, Any]] = Store(
+                self.hass, _STORAGE_VERSION, storage_key_for_entry(entry_id)
+            )
+            await TokenStorage(store).save(fresh)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Porsche: could not overwrite token store on reauth", exc_info=True
+            )
+
     async def async_step_porsche_captcha(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -2062,7 +2120,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 else:
                     country = self._pending_entry_data.get(CONF_COUNTRY, "us")
                 try:
-                    await _validate_credentials(
+                    _tok = await _validate_credentials(
                         self.hass, "porsche",
                         self._pending_username, self._pending_password,
                         country=country,
@@ -2118,7 +2176,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                                 **reauth_entry.data,
                                 CONF_PASSWORD: self._pending_password,
                                 CONF_SPIN: self._porsche_reauth_spin,
+                                # v4.7.7 (#1337) — bridge the freshly solved-captcha
+                                # token so the reload reuses it (refresh) instead of
+                                # a fresh interactive login (another captcha).
+                                **({"porsche_initial_tokens": _tok} if _tok else {}),
                             },
+                        )
+                        # v4.7.7 — overwrite the token store so the reload reuses
+                        # the fresh token, not the dead one it still holds.
+                        await self._persist_porsche_token_store(
+                            reauth_entry.entry_id, _tok
                         )
                         await self.hass.config_entries.async_reload(
                             reauth_entry.entry_id
@@ -2147,17 +2214,25 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                             base if new_unique_id != entry.unique_id
                             else {**entry.data, **base}
                         )
+                        if _tok:  # v4.7.7 — bridge the solved-captcha token
+                            merged["porsche_initial_tokens"] = _tok
                         self.hass.config_entries.async_update_entry(
                             entry,
                             title=f"{_brand_label(brand)} — {username}",
                             unique_id=new_unique_id,
                             data=merged,
                         )
+                        await self._persist_porsche_token_store(entry.entry_id, _tok)
                         await self.hass.config_entries.async_reload(entry.entry_id)
                         return self.async_abort(reason="reconfigure_successful")
                     # "email_password" — Porsche is never MBB-eligible (VW/Audi
                     # only), so the non-captcha path's plain create-entry branch
                     # is the only outcome here.
+                    if _tok:  # v4.7.7 — bridge the solved-captcha token
+                        self._pending_entry_data = {
+                            **self._pending_entry_data,
+                            "porsche_initial_tokens": _tok,
+                        }
                     return self.async_create_entry(
                         title=f"{_brand_label(self._pending_brand)} — {self._pending_username}",
                         data=self._pending_entry_data,
@@ -2214,7 +2289,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
 
             try:
-                await _validate_credentials(
+                _tok = await _validate_credentials(
                     self.hass, brand, username, password, country=country
                 )
             except PorscheCaptchaRequiredError as err:
@@ -2244,8 +2319,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             else:
                 self.hass.config_entries.async_update_entry(
                     reauth_entry,
-                    data={**reauth_entry.data, CONF_PASSWORD: password, CONF_SPIN: spin},
+                    data={
+                        **reauth_entry.data,
+                        CONF_PASSWORD: password,
+                        CONF_SPIN: spin,
+                        # v4.7.7 (#1337) — bridge a Porsche login token so the
+                        # reload reuses it (refresh) instead of re-logging in.
+                        **({"porsche_initial_tokens": _tok} if _tok else {}),
+                    },
                 )
+                await self._persist_porsche_token_store(reauth_entry.entry_id, _tok)
                 await self.hass.config_entries.async_reload(reauth_entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
@@ -2384,7 +2467,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
 
             try:
-                await _validate_credentials(
+                _tok = await _validate_credentials(
                     self.hass, brand, username, password, country=country
                 )
             except PorscheCaptchaRequiredError as err:
@@ -2437,6 +2520,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # (unique_id changed) do a clean rebuild — carrying the previous
                 # account's brand-specific tokens forward would be wrong.
                 merged = base if account_changed else {**entry.data, **base}
+                if _tok:  # v4.7.7 (#1337) — bridge a Porsche login token
+                    merged["porsche_initial_tokens"] = _tok
 
                 # v2.17.2 (#666) — arm the durable-MBB command channel on an
                 # EXISTING portal entry via Reconfigure (VW/Audi). Mirrors the
@@ -2485,6 +2570,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     unique_id=new_unique_id,
                     data=merged,
                 )
+                await self._persist_porsche_token_store(entry.entry_id, _tok)
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reconfigure_successful")
 
