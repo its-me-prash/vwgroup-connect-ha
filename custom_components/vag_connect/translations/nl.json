@@ -1445,6 +1445,12 @@
       },
       "readiness_software_update_status": {
         "name": "Status software-update"
+      },
+      "short_term_avg_electric_consumption_kwh_100km": {
+        "name": "Kortetermijn gemiddeld elektriciteitsverbruik"
+      },
+      "engine_starts_count": {
+        "name": "Motorstarts"
       }
     },
     "binary_sensor": {

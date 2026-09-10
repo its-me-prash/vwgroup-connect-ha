@@ -1445,6 +1445,12 @@
       },
       "readiness_software_update_status": {
         "name": "Ohjelmistopäivityksen tila"
+      },
+      "short_term_avg_electric_consumption_kwh_100km": {
+        "name": "Lyhyen aikavälin keskimääräinen sähkönkulutus"
+      },
+      "engine_starts_count": {
+        "name": "Moottorin käynnistykset"
       }
     },
     "binary_sensor": {
