@@ -415,23 +415,37 @@ class PorscheCaptchaRequiredError(AuthenticationError):
     """b19 (#1337, CJNE-comparison #12a) — Porsche's Auth0 tenant rendered a
     captcha challenge instead of continuing the login redirect chain.
 
-    Carries what a future interactive config-flow step would need to resume
-    the SAME PKCE transaction after the user solves it (the verifier cannot
-    be regenerated — it is bound to the original ``/authorize`` request), the
-    same way CJNE/pyporscheconnectapi's ``PorscheCaptchaRequiredError`` does.
-    No solving path exists yet; this only lets a captcha wall be distinguished
-    from wrong credentials in logs/diagnostics.
+    Carries what the interactive config-flow step needs to resume the SAME PKCE
+    transaction after the user solves it (the verifier cannot be regenerated —
+    it is bound to the original ``/authorize`` request), the same way
+    CJNE/pyporscheconnectapi's ``PorscheCaptchaRequiredError`` does.
+
+    ``resume`` (G5, #1337) is present only for a captcha that appears LATER in
+    the flow than the identifier step — i.e. in the post-password redirect chain
+    (which CJNE never sees, because their login completes). It is an opaque
+    descriptor ``{"url": <screen POST url>, "form": <ACUL submittedFormData +
+    state>}`` that lets the resume replay the solved captcha back to the exact
+    ACUL screen that presented it, instead of re-driving identifier + password.
+    ``None`` means the classic identifier-step captcha, which resumes by
+    re-POSTing the identifier with the ``captcha`` field (unchanged).
     """
 
-    def __init__(self, captcha_image: str, state: str, code_verifier: str) -> None:
+    def __init__(
+        self,
+        captcha_image: str,
+        state: str,
+        code_verifier: str,
+        resume: dict | None = None,
+    ) -> None:
         super().__init__(
-            "Porsche requires a captcha to be solved — not yet solvable "
-            "automatically. Sign in manually in the Porsche app once, or "
-            "wait for interactive captcha support."
+            "Porsche requires a captcha to be solved — the interactive setup "
+            "step will show it. If it cannot be cleared, sign in once in the "
+            "Porsche app from the same network."
         )
         self.captcha_image = captcha_image
         self.state = state
         self.code_verifier = code_verifier
+        self.resume = resume
 
 
 class PorscheLoginWallError(AuthenticationError):

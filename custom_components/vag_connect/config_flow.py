@@ -190,6 +190,7 @@ async def _validate_credentials(
     captcha_code: str | None = None,
     captcha_state: str | None = None,
     captcha_verifier: str | None = None,
+    captcha_resume: dict | None = None,
 ) -> None:
     """Validate credentials by authenticating with the CARIAD API.
 
@@ -233,6 +234,7 @@ async def _validate_credentials(
                     captcha_code=captcha_code,
                     resume_state=captcha_state,
                     resume_verifier=captcha_verifier,
+                    captcha_resume=captcha_resume,
                 )
             else:
                 await client.authenticate(mfa_code=mfa_code)
@@ -417,7 +419,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._porsche_captcha_image: str = ""
         self._porsche_captcha_state: str = ""
         self._porsche_captcha_verifier: str = ""
-        self._porsche_captcha_return: str = ""  # "email_password" | "reauth"
+        # G5 (#1337) — replay descriptor for a post-password captcha (None for a
+        # classic identifier-step captcha, which resumes via the identifier POST).
+        self._porsche_captcha_resume: dict | None = None
+        self._porsche_captcha_return: str = ""  # "email_password"|"reauth"|"reconfigure"
+        # #1337 — bound the captcha loop: Auth0 can chain challenge after
+        # challenge, and repeated failed attempts have LOCKED Porsche accounts
+        # (ha-porscheconnect#199). After this many submits we stop and hand the
+        # user a one-click GitHub report instead of letting them hammer on.
+        self._porsche_captcha_attempts: int = 0
+        self._porsche_reconfigure_entry_id: str = ""
         self._porsche_reauth_entry_id: str = ""
         self._porsche_reauth_spin: str = ""
         self._porsche_reauth_country: str = "us"
@@ -761,6 +772,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_image    = err.captcha_image
                 self._porsche_captcha_state    = err.state
                 self._porsche_captcha_verifier = err.code_verifier
+                self._porsche_captcha_resume   = err.resume
                 return await self.async_step_porsche_captcha()
             except ValueError as err:
                 err_str = str(err)
@@ -771,6 +783,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._pending_entry_data = self._build_entry_data(brand, username, password, user_input)
                     self._pending_user_input = dict(user_input)
                     return await self.async_step_mfa()
+                if err_str == "porsche_login_wall":
+                    # #1337 — the login got past the password but hit a Porsche
+                    # wall we can't clear headless. Stop cleanly and offer a
+                    # one-click report so we capture which screen it was.
+                    return self.async_abort(
+                        reason="porsche_login_wall",
+                        description_placeholders={
+                            "report_url": self._porsche_report_url(
+                                "email_password", "porsche_login_wall"
+                            ),
+                        },
+                    )
                 errors["base"] = _map_error(err_str)
             else:
                 portal_data = self._build_entry_data(
@@ -1926,6 +1950,44 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         )
 
     @staticmethod
+    def _porsche_report_url(step: str, reason: str, screen: str = "") -> str:
+        """Build a PII-FREE pre-filled GitHub issue URL for a Porsche login wall.
+
+        #1337 — when the headless login hits a screen we can't clear (captcha /
+        consent / an unknown Auth0 ACUL screen), we don't yet know WHICH screen
+        it is for that account. Rather than wait for a reporter to volunteer a
+        capture, the setup dialog hands the user a one-click "report this" link
+        so we get the decisive datapoint cleanly.
+
+        Privacy: the query string carries ONLY non-identifying context — which
+        step failed, the error key, and the Auth0 screen name if known. It must
+        NEVER contain a VIN, e-mail, password, token, captcha text, or any full
+        auth URL (those carry ``state``/``code``). Everything sensitive stays in
+        the auto-redacted diagnostics the body asks the user to attach — never in
+        the URL. (Redaction-gate: no secrets/PII in query strings.)
+        """
+        from urllib.parse import urlencode  # noqa: PLC0415
+
+        title = f"[Porsche login] {reason}"
+        body = (
+            "Auto-filled by the VW Group Connect setup dialog.\n\n"
+            f"- Step: {step}\n"
+            f"- Error: {reason}\n"
+            f"- Auth0 screen: {screen or 'unknown'}\n\n"
+            "What happened (optional):\n\n\n"
+            "Please attach your diagnostics: Settings -> Devices & Services -> "
+            "VW Group Connect -> three-dots menu -> Download diagnostics "
+            "(it is automatically redacted). If you can, also enable debug "
+            "logging first, reproduce, and paste any 'Porsche auth:' log lines "
+            "-- they name the exact screen this got stuck on.\n"
+        )
+        query = urlencode({"labels": "porsche,auth", "title": title, "body": body})
+        return (
+            "https://github.com/its-me-prash/vwgroup-connect-ha/issues/new?"
+            + query
+        )
+
+    @staticmethod
     def _porsche_captcha_img_html(data_uri: str) -> str:
         """Resize a tiny inline captcha SVG for visibility.
 
@@ -1974,64 +2036,132 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         errors: dict[str, str] = {}
         from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
 
+        # #1337 — one report link for every give-up path in this step, so a user
+        # who hits a wall we can't clear can hand us the decisive datapoint.
+        def _abort_report(reason: str) -> config_entries.ConfigFlowResult:
+            return self.async_abort(
+                reason=reason,
+                description_placeholders={
+                    "report_url": self._porsche_report_url(
+                        self._porsche_captcha_return or "porsche_captcha", reason
+                    ),
+                },
+            )
+
         if user_input is not None:
             code = str(user_input.get(CONF_CAPTCHA_CODE, "")).strip()
-            country = (
-                self._porsche_reauth_country
-                if self._porsche_captcha_return == "reauth"
-                else self._pending_entry_data.get(CONF_COUNTRY, "us")
-            )
-            try:
-                await _validate_credentials(
-                    self.hass, "porsche",
-                    self._pending_username, self._pending_password,
-                    country=country,
-                    captcha_code=code,
-                    captcha_state=self._porsche_captcha_state,
-                    captcha_verifier=self._porsche_captcha_verifier,
-                )
-            except PorscheCaptchaRequiredError as err:
-                # Chained captcha (CJNE-comparison #12 — ha-porscheconnect
-                # handles this the same way): Auth0 rendered ANOTHER one
-                # rather than accepting or cleanly rejecting the solution.
-                # Update state and re-show the form with the new image.
-                self._porsche_captcha_image    = err.captcha_image
-                self._porsche_captcha_state    = err.state
-                self._porsche_captcha_verifier = err.code_verifier
-            except ValueError as err:
-                mapped = _map_error(str(err))
-                if mapped == "porsche_login_wall":
-                    # b23 (#1337) — the captcha was accepted but the login then
-                    # hit the post-password captcha/consent wall. Re-showing the
-                    # now-consumed captcha would just invite a lockout-risking
-                    # retry (repeated failures have locked Porsche accounts), so
-                    # stop cleanly with the honest reason instead.
-                    return self.async_abort(reason="porsche_login_wall")
-                errors["base"] = mapped
+            if not code:
+                # Blank submit — nothing was consumed, so re-show the SAME image
+                # (no fresh challenge fetched → no extra hit on Porsche's Auth0).
+                errors["base"] = "missing_captcha"
             else:
                 if self._porsche_captcha_return == "reauth":
-                    reauth_entry = self.hass.config_entries.async_get_entry(
-                        self._porsche_reauth_entry_id
+                    country = self._porsche_reauth_country
+                elif self._porsche_captcha_return == "reconfigure":
+                    country = self._pending_user_input.get(CONF_COUNTRY, "us")
+                else:
+                    country = self._pending_entry_data.get(CONF_COUNTRY, "us")
+                try:
+                    await _validate_credentials(
+                        self.hass, "porsche",
+                        self._pending_username, self._pending_password,
+                        country=country,
+                        captcha_code=code,
+                        captcha_state=self._porsche_captcha_state,
+                        captcha_verifier=self._porsche_captcha_verifier,
+                        captcha_resume=self._porsche_captcha_resume,
                     )
-                    if reauth_entry is None:
-                        return self.async_abort(reason="reauth_failed")
-                    self.hass.config_entries.async_update_entry(
-                        reauth_entry,
-                        data={
-                            **reauth_entry.data,
-                            CONF_PASSWORD: self._pending_password,
-                            CONF_SPIN: self._porsche_reauth_spin,
-                        },
+                except PorscheCaptchaRequiredError as err:
+                    # Chained captcha (CJNE-comparison #12 — ha-porscheconnect
+                    # handles this the same way): Auth0 rendered ANOTHER one
+                    # rather than accepting or cleanly rejecting the solution.
+                    # Bound the loop — repeated failed attempts have LOCKED
+                    # Porsche accounts (ha-porscheconnect#199), so after a few
+                    # tries we stop and offer a report instead of hammering.
+                    self._porsche_captcha_attempts += 1
+                    if self._porsche_captcha_attempts >= 3:
+                        return _abort_report("porsche_captcha_cooldown")
+                    # Fresh image/state/verifier — never re-show a consumed one.
+                    self._porsche_captcha_image    = err.captcha_image
+                    self._porsche_captcha_state    = err.state
+                    self._porsche_captcha_verifier = err.code_verifier
+                    self._porsche_captcha_resume   = err.resume
+                    errors["base"] = "captcha_retry"
+                except ValueError as err:
+                    mapped = _map_error(str(err))
+                    if mapped == "porsche_login_wall":
+                        # b23 (#1337) — the captcha was accepted but the login
+                        # then hit the post-password captcha/consent wall.
+                        # Re-showing the now-consumed captcha would just invite a
+                        # lockout-risking retry, so stop cleanly + offer a report.
+                        return _abort_report("porsche_login_wall")
+                    if mapped == "cannot_connect":
+                        # Transient — the challenge may still be valid, so let the
+                        # user retry rather than forcing a full restart.
+                        errors["base"] = "cannot_connect"
+                    else:
+                        # Auth0 rejected without re-challenging: the captcha is
+                        # consumed and dead. Don't loop on a stale image — stop
+                        # cleanly; a fresh login gets a fresh transaction.
+                        return _abort_report("porsche_captcha_failed")
+                else:
+                    self._porsche_captcha_attempts = 0
+                    if self._porsche_captcha_return == "reauth":
+                        reauth_entry = self.hass.config_entries.async_get_entry(
+                            self._porsche_reauth_entry_id
+                        )
+                        if reauth_entry is None:
+                            return self.async_abort(reason="reauth_failed")
+                        self.hass.config_entries.async_update_entry(
+                            reauth_entry,
+                            data={
+                                **reauth_entry.data,
+                                CONF_PASSWORD: self._pending_password,
+                                CONF_SPIN: self._porsche_reauth_spin,
+                            },
+                        )
+                        await self.hass.config_entries.async_reload(
+                            reauth_entry.entry_id
+                        )
+                        return self.async_abort(reason="reauth_successful")
+                    if self._porsche_captcha_return == "reconfigure":
+                        # G1 (#1337) — a captcha hit during Reconfigure. Mirror
+                        # async_step_reconfigure's in-place update (Porsche is
+                        # never MBB-eligible, so no command-channel chain here).
+                        entry = self.hass.config_entries.async_get_entry(
+                            self._porsche_reconfigure_entry_id
+                        )
+                        if entry is None:
+                            return self.async_abort(reason="reconfigure_failed")
+                        brand = self._pending_brand
+                        username = self._pending_username
+                        password = self._pending_password
+                        new_unique_id = f"{brand}_{username}"
+                        await self.async_set_unique_id(new_unique_id)
+                        if new_unique_id != entry.unique_id:
+                            self._abort_if_unique_id_configured()
+                        base = self._build_entry_data(
+                            brand, username, password, self._pending_user_input
+                        )
+                        merged = (
+                            base if new_unique_id != entry.unique_id
+                            else {**entry.data, **base}
+                        )
+                        self.hass.config_entries.async_update_entry(
+                            entry,
+                            title=f"{_brand_label(brand)} — {username}",
+                            unique_id=new_unique_id,
+                            data=merged,
+                        )
+                        await self.hass.config_entries.async_reload(entry.entry_id)
+                        return self.async_abort(reason="reconfigure_successful")
+                    # "email_password" — Porsche is never MBB-eligible (VW/Audi
+                    # only), so the non-captcha path's plain create-entry branch
+                    # is the only outcome here.
+                    return self.async_create_entry(
+                        title=f"{_brand_label(self._pending_brand)} — {self._pending_username}",
+                        data=self._pending_entry_data,
                     )
-                    await self.hass.config_entries.async_reload(reauth_entry.entry_id)
-                    return self.async_abort(reason="reauth_successful")
-                # "email_password" — Porsche is never MBB-eligible (VW/Audi
-                # only), so the non-captcha path's plain create-entry branch
-                # is the only outcome here.
-                return self.async_create_entry(
-                    title=f"{_brand_label(self._pending_brand)} — {self._pending_username}",
-                    data=self._pending_entry_data,
-                )
 
         return self.async_show_form(
             step_id="porsche_captcha",
@@ -2040,6 +2170,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             description_placeholders={
                 "captcha_img": self._porsche_captcha_img_html(
                     self._porsche_captcha_image
+                ),
+                "report_url": self._porsche_report_url(
+                    self._porsche_captcha_return or "porsche_captcha",
+                    "porsche_captcha",
                 ),
             },
         )
@@ -2094,8 +2228,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_image    = err.captcha_image
                 self._porsche_captcha_state    = err.state
                 self._porsche_captcha_verifier = err.code_verifier
+                self._porsche_captcha_resume   = err.resume
                 return await self.async_step_porsche_captcha()
             except ValueError as err:
+                if str(err) == "porsche_login_wall":
+                    return self.async_abort(
+                        reason="porsche_login_wall",
+                        description_placeholders={
+                            "report_url": self._porsche_report_url(
+                                "reauth", "porsche_login_wall"
+                            ),
+                        },
+                    )
                 errors["base"] = _map_error(str(err))
             else:
                 self.hass.config_entries.async_update_entry(
@@ -2237,11 +2381,39 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             password = user_input[CONF_PASSWORD]
             country  = user_input.get(CONF_COUNTRY, "us")
 
+            from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
+
             try:
                 await _validate_credentials(
                     self.hass, brand, username, password, country=country
                 )
+            except PorscheCaptchaRequiredError as err:
+                # G1 (#1337) — a Porsche captcha during Reconfigure used to
+                # propagate uncaught here (only ValueError was handled) and crash
+                # the flow. Route it through the shared captcha step; the success
+                # branch there updates THIS entry in place.
+                self._pending_brand    = brand
+                self._pending_username = username
+                self._pending_password = password
+                self._pending_user_input = dict(user_input)
+                self._porsche_captcha_return = "reconfigure"
+                self._porsche_reconfigure_entry_id = entry.entry_id
+                self._porsche_captcha_attempts = 0
+                self._porsche_captcha_image    = err.captcha_image
+                self._porsche_captcha_state    = err.state
+                self._porsche_captcha_verifier = err.code_verifier
+                self._porsche_captcha_resume   = err.resume
+                return await self.async_step_porsche_captcha()
             except ValueError as err:
+                if str(err) == "porsche_login_wall":
+                    return self.async_abort(
+                        reason="porsche_login_wall",
+                        description_placeholders={
+                            "report_url": self._porsche_report_url(
+                                "reconfigure", "porsche_login_wall"
+                            ),
+                        },
+                    )
                 errors["base"] = _map_error(str(err))
             else:
                 new_unique_id = f"{brand}_{username}"

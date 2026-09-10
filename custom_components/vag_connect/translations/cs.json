@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Vyžadována captcha",
-        "description": "Porsche vyžaduje vyřešení captchy pro pokračování v přihlášení.\n\n{captcha_img}\n\nVyřešte to jen jednou podle svého nejlepšího odhadu — opakované neúspěšné pokusy již vedly k zablokování účtu Porsche kvůli podezřelé aktivitě.",
+        "description": "Porsche vyžaduje vyřešení captchy pro pokračování v přihlášení.\n\n{captcha_img}\n\nVyřešte to jen jednou podle svého nejlepšího odhadu — opakované neúspěšné pokusy již vedly k zablokování účtu Porsche kvůli podezřelé aktivitě.\n\nNic, co sem zadáš, neopustí tvou instanci Home Assistant. Pokud se obrázek nenačte nebo se stále objevují chyby, můžeš to nahlásit (přilož diagnostiku): {report_url}",
         "data": {
           "captcha_code": "Kód captcha"
         },
@@ -204,7 +204,9 @@
       "companion_app_not_found": "Připojení k telefonu proběhlo, ale aplikace značky na něm není nainstalovaná.",
       "companion_unknown_brand": "Pro tuto značku zatím není k dispozici žádná přednastavená konfigurace doprovodného telefonu.",
       "companion_agent_token_too_short": "Token agenta je příliš krátký. Vložte náhodný token vygenerovaný aplikací agenta (nejméně 32 znaků).",
-      "companion_host_required": "Zadejte IP adresu telefonu — nebo zaškrtněte volbu agenta, pokud telefon volá Home Assistant."
+      "companion_host_required": "Zadejte IP adresu telefonu — nebo zaškrtněte volbu agenta, pokud telefon volá Home Assistant.",
+      "missing_captcha": "Zadej znaky zobrazené na obrázku výše.",
+      "captcha_retry": "Pro pokračování vyřeš captcha zobrazenou výše."
     },
     "abort": {
       "already_configured": "Tento účet je již nastaven.",
@@ -213,7 +215,11 @@
       "mbb_not_eligible": "Vaše vozidlo není způsobilé pro trvalé přihlášení MBB — backend vrátil „Unknown user“. Jde o novější model ID / MEB (ID.3/4/5, e-up apod.), který nikdy nebyl registrován ve starém systému Car-Net/MBB, takže trvalé přihlášení a vzdálené příkazy se k němu nedostanou. Pro taková vozidla použijte kanál portálu EU Data Act (nebo přihlášení e-mailem a heslem). Přihlášení MBB je pro starší vozy Car-Net (většina plug-in hybridních / spalovacích modelů).",
       "mbb_fallback_armed": "Záložní připojení je nastaveno. Pokud normální připojení vašeho Audi někdy přestane přijímat dálkové příkazy, zamykání/odemykání, klimatizace a nabíjení se automaticky přepnou na zálohu. V běžném provozu se nic nemění.",
       "no_devicegrant_audi": "Nebylo nalezeno žádné odpovídající Audi. Tato záloha platí jen pro Audi přidané přihlášením přes QR / aplikaci, které ji ještě nemá. Nejprve takto přidejte své Audi a pak se sem vraťte.",
-      "porsche_login_wall": "Tvoje přihlašovací údaje jsou v pořádku — přihlášení prošlo krokem s heslem, ale zastavilo se na obrazovce captcha/souhlasu Porsche, kterou nelze dokončit automaticky (pozorováno na my.porsche.com). Jde o překážku na straně Porsche, sledovanou v #1337, ne o špatné heslo. Nezkoušej to opakovaně ve smyčce — opakované pokusy zablokovaly účty Porsche."
+      "porsche_login_wall": "Tvoje přihlašovací údaje jsou v pořádku — přihlášení prošlo krokem s heslem, ale zastavilo se na obrazovce captcha/souhlasu Porsche, kterou nelze dokončit automaticky (pozorováno na my.porsche.com). Jde o překážku na straně Porsche, sledovanou v #1337, ne o špatné heslo. Nezkoušej to opakovaně ve smyčce — opakované pokusy zablokovaly účty Porsche. Pokud můžeš, nahlas to prosím, ať to můžeme opravit (přilož diagnostiku): {report_url}",
+      "porsche_captcha_failed": "Captcha se nepodařilo ověřit a je nyní neplatná. Zavři toto okno a spusť přihlášení Porsche znovu pro získání nové. Pokud můžeš, nahlas to prosím, ať to můžeme opravit (přilož diagnostiku): {report_url}",
+      "porsche_captcha_cooldown": "Příliš mnoho pokusů o captcha. Opakované pokusy mohou vést k tomu, že Porsche účet dočasně zablokuje nebo označí tvou síť, proto bylo přihlašování zastaveno kvůli ochraně účtu. Než to zkusíš znovu, počkej několik minut. Pokud můžeš, nahlas to prosím, ať to můžeme opravit (přilož diagnostiku): {report_url}",
+      "reconfigure_failed": "Změna konfigurace selhala: konfigurační záznam nebyl nalezen. Zkus to prosím znovu.",
+      "reauth_failed": "Opětovné ověření selhalo: konfigurační záznam nebyl nalezen. Zkus to prosím znovu."
     },
     "progress": {
       "awaiting_browser_login": "Otevřete {verification_uri} v libovolném prohlížeči, přihlaste se pomocí účtu Brand ID a potvrďte kód {user_code}.",

@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha krävs",
-        "description": "Porsche kräver att du löser en captcha för att fortsätta inloggningen.\n\n{captcha_img}\n\nLös det bara en gång efter bästa förmåga — upprepade misslyckade försök har fått Porsche att låsa konton på grund av misstänkt aktivitet.",
+        "description": "Porsche kräver att du löser en captcha för att fortsätta inloggningen.\n\n{captcha_img}\n\nLös det bara en gång efter bästa förmåga — upprepade misslyckade försök har fått Porsche att låsa konton på grund av misstänkt aktivitet.\n\nDet du skriver in här lämnar inte din Home Assistant-instans. Om bilden inte laddas eller du hela tiden får fel kan du rapportera det (bifoga diagnostik): {report_url}",
         "data": {
           "captcha_code": "Captcha-kod"
         },
@@ -204,7 +204,9 @@
       "companion_app_not_found": "Anslöt till telefonen, men märkesappen är inte installerad på den.",
       "companion_unknown_brand": "Det märket har ännu ingen förinställning för extra telefon.",
       "companion_agent_token_too_short": "Agent-token är för kort. Klistra in den slumpmässiga token som agentappen skapade (minst 32 tecken).",
-      "companion_host_required": "Ange telefonens IP-adress — eller kryssa i agentalternativet om telefonen ringer upp Home Assistant."
+      "companion_host_required": "Ange telefonens IP-adress — eller kryssa i agentalternativet om telefonen ringer upp Home Assistant.",
+      "missing_captcha": "Skriv in tecknen som visas i bilden ovan.",
+      "captcha_retry": "Lös den captcha som visas ovan för att fortsätta."
     },
     "abort": {
       "already_configured": "Det här kontot är redan konfigurerat.",
@@ -213,7 +215,11 @@
       "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller).",
       "mbb_fallback_armed": "Reservanslutningen är inställd. Om din Audis vanliga anslutning någon gång slutar ta emot fjärrkommandon växlar lås/lås upp, klimat och laddning automatiskt till reserven. Ingenting ändras i vardagen.",
       "no_devicegrant_audi": "Ingen matchande Audi hittades. Den här reserven gäller bara en Audi som du lagt till med QR-/app-inloggningen och som inte redan har den. Lägg till din Audi på det sättet först och kom sedan tillbaka hit.",
-      "porsche_login_wall": "Dina inloggningsuppgifter är korrekta — inloggningen tog sig förbi lösenordssteget, men stannade vid en Porsche captcha-/samtyckesskärm som den inte kan slutföra automatiskt (sedd på my.porsche.com). Det här är en spärr på Porsches sida, spårad i #1337, inte ett fel lösenord. Försök inte igen i en loop — upprepade försök har låst Porsche-konton."
+      "porsche_login_wall": "Dina inloggningsuppgifter är korrekta — inloggningen tog sig förbi lösenordssteget, men stannade vid en Porsche captcha-/samtyckesskärm som den inte kan slutföra automatiskt (sedd på my.porsche.com). Det här är en spärr på Porsches sida, spårad i #1337, inte ett fel lösenord. Försök inte igen i en loop — upprepade försök har låst Porsche-konton. Om du kan, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
+      "porsche_captcha_failed": "Captchan kunde inte verifieras och är nu förbrukad. Stäng den här dialogen och starta om Porsche-inloggningen för att få en ny. Om du kan, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
+      "porsche_captcha_cooldown": "För många captcha-försök. Upprepade försök kan göra att Porsche tillfälligt låser kontot eller flaggar ditt nätverk, så detta stoppades för att skydda ditt konto. Vänta några minuter innan du försöker igen. Om du kan, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
+      "reconfigure_failed": "Omkonfigurationen misslyckades: konfigurationsposten kunde inte hittas. Försök igen.",
+      "reauth_failed": "Omautentiseringen misslyckades: konfigurationsposten kunde inte hittas. Försök igen."
     },
     "progress": {
       "awaiting_browser_login": "Öppna {verification_uri} i valfri webbläsare, logga in med ditt Brand ID-konto och bekräfta koden {user_code}.",

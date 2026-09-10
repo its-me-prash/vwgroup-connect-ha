@@ -33,7 +33,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha erforderlich",
-        "description": "Porsche verlangt die Lösung eines Captchas, um mit der Anmeldung fortzufahren.\n\n{captcha_img}\n\nLöse es nur einmal mit deiner besten Vermutung — wiederholte Fehlversuche haben bei Porsche schon zu Konto-Sperrungen wegen verdächtiger Aktivität geführt.",
+        "description": "Porsche verlangt die Lösung eines Captchas, um mit der Anmeldung fortzufahren.\n\n{captcha_img}\n\nLöse es nur einmal mit deiner besten Vermutung — wiederholte Fehlversuche haben bei Porsche schon zu Konto-Sperrungen wegen verdächtiger Aktivität geführt.\n\nWas du hier eingibst, verlässt deine Home-Assistant-Instanz nicht. Wenn das Bild nicht lädt oder du immer wieder Fehler bekommst, kannst du es melden (Diagnose anhängen): {report_url}",
         "data": {
           "captcha_code": "Captcha-Code"
         },
@@ -204,7 +204,9 @@
       "companion_app_not_found": "Verbindung zum Smartphone hergestellt, aber die Marken-App ist darauf nicht installiert.",
       "companion_unknown_brand": "Für diese Marke gibt es noch keine Begleit-Voreinstellung.",
       "companion_agent_token_too_short": "Das Agent-Token ist zu kurz. Füge das Zufalls-Token aus der Agent-App ein (mindestens 32 Zeichen).",
-      "companion_host_required": "Bitte die IP-Adresse des Handys eingeben — oder die Companion-Agent-Option aktivieren, wenn das Handy Home Assistant anruft."
+      "companion_host_required": "Bitte die IP-Adresse des Handys eingeben — oder die Companion-Agent-Option aktivieren, wenn das Handy Home Assistant anruft.",
+      "missing_captcha": "Bitte gib die im Bild oben gezeigten Zeichen ein.",
+      "captcha_retry": "Bitte löse das oben gezeigte Captcha, um fortzufahren."
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
@@ -213,7 +215,11 @@
       "mbb_not_eligible": "Dein Fahrzeug ist für den dauerhaften MBB-Login nicht geeignet — das Backend meldet „Unknown user\". Das heisst, es ist ein neueres ID-/MEB-Modell (ID.3/4/5, e-up usw.), das nie im alten Car-Net/MBB-System registriert war — der dauerhafte Login + die Fernbefehle erreichen es daher nicht. Nutze für solche Fahrzeuge den EU-Data-Act-Kanal (oder den E-Mail-+-Passwort-Login). Der MBB-Login ist für ältere Car-Net-Autos (die meisten PHEV-/Verbrenner-Modelle).",
       "mbb_fallback_armed": "Reserve-Verbindung eingerichtet. Falls die normale Verbindung deines Audi je keine Fernbefehle mehr annimmt, wechseln Ver-/Entriegeln, Klima und Laden automatisch auf die Reserve. Im Alltag ändert sich nichts.",
       "no_devicegrant_audi": "Kein passender Audi gefunden. Diese Reserve gilt nur für einen Audi, den du per QR-/App-Login hinzugefügt hast und der sie noch nicht hat. Füge deinen Audi zuerst so hinzu, dann komm hierher zurück.",
-      "porsche_login_wall": "Deine Zugangsdaten sind in Ordnung — die Anmeldung kam am Passwort-Schritt vorbei, blieb dann aber an einem Porsche-Captcha-/Zustimmungs-Bildschirm hängen, den sie nicht automatisch abschließen kann (auf my.porsche.com beobachtet). Das ist eine Porsche-seitige Sperre (verfolgt unter #1337), kein falsches Passwort. Nicht in einer Schleife wiederholen — wiederholte Versuche haben schon zu Porsche-Konto-Sperrungen geführt."
+      "porsche_login_wall": "Deine Zugangsdaten sind in Ordnung — die Anmeldung kam am Passwort-Schritt vorbei, blieb dann aber an einem Porsche-Captcha-/Zustimmungs-Bildschirm hängen, den sie nicht automatisch abschließen kann (auf my.porsche.com beobachtet). Das ist eine Porsche-seitige Sperre (verfolgt unter #1337), kein falsches Passwort. Nicht in einer Schleife wiederholen — wiederholte Versuche haben schon zu Porsche-Konto-Sperrungen geführt. Wenn möglich, melde es bitte, damit wir es beheben können (Diagnose anhängen): {report_url}",
+      "porsche_captcha_failed": "Das Captcha konnte nicht bestätigt werden und ist jetzt verbraucht. Bitte schließe diesen Dialog und starte die Porsche-Anmeldung neu, um ein frisches zu erhalten. Wenn möglich, melde es bitte, damit wir es beheben können (Diagnose anhängen): {report_url}",
+      "porsche_captcha_cooldown": "Zu viele Captcha-Versuche. Wiederholte Versuche können dazu führen, dass Porsche das Konto vorübergehend sperrt oder dein Netzwerk markiert – daher wurde hier gestoppt, um dein Konto zu schützen. Warte ein paar Minuten, bevor du es erneut versuchst. Wenn möglich, melde es bitte, damit wir es beheben können (Diagnose anhängen): {report_url}",
+      "reconfigure_failed": "Neukonfiguration fehlgeschlagen: Der Konfigurationseintrag wurde nicht gefunden. Bitte versuche es erneut.",
+      "reauth_failed": "Erneute Anmeldung fehlgeschlagen: Der Konfigurationseintrag wurde nicht gefunden. Bitte versuche es erneut."
     },
     "progress": {
       "awaiting_browser_login": "Öffne {verification_uri} in einem Browser, melde dich mit deinem Brand-ID-Konto an und bestätige den Code {user_code}.",

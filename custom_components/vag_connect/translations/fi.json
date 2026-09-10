@@ -33,7 +33,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha vaaditaan",
-        "description": "Porsche vaatii captchan ratkaisemista kirjautumisen jatkamiseksi.\n\n{captcha_img}\n\nRatkaise tämä vain kerran parhaan arviosi mukaan — toistuvat epäonnistuneet yritykset ovat johtaneet Porschen tilien lukitsemiseen epäilyttävän toiminnan vuoksi.",
+        "description": "Porsche vaatii captchan ratkaisemista kirjautumisen jatkamiseksi.\n\n{captcha_img}\n\nRatkaise tämä vain kerran parhaan arviosi mukaan — toistuvat epäonnistuneet yritykset ovat johtaneet Porschen tilien lukitsemiseen epäilyttävän toiminnan vuoksi.\n\nMitään tähän syöttämääsi ei lähetetä Home Assistant -instanssistasi. Jos kuva ei lataudu tai saat jatkuvasti virheitä, voit ilmoittaa siitä (liitä diagnostiikka): {report_url}",
         "data": {
           "captcha_code": "Captcha-koodi"
         },
@@ -204,7 +204,9 @@
       "companion_app_not_found": "Yhteys puhelimeen muodostettiin, mutta merkin sovellusta ei ole asennettu siihen.",
       "companion_unknown_brand": "Kyseiselle merkille ei ole vielä apupuhelimen esiasetusta.",
       "companion_agent_token_too_short": "Agentin tunnus on liian lyhyt. Liitä agenttisovelluksen luoma satunnainen tunnus (vähintään 32 merkkiä).",
-      "companion_host_required": "Anna puhelimen IP-osoite — tai valitse agenttivaihtoehto, jos puhelin soittaa Home Assistantille."
+      "companion_host_required": "Anna puhelimen IP-osoite — tai valitse agenttivaihtoehto, jos puhelin soittaa Home Assistantille.",
+      "missing_captcha": "Kirjoita yllä olevassa kuvassa näkyvät merkit.",
+      "captcha_retry": "Ratkaise yllä näkyvä captcha jatkaaksesi."
     },
     "abort": {
       "already_configured": "Tämä tili on jo määritetty.",
@@ -213,7 +215,11 @@
       "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen — taustajärjestelmä palautti ”Unknown user”. Tämä tarkoittaa, että se on uudempi ID- / MEB-malli (ID.3/4/5, e-up jne.), jota ei koskaan liitetty vanhaan Car-Net/MBB-järjestelmään, joten pysyvä kirjautuminen + etäkomennot eivät tavoita sitä. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista) sen sijaan. MBB-kirjautuminen on tarkoitettu vanhemmille Car-Net-autoille (useimmat PHEV- / polttomoottorimallit).",
       "mbb_fallback_armed": "Varayhteys otettu käyttöön. Jos Audisi tavallinen yhteys joskus lakkaa hyväksymästä etäkomentoja, lukitus/avaus, ilmastointi ja lataus siirtyvät automaattisesti varayhteyteen. Arjessa mikään ei muutu.",
       "no_devicegrant_audi": "Sopivaa Audia ei löytynyt. Tämä varayhteys koskee vain Audia, jonka lisäsit QR-/sovelluskirjautumisella ja jolla sitä ei vielä ole. Lisää Audisi ensin siten ja palaa sitten tänne.",
-      "porsche_login_wall": "Tunnistetietosi ovat kunnossa — kirjautuminen pääsi salasanavaiheen ohi, mutta pysähtyi Porschen captcha-/suostumusnäyttöön, jota se ei voi suorittaa automaattisesti (havaittu osoitteessa my.porsche.com). Kyseessä on Porschen puolen este, seurattu kohdassa #1337, ei väärä salasana. Älä yritä uudelleen silmukassa — toistuvat yritykset ovat lukinneet Porsche-tilejä."
+      "porsche_login_wall": "Tunnistetietosi ovat kunnossa — kirjautuminen pääsi salasanavaiheen ohi, mutta pysähtyi Porschen captcha-/suostumusnäyttöön, jota se ei voi suorittaa automaattisesti (havaittu osoitteessa my.porsche.com). Kyseessä on Porschen puolen este, seurattu kohdassa #1337, ei väärä salasana. Älä yritä uudelleen silmukassa — toistuvat yritykset ovat lukinneet Porsche-tilejä. Jos voit, ilmoita siitä, jotta voimme korjata sen (liitä diagnostiikka): {report_url}",
+      "porsche_captcha_failed": "Captchaa ei voitu vahvistaa, ja se on nyt käytetty. Sulje tämä ikkuna ja aloita Porsche-kirjautuminen uudelleen saadaksesi uuden. Jos voit, ilmoita siitä, jotta voimme korjata sen (liitä diagnostiikka): {report_url}",
+      "porsche_captcha_cooldown": "Liian monta captcha-yritystä. Toistuvat yritykset voivat saada Porschen lukitsemaan tilin väliaikaisesti tai merkitsemään verkkosi, joten toiminto pysäytettiin tilisi suojaamiseksi. Odota muutama minuutti ennen kuin yrität uudelleen. Jos voit, ilmoita siitä, jotta voimme korjata sen (liitä diagnostiikka): {report_url}",
+      "reconfigure_failed": "Uudelleenmääritys epäonnistui: määritysmerkintää ei löytynyt. Yritä uudelleen.",
+      "reauth_failed": "Uudelleentodennus epäonnistui: määritysmerkintää ei löytynyt. Yritä uudelleen."
     },
     "progress": {
       "awaiting_browser_login": "Avaa {verification_uri} millä tahansa selaimella, kirjaudu Brand ID -tiliisi ja vahvista koodi {user_code}.",

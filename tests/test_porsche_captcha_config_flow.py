@@ -41,7 +41,7 @@ async def test_captcha_kwargs_forwarded_for_porsche_instance():
         )
     client.authenticate.assert_awaited_once_with(
         mfa_code=None, captcha_code="ABCD",
-        resume_state="st", resume_verifier="ver",
+        resume_state="st", resume_verifier="ver", captcha_resume=None,
     )
 
 
