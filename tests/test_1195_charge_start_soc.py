@@ -64,6 +64,29 @@ def test_known_charge_start_uuid_is_registered() -> None:
     assert _CHARGE_START_UUID in _CHARGE_START_SOC_UUIDS
 
 
+# #1380 (hangout6690) — his ID.3 ships two MORE charge-start-SoC UUIDs; a file
+# carrying only one of them (no live 506cb83e) re-latched the stale value.
+_CHARGE_START_UUIDS_1380 = (
+    "7bddd5e7-43a4-3878-bd63-9502782f77a5",
+    "bd4b6d50-b574-31e6-8141-8787ca5fec8c",
+)
+
+
+def test_all_1380_charge_start_uuids_are_registered() -> None:
+    for u in _CHARGE_START_UUIDS_1380:
+        assert u in _CHARGE_START_SOC_UUIDS
+
+
+def test_1380_charge_start_only_file_yields_no_live_soc_to_carry_forward() -> None:
+    # a poll whose ONLY soc point is a charge-start UUID must NOT become the live
+    # SoC — battery_state_report.soc is left empty so the last-known live value
+    # carries forward, instead of the stale charge-start figure winning.
+    for uuid in (_CHARGE_START_UUID, *_CHARGE_START_UUIDS_1380):
+        fields = _walk_fields({"data": [_soc_point("37", uuid)]})
+        assert "battery_state_report.soc" not in fields
+        assert fields["battery_state_report.soc_at_charge_start"] == "37"
+
+
 def test_end_to_end_battery_soc_is_the_live_value() -> None:
     # end to end: the mapper must set battery_soc to the live 24, not 37.
     fields = _walk_fields({"data": [

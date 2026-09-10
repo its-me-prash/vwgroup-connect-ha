@@ -1445,6 +1445,12 @@
       },
       "readiness_software_update_status": {
         "name": "Stan aktualizacji oprogramowania"
+      },
+      "short_term_avg_electric_consumption_kwh_100km": {
+        "name": "Krótkoterminowe średnie zużycie energii"
+      },
+      "engine_starts_count": {
+        "name": "Uruchomienia silnika"
       }
     },
     "binary_sensor": {

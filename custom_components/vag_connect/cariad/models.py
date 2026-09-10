@@ -1551,6 +1551,11 @@ class VehicleData:
     last_trip_avg_speed_kmh: float | None = None
     last_trip_avg_fuel_consumption_l_100km: float | None = None
     last_trip_avg_electric_consumption_kwh_100km: float | None = None
+    # #1378 (Škoda Elroq) — the EU Data Act portal's short-term (recent) average
+    # electric consumption, distinct from the per-trip figure above.
+    short_term_avg_electric_consumption_kwh_100km: float | None = None
+    # #1375 (Audi S6 TDI) — SCR/AdBlue system engine-start counter (diagnostic).
+    engine_starts_count: int | None = None
     last_trip_timestamp: str | None = None
     # v2.10.0 - last-trip reset timestamp. audi_connect_ha v2.1.0 surfaces
     # this as `shortterm_reset`. Read-only: records WHEN the user last

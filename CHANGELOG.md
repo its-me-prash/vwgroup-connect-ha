@@ -42,6 +42,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.6] - 2026-09-10 — More live fields from the Scout feed
+
+### Added
+- **GPS position, heading, short-term consumption and an engine-starts count from the live Scout
+  feed.** The portal's continuous feed carries several fields the integration wasn't surfacing yet:
+  the car's GPS position (it does send coordinates under `persLocation`), its heading, the short-term
+  average electric consumption and a total engine-starts counter now come through as sensors, and the
+  trip id is consumed for correlation. Grounded on real Škoda Elroq and Audi captures (#1378, #1375).
+
+### Fixed
+- **Battery % right after plugging in: two more source fields covered.** The v4.7.5 fix that stops the
+  "SoC at charge start" snapshot from briefly beating the live battery % now also covers two more
+  portal content fields that carry that snapshot, so a poll that includes only one of them can't
+  re-latch the stale value either. Thanks again to @hangout6690 (#1380).
+
 ## [4.7.5] - 2026-09-09 — Correct battery % on portal cars while charging
 
 ### Fixed

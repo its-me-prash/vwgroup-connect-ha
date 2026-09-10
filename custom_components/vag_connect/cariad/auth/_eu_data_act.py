@@ -773,6 +773,11 @@ _MAPPED_UUIDS: frozenset[str] = frozenset({
 # as reporters surface them; inert for any car that never ships this UUID.
 _CHARGE_START_SOC_UUIDS: frozenset[str] = frozenset({
     "93b55324-6628-36df-8f76-8eba797fc59c",  # "SoC at charge start" (#1195)
+    # #1380 (hangout6690) — his ID.3 ships two MORE charge-start-SoC UUIDs under
+    # the same battery_state_report.soc leaf; a file that carries only one of
+    # these (no live 506cb83e) otherwise re-latched the stale charge-start value.
+    "7bddd5e7-43a4-3878-bd63-9502782f77a5",  # "SoC at charge start" (#1380)
+    "bd4b6d50-b574-31e6-8141-8787ca5fec8c",  # "SoC at charge start" (#1380)
 })
 
 # #1022 — charge_power is emitted under the SAME dataFieldName
@@ -1244,6 +1249,41 @@ def _to_float(raw: str | None) -> float | None:
 def _to_int(raw: str | None) -> int | None:
     f = _to_float(raw)
     return int(f) if f is not None else None
+
+
+def _parse_pers_location(value: Any) -> tuple[float | None, float | None]:
+    """#1378/#923 — parse the MEB portal ``persLocation`` leaf into a validated
+    ``(lat, lon)``. Škoda Elroq (and other MEB cars) DO ship the vehicle position
+    in the continuous feed under ``persLocation`` = ``"[50.799918, 4.408567]"`` —
+    the sample #923 was waiting for (the position module's docstring assumed the
+    continuous feed carried none). Returns ``(None, None)`` unless the value is a
+    two-element numeric pair inside real-world bounds and not the null-island
+    ``0,0`` sentinel — so a malformed value, a charging/destination coordinate, or
+    a placeholder can never be mistaken for the car's position. Conservative by
+    design: it only trusts a well-formed, in-range pair.
+    """
+    pair: Any = value
+    if isinstance(value, str):
+        s = value.strip()
+        try:
+            pair = json.loads(s)
+        except (ValueError, TypeError):
+            parts = [p.strip() for p in s.strip("[]").split(",")]
+            pair = parts if len(parts) == 2 else None
+    if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+        return (None, None)
+    try:
+        lat = float(pair[0])
+        lon = float(pair[1])
+    except (ValueError, TypeError):
+        return (None, None)
+    if (
+        -90.0 <= lat <= 90.0
+        and -180.0 <= lon <= 180.0
+        and not (lat == 0.0 and lon == 0.0)
+    ):
+        return (lat, lon)
+    return (None, None)
 
 
 def _dur_to_min(raw: str | None) -> int | None:
@@ -1731,6 +1771,50 @@ def map_dataset_to_vehicle_data(
         # v3.0.2 (#1122) — _GLOBAL_SENTINELS drops the RAW uint32 sentinel here,
         # but not its 0.1-km-scaled form (429_496_729); the shared guard does.
         d.odometer_km = drop_odometer_sentinel(odo)
+
+    # #1378/#923 — MEB portal cars (Skoda Elroq …) ship the vehicle position in
+    # the CONTINUOUS feed under ``persLocation`` ("[lat, lon]") — the sample #923
+    # had been waiting for. Parse it defensively (validated pair, in-range, not
+    # 0/0; a charging/destination coord or a placeholder can't pass) and map the
+    # companion ``heading``. Cars that don't ship persLocation are unaffected —
+    # their position keeps coming from the brand-native parkingposition path.
+    _pers_lat, _pers_lon = _parse_pers_location(first("persLocation"))
+    if _pers_lat is not None and _pers_lon is not None:
+        d.latitude = _pers_lat
+        d.longitude = _pers_lon
+        # Pair the coordinates with THEIR OWN capture time, exactly like the
+        # brand-native / vw.de position writers. Without it a multi-channel merge
+        # (e.g. a prefer-vw.de or prefer-eu-data car, #1376) would gap-fill
+        # position_captured_at from a DIFFERENT channel's fix and misjudge the
+        # persLocation pin's staleness.
+        if field_ts and "persLocation" in field_ts:
+            _pos_iso = _epoch_or_iso(str(field_ts["persLocation"]))
+            if _pos_iso:
+                d.position_captured_at = _pos_iso
+    _heading = _to_int(first("heading"))
+    if _heading is not None and 0 <= _heading <= 360:
+        d.heading = _heading % 360
+
+    # #1378 (Škoda Elroq) — short-term (recent) average electric consumption. The
+    # portal ships it WITH a unit ("15.8 kWh/100km"), so take the leading number.
+    # Only trust it as an ELECTRIC figure when the unit says so (kWh/Wh); a PHEV
+    # that ships this leaf as a fuel value (l/100km) must not be mislabelled into
+    # the electric sensor. Distinct from the per-trip average; feeds its own sensor.
+    _stc_raw = str(first("shortTermAverageConsumption") or "")
+    _stc_parts = _stc_raw.split()
+    _stc = _to_float(_stc_parts[0]) if _stc_parts else None
+    if _stc is not None and _stc >= 0 and "wh" in _stc_raw.lower():
+        d.short_term_avg_electric_consumption_kwh_100km = _stc
+
+    # #1375 (Audi S6 TDI) — SCR/AdBlue engine-start counter (diagnostic).
+    _scr = _to_int(first("scr_number_of_engine_starts"))
+    if _scr is not None and _scr >= 0:
+        d.engine_starts_count = _scr
+
+    # #1378 — ``tripId`` is a per-trip UUID (identifier only, no sensor value).
+    # Consume it so the Scout stops re-reporting it as an "undiscovered field"
+    # every poll; it is metadata, not a suppressed reading.
+    first("tripId")
 
     # #465 (zdravac) — vehicleIsStandingStill (dict UUID 0010398f-5fda-39af-9e7a-
     # 25db8c2e623a, cluster "Parking Data", boolean "current motion state").

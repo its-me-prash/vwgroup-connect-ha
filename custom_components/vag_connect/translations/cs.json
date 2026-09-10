@@ -1445,6 +1445,12 @@
       },
       "readiness_software_update_status": {
         "name": "Stav aktualizace softwaru"
+      },
+      "short_term_avg_electric_consumption_kwh_100km": {
+        "name": "Krátkodobá průměrná spotřeba elektřiny"
+      },
+      "engine_starts_count": {
+        "name": "Starty motoru"
       }
     },
     "binary_sensor": {

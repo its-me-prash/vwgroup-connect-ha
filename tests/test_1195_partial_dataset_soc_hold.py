@@ -57,14 +57,19 @@ def test_partial_polls_hold_the_hv_soc_not_the_frozen_leaf() -> None:
     assert seq == [66, 66, 66, 55], seq
 
 
-def test_each_dataset_parsed_alone_shows_the_bug_source() -> None:
-    # Sanity: parsed in isolation, the partial datasets DO surface the frozen leaf
-    # (67) — which is exactly why the cross-poll hold in reconcile is needed.
+def test_charge_start_leaf_is_discarded_at_parse_time() -> None:
+    # v4.7.6 (#1380) — the frozen leaf in the partial datasets is a "SoC at charge
+    # start" snapshot (dataset_13's soc point is keyed 7bddd5e7, a charge-start
+    # UUID). The parser now discards those UUIDs OUTRIGHT, so a charge-start-only
+    # poll yields NO battery_soc at all (None) — reconcile then carries the last
+    # live value forward. That is a cleaner fix than only relying on the
+    # cross-poll hold: the stale 67 never even reaches reconcile.
     assert _parse("dataset_12_20260818181316Z.json")["battery_soc"] == 66
-    assert _parse("dataset_13_20260818182550Z.json")["battery_soc"] == 67
+    assert _parse("dataset_13_20260818182550Z.json")["battery_soc"] is None
     assert _parse("dataset_15_20260818185540Z.json")["battery_soc"] == 55
     assert _parse("dataset_12_20260818181316Z.json")["battery_soc_from_hv"] is True
-    assert _parse("dataset_13_20260818182550Z.json")["battery_soc_from_hv"] is False
+    # charge-start-only poll → no SoC surfaced at all, so no HV provenance is set
+    assert _parse("dataset_13_20260818182550Z.json")["battery_soc_from_hv"] is None
 
 
 # ── the reconcile guard in isolation ──────────────────────────────────────────

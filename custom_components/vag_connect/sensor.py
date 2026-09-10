@@ -1577,6 +1577,29 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         condition="electric",
     ),
 
+    # #1378 (Škoda Elroq) — short-term (recent) average electric consumption.
+    VagSensorDescription(
+        key="short_term_avg_electric_consumption_kwh_100km",
+        translation_key="short_term_avg_electric_consumption_kwh_100km",
+        data_key="short_term_avg_electric_consumption_kwh_100km",
+        native_unit_of_measurement="kWh/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt-outline",
+        suggested_display_precision=1,
+        condition="electric",
+    ),
+
+    # #1375 (Audi S6 TDI) — SCR/AdBlue engine-start counter (diagnostic).
+    VagSensorDescription(
+        key="engine_starts_count",
+        translation_key="engine_starts_count",
+        data_key="engine_starts_count",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:engine",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+
     VagSensorDescription(
         key="api_observer_findings",
         translation_key="api_observer_findings",
