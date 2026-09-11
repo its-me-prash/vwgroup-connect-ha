@@ -2809,6 +2809,28 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if has_ola:
             client._test_cohort = cohort
 
+        # v4.7.9 (#584/#923) — the MBB command connector is created by
+        # _arm_supplementary_channels BEFORE this runs and copies a still-False
+        # flag at creation; nothing ever pushed the real value down. So the
+        # fetched-role cohort probe could never fire for an MBB_ODP reporter —
+        # the exact car the cohort exists for (@Testius007's diagnostics exposed
+        # it). Push the flag into both MBB sub-connectors and, when opting in,
+        # fire the (one-shot, fail-soft) probe for cars whose operationList
+        # verdict is already cached as no-legacy — otherwise the 12 h deny cache
+        # hides the verdict branch (where the probe normally runs) until restart.
+        for attr in ("_mbb_command", "_mbb_fallback"):
+            sub = getattr(client, attr, None) if client is not None else None
+            if sub is None:
+                continue
+            sub._test_cohort = cohort
+            probe = getattr(sub, "_probe_fetched_role_cohort", None)
+            if cohort and callable(probe):
+                for _vin in sorted(getattr(sub, "mbb_no_legacy_vins", None) or ()):
+                    try:
+                        await probe(_vin)
+                    except Exception:  # noqa: BLE001 — probe is fail-soft by contract
+                        pass
+
         if cohort and (has_web or has_bff or has_ola):
             raise_issue_test_cohort_share(self.hass, self.entry.entry_id)
         else:

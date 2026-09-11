@@ -183,6 +183,9 @@ def test_device_diagnostics_slices_to_one_vin() -> None:
         "push_states": {},
         "polling_active": True,
         "raw_responses": {"selectivestatus": {"a": 1}},  # account-scoped → dropped
+        # v4.7.9 — probe outcomes have no VIN dimension → kept; eligibility sliced
+        "probe_outcomes": {"fetched_role:eudp:VW/DE": "404"},
+        "mbb_eligibility": {masked: "not_provisioned", other: "eligible"},
     }
     device = SimpleNamespace(identifiers={(DOMAIN, VIN)})
     with patch.object(
@@ -198,6 +201,8 @@ def test_device_diagnostics_slices_to_one_vin() -> None:
     assert out["unexpected_findings"] == {masked: [{"path": "x"}]}
     assert out["mbb_no_legacy"] == [masked]
     assert "raw_responses" not in out                     # account-scoped, dropped
+    assert out["probe_outcomes"] == {"fetched_role:eudp:VW/DE": "404"}
+    assert out["mbb_eligibility"] == {masked: "not_provisioned"}
 
 
 def test_device_diagnostics_settings_device_gets_no_slice() -> None:

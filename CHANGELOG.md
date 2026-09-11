@@ -42,6 +42,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.9] - 2026-09-11 — The test cohort finally reaches the MBB command connector
+
+### Fixed
+- **Test cohort: the MBB command connector never received the opt-in flag.** The connector was
+  created before the flag was applied, so the #584 fetched-role probe — the whole reason to opt
+  in on a car marked `mbb_no_legacy` — could not fire for anyone. The flag now reaches the
+  connector, applies live when you toggle it (no restart), and the probe runs for cars already
+  carrying the no-legacy verdict. The per-device diagnostics download now includes the probe
+  results and the car's MBB eligibility, so a single-car file finally carries the datapoint
+  (#584, #923 — thanks @Testius007 for the diagnostics that exposed it).
+
 ## [4.7.8] - 2026-09-11 — Porsche login done the reference way, and a round of honesty fixes
 
 ### Fixed

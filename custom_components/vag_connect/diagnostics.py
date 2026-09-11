@@ -687,6 +687,7 @@ async def async_get_device_diagnostics(
     masked = mask_vin(vin)  # the per-VIN diag sections are keyed by the masked VIN
     veh = full.get("vehicles", {})
     unexpected = full.get("unexpected_findings", {})
+    elig = full.get("mbb_eligibility", {}) or {}
     return {
         "device_vin_masked": masked,
         "config": full.get("config"),
@@ -699,6 +700,12 @@ async def async_get_device_diagnostics(
         "mbb_no_legacy": (
             [masked] if masked in full.get("mbb_no_legacy", []) else []
         ),
+        # v4.7.9 (#584/#923) — the cohort probe outcomes carry no VIN dimension
+        # (status codes keyed by host/brand/country) and are the one datapoint a
+        # no-legacy reporter's file is asked for: keep them. mbb_eligibility is
+        # VIN-keyed, so it is sliced like the other per-VIN sections.
+        "probe_outcomes": full.get("probe_outcomes", {}) or {},
+        "mbb_eligibility": {masked: elig[masked]} if masked in elig else {},
         "last_update_success": full.get("last_update_success"),
         "cloud_push_active": full.get("cloud_push_active"),
         "push_states": full.get("push_states"),

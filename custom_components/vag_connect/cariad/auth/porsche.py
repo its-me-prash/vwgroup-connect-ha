@@ -150,7 +150,7 @@ _AUDIENCE      = "https://api.porsche.com"
 # context is the more suspicious of the two to Auth0's bot scoring and is one
 # of only two request-shape differences from the flow that demonstrably gets
 # vehicle-holding accounts through. Honest, ours, not the other project's string.
-_USER_AGENT    = "vag-connect-ha/4.7.8 (+https://github.com/its-me-prash/vwgroup-connect-ha)"
+_USER_AGENT    = "vag-connect-ha/4.7.9 (+https://github.com/its-me-prash/vwgroup-connect-ha)"
 # Reference-client settle delay between the password POST and the first resume
 # hop (see the comment at the call site in ``authenticate``).
 _POST_PASSWORD_SETTLE_S = 2.5

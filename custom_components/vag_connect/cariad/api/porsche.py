@@ -31,7 +31,7 @@ _X_CLIENT   = "41843fb4-691d-4970-85c7-2673e8ecef40"
 # #1337 (v4.7.8) — same plain library User-Agent the auth layer now sends (the
 # reference client uses ONE lib UA for both login and API reads); keep them
 # identical so Porsche sees a single consistent client.
-_USER_AGENT = "vag-connect-ha/4.7.8 (+https://github.com/its-me-prash/vwgroup-connect-ha)"
+_USER_AGENT = "vag-connect-ha/4.7.9 (+https://github.com/its-me-prash/vwgroup-connect-ha)"
 
 # v1.25.0 PR-B: storm-protection constants (mirror of base.py)
 _REFRESH_MAX_PER_HOUR = 3
