@@ -283,7 +283,11 @@ async def _validate_credentials(
                 "wall past the password step (not a credentials problem): %s",
                 brand, err,
             )
-            raise ValueError("porsche_login_wall") from err
+            # v4.7.8 — carry the wall's screen/marker through the ValueError so
+            # the step handlers can put it into the one-click report.
+            raise ValueError(
+                f"porsche_login_wall:{err.screen}|{err.marker}"
+            ) from err
         except AuthenticationError as err:
             _LOGGER.warning("VW Group Connect auth failed (%s): %s", brand, err)
             raise ValueError("invalid_credentials") from err
@@ -315,7 +319,9 @@ async def _validate_credentials(
         # refresh instead of running a SECOND interactive login (another captcha)
         # at first setup. Other brands / no token → None (unchanged behaviour).
         _t = getattr(client, "_tokens", None)
-        if isinstance(client, PorscheClient) and _t is not None:
+        # v4.7.8 — bridge only a token that can actually be refreshed; a
+        # refresh-less one must fall back to the normal authenticate() path.
+        if isinstance(client, PorscheClient) and _t is not None and _t.refresh_token:
             return {
                 "access_token":  _t.access_token,
                 "refresh_token": _t.refresh_token,
@@ -326,8 +332,19 @@ async def _validate_credentials(
     return None
 
 
+def _wall_screen(err_str: str) -> str:
+    """v4.7.8 (#1337) — the ``<screen>`` carried on a ``porsche_login_wall:<screen>|<marker>``
+    ValueError (empty for any other error)."""
+    if not err_str.startswith("porsche_login_wall:"):
+        return ""
+    return err_str.partition(":")[2].partition("|")[0]
+
+
 def _map_error(err_code: str) -> str:
     """Map ValueError string to strings.json error key."""
+    # v4.7.8 — a ":detail" suffix (porsche_login_wall:<screen>|<marker>) rides
+    # along for the report link; the error KEY is the part before it.
+    err_code = err_code.split(":", 1)[0]
     return err_code if err_code in {
         "terms_and_conditions", "marketing_consent", "two_factor_required",
         "too_many_requests", "invalid_credentials", "missing_library",
@@ -799,15 +816,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._pending_entry_data = self._build_entry_data(brand, username, password, user_input)
                     self._pending_user_input = dict(user_input)
                     return await self.async_step_mfa()
-                if err_str == "porsche_login_wall":
+                if err_str.startswith("porsche_login_wall"):
                     # #1337 — the login got past the password but hit a Porsche
                     # wall we can't clear headless. Stop cleanly and offer a
-                    # one-click report so we capture which screen it was.
+                    # one-click report that names which screen it was.
                     return self.async_abort(
                         reason="porsche_login_wall",
                         description_placeholders={
                             "report_url": self._porsche_report_url(
-                                "email_password", "porsche_login_wall"
+                                "email_password", "porsche_login_wall",
+                                _wall_screen(err_str),
                             ),
                         },
                     )
@@ -1993,11 +2011,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             f"- Error: {reason}\n"
             f"- Auth0 screen: {screen or 'unknown'}\n\n"
             "What happened (optional):\n\n\n"
-            "Please attach your diagnostics: Settings -> Devices & Services -> "
-            "VW Group Connect -> three-dots menu -> Download diagnostics "
-            "(it is automatically redacted). If you can, also enable debug "
-            "logging first, reproduce, and paste any 'Porsche auth:' log lines "
-            "-- they name the exact screen this got stuck on.\n"
+            "Most useful: enable debug logging for VW Group Connect (Settings -> "
+            "Devices & Services -> VW Group Connect -> three-dots menu -> Enable "
+            "debug logging), reproduce once, then paste the 'Porsche auth:' lines "
+            "from the log -- they name the exact screen this got stuck on. "
+            "(If the setup itself failed there is no entry yet, so there is no "
+            "diagnostics file to download; the debug lines are the capture.) "
+            "If the integration IS set up, also attach Download diagnostics "
+            "(automatically redacted).\n"
         )
         query = urlencode({"labels": "porsche,auth", "title": title, "body": body})
         return (
@@ -2096,12 +2117,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
         # #1337 — one report link for every give-up path in this step, so a user
         # who hits a wall we can't clear can hand us the decisive datapoint.
-        def _abort_report(reason: str) -> config_entries.ConfigFlowResult:
+        def _abort_report(
+            reason: str, screen: str = ""
+        ) -> config_entries.ConfigFlowResult:
             return self.async_abort(
                 reason=reason,
                 description_placeholders={
                     "report_url": self._porsche_report_url(
-                        self._porsche_captcha_return or "porsche_captcha", reason
+                        self._porsche_captcha_return or "porsche_captcha", reason,
+                        screen,
                     ),
                 },
             )
@@ -2152,7 +2176,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         # then hit the post-password captcha/consent wall.
                         # Re-showing the now-consumed captcha would just invite a
                         # lockout-risking retry, so stop cleanly + offer a report.
-                        return _abort_report("porsche_login_wall")
+                        return _abort_report("porsche_login_wall", _wall_screen(str(err)))
                     if mapped == "cannot_connect":
                         # Transient — the challenge may still be valid, so let the
                         # user retry rather than forcing a full restart.
@@ -2306,12 +2330,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_resume   = err.resume
                 return await self.async_step_porsche_captcha()
             except ValueError as err:
-                if str(err) == "porsche_login_wall":
+                if str(err).startswith("porsche_login_wall"):
                     return self.async_abort(
                         reason="porsche_login_wall",
                         description_placeholders={
                             "report_url": self._porsche_report_url(
-                                "reauth", "porsche_login_wall"
+                                "reauth", "porsche_login_wall", _wall_screen(str(err)),
                             ),
                         },
                     )
@@ -2488,12 +2512,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_resume   = err.resume
                 return await self.async_step_porsche_captcha()
             except ValueError as err:
-                if str(err) == "porsche_login_wall":
+                if str(err).startswith("porsche_login_wall"):
                     return self.async_abort(
                         reason="porsche_login_wall",
                         description_placeholders={
                             "report_url": self._porsche_report_url(
-                                "reconfigure", "porsche_login_wall"
+                                "reconfigure", "porsche_login_wall",
+                                _wall_screen(str(err)),
                             ),
                         },
                     )

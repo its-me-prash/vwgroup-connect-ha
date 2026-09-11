@@ -28,7 +28,10 @@ _LOGGER = logging.getLogger(__name__)
 
 _API_BASE   = "https://api.ppa.porsche.com"
 _X_CLIENT   = "41843fb4-691d-4970-85c7-2673e8ecef40"
-_USER_AGENT = "My Porsche/2.1.0 (iPhone; iOS 17.0; Scale/3.00)"
+# #1337 (v4.7.8) — same plain library User-Agent the auth layer now sends (the
+# reference client uses ONE lib UA for both login and API reads); keep them
+# identical so Porsche sees a single consistent client.
+_USER_AGENT = "vag-connect-ha/4.7.8 (+https://github.com/its-me-prash/vwgroup-connect-ha)"
 
 # v1.25.0 PR-B: storm-protection constants (mirror of base.py)
 _REFRESH_MAX_PER_HOUR = 3
@@ -202,6 +205,10 @@ class PorscheClient:
         self._password = password
         self._spin    = spin
         self._tokens: TokenSet | None = None
+        # v4.7.8 (#1337) — diagnostics-visible outcome of the last vehicle
+        # status read + once-per-VIN WARNING latch (see ``get_status``).
+        self.probe_outcomes: dict[str, str] = {}
+        self._status_warned: set[str] = set()
         # v4.7.7 (#1337) — token persistence hook. The coordinator assigns
         # ``_token_storage.save`` here (same contract as CariadBase) and calls
         # ``set_persisted_tokens`` on startup, so a solved-captcha login is
@@ -314,7 +321,41 @@ class PorscheClient:
                 f"{_API_BASE}/app/connect/v1/vehicles/{vin}", params=params,
             )
         except Exception as err:  # noqa: BLE001 — never crash a poll on one bad read
-            _LOGGER.debug("Porsche get_status failed: %s", type(err).__name__)
+            # v4.7.8 (#1337) — a silently empty VehicleData looked exactly like
+            # "this car has no data" (@mps222: 3 Porsches, every sensor blank,
+            # no clue why). Record the outcome for diagnostics and say it ONCE
+            # per VIN at WARNING; later polls stay at DEBUG.
+            _kind = type(err).__name__
+            _status = getattr(err, "status", None)
+            # Lazy-init: tests (and the raw-response capture below) build the
+            # client via __new__ without __init__.
+            if not hasattr(self, "probe_outcomes"):
+                self.probe_outcomes = {}
+            if not hasattr(self, "_status_warned"):
+                self._status_warned = set()
+            self.probe_outcomes["porsche_status"] = (
+                f"{_kind}:{_status}" if _status else _kind
+            )
+            # An auth failure is NOT "one bad read": ``_request`` has already
+            # refreshed + retried (and fallen back to a full login) before it
+            # raises this, so the token is dead. Let it reach the coordinator,
+            # which escalates to re-authentication when every car says so —
+            # swallowing it here left users with silently empty entities and an
+            # interactive login re-run up to 3x/hour with no prompt (#1337).
+            if isinstance(err, AuthenticationError):
+                _LOGGER.debug("Porsche get_status: authentication failed (%s)", _kind)
+                raise
+            if vin not in self._status_warned:
+                self._status_warned.add(vin)
+                _LOGGER.warning(
+                    "Porsche ***%s: vehicle status read failed (%s%s) — its "
+                    "entities stay empty until a read succeeds. If this persists "
+                    "check the car's Porsche Connect contract and attach "
+                    "diagnostics to an issue.",
+                    vin[-6:], _kind, f" HTTP {_status}" if _status else "",
+                )
+            else:
+                _LOGGER.debug("Porsche get_status failed: %s", _kind)
             return d
 
         # v3.0.0 — capture the raw Porsche response for the Scout + diagnostics.
@@ -349,6 +390,22 @@ class PorscheClient:
                 and item.get("key")
                 and v(item, "status", "isEnabled", default=True)
             }
+
+            # v4.7.8 (#1337) — Porsche Connect contract state. Requested all along
+            # but never parsed: a car whose contract lapsed reports its identity
+            # and NO enabled measurements (@mps222, 3 cars, every sensor blank,
+            # no clue why). An ENABLED CONNECT_CONTRACT measurement = active;
+            # present-but-disabled = inactive; absent = unknown. Its value shape
+            # is unverified on a live car, so only the enabled flag is read.
+            _cc_raw = next(
+                (it for it in raw_measurements
+                 if isinstance(it, dict) and it.get("key") == "CONNECT_CONTRACT"),
+                None,
+            )
+            d.connect_contract_active = (
+                bool(v(_cc_raw, "status", "isEnabled", default=True))
+                if _cc_raw is not None else None
+            )
 
             d.battery_soc   = v(m, "BATTERY_LEVEL", "percent")
             # v2.2.1 Phase 8 PR #3 — split electric / combustion range
@@ -1131,10 +1188,11 @@ class PorscheClient:
         # eating one wasted round trip every natural expiry cycle. Only on
         # the first attempt, so a mid-retry-chain call doesn't re-trigger it.
         if _attempt == 0 and retry and self._tokens.needs_refresh():
-            await self._refresh()
+            await self._refresh(stale_access_token=self._tokens.access_token)
+        _used_token = self._tokens.access_token
         headers = kwargs.pop("headers", {})
         headers.update({
-            "Authorization": f"Bearer {self._tokens.access_token}",
+            "Authorization": f"Bearer {_used_token}",
             "X-Client-ID":   _X_CLIENT,
             "User-Agent":    _USER_AGENT,
             "Accept":        "application/json",
@@ -1145,7 +1203,7 @@ class PorscheClient:
                 timeout=ClientTimeout(total=30), **kwargs,
             ) as resp:
                 if resp.status == 401 and retry:
-                    await self._refresh()
+                    await self._refresh(stale_access_token=_used_token)
                     return await self._request(method, url, retry=False, **kwargs)
                 if resp.status == 429 and _attempt < 3:
                     # b19 (CJNE-comparison #5) — honor a server-sent
@@ -1216,7 +1274,7 @@ class PorscheClient:
                 continue
             setattr(self, attr, value)
 
-    async def _refresh(self) -> None:
+    async def _refresh(self, stale_access_token: str | None = None) -> None:
         """Refresh tokens with storm protection (v1.25.0 PR-B parity).
 
         Pre-v1.25.0 there was no throttle — repeated 401s would spam refresh
@@ -1228,6 +1286,18 @@ class PorscheClient:
         if self._refresh_lock is None:
             self._refresh_lock = asyncio.Lock()
         async with self._refresh_lock:
+            # v4.7.8 — coalesce: N per-VIN reads that all saw the same expiring
+            # or rejected token queue here; the first one refreshes, the rest
+            # find a NEWER token when they get the lock and must not refresh
+            # again. Without this a 3-car account burned the whole 3/h budget
+            # in one poll and, with a dead refresh token, ran N interactive
+            # logins per poll (#1337).
+            if (
+                stale_access_token is not None
+                and self._tokens is not None
+                and self._tokens.access_token != stale_access_token
+            ):
+                return
             now = time.monotonic()
             cutoff = now - _REFRESH_WINDOW_S
             self._refresh_history = [t for t in self._refresh_history if t > cutoff]

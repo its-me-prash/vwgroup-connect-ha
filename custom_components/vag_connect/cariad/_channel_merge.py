@@ -33,6 +33,7 @@ import copy
 import logging
 from collections.abc import Awaitable
 from dataclasses import fields
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -182,6 +183,42 @@ def merge_channels(
                     field_sources[f_name] = nm
                     contributors.add(nm)
                     break
+
+    # v4.7.8 (#923/#1378) — position: FRESHEST capture wins, not merge order.
+    # The EU-DA batch feed can now carry a pin (``persLocation``), and with the
+    # portal as PRIMARY its 15-min-old pin would outrank a live vw.de fix via
+    # plain gap-fill (position is deliberately outside the live-supersede set:
+    # capture AGE, not channel class, is the right judge). Among every source
+    # that has a pin AND a parseable capture time, take the newest; a source
+    # without a timestamp can't win over one that has one.
+    _best_nm: str | None = None
+    _best_vd: VehicleData | None = None
+    _best_ts: datetime | None = None
+    for nm, vd in sources:
+        lat = getattr(vd, "latitude", None)
+        lon = getattr(vd, "longitude", None)
+        ts_raw = getattr(vd, "position_captured_at", None)
+        if lat is None or lon is None or not ts_raw:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if _best_ts is None or ts > _best_ts:
+            _best_nm, _best_vd, _best_ts = nm, vd, ts
+    if (
+        _best_nm is not None
+        and _best_vd is not None
+        and field_sources.get("latitude") != _best_nm
+    ):
+        for f_name in ("latitude", "longitude", "position_captured_at", "heading"):
+            val = getattr(_best_vd, f_name, None)
+            if val is not None:
+                setattr(merged, f_name, copy.deepcopy(val))
+                field_sources[f_name] = _best_nm
+        contributors.add(_best_nm)
 
     _merge_drivetrain(merged, sources)
 

@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Wymagana captcha",
-        "description": "Porsche wymaga rozwiązania captchy, aby kontynuować logowanie.\n\n{captcha_img}\n\nRozwiąż to tylko raz, najlepiej jak potrafisz — powtarzające się nieudane próby doprowadziły już do blokowania kont Porsche z powodu podejrzanej aktywności.\n\nTo, co tu wpiszesz, nie opuszcza Twojej instancji Home Assistant. Jeśli obraz się nie ładuje lub ciągle pojawiają się błędy, możesz to zgłosić (dołącz diagnostykę): {report_url}",
+        "description": "Porsche wymaga rozwiązania captcha, aby kontynuować logowanie.\n\n{captcha_img}\n\nRozwiąż je raz, najlepiej jak potrafisz — powtarzające się nieudane próby prowadziły już do blokady kont Porsche z powodu podejrzanej aktywności.\n\nTwoja odpowiedź trafia wyłącznie do usługi logowania Porsche, nigdy do osób trzecich ani do tego projektu. Jeśli obraz się nie ładuje lub błędy się powtarzają, możesz to zgłosić: {report_url}",
         "data": {
           "captcha_code": "Kod captcha"
         },
@@ -354,7 +354,8 @@
       "invalid_auth": "Logowanie nieudane. Sprawdź adres e-mail i hasło do Volkswagen ID.",
       "cannot_connect": "Nie udało się połączyć z Volkswagenem. Spróbuj ponownie.",
       "vweu_mfa_unsupported": "To konto wymaga kodu z e-maila lub aplikacji uwierzytelniającej, czego VW EU Two-Way jeszcze nie obsługuje. Użyj zamiast tego kanałów tylko do odczytu.",
-      "vweu_no_bff_data": "Zalogowano, ale Volkswagen nie zwrócił jeszcze żadnych danych na żywo dla tego auta z nowoczesnego backendu, więc VW EU Two-Way nie został włączony, a Twój obecny kanał pozostaje bez zmian. Spróbuj ponownie później lub udostępnij plik diagnostyczny, abyśmy mogli się temu przyjrzeć."
+      "vweu_no_bff_data": "Zalogowano, ale Volkswagen nie zwrócił jeszcze żadnych danych na żywo dla tego auta z nowoczesnego backendu, więc VW EU Two-Way nie został włączony, a Twój obecny kanał pozostaje bez zmian. Spróbuj ponownie później lub udostępnij plik diagnostyczny, abyśmy mogli się temu przyjrzeć.",
+      "terms_and_conditions": "Warunki użytkowania muszą być zaakceptowane. Zaloguj się w aplikacji."
     },
     "abort": {
       "not_volkswagen": "Ten kanał jest dostępny wyłącznie dla Volkswagena.",
@@ -1457,6 +1458,15 @@
       },
       "engine_starts_count": {
         "name": "Uruchomienia silnika"
+      },
+      "short_term_avg_fuel_consumption_l_100km": {
+        "name": "Krótkoterminowe średnie zużycie paliwa"
+      },
+      "battery_soc_charge_report": {
+        "name": "Poziom baterii (ostatni raport ładowania)"
+      },
+      "alarm_reason": {
+        "name": "Powód alarmu"
       }
     },
     "binary_sensor": {
@@ -1768,6 +1778,9 @@
       },
       "data_stale": {
         "name": "Nieaktualne dane"
+      },
+      "connect_contract_active": {
+        "name": "Umowa Connect aktywna"
       }
     },
     "switch": {

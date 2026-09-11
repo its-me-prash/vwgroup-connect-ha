@@ -1518,6 +1518,9 @@ class VehicleData:
     alarm_active: bool | None = None       # vehicleAlarm == "ALARM"
     siren_active: bool | None = None       # siren == "ACTIVE"
     last_alarm_at: Any | None = None       # ISO timestamp of last alarm
+    # v4.7.8 (#1396) — EU-DA portal anti-theft alarm reason, verbatim enum
+    # string (e.g. "ALARM_REASON_DRIVERSDOOROPEN"); None = not reported.
+    alarm_reason: str | None = None
 
     # v2.0.0 (Big-Bang) — Heat-source mode (issue #163, best-effort).
     # ID.x heat-pump models surface ``climatisationSettings.value.heaterSource``
@@ -1556,6 +1559,15 @@ class VehicleData:
     short_term_avg_electric_consumption_kwh_100km: float | None = None
     # #1375 (Audi S6 TDI) — SCR/AdBlue system engine-start counter (diagnostic).
     engine_starts_count: int | None = None
+    # v4.7.8 — fuel-unit shape of the short-term consumption leaf (Scout policy:
+    # never drop a value the feed sends).
+    short_term_avg_fuel_consumption_l_100km: float | None = None
+    # v4.7.8 — the portal's "SoC at the last charge start/stop report" leaf,
+    # kept apart from the live SoC (#1195/#1380) and now surfaced instead of
+    # being re-reported by the Scout every poll.
+    battery_soc_charge_report: int | None = None
+    # v4.7.8 (#1337) — Porsche Connect contract state; None = not reported.
+    connect_contract_active: bool | None = None
     last_trip_timestamp: str | None = None
     # v2.10.0 - last-trip reset timestamp. audi_connect_ha v2.1.0 surfaces
     # this as `shortterm_reset`. Read-only: records WHEN the user last

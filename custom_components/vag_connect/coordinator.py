@@ -1412,7 +1412,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # — another captcha — right after setup. Promote it into the
             # persistent store; from then on it's a normal cached-token restart.
             porsche_initial = self.entry.data.get("porsche_initial_tokens")
-            if persisted is None and porsche_initial:
+            # v4.7.8 — only a token WITH a refresh_token is worth bridging: the
+            # client silently ignores a refresh-less one while this code would
+            # still skip authenticate(), leaving the entry with no token at all.
+            if (
+                persisted is None
+                and porsche_initial
+                and porsche_initial.get("refresh_token")
+            ):
                 from .cariad.models import TokenSet  # noqa: PLC0415
                 persisted = TokenSet(
                     access_token=str(porsche_initial.get("access_token", "")),
@@ -1427,6 +1434,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     brand,
                 )
                 await self._token_storage.save(persisted)
+            # v4.7.8 — promoted or not (a reauth/reconfigure writes the store
+            # directly AND stashes a copy here), the entry.data copy is never
+            # the source of truth: strip it so no plaintext token lingers in
+            # core.config_entries and no stale copy can be re-promoted later
+            # (storage-version bump, corrupted file, .storage restore).
+            if "porsche_initial_tokens" in self.entry.data:
+                _cleaned = {
+                    k: v for k, v in self.entry.data.items()
+                    if k != "porsche_initial_tokens"
+                }
+                self.hass.config_entries.async_update_entry(self.entry, data=_cleaned)
 
         # VW EU Two-Way (650d46ca): when armed, the modern-BFF device-grant token
         # is the PRIMARY. Activate it from entry.data on the config_flow reload
@@ -1598,6 +1616,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # original invalid_credentials behaviour (strict no-op).
                 try:
                     if persisted is None or persisted_is_portal:
+                        raise
+                    # v4.7.8 (#1337) — Porsche's client already falls back to a
+                    # fresh interactive login inside its own refresh path, so
+                    # reaching here means that login ALREADY failed (captcha or
+                    # dead credentials). A second identical attempt would only
+                    # submit the same credentials twice per restart — the exact
+                    # retry pressure that has locked Porsche accounts. Re-raise.
+                    if brand == "porsche":
                         raise
                     _LOGGER.info(
                         "VW Group Connect: persisted tokens for %s no longer "
@@ -1852,6 +1878,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 type(err).__name__,
             )
             return False
+
+    def _porsche_auth_dead(self, vins: list[str], results: list[Any]) -> bool:
+        """v4.7.8 (#1337) — True when EVERY Porsche car read failed
+        authentication on two consecutive polls. One poll is not enough: a
+        token-endpoint hiccup surfaces as APIError (not auth) since 4.7.8, but
+        a single all-auth-fail poll can still be a blip; two in a row means the
+        refresh token is really dead and re-authentication is the only way out.
+        Brand-gated on purpose: other brands have their own auth paths.
+        """
+        from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+
+        if not vins or self.entry.data.get(CONF_BRAND) != "porsche":
+            return False
+        if results and all(isinstance(r, AuthenticationError) for r in results):
+            n = getattr(self, "_porsche_auth_fail_polls", 0) + 1
+            self._porsche_auth_fail_polls = n
+            return n >= 2
+        self._porsche_auth_fail_polls = 0
+        return False
 
     def _trigger_reauth(self, reason: str) -> None:
         """Stop the poll loop and ask HA to start the reauth flow.
@@ -2540,6 +2585,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """
         from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
 
+        # v4.7.8 — remember that we raised it, so the per-poll repair refresh
+        # can clear it again once the portal session is demonstrably alive
+        # (data flowed). Before this the Repair was never deleted at all: a
+        # user who re-logged in kept seeing "session expired" forever.
+        self._data_act_session_expired_pending = True
         ir.async_create_issue(
             self.hass,
             DOMAIN,
@@ -2668,6 +2718,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             self._portal_interaction_reason = ""
         issue_id = f"data_act_no_data_{self.entry.entry_id}"
         reason = getattr(portal, "last_no_data_reason", "") if portal else ""
+        # v4.7.8 — the "portal session expired" Repair (raised by setup, the
+        # kickoff and the historical export) was never cleared, so it outlived
+        # the re-login it asked for. Data flowing through the portal this poll
+        # is proof the session is alive again → clear it. Deliberately NOT
+        # cleared on a no-data poll: the kickoff can raise it mid-cycle and the
+        # same cycle's empty dataset must not immediately erase it.
+        if (
+            portal is not None
+            and not reason
+            and getattr(self, "_data_act_session_expired_pending", False)
+        ):
+            ir.async_delete_issue(
+                self.hass, DOMAIN, f"data_act_session_expired_{entry_id}"
+            )
+            self._data_act_session_expired_pending = False
         if portal is None or not reason:
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
             return
@@ -3804,6 +3869,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     *[_client.get_status(vin) for vin in vins],
                     return_exceptions=True,
                 )
+                # v4.7.8 (#1337) — Porsche: when EVERY car's read failed with an
+                # auth error, the refresh token is dead and the client's own
+                # fallback (a full interactive login) is failing on captcha /
+                # changed credentials. Before this the per-VIN failures were only
+                # counted, so the entry re-ran that interactive login up to 3x per
+                # hour indefinitely with no reauth prompt. Escalate to reauth.
+                # Brand-gated on purpose: other brands have their own auth paths.
+                if self._porsche_auth_dead(vins, list(results)):
+                    self._trigger_reauth(
+                        "every vehicle read failed authentication on two "
+                        "consecutive polls (refresh token dead)"
+                    )
                 fresh: dict[str, Any] = {}
                 any_success = False
                 # Lazy-initialise v1.8.7 tracking dicts so tests that bypass

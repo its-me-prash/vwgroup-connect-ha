@@ -42,6 +42,60 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.8] - 2026-09-11 — Porsche login done the reference way, and a round of honesty fixes
+
+### Fixed
+- **Porsche: the login now pauses briefly after the password step, exactly like the proven
+  reference client does.** That client waits a moment before following Porsche's redirect chain;
+  we didn't, and on accounts with a car attached the chain kept landing on the `my.porsche.com`
+  wall even after the captcha was solved right. The client also now identifies itself plainly as
+  this integration instead of borrowing a phone's identity — the same thing the reference client
+  does, and it has been stable for years. When a wall still appears, the message and the pre-filled
+  report link now name the exact Porsche screen it stopped on, so a report is actionable on the
+  first try (#1337, #1400).
+- **Porsche: a dead refresh token now asks you to sign in again instead of failing quietly.** If
+  every car read fails authentication, the integration opens the re-authentication dialog rather
+  than retrying a token Porsche has already thrown away. Setup also no longer signs in twice on the
+  first retry, and the solved-captcha token handed over from setup is only reused when it actually
+  carries a refresh token, and the hand-over copy is always removed from the entry afterwards. A hiccup
+  of Porsche's token endpoint (a 5xx) is no longer mistaken for a dead token, several cars sharing one
+  login now refresh it once instead of once per car, and re-authentication is only requested after two
+  consecutive polls in which every car failed authentication (#1337).
+- **Porsche: "everything is empty" is now visible instead of silent.** When Porsche's status
+  endpoint refuses a car, that's logged once as a warning per car, and a new diagnostic
+  *Connect Contract Active* binary sensor shows whether Porsche reports an active Connect
+  contract at all — the usual reason a Porsche shows up with no data (#1337).
+- **Portal: the "session expired" repair finally goes away once you're signed in again.** It was
+  raised by setup, the data-request kickoff and the historical export, but never cleared — so it
+  outlived the re-login it asked for. It now clears the moment data flows through the portal again.
+- **Scout feed: short-term consumption on combustion cars, engine starts, and the charge-report
+  battery %.** The short-term consumption leaf arrives as l/100 km on ICE and plug-in hybrids —
+  v4.7.6 read it and then dropped it. It now feeds its own *Short Term Average Fuel Consumption*
+  sensor. The SCR engine-starts counter only shows up on combustion cars (every EV was getting a
+  disabled "Engine Starts" entity), and its two status codes (14/15) are no longer recorded as a
+  count. The "battery % at the last charge report" snapshot gets a disabled-by-default diagnostic
+  sensor, so the Scout stops re-reporting it every poll and it can't shadow the live battery %
+  (#1195, #1380, #1382–#1401).
+- **Scout feed: anti-theft alarm reason (CUPRA Raval).** The portal's `dwa_alarm_reason` leaf (e.g.
+  "ALARM_REASON_DRIVERSDOOROPEN") now feeds a diagnostic *Alarm Reason* sensor, kept verbatim. The
+  bare `data` leaf that came with it is a small DER-encoded export envelope (two timestamps, no
+  reading) and is recognised as such instead of being reported as a new field every poll (#1396).
+- **Position: the freshest fix wins when a car has more than one data channel.** Merging used to
+  take the primary channel's coordinates first and only fill gaps from the others, so a stale pin
+  could beat a newer fix from the second channel. Position, heading and capture time now come from
+  whichever channel reported most recently.
+- **Trip sensors on VW-EU portal cars are no longer hidden by a capability the car doesn't need.**
+  The "no trip-statistics capability" gate hid trip sensors even when the EU Data Act feed had
+  already delivered the values. It now only applies when the car has no trip value at all
+  (#923, thanks @guiumb).
+- **Options flow: the "Terms & Conditions" sign-in message showed as a raw key** in the re-login
+  dialog; it now has its text in all 12 translations.
+
+### Changed
+- **Captcha dialog wording is now accurate.** The v4.7.6 text said the captcha answer "never leaves
+  your Home Assistant instance" — that was wrong: it is sent to Porsche's login service (and nowhere
+  else). The dialog now says exactly that. The v4.7.6 notes below were corrected the same way.
+
 ## [4.7.7] - 2026-09-10 — Porsche login remembers itself (captcha only once)
 
 ### Fixed
@@ -57,19 +111,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Added
 - **GPS position, heading, short-term consumption and an engine-starts count from the live Scout
   feed.** The portal's continuous feed carries several fields the integration wasn't surfacing yet:
-  the car's GPS position (it does send coordinates under `persLocation`), its heading, the short-term
-  average electric consumption and a total engine-starts counter now come through as sensors, and the
-  trip id is consumed for correlation. Grounded on real Škoda Elroq and Audi captures (#1378, #1375).
-- **Porsche login now gets past the captcha wall — solve it right in the setup dialog.** Porsche's
-  login can put up an Auth0 captcha; the integration now shows it inline during setup,
-  re-authentication and reconfigure so you can type it and continue. The login also stops declaring
-  passkey support (matching a proven reference client), which keeps Porsche on the solvable captcha
-  path instead of bouncing to the unclearable `my.porsche.com` consent wall some accounts hit before —
-  confirmed working end-to-end on a real account. A captcha shown after the password step is replayed
-  to the exact screen that presented it (pinned to Porsche's own domain). Retries are bounded (too many
-  can lock a Porsche account), the challenge you enter never leaves your Home Assistant instance, and
-  any login that still can't be cleared gives an honest message plus a one-click report link with
-  auto-redacted diagnostics (#1337).
+  on cars whose feed includes `persLocation` (seen on a Škoda Elroq) the GPS position and heading,
+  plus the short-term average electric consumption and the SCR engine-starts counter now come
+  through as sensors. The per-trip id is recognised as metadata so it stops being reported as an
+  undiscovered field. Grounded on real Škoda Elroq and Audi captures (#1378, #1375).
+  *(Corrected in 4.7.8: the original note implied every car sends `persLocation` and that the trip
+  id is used for correlation — neither is the case.)*
+- **Porsche's captcha can now be solved right in the setup dialog.** Porsche's login can put up an
+  Auth0 captcha; the integration now shows it inline during setup, re-authentication and reconfigure
+  so you can type it and continue. The login also stops declaring passkey support (matching a proven
+  reference client), which keeps Porsche on the solvable captcha path instead of bouncing straight
+  to the `my.porsche.com` wall — confirmed on a real account without a vehicle attached; accounts
+  with a car could still hit that wall after the password step, which 4.7.8 addresses. A captcha
+  Porsche presents after the password step is answered on the screen that showed it (pinned to
+  Porsche's own domain). Retries are bounded (too many can lock a Porsche account), what you type is
+  sent only to Porsche's login service, and any login that still can't be cleared gives an honest
+  message plus a pre-filled report link (no personal data in it) that tells you which log lines to
+  attach (#1337).
+  *(Corrected in 4.7.8: the original note claimed the answer "never leaves your Home Assistant
+  instance" and that the link attaches diagnostics automatically — both were wrong.)*
 
 ### Fixed
 - **Battery % right after plugging in: two more source fields covered.** The v4.7.5 fix that stops the

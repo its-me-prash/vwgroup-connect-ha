@@ -53,6 +53,16 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:car-key",
     ),
+    # v4.7.8 (#1337) — Porsche Connect contract state. A lapsed contract leaves
+    # the car enumerated but every reading blank (@mps222, 3 cars) with nothing
+    # telling the user why; this names it. None (not reported) → no entity.
+    VagBinarySensorDescription(
+        key="connect_contract_active",
+        translation_key="connect_contract_active",
+        data_key="connect_contract_active",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:file-certificate-outline",
+    ),
     VagBinarySensorDescription(
         key="windows_open",
         translation_key="windows_open",

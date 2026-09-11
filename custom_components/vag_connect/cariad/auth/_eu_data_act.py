@@ -1694,6 +1694,12 @@ def map_dataset_to_vehicle_data(
         else None
     )
 
+    # v4.7.8 (#1195/#1380) — the charge-report SoC leaf the walker splits off
+    # (the SoC at the last charge start/stop report, NOT live). Surfaced as its
+    # own reading so the Scout stops re-reporting it as "undiscovered" on every
+    # poll (11 auto-issues in one day) — Scout policy: map, never suppress.
+    d.battery_soc_charge_report = _to_int(first("battery_state_report.soc_at_charge_start"))
+
     # #465 — SoC is the one field observed to ship under disagreeing aliases
     # (a stale 57 vs the fresh 81); resolve it by capture time, not list order.
     _leaf_soc = _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
@@ -1803,18 +1809,45 @@ def map_dataset_to_vehicle_data(
     _stc_raw = str(first("shortTermAverageConsumption") or "")
     _stc_parts = _stc_raw.split()
     _stc = _to_float(_stc_parts[0]) if _stc_parts else None
-    if _stc is not None and _stc >= 0 and "wh" in _stc_raw.lower():
-        d.short_term_avg_electric_consumption_kwh_100km = _stc
+    _stc_unit = _stc_parts[1].lower() if len(_stc_parts) > 1 else ""
+    if _stc is not None and _stc >= 0:
+        if "wh" in _stc_unit:
+            d.short_term_avg_electric_consumption_kwh_100km = _stc
+        elif _stc_unit.startswith("l"):
+            # v4.7.8 — the data dictionary names this leaf "short term FUEL
+            # consumption", so l/100km is its DOCUMENTED shape, not an edge case.
+            # v4.7.6 consumed it here and then dropped it (a Scout no-suppression
+            # violation on every ICE/PHEV car); it gets its own fuel sensor.
+            d.short_term_avg_fuel_consumption_l_100km = _stc
 
     # #1375 (Audi S6 TDI) — SCR/AdBlue engine-start counter (diagnostic).
+    # v4.7.8 — per the dictionary "<=13 number of restarts, ==14 driveability,
+    # ==15 no_driveability": 14/15 are STATUS codes, not a count. Recording
+    # them as a TOTAL_INCREASING value made HA's statistics see a meter reset
+    # when the real count came back; only the count range is a count.
     _scr = _to_int(first("scr_number_of_engine_starts"))
-    if _scr is not None and _scr >= 0:
+    if _scr is not None and 0 <= _scr <= 13:
         d.engine_starts_count = _scr
 
     # #1378 — ``tripId`` is a per-trip UUID (identifier only, no sensor value).
     # Consume it so the Scout stops re-reporting it as an "undiscovered field"
     # every poll; it is metadata, not a suppressed reading.
     first("tripId")
+
+    # v4.7.8 (#1396, CUPRA Raval) — anti-theft alarm reason (``dwa`` = Diebstahl-
+    # warnanlage), e.g. "ALARM_REASON_DRIVERSDOOROPEN". Kept verbatim: the enum
+    # set is not documented, so no value is rewritten or dropped.
+    _dwa = first("dwa_alarm_reason")
+    if _dwa is not None and str(_dwa).strip():
+        d.alarm_reason = str(_dwa).strip()
+
+    # v4.7.8 (#1396, CUPRA Raval) — a bare ``data`` leaf carrying a base64 DER
+    # packet. Decoded it holds two GeneralizedTime stamps ten minutes apart plus
+    # small counters — an export ENVELOPE (poll window), not a vehicle reading;
+    # the same class as the v2.18.1 envelope carve-out (tripId precedent).
+    # Consumed so the Scout stops re-reporting it every poll; nothing here is a
+    # value a sensor could show. Revisit if a decoded shape ever carries data.
+    first("data")
 
     # #465 (zdravac) — vehicleIsStandingStill (dict UUID 0010398f-5fda-39af-9e7a-
     # 25db8c2e623a, cluster "Parking Data", boolean "current motion state").

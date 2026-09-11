@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Vyžadována captcha",
-        "description": "Porsche vyžaduje vyřešení captchy pro pokračování v přihlášení.\n\n{captcha_img}\n\nVyřešte to jen jednou podle svého nejlepšího odhadu — opakované neúspěšné pokusy již vedly k zablokování účtu Porsche kvůli podezřelé aktivitě.\n\nNic, co sem zadáš, neopustí tvou instanci Home Assistant. Pokud se obrázek nenačte nebo se stále objevují chyby, můžeš to nahlásit (přilož diagnostiku): {report_url}",
+        "description": "Porsche vyžaduje vyřešení captcha pro pokračování přihlášení.\n\n{captcha_img}\n\nVyřeš ji jednou podle nejlepšího odhadu — opakované neúspěšné pokusy už u Porsche vedly k zablokování účtů kvůli podezřelé aktivitě.\n\nTvoje odpověď jde pouze do přihlašovací služby Porsche, nikdy třetím stranám ani tomuto projektu. Pokud se obrázek nenačte nebo se chyby opakují, můžeš to nahlásit: {report_url}",
         "data": {
           "captcha_code": "Kód captcha"
         },
@@ -354,7 +354,8 @@
       "invalid_auth": "Přihlášení selhalo. Zkontrolujte e-mail a heslo svého Volkswagen ID.",
       "cannot_connect": "Volkswagen se nepodařilo kontaktovat. Zkuste to prosím znovu.",
       "vweu_mfa_unsupported": "Tento účet vyžaduje kód z e-mailu nebo z ověřovací aplikace, který VW EU Two-Way zatím neumí zpracovat. Použijte místo toho kanály jen pro čtení.",
-      "vweu_no_bff_data": "Přihlášení proběhlo, ale Volkswagen pro tento vůz na moderním backendu zatím nevrátil žádná živá data, takže VW EU Two-Way nebyl zapnut a váš stávající kanál zůstává beze změny. Zkuste to prosím později, nebo sdílejte diagnostiku, abychom se na to mohli podívat."
+      "vweu_no_bff_data": "Přihlášení proběhlo, ale Volkswagen pro tento vůz na moderním backendu zatím nevrátil žádná živá data, takže VW EU Two-Way nebyl zapnut a váš stávající kanál zůstává beze změny. Zkuste to prosím později, nebo sdílejte diagnostiku, abychom se na to mohli podívat.",
+      "terms_and_conditions": "Je nutné přijmout obchodní podmínky. Přihlaste se v aplikaci."
     },
     "abort": {
       "not_volkswagen": "Tento kanál je dostupný pouze pro Volkswagen.",
@@ -1457,6 +1458,15 @@
       },
       "engine_starts_count": {
         "name": "Starty motoru"
+      },
+      "short_term_avg_fuel_consumption_l_100km": {
+        "name": "Krátkodobá průměrná spotřeba paliva"
+      },
+      "battery_soc_charge_report": {
+        "name": "Stav baterie (poslední zpráva o nabíjení)"
+      },
+      "alarm_reason": {
+        "name": "Důvod alarmu"
       }
     },
     "binary_sensor": {
@@ -1768,6 +1778,9 @@
       },
       "data_stale": {
         "name": "Data zastaralá"
+      },
+      "connect_contract_active": {
+        "name": "Smlouva Connect aktivní"
       }
     },
     "switch": {

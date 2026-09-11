@@ -33,7 +33,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha vaaditaan",
-        "description": "Porsche vaatii captchan ratkaisemista kirjautumisen jatkamiseksi.\n\n{captcha_img}\n\nRatkaise tämä vain kerran parhaan arviosi mukaan — toistuvat epäonnistuneet yritykset ovat johtaneet Porschen tilien lukitsemiseen epäilyttävän toiminnan vuoksi.\n\nMitään tähän syöttämääsi ei lähetetä Home Assistant -instanssistasi. Jos kuva ei lataudu tai saat jatkuvasti virheitä, voit ilmoittaa siitä (liitä diagnostiikka): {report_url}",
+        "description": "Porsche vaatii captchan ratkaisemista kirjautumisen jatkamiseksi.\n\n{captcha_img}\n\nRatkaise se kerran parhaan arvauksesi mukaan — toistuvat epäonnistuneet yritykset ovat johtaneet Porsche-tilien lukitsemiseen epäilyttävän toiminnan vuoksi.\n\nVastauksesi lähetetään vain Porschen kirjautumispalveluun, ei koskaan kolmansille osapuolille tai tälle projektille. Jos kuva ei lataudu tai virheet toistuvat, voit ilmoittaa siitä: {report_url}",
         "data": {
           "captcha_code": "Captcha-koodi"
         },
@@ -354,7 +354,8 @@
       "invalid_auth": "Kirjautuminen epäonnistui. Tarkista Volkswagen ID -sähköpostisi ja -salasanasi.",
       "cannot_connect": "Volkswageniin ei saatu yhteyttä. Yritä uudelleen.",
       "vweu_mfa_unsupported": "Tämä tili vaatii sähköposti- tai todennussovelluskoodin, jota VW EU Two-Way ei vielä osaa käsitellä. Käytä sen sijaan vain luku -kanavia.",
-      "vweu_no_bff_data": "Kirjautuminen onnistui, mutta Volkswagen ei vielä palauttanut tälle autolle live-tietoja modernissa taustajärjestelmässä, joten VW EU Two-Way ei aktivoitunut ja nykyinen kanavasi säilyy ennallaan. Yritä myöhemmin uudelleen tai jaa diagnostiikkatiedosto, jotta voimme selvittää asiaa."
+      "vweu_no_bff_data": "Kirjautuminen onnistui, mutta Volkswagen ei vielä palauttanut tälle autolle live-tietoja modernissa taustajärjestelmässä, joten VW EU Two-Way ei aktivoitunut ja nykyinen kanavasi säilyy ennallaan. Yritä myöhemmin uudelleen tai jaa diagnostiikkatiedosto, jotta voimme selvittää asiaa.",
+      "terms_and_conditions": "Käyttöehdot on hyväksyttävä. Kirjaudu sovellukseen kerran ja vahvista."
     },
     "abort": {
       "not_volkswagen": "Tämä kanava on käytettävissä vain Volkswagenille.",
@@ -1457,6 +1458,15 @@
       },
       "engine_starts_count": {
         "name": "Moottorin käynnistykset"
+      },
+      "short_term_avg_fuel_consumption_l_100km": {
+        "name": "Lyhyen aikavälin keskimääräinen polttoaineenkulutus"
+      },
+      "battery_soc_charge_report": {
+        "name": "Akun varaustaso (viimeisin latausraportti)"
+      },
+      "alarm_reason": {
+        "name": "Hälytyksen syy"
       }
     },
     "binary_sensor": {
@@ -1768,6 +1778,9 @@
       },
       "data_stale": {
         "name": "Tiedot vanhentuneet"
+      },
+      "connect_contract_active": {
+        "name": "Connect-sopimus aktiivinen"
       }
     },
     "switch": {

@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha necesario",
-        "description": "Porsche requiere resolver un captcha para continuar con el inicio de sesión.\n\n{captcha_img}\n\nResuélvelo solo una vez con tu mejor intento — los intentos fallidos repetidos han provocado que Porsche bloquee cuentas por actividad sospechosa.\n\nLo que introduces aquí no sale de tu instancia de Home Assistant. Si la imagen no se carga o sigues recibiendo errores, puedes notificarlo (adjunta los diagnósticos): {report_url}",
+        "description": "Porsche requiere resolver un captcha para continuar con el inicio de sesión.\n\n{captcha_img}\n\nResuélvelo una sola vez con tu mejor estimación: los intentos fallidos repetidos han provocado bloqueos de cuentas Porsche por actividad sospechosa.\n\nTu respuesta se envía únicamente al servicio de inicio de sesión de Porsche, nunca a terceros ni a este proyecto. Si la imagen no carga o sigues recibiendo errores, puedes informarlo: {report_url}",
         "data": {
           "captcha_code": "Código captcha"
         },
@@ -354,7 +354,8 @@
       "invalid_auth": "Error al iniciar sesión. Comprueba el correo electrónico y la contraseña de tu Volkswagen ID.",
       "cannot_connect": "No se pudo contactar con Volkswagen. Inténtalo de nuevo.",
       "vweu_mfa_unsupported": "Esta cuenta necesita un código por correo electrónico o de la app de autenticación, que VW EU bidireccional aún no puede gestionar. Usa los canales de solo lectura en su lugar.",
-      "vweu_no_bff_data": "Sesión iniciada, pero Volkswagen aún no ha devuelto datos en vivo para este coche en el backend moderno, por lo que VW EU bidireccional no se ha activado y tu canal actual no cambia. Inténtalo de nuevo más tarde o comparte un diagnóstico para que podamos investigarlo."
+      "vweu_no_bff_data": "Sesión iniciada, pero Volkswagen aún no ha devuelto datos en vivo para este coche en el backend moderno, por lo que VW EU bidireccional no se ha activado y tu canal actual no cambia. Inténtalo de nuevo más tarde o comparte un diagnóstico para que podamos investigarlo.",
+      "terms_and_conditions": "Hay que aceptar los términos. Inicia sesión en la aplicación."
     },
     "abort": {
       "not_volkswagen": "Este canal solo está disponible para Volkswagen.",
@@ -1457,6 +1458,15 @@
       },
       "engine_starts_count": {
         "name": "Arranques del motor"
+      },
+      "short_term_avg_fuel_consumption_l_100km": {
+        "name": "Consumo medio de combustible (corto plazo)"
+      },
+      "battery_soc_charge_report": {
+        "name": "Nivel de batería (último informe de carga)"
+      },
+      "alarm_reason": {
+        "name": "Motivo de la alarma"
       }
     },
     "binary_sensor": {
@@ -1768,6 +1778,9 @@
       },
       "data_stale": {
         "name": "Datos obsoletos"
+      },
+      "connect_contract_active": {
+        "name": "Contrato Connect activo"
       }
     },
     "switch": {
