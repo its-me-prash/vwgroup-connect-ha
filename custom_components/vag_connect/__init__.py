@@ -1118,5 +1118,13 @@ async def _async_update_listener(
             refresh_spin = getattr(coordinator, "_refresh_mbb_command_spin", None)
             if callable(refresh_spin):
                 refresh_spin()
+            # v4.7.9 (#584/#923) — the test-cohort opt-in was applied at setup
+            # only, so toggling it here silently needed a restart. Re-apply live.
+            apply_cohort = getattr(coordinator, "_apply_test_cohort", None)
+            if callable(apply_cohort):
+                try:
+                    await apply_cohort()
+                except Exception:  # noqa: BLE001 — never break a settings save
+                    _LOGGER.debug("test-cohort re-apply skipped", exc_info=True)
             # Trigger one immediate refresh so users see the effect
             await coordinator.async_request_refresh()
