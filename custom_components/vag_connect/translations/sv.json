@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha krävs",
-        "description": "Porsche kräver att du löser en captcha för att fortsätta inloggningen.\n\n{captcha_img}\n\nLös det bara en gång efter bästa förmåga — upprepade misslyckade försök har fått Porsche att låsa konton på grund av misstänkt aktivitet.\n\nDet du skriver in här lämnar inte din Home Assistant-instans. Om bilden inte laddas eller du hela tiden får fel kan du rapportera det (bifoga diagnostik): {report_url}",
+        "description": "Porsche kräver att du löser en captcha för att fortsätta inloggningen.\n\n{captcha_img}\n\nLös den en gång med din bästa gissning — upprepade misslyckade försök har fått Porsche att låsa konton på grund av misstänkt aktivitet.\n\nDitt svar skickas endast till Porsches inloggningstjänst, aldrig till tredje part eller till detta projekt. Om bilden inte laddas eller du fortsätter få fel kan du rapportera det: {report_url}",
         "data": {
           "captcha_code": "Captcha-kod"
         },
@@ -354,7 +354,8 @@
       "invalid_auth": "Inloggningen misslyckades. Kontrollera din Volkswagen ID-e-post och ditt lösenord.",
       "cannot_connect": "Kunde inte nå Volkswagen. Försök igen.",
       "vweu_mfa_unsupported": "Det här kontot kräver en e-post- eller autentiseringskod, som VW EU Two-Way inte kan hantera ännu. Använd de skrivskyddade kanalerna istället.",
-      "vweu_no_bff_data": "Inloggningen lyckades, men Volkswagen har ännu inte returnerat några live-data för den här bilen på det moderna backendet, så VW EU Two-Way aktiverades inte och din nuvarande kanal är oförändrad. Försök igen senare, eller dela en diagnostikfil så att vi kan titta på det."
+      "vweu_no_bff_data": "Inloggningen lyckades, men Volkswagen har ännu inte returnerat några live-data för den här bilen på det moderna backendet, så VW EU Two-Way aktiverades inte och din nuvarande kanal är oförändrad. Försök igen senare, eller dela en diagnostikfil så att vi kan titta på det.",
+      "terms_and_conditions": "Användarvillkor måste accepteras. Logga in i appen."
     },
     "abort": {
       "not_volkswagen": "Den här kanalen är endast tillgänglig för Volkswagen.",
@@ -1457,6 +1458,15 @@
       },
       "engine_starts_count": {
         "name": "Motorstarter"
+      },
+      "short_term_avg_fuel_consumption_l_100km": {
+        "name": "Genomsnittlig bränsleförbrukning (kort sikt)"
+      },
+      "battery_soc_charge_report": {
+        "name": "Batterinivå (senaste laddrapport)"
+      },
+      "alarm_reason": {
+        "name": "Larmorsak"
       }
     },
     "binary_sensor": {
@@ -1768,6 +1778,9 @@
       },
       "data_stale": {
         "name": "Data föråldrad"
+      },
+      "connect_contract_active": {
+        "name": "Connect-avtal aktivt"
       }
     },
     "switch": {

@@ -156,6 +156,51 @@ async def test_reconfigure_routes_captcha_to_step_instead_of_crashing() -> None:
     assert f._porsche_reconfigure_entry_id == "e1"
 
 
+# ── v4.7.8: the wall names its screen (exception → ValueError → report) ───────
+def test_wall_error_carries_screen_and_marker_in_message() -> None:
+    from custom_components.vag_connect.cariad.exceptions import PorscheLoginWallError
+    err = PorscheLoginWallError("my.porsche.com/unknown", "title='Consent'; markers=consent")
+    assert err.screen == "my.porsche.com/unknown"
+    assert "my.porsche.com/unknown" in str(err)   # the WARNING line names it now
+    assert "consent" in str(err)
+    assert PorscheLoginWallError().screen == ""  # no-arg construction still fine
+
+
+def test_wall_screen_helper_and_map_error_tolerate_suffix() -> None:
+    from custom_components.vag_connect.config_flow import _map_error, _wall_screen
+    s = "porsche_login_wall:my.porsche.com/unknown|title='x'; markers=consent"
+    assert _wall_screen(s) == "my.porsche.com/unknown"
+    assert _map_error(s) == "porsche_login_wall"          # key survives the suffix
+    assert _wall_screen("invalid_credentials") == ""
+    assert _map_error("invalid_credentials") == "invalid_credentials"
+    assert _map_error("porsche_login_wall") == "porsche_login_wall"
+
+
+@pytest.mark.asyncio
+async def test_validate_credentials_threads_wall_screen_into_value_error() -> None:
+    from custom_components.vag_connect.cariad.api.porsche import PorscheClient
+    from custom_components.vag_connect.cariad.exceptions import PorscheLoginWallError
+    from custom_components.vag_connect.config_flow import _validate_credentials, _wall_screen
+    client = PorscheClient.__new__(PorscheClient)
+    client.authenticate = AsyncMock(  # type: ignore[method-assign]
+        side_effect=PorscheLoginWallError("my.porsche.com/consent", "markers=consent"))
+    with patch("custom_components.vag_connect.cariad.CariadClientFactory.create",
+               return_value=client), pytest.raises(ValueError) as ei:
+        await _validate_credentials(None, "porsche", "a@b.com", "pw")
+    assert _wall_screen(str(ei.value)) == "my.porsche.com/consent"
+
+
+def test_report_url_carries_the_screen_and_debug_guidance() -> None:
+    from urllib.parse import parse_qs, urlsplit
+    from custom_components.vag_connect.config_flow import VagConnectConfigFlow
+    url = VagConnectConfigFlow._porsche_report_url(
+        "email_password", "porsche_login_wall", "my.porsche.com/unknown")
+    body = parse_qs(urlsplit(url).query)["body"][0]
+    assert "Auth0 screen: my.porsche.com/unknown" in body
+    # a FAILED setup has no entry → no diagnostics: steer to the debug lines
+    assert "no entry yet" in body and "Porsche auth:" in body
+
+
 # ── strings integrity: every new reason/error exists + placeholders wired ──────
 def test_new_strings_present_and_report_placeholder_wired() -> None:
     import json

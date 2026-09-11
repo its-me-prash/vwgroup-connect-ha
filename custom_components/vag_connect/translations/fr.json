@@ -81,7 +81,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha requis",
-        "description": "Porsche exige la résolution d'un captcha pour continuer la connexion.\n\n{captcha_img}\n\nRésolvez-le une seule fois du mieux que vous pouvez — des tentatives répétées ont déjà conduit Porsche à bloquer des comptes pour activité suspecte.\n\nCe que vous saisissez ici ne quitte pas votre instance Home Assistant. Si l'image ne se charge pas ou si vous obtenez sans cesse des erreurs, vous pouvez le signaler (joindre les diagnostics) : {report_url}",
+        "description": "Porsche demande la résolution d'un captcha pour poursuivre la connexion.\n\n{captcha_img}\n\nRésolvez-le une seule fois avec votre meilleure estimation — des échecs répétés ont déjà entraîné le blocage de comptes Porsche pour activité suspecte.\n\nVotre réponse est envoyée uniquement au service de connexion Porsche, jamais à un tiers ni à ce projet. Si l'image ne se charge pas ou si les erreurs persistent, vous pouvez le signaler : {report_url}",
         "data": {
           "captcha_code": "Code captcha"
         },
@@ -354,7 +354,8 @@
       "invalid_auth": "Échec de la connexion. Vérifiez l'e-mail et le mot de passe de votre Volkswagen ID.",
       "cannot_connect": "Impossible de joindre Volkswagen. Veuillez réessayer.",
       "vweu_mfa_unsupported": "Ce compte nécessite un code par e-mail ou d'une application d'authentification, que VW EU bidirectionnel ne prend pas encore en charge. Utilisez plutôt les canaux en lecture seule.",
-      "vweu_no_bff_data": "Connexion réussie, mais Volkswagen n'a pas encore renvoyé de données en direct pour cette voiture sur le backend moderne ; VW EU bidirectionnel n'a donc pas été activé et votre canal actuel reste inchangé. Veuillez réessayer plus tard, ou partagez un fichier de diagnostic pour que nous puissions examiner le problème."
+      "vweu_no_bff_data": "Connexion réussie, mais Volkswagen n'a pas encore renvoyé de données en direct pour cette voiture sur le backend moderne ; VW EU bidirectionnel n'a donc pas été activé et votre canal actuel reste inchangé. Veuillez réessayer plus tard, ou partagez un fichier de diagnostic pour que nous puissions examiner le problème.",
+      "terms_and_conditions": "Conditions d'utilisation à accepter. Connectez-vous dans l'application."
     },
     "abort": {
       "not_volkswagen": "Ce canal est disponible uniquement pour Volkswagen.",
@@ -1457,6 +1458,15 @@
       },
       "engine_starts_count": {
         "name": "Démarrages moteur"
+      },
+      "short_term_avg_fuel_consumption_l_100km": {
+        "name": "Consommation moyenne de carburant (court terme)"
+      },
+      "battery_soc_charge_report": {
+        "name": "Niveau de batterie (dernier rapport de charge)"
+      },
+      "alarm_reason": {
+        "name": "Cause de l'alarme"
       }
     },
     "binary_sensor": {
@@ -1768,6 +1778,9 @@
       },
       "data_stale": {
         "name": "Données obsolètes"
+      },
+      "connect_contract_active": {
+        "name": "Contrat Connect actif"
       }
     },
     "switch": {

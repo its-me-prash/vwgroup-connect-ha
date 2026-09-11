@@ -1588,6 +1588,41 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=1,
         condition="electric",
     ),
+    # v4.7.8 — the same portal leaf in its documented FUEL shape (l/100km);
+    # v4.7.6 consumed it and dropped it. Scout policy: never suppress a value.
+    VagSensorDescription(
+        key="short_term_avg_fuel_consumption_l_100km",
+        translation_key="short_term_avg_fuel_consumption_l_100km",
+        data_key="short_term_avg_fuel_consumption_l_100km",
+        native_unit_of_measurement="L/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-station-outline",
+        suggested_display_precision=1,
+        condition="combustion",
+    ),
+    # v4.7.8 (#1195/#1380) — the "SoC at the last charge report" snapshot the
+    # portal ships beside the live SoC. Kept apart from battery_soc so the live
+    # value always wins; surfaced here so the Scout stops re-reporting it.
+    VagSensorDescription(
+        key="battery_soc_charge_report",
+        translation_key="battery_soc_charge_report",
+        data_key="battery_soc_charge_report",
+        native_unit_of_measurement="%",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-clock",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # v4.7.8 (#1396, CUPRA Raval) — anti-theft alarm reason from the portal
+    # feed (verbatim enum string). Diagnostic; only cars that report it get it.
+    VagSensorDescription(
+        key="alarm_reason",
+        translation_key="alarm_reason",
+        data_key="alarm_reason",
+        icon="mdi:alarm-light-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 
     # #1375 (Audi S6 TDI) — SCR/AdBlue engine-start counter (diagnostic).
     VagSensorDescription(
@@ -1596,6 +1631,9 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         data_key="engine_starts_count",
         state_class=SensorStateClass.TOTAL_INCREASING,
         icon="mdi:engine",
+        # v4.7.8 — SCR/AdBlue engine starts exist only on combustion cars;
+        # without this every EV got a (disabled) "Engine Starts" entity.
+        condition="combustion",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
@@ -4210,9 +4248,15 @@ async def async_setup_entry(
                 # trip data inline from their own get_status parse, so a missing
                 # tripStatistics cap must NOT hide their sensors; the hide-empty guard
                 # below already suppresses any field they don't fill.
-                if brand in ("audi", "volkswagen") and (
-                    coordinator.command_capability_supported(vin, "command_trip_stats")
+                # v4.7.8 (#923 guiumb) — ...but ONLY when the car has no trip
+                # value at all. A VW-EU portal car gets its trips from the EU Data
+                # Act feed, not the BFF; the "no tripStatistics capability" gate
+                # was hiding real data those cars already carried.
+                if (
+                    brand in ("audi", "volkswagen")
+                    and coordinator.command_capability_supported(vin, "command_trip_stats")
                     is False
+                    and vehicle.get(desc.data_key) is None
                 ):
                     continue
             # b3 — hide empty: skip data sensors with no value yet (reporters,

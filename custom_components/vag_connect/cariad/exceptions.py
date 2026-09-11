@@ -462,11 +462,20 @@ class PorscheLoginWallError(AuthenticationError):
     and instead names the real wall — mirroring how ``NorthAmericaAttestation
     Error`` rescued the VW-NA case. Carries no secret; the message is static."""
 
-    def __init__(self) -> None:
+    def __init__(self, screen: str = "", marker: str = "") -> None:
+        # v4.7.8 (#1337) — name WHAT was hit. ``screen`` is "host/acul-screen-
+        # name" (e.g. "my.porsche.com/unknown"), ``marker`` the secret-free page
+        # marker (title + keyword flags). Both are already-redacted by
+        # construction (no URL/query/body/token), so they may travel into the
+        # WARNING log line, the abort dialog and the one-click GitHub report —
+        # the datapoint every wall report so far was missing.
+        where = f" (screen: {screen}; {marker})" if screen or marker else ""
         super().__init__(
             "Porsche login reached a captcha/consent screen after the password "
-            "step that a headless login cannot complete — credentials are fine."
+            f"step that a headless login cannot complete — credentials are fine{where}."
         )
+        self.screen = screen
+        self.marker = marker
 
 
 class PortalInteractionRequiredError(AuthenticationError):

@@ -112,6 +112,7 @@ Old flow based on CJNE/pyporscheconnectapi (Apache-2.0), aiohttp reimpl.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -124,6 +125,7 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 from aiohttp import ClientTimeout, ClientSession
 
 from ..exceptions import (
+    APIError,
     AuthenticationError,
     PorscheCaptchaRequiredError,
     PorscheLoginWallError,
@@ -142,7 +144,16 @@ _TOKEN_URL     = f"https://{_AUTH_SERVER}/oauth/token"
 _CLIENT_ID     = "XhygisuebbrqQ80byOuU5VncxLIm8E6H"
 _REDIRECT_URI  = "my-porsche-app://auth0/callback"
 _AUDIENCE      = "https://api.porsche.com"
-_USER_AGENT    = "My Porsche/2.1.0 (iPhone; iOS 17.0; Scale/3.00)"
+# #1337 (v4.7.8) — a plain library User-Agent, the same CLASS the reference
+# client (CJNE/pyporscheconnectapi) authenticates and reads with. We previously
+# impersonated the iOS app; a native-app fingerprint without the app's device
+# context is the more suspicious of the two to Auth0's bot scoring and is one
+# of only two request-shape differences from the flow that demonstrably gets
+# vehicle-holding accounts through. Honest, ours, not the other project's string.
+_USER_AGENT    = "vag-connect-ha/4.7.8 (+https://github.com/its-me-prash/vwgroup-connect-ha)"
+# Reference-client settle delay between the password POST and the first resume
+# hop (see the comment at the call site in ``authenticate``).
+_POST_PASSWORD_SETTLE_S = 2.5
 # b19 (CJNE-comparison #4) — CJNE attaches this X-Client-ID to every Auth0-flow
 # request (identifier/password POSTs, resume hops, token exchange, refresh),
 # not just post-auth API calls. It is already used post-auth in api/porsche.py
@@ -196,6 +207,11 @@ class PorscheAuth:
 
     def __init__(self, session: ClientSession) -> None:
         self._session = session
+        # v4.7.8 (#1337) — the last unhandled wall screen (host/name) + its
+        # secret-free page marker, set by ``_follow_to_code``; carried on
+        # ``PorscheLoginWallError`` so the UI/report can name what was hit.
+        self._last_wall_screen: str = ""
+        self._last_wall_marker: str = ""
 
     async def authenticate(
         self,
@@ -228,6 +244,11 @@ class PorscheAuth:
         captcha to the exact ACUL screen that presented it (``_resume_acul_
         captcha``) and continues to the code from there.
         """
+        # v4.7.8 — a wall screen/marker belongs to THIS attempt only; the same
+        # PorscheAuth lives across polls, so a previous attempt's wall name must
+        # never leak into a later error.
+        self._last_wall_screen = ""
+        self._last_wall_marker = ""
         if captcha_code and captcha_resume:
             return await self._resume_acul_captcha(
                 captcha_code, captcha_resume, resume_verifier or "",
@@ -378,6 +399,26 @@ class PorscheAuth:
                         image, resume["form"].get("state", ""), verifier,
                         resume=resume,
                     )
+            # v4.7.8 — a rendered page with no replayable captcha IS the wall.
+            # Name it here: step 4 has no redirect to follow, so it would
+            # otherwise report "unknown". Host + ACUL screen name + the
+            # secret-free page marker only — never the URL/query/body.
+            self._last_wall_screen = (
+                f"{_AUTH_SERVER}/{self._acul_screen_name(password_url, body) or 'unknown'}"
+            )
+            self._last_wall_marker = self._page_marker(body)
+
+        # #1337 (v4.7.8) — settle delay before resuming. The reference client
+        # (CJNE/pyporscheconnectapi, ``login_with_identifier``) deliberately
+        # sleeps 2.5 s between the password POST and the first resume hop, and
+        # it is the ONE thing its flow did that ours did not. Porsche's backend
+        # needs a moment to commit the login; resuming immediately bounced
+        # vehicle-holding accounts to the unclearable ``my.porsche.com`` wall
+        # (@Hollywoodchaos, @mps222, @buhito81). mps222 called it exactly: his
+        # login "surprisingly" worked the moment DEBUG logging added latency.
+        # Matching the reference delay 1:1 keeps us on the code-yielding path.
+        if location:
+            await asyncio.sleep(_POST_PASSWORD_SETTLE_S)
 
         # Step 4: follow the Auth0 redirect chain to the code.
         #
@@ -396,7 +437,7 @@ class PorscheAuth:
             # code. Raise the distinct wall error so the config flow stops
             # mislabelling these verified-good credentials as "email/password
             # incorrect" (#1337 @Hollywoodchaos/@mps222 both hit exactly that).
-            raise PorscheLoginWallError()
+            raise PorscheLoginWallError(self._last_wall_screen, self._last_wall_marker)
 
         # Step 5: Exchange code for tokens
         return await self._exchange_code(code, verifier)
@@ -587,13 +628,21 @@ class PorscheAuth:
                         urlsplit(target).hostname or "?",
                     )
                     return None
+                marker = self._page_marker(html)
                 _LOGGER.debug(
                     "Porsche auth: hop returned HTTP %s — rendered screen '%s' "
                     "(host=%s; %s) we do not handle; no authorization code. The "
                     "screen name/marker is what grounding a fix for it needs.",
                     resp.status, screen or "unknown",
-                    urlsplit(target).hostname or "?", self._page_marker(html),
+                    urlsplit(target).hostname or "?", marker,
                 )
+                # v4.7.8 (#1337) — remember WHAT we hit so the wall error (and the
+                # config flow's abort text + one-click report) can name it. Every
+                # wall report so far said "screen: unknown" because this stayed
+                # DEBUG-only; secret-free by construction (host + screen name +
+                # title/keyword marker, never a URL/query/body).
+                self._last_wall_screen = f"{urlsplit(target).hostname or '?'}/{screen or 'unknown'}"
+                self._last_wall_marker = marker
                 return None
         return None
 
@@ -721,7 +770,7 @@ class PorscheAuth:
             # The descriptor is built with the same guard, so this should be
             # unreachable; keep it as a hard stop against ever POSTing the
             # seeded form off Porsche's domain.
-            raise PorscheLoginWallError()
+            raise PorscheLoginWallError(self._last_wall_screen, self._last_wall_marker)
         form = dict(resume.get("form") or {})
         form.update({
             "captcha":  captcha_code,
@@ -745,7 +794,7 @@ class PorscheAuth:
         if status in (301, 302, 303, 307, 308) and location:
             code = await self._follow_to_code(location, url, verifier)
             if not code:
-                raise PorscheLoginWallError()
+                raise PorscheLoginWallError(self._last_wall_screen, self._last_wall_marker)
             return await self._exchange_code(code, verifier)
         if status == 200:
             # The screen re-rendered instead of advancing: another captcha
@@ -757,7 +806,7 @@ class PorscheAuth:
                     raise PorscheCaptchaRequiredError(
                         image, nxt["form"].get("state", ""), verifier, resume=nxt,
                     )
-            raise PorscheLoginWallError()
+            raise PorscheLoginWallError(self._last_wall_screen, self._last_wall_marker)
         raise AuthenticationError(
             f"Porsche captcha resume failed (HTTP {status})"
         )
@@ -786,10 +835,16 @@ class PorscheAuth:
                 raise TokenExpiredError("Porsche refresh token expired")
             if resp.status != 200:
                 body = await resp.text()
-                raise AuthenticationError(
-                    f"Porsche token refresh failed {resp.status}: "
-                    f"{_oauth_error_code(body)}"
-                )
+                code = _oauth_error_code(body)
+                if resp.status == 400 and code == "invalid_grant":
+                    # OAuth's own "refresh token invalid/revoked" answer.
+                    raise TokenExpiredError("Porsche refresh token expired")
+                # v4.7.8 — anything else (5xx, 429, 4xx-other) is a token-
+                # ENDPOINT failure, not a dead token: only 401/403/invalid_grant
+                # mean the refresh token is gone. Raising AuthenticationError
+                # here turned an Auth0 hiccup into a full re-authentication
+                # (captcha again) once get_status stopped swallowing auth errors.
+                raise APIError(resp.status, _TOKEN_URL, code)
             data = await resp.json()
 
         return TokenSet(

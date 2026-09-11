@@ -92,9 +92,12 @@ class TestLoginWallMapping:
             return_value=client,
         ), pytest.raises(ValueError) as excinfo:
             await _validate_credentials(None, "porsche", "a@b.com", "pw")
-        assert str(excinfo.value) == "porsche_login_wall"
+        # v4.7.8 — the key now carries a ":<screen>|<marker>" suffix for the
+        # one-click report; the KEY is what matters here.
+        assert str(excinfo.value).startswith("porsche_login_wall")
+        assert _map_error(str(excinfo.value)) == "porsche_login_wall"
         # The whole point of the fix: it must NOT be the credentials error.
-        assert str(excinfo.value) != "invalid_credentials"
+        assert not str(excinfo.value).startswith("invalid_credentials")
 
     @pytest.mark.asyncio
     async def test_real_wrong_credentials_still_map_to_invalid(self) -> None:

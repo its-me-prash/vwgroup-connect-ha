@@ -33,7 +33,7 @@
       },
       "porsche_captcha": {
         "title": "Captcha required",
-        "description": "Porsche needs you to solve a captcha to continue signing in.\n\n{captcha_img}\n\nOnly solve this once with your best guess — repeated failed attempts have caused Porsche to lock accounts for suspicious activity.\n\nNothing you enter here leaves your Home Assistant instance. If the image will not load or you keep getting errors, you can report it (attach diagnostics): {report_url}",
+        "description": "Porsche needs you to solve a captcha to continue signing in.\n\n{captcha_img}\n\nSolve it once with your best guess — repeated failed attempts have caused Porsche to lock accounts for suspicious activity.\n\nYour answer goes only to Porsche's login service, never to any third party or to this project. If the image will not load or you keep getting errors, you can report it: {report_url}",
         "data": {
           "captcha_code": "Captcha Code"
         },
@@ -354,7 +354,8 @@
       "invalid_auth": "Sign-in failed. Check your Volkswagen ID email and password.",
       "cannot_connect": "Could not reach Volkswagen. Please try again.",
       "vweu_mfa_unsupported": "This account needs an email or authenticator code, which VW EU Two-Way cannot handle yet. Use the read-only channels instead.",
-      "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it."
+      "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it.",
+      "terms_and_conditions": "Terms and conditions need to be accepted. Sign in to the app once and confirm."
     },
     "abort": {
       "not_volkswagen": "This channel is only available for Volkswagen.",
@@ -1457,6 +1458,15 @@
       },
       "engine_starts_count": {
         "name": "Engine Starts"
+      },
+      "short_term_avg_fuel_consumption_l_100km": {
+        "name": "Short Term Average Fuel Consumption"
+      },
+      "battery_soc_charge_report": {
+        "name": "Battery Level at Last Charge Report"
+      },
+      "alarm_reason": {
+        "name": "Alarm Reason"
       }
     },
     "binary_sensor": {
@@ -1768,6 +1778,9 @@
       },
       "data_stale": {
         "name": "Data stale"
+      },
+      "connect_contract_active": {
+        "name": "Connect Contract Active"
       }
     },
     "switch": {

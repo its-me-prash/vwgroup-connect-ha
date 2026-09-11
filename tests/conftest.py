@@ -78,3 +78,14 @@ def pytest_configure(config):
         "markers",
         "ha_required: test needs the homeassistant package installed",
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_porsche_settle_delay(monkeypatch):
+    """v4.7.8 (#1337) — the Porsche login sleeps 2.5 s after the password POST
+    (reference-client settle delay). Never pay that in unit tests."""
+    try:
+        from custom_components.vag_connect.cariad.auth import porsche as _p
+        monkeypatch.setattr(_p, "_POST_PASSWORD_SETTLE_S", 0, raising=False)
+    except Exception:  # noqa: BLE001 — module import problems surface elsewhere
+        pass
