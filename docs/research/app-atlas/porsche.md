@@ -1,7 +1,7 @@
 # App Atlas — Porsche (My Porsche, North America)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-09-16
+> Last refreshed: 2026-09-17
 
 ## Identity
 
@@ -41,8 +41,8 @@ passing unnoticed behind a single row.
 |---|---|
 | Latest version-name | `20.26.37` |
 | Source that responded | `apkmirror` |
-| Previously cached version | `20.26.36` |
-| Changed since last run? | **YES** |
+| Previously cached version | `20.26.37` |
+| Changed since last run? | No |
 
 
 ## Discovered via APK extraction (Phase A.2)
@@ -84,6 +84,8 @@ expect the backend to answer for a longer window.
 **`SPIDERMAP`** is an isochrone command (reachable-range polygon) and carries a
 SPIN in its payload, which puts it in the same authorisation class as the other
 SPIN-gated commands rather than with the plain reads.
+
+**Attribution caveat.** The North-American line jumped 20.26.31 → 20.26.37 while the rest-of-world line was already at 20.26.36. Cross-checked against `de.porsche.one` 20.26.36: the dashcam capability, `ACCESS_LOCAL_NETWORK`, push-category subscriptions, the user-facing tailgate unlock, pickup & delivery and the contract renames were all in 20.26.36 already, i.e. 20.26.32–20.26.36 changes that are merely new to the NA line. Genuinely new in 20.26.37 (absent from ROW 20.26.36 too): the charging-history screen and its `CHARGING_SESSION_HISTORY` fields `plugInDateTimeWithOffset`/`plugOutDateTimeWithOffset`/`startSoC`/`endSoC`, the `SPIDERMAP` command, POI-sync refusal reasons, and homescreen layout editing.
 
 ## Action items
 
