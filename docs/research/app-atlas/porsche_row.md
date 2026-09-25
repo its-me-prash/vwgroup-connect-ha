@@ -45,9 +45,9 @@ only source that answers, and it currently lags a release behind.
 | | |
 |---|---|
 | Latest version-name | `20.26.37` |
-| Source that responded | `apk_analysis` |
-| Previously cached version | `(first run)` |
-| Changed since last run? | **YES** |
+| Source that responded | `apkcombo` |
+| Previously cached version | `20.26.37` |
+| Changed since last run? | No |
 
 
 ## Discovered via APK extraction (Phase A.2)
