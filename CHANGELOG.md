@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.15] - 2026-09-25 — The new MEB climate dialect, mapped — and the Scout flood it caused, silenced
+
 ### Added
 - **Climate state now shows for portal-read cars (Vehicle Data Scout, 2026-09-25).** The EU Data Act
   portal reports `climatisation_state` (OFF / HEATING / COOLING / …), flagged by ~8 VW ID.x reporters.
