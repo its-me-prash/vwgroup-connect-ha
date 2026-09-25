@@ -1716,6 +1716,13 @@ class VehicleData:
     # sensor — no per-field entity explosion). Same unmapped set that feeds the
     # Vehicle Data Scout report: one detection pass, both worlds.
     raw_unmapped_fields: dict[str, str] = field(default_factory=dict)
+    # Scout 2026-09-25 — the MEB portal's speedometer calibration curve
+    # (setup_real_speed_ratios.speed_ratio_x<N>_y<N>.{physical_value_x/_y, value_type},
+    # ~4 control points). A fixed factory calibration, not a live reading, so it gets
+    # no entity — but the values are kept here (and thus in to_dict()/diagnostics)
+    # rather than suppressed, and the leaves are consumed so they stop flooding the
+    # Vehicle Data Scout. Keyed by control point ("speed_ratio_x2_y2") -> {leaf: value}.
+    speed_ratio_calibration: dict[str, dict[str, str]] = field(default_factory=dict)
     # Fields the export delivered MORE THAN ONCE under one capture time with
     # different values. The append order is then the only thing separating
     # them, which is not evidence, so the parser records every candidate here
