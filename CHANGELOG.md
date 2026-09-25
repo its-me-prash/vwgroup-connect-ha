@@ -47,9 +47,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   portal reports `climatisation_state` (OFF / HEATING / COOLING / …), flagged by ~8 VW ID.x reporters.
   It now feeds the existing climatisation-state sensor for portal cars — the redundant
   `CLIMATISATION_STATE_` prefix is stripped to match the OFF/HEATING format the brand channels use.
+- **More climate settings + the hood fill in for portal-read cars (Vehicle Data Scout, 2026-09-25).**
+  The newer MEB portal moved several fields to a nested `climatisation_settings` block with slightly
+  different names — the four climate-zone enables (incl. a rear pair the old dialect lacked),
+  climatise-at-unlock and climatise-without-HV-power. They now feed the SAME existing sensors as the
+  older dialect. Some cars also report the hood as a percentage (`position_of_hood`, 0 = closed)
+  rather than an open/closed enum — that feeds the existing hood sensor too (VW T-Roc, #1446).
+  (The nested `target_temperature` VW is now shipping stays unmapped for now — its unit isn't in the
+  published data dictionary and one sample isn't enough to decode safely.)
 
 
 ### Changed
+- **Two portal request-metadata fields no longer flood the Vehicle Data Scout (2026-09-25).** The
+  export's `auth_level` (consent level) and `transaction_id` (the export request's id) describe the
+  request, not the car, and repeated on every poll. They join the existing envelope carve-out
+  (alongside account id / VIN / timestamps). Leaf-matched, so the meaningful charging-session
+  `ocpp_transaction_id` stays fully visible.
+- **The MEB speedometer calibration curve is bundled instead of flooding the Scout (2026-09-25).**
+  Newer MEB cars ship `setup_real_speed_ratios.*` — a fixed factory speed-calibration curve (~4
+  control points, ~10 fields per car). It's real vehicle data but not a live reading, so rather than
+  suppress it (it isn't envelope metadata) or spawn ten meaningless sensors, the whole curve is
+  bundled into one `speed_ratio_calibration` value kept in the diagnostics download, and its fields
+  are consumed so they stop re-filing Scout issues on every MEB car.
 - **A failed Data Act request-kickoff now records why (#1439, thanks @maki040).** When the portal
   can't create a Custom Data Request (e.g. a 503 backend error, or a 4xx account rejection), the
   reason is captured per VIN and surfaced in diagnostics as `data_act_kickoff_errors`, so it stays
