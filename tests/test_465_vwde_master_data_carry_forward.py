@@ -170,6 +170,8 @@ async def test_walled_core_read_returns_tail_data_instead_of_reraising(
 
     # the wall is attributable in diagnostics: status-only, keyed by read name
     assert conn.probe_outcomes.get("vwde_core_read:charging") == "401"
+    # #1 — maintenance is attempted too and records its own wall
+    assert conn.probe_outcomes.get("vwde_core_read:maintenance") == "401"
     # the tail reads record their own outcome so diagnostics can tell a refused
     # render/master-data read apart from one that answered with nothing
     assert conn.probe_outcomes.get("vwde_images") == "200"
@@ -178,11 +180,15 @@ async def test_walled_core_read_returns_tail_data_instead_of_reraising(
     # exactly one INFO line names the walled read; no VIN / query leaked
     info = [r for r in caplog.records if r.levelno == logging.INFO
             and "walled" in r.getMessage()]
-    assert len(info) == 1
-    msg = info[0].getMessage()
-    assert "charging" in msg
-    assert VIN not in msg          # only the last-6 mask may appear
-    assert "?" not in msg          # never the query string
+    # #1 — both live core reads (charging + maintenance) are now attempted
+    # independently, so each walled read logs its own line.
+    assert len(info) == 2
+    msgs = [r.getMessage() for r in info]
+    assert any("charging" in m for m in msgs)
+    assert any("maintenance" in m for m in msgs)
+    for m in msgs:
+        assert VIN not in m        # only the last-6 mask may appear
+        assert "?" not in m        # never the query string
 
 
 @pytest.mark.asyncio

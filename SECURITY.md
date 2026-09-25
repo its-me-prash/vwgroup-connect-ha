@@ -14,9 +14,8 @@ are not patched.
 
 | Version | Supported |
 |---|---|
-| 1.24.x | ✅ |
-| 1.23.x | ✅ (last MINOR before 1.24) |
-| < 1.23 | ❌ — please update |
+| 4.7.x | ✅ |
+| < 4.7 | ❌ — please update |
 
 Home Assistant supports the integration on its own currently-supported core
 versions (typically the last 4 monthly releases). Any HA below the
@@ -104,4 +103,4 @@ mitigation within **14 days** for high-severity issues.
 
 ---
 
-*Last updated: 2026-05-08 — v1.24.1*
+*Last updated: 2026-09-23 — v4.7.13*

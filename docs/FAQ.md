@@ -238,15 +238,16 @@ each):
 | Volkswagen EU | Europe | CARIAD-BFF (`emea.bff.cariad.digital`) | ✅ Production |
 | Audi | Europe | CARIAD-BFF (inherits VW EU) | ✅ Production |
 | Škoda | Europe | mysmob (`mysmob.api.connect.skoda-auto.cz`) | ✅ Production |
-| SEAT | Europe | OLA (`ola.prod.code.seat.cloud.vwgroup.com`) | ✅ Production |
-| CUPRA | Europe | OLA (same as SEAT) | ✅ Production |
+| SEAT | Europe | OLA (`ola.prod.code.seat.cloud.vwgroup.com`) | ✅ Read-only (commands blocked by VW, [#464]) |
+| CUPRA | Europe | OLA (same as SEAT) | ✅ Read-only (commands blocked by VW, [#464]) |
 | Volkswagen US/CA | North America | UUID-based | ⚠️ Limited (no PPE) |
 | Porsche | Worldwide | Auth0 + PPA backend | ⚠️ Limited |
 
 ### Not yet supported
 
 - **VW China (2026+)** — CEA/XPeng platform, undocumented
-- **Lamborghini / Bentley / Bugatti** — no verified public API
+- **Lamborghini / Bugatti** — no verified public API
+- **Bentley** — selectable on the Audi/IDK tenant but untested; treat as experimental
 - **Ford Explorer Electric** — use [marq24/ha-fordpass](https://github.com/marq24/ha-fordpass)
 
 ---

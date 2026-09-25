@@ -23,6 +23,8 @@ _VIN = "WVWZZZAUZFW805377"
 
 def _kickoff_stub(*, strategy: str, supp_portal: bool, auto: bool = True) -> Any:
     stub = type("S", (), {})()
+    stub._active_vins = lambda vins: vins  # #1434 pass-through (no disabled-filtering here)
+    stub._data_act_kickoff_error = {}  # #1439
     stub.entry = MagicMock()
     stub.entry.options = {
         "eu_data_act_auto_kickoff": auto,
@@ -93,6 +95,8 @@ def test_kickoff_opt_in_still_required() -> None:
 
 def _norepair_stub(*, primary: Any, supp: Any) -> Any:
     stub = type("S", (), {})()
+    stub._active_vins = lambda vins: vins  # #1434 pass-through (no disabled-filtering here)
+    stub._data_act_kickoff_error = {}  # #1439
     stub.entry = MagicMock()
     stub.entry.entry_id = "E1"
     stub.entry.data = {"brand": "volkswagen"}

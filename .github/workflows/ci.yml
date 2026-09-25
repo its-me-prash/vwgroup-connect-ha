@@ -118,7 +118,7 @@ jobs:
           python3 -m pytest tests/ -v --tb=long \
             --cov=custom_components/vag_connect \
             --cov-report=term-missing \
-            --cov-fail-under=65 2>&1 | tee pytest_output.log
+            --cov-fail-under=75 2>&1 | tee pytest_output.log
 
       - name: Show pytest output in step summary on failure
         if: failure()

@@ -24,7 +24,12 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
 
 
-from aiohttp import ClientSession, ClientTimeout, InvalidURL
+from aiohttp import (
+    ClientSession,
+    ClientTimeout,
+    InvalidURL,
+    NonHttpUrlRedirectClientError,
+)
 
 from ._auth_config_resolver import AuthConfigResolver
 from ..exceptions import (
@@ -543,18 +548,30 @@ class IDKAuth:
         # OIDC default for response_type=code+id_token is fragment, and our
         # extract code reads BOTH query and fragment. Some IDK Auth0 setups
         # reject explicit response_mode=query for hybrid as invalid_request.
-        async with self._session.get(
-            self._authorize_url,
-            timeout=_AUTH_TIMEOUT, params=params, headers=self._base_headers(),
-            allow_redirects=True,
-        ) as resp:
-            login_url = str(resp.url)
-            html = await resp.text(errors="replace")
-            _LOGGER.debug(
-                "IDK step1: status=%s url=%s html_len=%d",
-                resp.status, _safe_url(login_url), len(html),
+        try:
+            async with self._session.get(
+                self._authorize_url,
+                timeout=_AUTH_TIMEOUT, params=params, headers=self._base_headers(),
+                allow_redirects=True,
+            ) as resp:
+                login_url = str(resp.url)
+                html = await resp.text(errors="replace")
+                _LOGGER.debug(
+                    "IDK step1: status=%s url=%s html_len=%d",
+                    resp.status, _safe_url(login_url), len(html),
+                )
+                initial_status = resp.status
+        except NonHttpUrlRedirectClientError as exc:
+            # #1439 (maki040) — warm SSO: Auth0 skipped /u/login and 302'd
+            # straight to the app-scheme redirect_uri (e.g.
+            # ``myaudi:///#access_token=...``), which aiohttp cannot follow so
+            # it raises here. The callback fragment already carries the tokens,
+            # so capture them instead of letting a valid auth crash and fall
+            # through to the portal strategy.
+            ref = str(exc.args[0]) if exc.args else ""
+            return await self._warm_sso_callback_tokens(
+                ref, hybrid_full, verifier
             )
-            initial_status = resp.status
         # v2.10.1 (#388 / #393) — when the Auth0 Universal Login front-end
         # rejects an Android UA at the WAF layer (observed 2026-05-31+),
         # retry once with a plain mobile-browser UA. Multiple users have
@@ -623,6 +640,58 @@ class IDKAuth:
         # Legacy signin-service flow (kept as fallback)
         return await self._authenticate_legacy(
             html, email, password, verifier, mbb_mode=mbb_mode,
+        )
+
+    async def _warm_sso_callback_tokens(
+        self, ref: str, hybrid_full: bool, verifier: str
+    ) -> TokenSet:
+        """Build tokens from a warm-SSO app-scheme callback (#1439).
+
+        When Auth0 already holds a valid session it can 302 the authorize
+        request straight to the brand's app-scheme ``redirect_uri`` instead of
+        rendering ``/u/login``. aiohttp refuses to follow a non-http redirect
+        and raises ``NonHttpUrlRedirectClientError``; ``ref`` is that callback
+        URL. It already carries the OAuth result in its fragment, so extract it
+        here rather than discarding a valid authentication.
+        """
+        self.last_redirect_url = ref
+        # aiohttp hands us the redirect target as a yarl URL whose str() form
+        # collapses the app-scheme ``myaudi:///`` to ``myaudi:/``, so the strict
+        # ``scheme://`` prefix in _extract_param_from_url would miss it. Parse
+        # here scheme-agnostically (query AND fragment), after a light scheme
+        # sanity-check against the brand redirect_uri.
+        want_scheme = urlparse(self._brand.redirect_uri).scheme
+        parsed = urlparse(ref)
+        if not want_scheme or parsed.scheme != want_scheme:
+            raise AuthenticationError(
+                f"Warm-SSO callback scheme {parsed.scheme!r} does not match the "
+                f"expected redirect_uri scheme {want_scheme!r}"
+            )
+        fields: dict[str, str] = {}
+        for _src in (parsed.query, parsed.fragment):
+            if not _src:
+                continue
+            for _k, _v in parse_qs(_src).items():
+                if _v and _v[0]:
+                    fields.setdefault(_k, _v[0])
+        access_tok = fields.get("access_token")
+        id_tok = fields.get("id_token")
+        code = fields.get("code")
+        if hybrid_full and access_tok and id_tok:
+            _LOGGER.debug(
+                "IDK warm-SSO hybrid_full: captured access_token (%d) + "
+                "id_token (%d) from the app-scheme callback",
+                len(access_tok), len(id_tok),
+            )
+            return TokenSet(
+                access_token=access_tok, refresh_token="", id_token=id_tok
+            )
+        if code:
+            _LOGGER.debug("IDK warm-SSO: exchanging code from app-scheme callback")
+            return await self._exchange_code(code, verifier)
+        raise AuthenticationError(
+            "Warm-SSO callback carried neither usable hybrid tokens nor an "
+            "auth code"
         )
 
     async def _authenticate_auth0(

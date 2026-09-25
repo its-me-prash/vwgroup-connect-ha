@@ -1194,6 +1194,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # exposed in diagnostics so users can see how stale the cached
         # state is.
         self.vehicle_last_good_at: dict[str, datetime] = {}
+        # #1439 — per-VIN last Data Act kickoff failure reason (HTTP status),
+        # surfaced in diagnostics so a portal 503/4xx stays visible during backoff.
+        self._data_act_kickoff_error: dict[str, str] = {}
 
         # v2.15.5 — ABRP (A Better Routeplanner) per-VIN last-successfully-
         # sent telemetry fingerprint. The "ABRP data changed" binary sensor
@@ -1507,6 +1510,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             cached = None
         if cached and isinstance(cached.get("vehicles"), dict):
+            _restored_vins: list[str] = []
             with self._vehicles_lock:
                 for vin, vdata in cached["vehicles"].items():
                     if vin == "_meta" or vin in self.vehicles:
@@ -1516,6 +1520,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         restored["_restored"] = True
                         restored["_poll_failed"] = False
                         self.vehicles[vin] = restored
+                        _restored_vins.append(vin)
+            # #6 — seed the last-known-good time from the snapshot's own save
+            # time so the availability gate tolerates a first failed poll after
+            # a restart instead of blanking every entity, even though a valid
+            # cached snapshot is loaded (entity_base requires last_good).
+            self._seed_last_good_from_snapshot(cached.get("saved_at"), _restored_vins)
             _LOGGER.debug(
                 "VW Group Connect portal-safety: restored %d cached vehicle(s) "
                 "for %s", len(self.vehicles), brand,
@@ -2283,7 +2293,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         new_ts = dict(kickoff_ts)
 
-        for vin in list(self.vehicles):
+        # #1434 (follow-up to skornehl's PR #1435) — this per-VIN portal kickoff
+        # is reachable from the periodic poll (_maybe_runtime_data_act_kickoff)
+        # and from _async_update_data, so a user-disabled vehicle would still get
+        # its Data Act request probed/kicked ~once/6h in portal mode. Filter it
+        # like every other periodic path so a disabled car stays fully quiet.
+        for vin in self._active_vins(list(self.vehicles)):
             try:
                 active = await scraper.get_active_custom_request_identifier(vin)
                 if active:
@@ -2347,6 +2362,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 new_ts[vin] = datetime.now(tz=timezone.utc).isoformat()
                 changed = True
                 new_id = await scraper.kickoff_custom_data_request(vin)
+                # #1439 — record why a kickoff made no request (portal HTTP
+                # status) so the reason survives the backoff window and shows in
+                # diagnostics without the user enabling debug logging.
+                _kst = getattr(scraper, "last_kickoff_status", None)
+                if _kst is not None:
+                    self._data_act_kickoff_error[vin] = f"HTTP {_kst}"
+                else:
+                    self._data_act_kickoff_error.pop(vin, None)
                 if new_id:
                     new_map[vin] = new_id
                     changed = True
@@ -4124,7 +4147,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # Lazy-initialise per-VIN tracking so tests bypassing __init__ work.
                 if not hasattr(self, "vehicle_success"):
                     self.vehicle_success = {}
-                vins = list(self.vehicles.keys())
+                # #1434 — this background hybrid_full loop is the actual periodic
+                # driver (update_interval is None; _async_update_data is not the
+                # periodic path here), so it needs its own _active_vins() filter.
+                # Without it, a vehicle the user disabled in HA keeps being polled
+                # forever by this loop even though _async_update_data() already
+                # skips it correctly.
+                vins = self._active_vins(list(self.vehicles.keys()))
                 # v2.20.0 — self-heal the durable-MBB command pre-test: re-warm
                 # the operationList each poll (12h client cache → cache-hit
                 # cheap) so a VIN whose setup warm transiently failed recovers on
@@ -4507,11 +4536,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # 1h. Brand-restricted to audi/volkswagen inside helper.
                 # Runs after vehicle update so newest VINs are present
                 # in self.vehicles when the parser merges back.
+                #
+                # #1434 — recomputed (not reusing the pre-merge `vins` from the
+                # top of this cycle) so a VIN discovered for the first time this
+                # very cycle is still covered, while a user-disabled VIN stays
+                # excluded from all nine best-effort refreshes below, not just
+                # the main get_status call.
+                active_vins = self._active_vins(list(self.vehicles.keys()))
                 try:
                     await asyncio.gather(
                         *[
                             self.refresh_trip_statistics(vin)
-                            for vin in self.vehicles
+                            for vin in active_vins
                         ],
                         return_exceptions=True,
                     )
@@ -4524,7 +4560,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await asyncio.gather(
                         *[
                             self.refresh_charging_history(vin)
-                            for vin in self.vehicles
+                            for vin in active_vins
                         ],
                         return_exceptions=True,
                     )
@@ -4535,11 +4571,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # without the respective pay-in-app enrolment.
                 try:
                     await asyncio.gather(
-                        *[self.refresh_fueling(vin) for vin in self.vehicles],
-                        *[self.refresh_parking(vin) for vin in self.vehicles],
-                        *[self.refresh_predictive_maintenance(vin) for vin in self.vehicles],
-                        *[self.refresh_departure_timers(vin) for vin in self.vehicles],
-                        *[self.refresh_consents(vin) for vin in self.vehicles],
+                        *[self.refresh_fueling(vin) for vin in active_vins],
+                        *[self.refresh_parking(vin) for vin in active_vins],
+                        *[self.refresh_predictive_maintenance(vin) for vin in active_vins],
+                        *[self.refresh_departure_timers(vin) for vin in active_vins],
+                        *[self.refresh_consents(vin) for vin in active_vins],
                         return_exceptions=True,
                     )
                 except Exception:  # noqa: BLE001
@@ -4550,7 +4586,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await asyncio.gather(
                         *[
                             self.refresh_charging_profiles(vin)
-                            for vin in self.vehicles
+                            for vin in active_vins
                         ],
                         return_exceptions=True,
                     )
@@ -4562,7 +4598,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await asyncio.gather(
                         *[
                             self.refresh_battery_care(vin)
-                            for vin in self.vehicles
+                            for vin in active_vins
                         ],
                         return_exceptions=True,
                     )
@@ -5134,6 +5170,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         return active
 
+    def _seed_last_good_from_snapshot(
+        self, saved_at_raw: Any, vins: list[str]
+    ) -> None:
+        """Seed ``vehicle_last_good_at`` for restored VINs from the snapshot's
+        own save time. Without it a restored vehicle carries no last-known-good
+        timestamp, so the first failed poll after a restart drops every entity
+        to unavailable even though a valid cached snapshot is loaded
+        (``entity_base`` availability requires ``last_good``). ``setdefault`` so
+        a live value already present this session is never overwritten; a
+        missing or malformed ``saved_at`` is a no-op."""
+        if not hasattr(self, "vehicle_last_good_at") or self.vehicle_last_good_at is None:
+            self.vehicle_last_good_at = {}
+        if not isinstance(saved_at_raw, str):
+            return
+        try:
+            dt = datetime.fromisoformat(saved_at_raw)
+        except ValueError:
+            return
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        for vin in vins:
+            self.vehicle_last_good_at.setdefault(vin, dt)
+
     # ── Capabilities & feature-state plumbing (Session 2A foundation) ──────
 
     def get_feature_state(self, vin: str, command: str) -> FeatureState:
@@ -5465,6 +5524,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if not vins:
             with self._vehicles_lock:
                 vins = list(self.vehicles.keys())
+            # #1434 — called every cycle from both _poll_loop() and
+            # _async_update_data(); without this, a user-disabled vehicle's
+            # MBB operationList kept getting warmed even though it's supposed
+            # to stay fully quiet. _mbb_manual_vins (explicit opt-in list)
+            # deliberately bypasses this filter.
+            vins = self._active_vins(vins)
         for vin in vins:
             if not vin:
                 continue
@@ -6737,6 +6802,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             _threshold_s = max(STALE_DATA_MIN_AGE_S, 8 * _interval_s)
             _age = _capture_age_s(data)
+            # #5 (#1431 Lagaff86) — the EU-DA portal ships a fresh data block
+            # next to a frozen one, so THIS poll's raw last_seen_at can be the
+            # OLDER contested stamp while a newer capture is already recorded.
+            # _enrich runs before reconcile in every flow, so self.vehicles still
+            # holds the previous (advance-only-held) snapshot: measure the age
+            # against the FRESHEST of this poll and that recorded value, so a
+            # stale stamp next to a fresh one does not fire a false "N hours old"
+            # repair. A genuinely fresher capture (smaller age) still wins and
+            # clears the repair; a genuinely frozen feed (both old) still flags.
+            _prev_snap = (getattr(self, "vehicles", None) or {}).get(_vin_sd)
+            if isinstance(_prev_snap, dict):
+                _prev_age = _capture_age_s(_prev_snap)
+                if _prev_age is not None and (_age is None or _prev_age < _age):
+                    _age = _prev_age
             # #465 — automatable twin of the stale-data Repair: a
             # device_class=PROBLEM binary the user can drive automations off,
             # from the SAME capture-age + threshold so the binary and the Repair
@@ -7002,7 +7081,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # gets retried (12 h client cache → cache-hit cheap). No-op for
             # non-MBB entries.
             await self._refresh_mbb_command_capabilities()
-            vins = list(self.vehicles.keys())
+            # #1434 — this manual-refresh path (triggered by
+            # async_request_refresh(), i.e. after every command against ANY
+            # vehicle on the account) was completely unfiltered: sending a
+            # command to one car re-polled every other car too, including
+            # ones the user disabled in HA.
+            vins = self._active_vins(list(self.vehicles.keys()))
             results = await asyncio.gather(
                 *[client.get_status(vin) for vin in vins],
                 return_exceptions=True,

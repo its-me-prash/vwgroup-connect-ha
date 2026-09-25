@@ -93,7 +93,10 @@ class TestIDKAuthOverrides:
         """The GET-authorize call must use self._authorize_url, not the constant."""
         src = _IDK_PY.read_text(encoding="utf-8")
         # The actual aiohttp request site:
-        assert "self._session.get(\n            self._authorize_url," in src
+        import re as _re
+        assert _re.search(
+            r"self\._session\.get\(\s+self\._authorize_url,", src
+        ), "authorize GET must use self._authorize_url"
 
     def test_token_endpoint_honors_override(self) -> None:
         """_get_token_endpoint must short-circuit to override when set."""

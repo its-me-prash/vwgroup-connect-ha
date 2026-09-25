@@ -2563,11 +2563,19 @@ class VWEUClient(CariadBaseClient):
         # #584 (pp2stay) — say what the final action will target, PII-free:
         # service, whether the operationList grants the op, the per-service
         # host VW's list handed us (no VIN), and the market segment + source.
+        # #584 — also log the COMMANDED service's own licence (we parse it but
+        # only surfaced the status service's), so a charge/climate command that
+        # fails on an expired per-service licence (e.g. rbatterycharge_v1) is
+        # diagnosable without guessing from the shared subscription sensor.
+        _cmd_svc = oplist.service(spec.service_id) if oplist is not None else None
         _LOGGER.info(
-            "MBB %s: service=%s granted=%s host=%s market=%s (%s)",
+            "MBB %s: service=%s granted=%s host=%s market=%s (%s) "
+            "licence=%s expiry=%s",
             command_name, spec.service_id,
             mbb_operation_granted(oplist, spec.service_id, spec.operation_id),
             base.split("//")[-1].split("/")[0], country, country_src,
+            _cmd_svc.license_status if _cmd_svc else None,
+            _cmd_svc.license_expiry if _cmd_svc else None,
         )
         setter = MBB_SETTER_BASE
         # Leg 1 — operation-specific SecToken challenge

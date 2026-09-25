@@ -25,6 +25,8 @@ _VIN = "WVWZZZAUZFW805377"
 
 def _stub(identifiers: dict, kickoff_ts: dict) -> Any:
     stub = type("S", (), {})()
+    stub._active_vins = lambda vins: vins  # #1434 pass-through (no disabled-filtering here)
+    stub._data_act_kickoff_error = {}  # #1439
     stub.entry = MagicMock()
     stub.entry.options = {
         "eu_data_act_auto_kickoff": True,

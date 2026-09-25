@@ -431,9 +431,12 @@ async def test_get_vehicle_data_401_raises() -> None:
     """A genuine 401 on a data endpoint propagates (session expired)."""
     class _401Session:
         def get(self, url: str, **kw: Any) -> _FakeResp:
-            if "charging/status" in url:
+            # #1 — a genuinely dead session 401s on every live read. charging and
+            # maintenance are now attempted independently, so both wall; with no
+            # tail data the poll re-raises for the caller's refresh + retry.
+            if "charging/status" in url or "maintenance/status" in url:
                 return _FakeResp(url, status=401)
-            raise AssertionError(f"should not reach {url} after 401")
+            return _FakeResp(url, status=404)
 
     conn = WebsiteAuthProxyConnector(_401Session(), "u@x.z", "pw")  # type: ignore[arg-type]
     with pytest.raises(AuthenticationError):

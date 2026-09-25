@@ -42,6 +42,126 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Climate state now shows for portal-read cars (Vehicle Data Scout, 2026-09-25).** The EU Data Act
+  portal reports `climatisation_state` (OFF / HEATING / COOLING / …), flagged by ~8 VW ID.x reporters.
+  It now feeds the existing climatisation-state sensor for portal cars — the redundant
+  `CLIMATISATION_STATE_` prefix is stripped to match the OFF/HEATING format the brand channels use.
+- **More climate settings + the hood fill in for portal-read cars (Vehicle Data Scout, 2026-09-25).**
+  The newer MEB portal moved several fields to a nested `climatisation_settings` block with slightly
+  different names — the four climate-zone enables (incl. a rear pair the old dialect lacked),
+  climatise-at-unlock and climatise-without-HV-power. They now feed the SAME existing sensors as the
+  older dialect. Some cars also report the hood as a percentage (`position_of_hood`, 0 = closed)
+  rather than an open/closed enum — that feeds the existing hood sensor too (VW T-Roc, #1446).
+  (The nested `target_temperature` VW is now shipping stays unmapped for now — its unit isn't in the
+  published data dictionary and one sample isn't enough to decode safely.)
+- **Climate error code + trigger reason for portal cars (Vehicle Data Scout, #1492, VW Touareg).** A car
+  reporting a climate fault now surfaces the code on the existing climate-error-code sensor
+  (`climatisation_state_error_code` → `climate_error_code`), and the climatise trigger reason
+  (`climatisation_reason_trigger`, e.g. IMMEDIATE) is captured in diagnostics. (The same car's
+  `cycle_data_mileage` stays unmapped — it isn't in the data dictionary and its unit can't be decoded
+  from one sample.)
+
+
+### Changed
+- **Two portal request-metadata fields no longer flood the Vehicle Data Scout (2026-09-25).** The
+  export's `auth_level` (consent level) and `transaction_id` (the export request's id) describe the
+  request, not the car, and repeated on every poll. They join the existing envelope carve-out
+  (alongside account id / VIN / timestamps). Leaf-matched, so the meaningful charging-session
+  `ocpp_transaction_id` stays fully visible.
+- **The MEB speedometer calibration curve is bundled instead of flooding the Scout (2026-09-25).**
+  Newer MEB cars ship `setup_real_speed_ratios.*` — a fixed factory speed-calibration curve (~4
+  control points, ~10 fields per car). It's real vehicle data but not a live reading, so rather than
+  suppress it (it isn't envelope metadata) or spawn ten meaningless sensors, the whole curve is
+  bundled into one `speed_ratio_calibration` value kept in the diagnostics download, and its fields
+  are consumed so they stop re-filing Scout issues on every MEB car.
+- **A failed Data Act request-kickoff now records why (#1439, thanks @maki040).** When the portal
+  can't create a Custom Data Request (e.g. a 503 backend error, or a 4xx account rejection), the
+  reason is captured per VIN and surfaced in diagnostics as `data_act_kickoff_errors`, so it stays
+  visible during the re-POST backoff and after a restart — no debug logging needed.
+- **Repo hygiene.** Removed a shadowed duplicate departure-timer sensor block (a VW-EU twin that never
+  spawned, because the Škoda block registers the same keys first); corrected the outdated
+  "requirements: []" notes in dependabot.yml and quality_scale.yaml (there are three opt-in
+  dependencies — firebase-messaging, aiomqtt, adb-shell — for the push and companion channels); and
+  raised the CI coverage floor from 65% to 75% (actual is 79%).
+
+### Fixed
+- **A climate system reporting "error" no longer reads as actively climatising (#1492).** The portal
+  `climatisation_state` can be `error`; it now surfaces as ERROR but derives climatisation-active as
+  false (only OFF and ERROR are non-active), instead of treating the fault as an active state.
+- **A vehicle disabled in HA (sold, retired) stayed fully polled by three background paths
+  (#1434, thanks @skornehl).** `async_setup()`'s one-time prefetch already filtered its VIN
+  list through `_active_vins()`, but that isn't the periodic driver — `update_interval` is
+  `None`, so `_poll_loop()` is. It built its VIN list straight from `self.vehicles.keys()`
+  with no filtering, and so did every best-effort refresh inside it (trip stats, charging
+  history, fueling, parking, predictive maintenance, departure timers, consents, charging
+  profiles, battery care — nine calls total), `_async_update_data()` (the manual-refresh path
+  fired after every command against ANY vehicle on the account), and
+  `_refresh_mbb_command_capabilities()` (warms the MBB operationList, called from both loops).
+  All four now apply the same `_active_vins()` filter `async_setup()` already used, so a
+  user-disabled vehicle stays fully quiet — sending a command to your active car, or the
+  regular poll tick, no longer re-touches a car you disabled. History and entities are
+  untouched either way; only re-enabling the device resumes polling that VIN.
+- **…and the Data Act portal request-kickoff is filtered too (#1434 follow-up).** The one remaining
+  periodic path that still touched a user-disabled vehicle — the EU Data Act 15-minute request
+  probe/kickoff in portal mode (reachable from the poll loop and from the manual-refresh path) — now
+  applies the same `_active_vins()` filter, so a disabled car is genuinely fully quiet.
+
+## [4.7.14] - 2026-09-23 — The reads a 403 used to hide, and a login that skips the login page
+
+### Added
+- **Škoda: fuel level and oil-service distance over the Data Act portal (#1430, Vehicle Data Scout).**
+  Two Škoda EU-portal leaves the Scout surfaced — `fuelLevel` and `inspectionOilDistance` — now map
+  onto the existing fuel-level and oil-service-distance sensors, so a portal-read Škoda fills those
+  in instead of leaving them empty. (The VW `energy_contents.*.value_type` and `open` qualifiers stay
+  mapped-but-unpromoted by design — they gate other values rather than earning their own sensor.)
+
+
+### Changed
+- **Repo hygiene.** Two module headers that still read "Apache License 2.0" now match their own AGPL
+  SPDX line and the rest of the tree; the release action is pinned to a commit SHA; the prerelease
+  detection recognises any beta/rc tag regardless of patch number (a `vX.Y.14b1` no longer publishes
+  as a full release); and SECURITY.md's supported-versions table is current.
+- **Brand-support docs corrected (#464, #1432).** Bentley is marked untested (offered on the Audi
+  tenant but never logged in), a 2026-09 report of Canada VW sign-in hitting device attestation is
+  noted, and the FAQ brand table now matches the README (SEAT/CUPRA shown as read-only with commands
+  blocked).
+- **A failed MBB command now logs the commanded service's own licence (#584).** The command log
+  showed the shared subscription licence but not the per-service one, so a charge or climate command
+  that failed on an expired `rbatterycharge_v1` / `rclima_v1` licence looked identical to any other
+  refusal. The service's own licence status + expiry are now in the log.
+
+### Fixed
+- **A fresh reading next to a frozen one no longer triggers a false "data is N hours old" (#1431,
+  thanks @Lagaff86).** The EU Data Act feed can ship a fresh block beside a frozen one, so a single
+  poll may carry the older stamp; the staleness watchdog measured that stamp directly and raised a
+  repair (e.g. 166 h) even though the recorded snapshot was current (3.5 h). It now measures against
+  the freshest capture available, so the repair fires only when the data is genuinely frozen and
+  clears the moment a fresher reading lands.
+- **Diagnostics can name why a vw.de read was refused (#1313).** A walled core read recorded only the
+  HTTP status, so a plain dead-session 403 looked identical to a per-consent refusal. When the refusal
+  body carries a known CARIAD error code it is now decoded into the log and the diagnostics (e.g.
+  "403 (BFF 2101 userNotEnrolled)") — structured code only, never any body text.
+- **A charging wall on vw.de no longer hides the mileage (#1313, #923).** The charging and
+  maintenance reads shared a single guard, so when the charging endpoint returned 403/401 for a car,
+  the maintenance read — which carries the odometer — was skipped entirely; three reporters saw an
+  empty mileage as a result. Each read is now guarded on its own: a wall on one is recorded for
+  diagnostics and the other still runs, and the poll is only abandoned (and the session re-checked)
+  when nothing at all came back.
+- **Audi and VW browser login recovers when the login page is skipped (#1439, thanks @maki040).** With
+  a warm single-sign-on session the identity provider can jump straight to the app's own return
+  address instead of rendering the login page, and the HTTP client cannot follow that address — so the
+  attempt used to be thrown away and the login fell back to the portal strategy. The tokens carried in
+  that return address are now read directly, and the login completes.
+- **Entities survive a restart even when the first poll fails (portal-safety cache).** On startup the
+  integration restores the last-known-good snapshot, but it did not carry the "last good" timestamp
+  with it, so a single failed first poll after a restart dropped every entity to unavailable although
+  a valid snapshot was loaded. The restore now seeds that timestamp from the snapshot's own save time.
+- **Departure timers stay off combustion cars (#1316, from EcksteinU's diagnostics).** The three
+  Škoda departure-timer time sensors and their "enabled" binary_sensors were the last timer entities
+  without the electric-only gate their VW-EU twins already carry, so a diesel or petrol car could
+  spawn charging-departure timers that never apply to it. They now appear only on cars with a battery.
+
 ## [4.7.13] - 2026-09-17 — Three fixes the reporters' own captures found
 
 ### Fixed

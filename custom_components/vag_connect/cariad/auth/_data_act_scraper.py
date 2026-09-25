@@ -1,4 +1,4 @@
-# Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.8.0 - EU Data Act portal vehicle-data scraper (Action #3).
 
@@ -370,6 +370,10 @@ class DataActScraper:
         # which is also a wake-state-stale signal. None means we have
         # never had a successful fetch on this scraper instance.
         self._last_zip_digest: int | None = None
+        # #1439 (maki040) — last kickoff HTTP status when a Custom Data
+        # Request could not be created, so the reason (e.g. 503 portal-side)
+        # stays visible in diagnostics instead of only a one-time attempt log.
+        self.last_kickoff_status: int | None = None
 
     @property
     def empty_streak(self) -> int:
@@ -1073,6 +1077,7 @@ class DataActScraper:
         Returns the new Identifier on success, None on failure. Raises
         ``DataActSessionExpiredError`` on 401.
         """
+        self.last_kickoff_status = None
         from aiohttp import ClientTimeout  # noqa: PLC0415
         import secrets as _secrets  # noqa: PLC0415
         from datetime import datetime, timedelta, timezone  # noqa: PLC0415
@@ -1258,6 +1263,7 @@ class DataActScraper:
                             duration, resp.status, _mask_vin(vin), is_auth,
                             ctype, len(body_text), snippet,
                         )
+                    self.last_kickoff_status = resp.status
                     return None
             except DataActSessionExpiredError:
                 raise

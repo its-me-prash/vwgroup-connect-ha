@@ -34,8 +34,9 @@ rules:
   dependency-transparency:
     status: done
     comment: |
-      All dependencies declared in manifest.json requirements.
-      Zero external dependencies. requirements: []. Own CARIAD API client.
+      All dependencies declared in manifest.json requirements: three
+      (firebase-messaging, aiomqtt, adb-shell) for the opt-in push and
+      companion channels. Own CARIAD API client, no other external deps.
 
   docs-actions:
     status: done
@@ -236,7 +237,8 @@ rules:
     status: done
     comment: |
       Own CARIAD client uses pure aiohttp — no requests dependency.
-      manifest.json requirements: [] — zero external dependencies.
+      manifest.json declares three deps (firebase-messaging, aiomqtt,
+      adb-shell) for the opt-in push and companion channels only.
 
   inject-websession:
     status: done

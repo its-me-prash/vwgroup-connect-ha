@@ -1,7 +1,9 @@
 # Dependabot configuration for VW Group Connect.
-# We have no Python runtime dependencies (`requirements: []`), so the
-# only ecosystem worth watching is GitHub Actions itself — to catch
-# Node version deprecations before they break CI.
+# The three Python runtime deps (firebase-messaging, aiomqtt, adb-shell)
+# are for opt-in push/companion features and are version-managed by hand
+# (adb-shell is pinned), so the ecosystem worth auto-watching here is
+# GitHub Actions itself — to catch Node version deprecations before they
+# break CI.
 
 version: 2
 updates:

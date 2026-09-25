@@ -691,6 +691,10 @@ async def async_get_config_entry_diagnostics(
         "unexpected_findings": unexpected,
         "raw_responses": raw_responses,
         "probe_outcomes": probe_outcomes,
+        "data_act_kickoff_errors": {
+            "***" + str(_k)[-6:]: str(_v)
+            for _k, _v in (getattr(coordinator, "_data_act_kickoff_error", {}) or {}).items()
+        },
         "error_buffer": error_records,
         "parser_stats": parser_stats_diag,
         "capabilities": capabilities,

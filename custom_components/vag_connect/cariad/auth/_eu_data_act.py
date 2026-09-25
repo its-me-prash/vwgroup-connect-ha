@@ -1545,6 +1545,13 @@ _CREDENTIAL_FIELDS: frozenset[str] = frozenset({"idp_idt"})
 _ENVELOPE_NOISE_LEAVES: frozenset[str] = frozenset({
     "user_id", "userid", "vin", "timestamp", "timestamputc",
     "echo", "message_id", "state", "value", "unit", "key",
+    # Scout 2026-09-25 (#1447–1460, Prash's ruling) — portal SESSION / REQUEST
+    # envelope metadata, not vehicle data: the consent/auth level and the export
+    # request's transaction id repeat on every poll and describe the request, not
+    # the car. Leaf-matched, so the meaningful charging-session
+    # ``ocpp_transaction_id`` (a DIFFERENT leaf) stays fully Scout-visible — the
+    # no-suppression rule still holds for everything with a real field name.
+    "auth_level", "transaction_id",
 })
 _ENVELOPE_UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -2034,7 +2041,7 @@ def map_dataset_to_vehicle_data(
     ))
     has_fuel = (
         first("fuel_level_current_level", "tank_current_level",
-              "fuelLevel_pct", "fuel_level") is not None
+              "fuelLevel_pct", "fuel_level", "fuelLevel") is not None
     )
     _ELECTRIC_TOKENS = ("ELECTRIC",)
     _COMBUSTION_TOKENS = ("PETROL", "GASOLINE", "DIESEL", "_GAS", "CNG", "LPG")
@@ -2276,8 +2283,10 @@ def map_dataset_to_vehicle_data(
     # (B3) to avoid mislabelling a PHEV's ICE range as electric.
     # v2.15.3 — tank_current_level is the EU-portal dialect name for the fuel
     # percent (distinct from fuel_level_current_level already tried first).
+    # Scout #1430 (Škoda Octavia) — ``fuelLevel`` is the Škoda EU-portal leaf for
+    # the tank percent, alongside the VW/portal dialect names already tried.
     fuel = _to_int(first("fuel_level_current_level", "tank_current_level",
-                         "fuelLevel_pct", "fuel_level"))
+                         "fuelLevel_pct", "fuel_level", "fuelLevel"))
     if fuel is not None:
         d.fuel_level = fuel
 
@@ -2397,11 +2406,45 @@ def map_dataset_to_vehicle_data(
     _legacy_cwhv = first(
         "RPC.climaterSettings.[0].climatisationWithoutHVPower",
         "RDT.timerBasicSettings.[0].climatisationWithoutHVPower",
+        # Scout 2026-09-25 (#1449–1460) — modern MEB portal ships the same flag
+        # under the nested climatisation_settings block. Same bool, same field.
+        # List BOTH the qualified path AND the bare leaf: the flattener emits both
+        # spellings for a nested scalar, and first() only reclaims (silences from
+        # the Scout) the names it is given — omit the bare twin and it re-floods.
+        "climatisation_settings.climatisation_without_hv_power",
+        "climatisation_without_hv_power",
     )
     if _legacy_cwhv is not None and d.climatisation_without_hv_power is None:
         d.climatisation_without_hv_power = (
             str(_legacy_cwhv).strip().lower() in ("true", "1")
         )
+
+    # Scout 2026-09-25 (#1449/#1451/#1452/#1453/#1454/#1455 + more) — the modern
+    # portal reports the climate state as an enum "CLIMATISATION_STATE_OFF" /
+    # "..._HEATING" / "..._COOLING" / "..._VENTILATION". The climatisation_state
+    # sensor + model field already exist (brand-native paths fill them); wire the
+    # portal leaf too, stripping the redundant prefix so it reads in the same
+    # OFF/HEATING format the other channels use, and derive climatisation_active
+    # the way the brand parsers do. Fill-if-empty (a brand-native read wins).
+    _cs = first("climatisation_state")
+    if isinstance(_cs, str) and _cs.strip() and d.climatisation_state is None:
+        _csv = _cs.strip().upper().replace("CLIMATISATION_STATE_", "")
+        if _csv and _csv != "INVALID":
+            d.climatisation_state = _csv
+            if d.climatisation_active is None:
+                # Scout 2026-09-25 (#1492, Touareg eHybrid) — a car can report
+                # "error" here (paired with climatisation_state_error_code below);
+                # an errored system is NOT actively climatising, so OFF and ERROR
+                # are both non-active.
+                d.climatisation_active = _csv not in ("OFF", "ERROR")
+    # Scout 2026-09-25 (#1492) — why climatisation was triggered (e.g. "immediate").
+    # Climate twin of charging_reason; self-contained enum-shortening like the
+    # state above. Fill-if-empty.
+    _clim_reason = first("climatisation_reason_trigger", "climatisation_reason")
+    if isinstance(_clim_reason, str) and _clim_reason.strip() and d.climatisation_reason is None:
+        _crv = _clim_reason.strip().upper().replace("CLIMATISATION_REASON_TRIGGER_", "").replace("CLIMATISATION_REASON_", "")
+        if _crv and _crv != "INVALID":
+            d.climatisation_reason = _crv
 
     # `in_cabin_temperature.temperature` — current interior temperature. The
     # companion `measurement_state` flags validity; skip an explicitly invalid
@@ -2483,7 +2526,10 @@ def map_dataset_to_vehicle_data(
         # native_value converts int→``date.today()+N`` (local midnight).
         if d.service_due_at is None:
             d.service_due_at = _svc(svc_days)
-    oil_km = _to_int(first("maintenance_interval_distance_until_oil_change"))
+    # Scout #1430 (Škoda Octavia) — ``inspectionOilDistance`` is the Škoda
+    # EU-portal leaf for the distance until the next oil service.
+    oil_km = _to_int(first("maintenance_interval_distance_until_oil_change",
+                           "inspectionOilDistance"))
     if oil_km is not None and d.oil_service_km is None:
         d.oil_service_km = _svc(oil_km)
     oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
@@ -2558,6 +2604,34 @@ def map_dataset_to_vehicle_data(
     _bonnet_open = _to_int(first("open_state_front_engine_bonnet"))
     if _bonnet_open in (2, 3) and d.hood_open is None:
         d.hood_open = _bonnet_open == 2
+    # Scout 2026-09-25 (#1446, VW T-Roc Cabriolet) — some cars report the hood as
+    # a PERCENTAGE ("position_of_hood"; official dict: "position of the car hood
+    # in percentage and (0) for closed") instead of the open_state_* enum above.
+    # 0 = closed, any positive opening = open. Fill-if-empty, so the enum read (or
+    # a brand-native value) still wins when present.
+    _hood_pct = _to_float(first("position_of_hood"))
+    if _hood_pct is not None and d.hood_open is None:
+        d.hood_open = _hood_pct > 0
+    # Scout 2026-09-25 (#1454, #1462–1489 flood) — the MEB portal ships a
+    # speedometer calibration curve as a nested block:
+    # ``setup_real_speed_ratios.speed_ratio_x<N>_y<N>.{physical_value_x,
+    # physical_value_y, value_type}`` (~4 control points). It is real per-vehicle
+    # data but a FIXED factory calibration, not a live reading — so, like the
+    # is_set metadata above, it gets no entity. We bundle the whole curve into one
+    # diagnostic field (kept in to_dict()/diagnostics, so nothing is hidden — the
+    # no-suppression policy holds) and consume the qualified leaves so they stop
+    # flooding the Scout. Only the fully-qualified paths are reclaimed; the generic
+    # last-wins bare twins (``physical_value_x``/``_y``, ``value_type``) are left as
+    # the deliberately-visible generic leaves (they are not reported by the Scout).
+    _speed_ratios: dict[str, dict[str, str]] = {}
+    for _srk in fields:
+        if _srk.startswith("setup_real_speed_ratios.speed_ratio_"):
+            used.add(_srk)
+            _parts = _srk.split(".")
+            if len(_parts) >= 3:
+                _speed_ratios.setdefault(_parts[1], {})[_parts[2]] = fields[_srk]
+    if _speed_ratios and not d.speed_ratio_calibration:
+        d.speed_ratio_calibration = _speed_ratios
     # state_of_hood — separate source field, same enum family (dict: unsupported
     # 0 / invalid 1 / open 2 / closed 3). Fold into hood_open as a fallback when
     # the open_state_front_engine_bonnet channel is absent.
@@ -3604,7 +3678,10 @@ def map_dataset_to_vehicle_data(
         )
     # climate_error_code / window_heating_error_code — drop "0"/"#0" like the
     # existing charging_state_error_code pattern.
-    _clim_err = first("climate_error_code")
+    # Scout 2026-09-25 (#1492) — the MEB portal spells it
+    # ``climatisation_state_error_code`` (present when climatisation_state ==
+    # "error"); same target field, same sentinel handling.
+    _clim_err = first("climate_error_code", "climatisation_state_error_code")
     if _clim_err is not None:
         _ces = str(_clim_err).strip()
         if _ces and _ces != "#0" and _to_float(_ces) != 0:
@@ -3743,25 +3820,57 @@ def map_dataset_to_vehicle_data(
             return False
         return None
 
-    _cau = _setting_bool(first("setting_climatisation_at_unlock"))
+    # Scout 2026-09-25 (#1449–1460) — the modern MEB portal reports these climate
+    # element settings nested under
+    # ``climatisation_settings.climatisation_element_settings.*`` with slightly
+    # different leaf names (``is_climatisation_at_unlock``, ``zone_<pos>_enabled``,
+    # incl. a rear ``_enabled`` pair the older ``setting_*`` dialect lacked). Same
+    # booleans; add the nested paths as additional first() candidates so they fill
+    # the SAME fields. Values arrive as "true"/"false" strings (_setting_bool).
+    # List BOTH the qualified path AND the bare leaf: the flattener emits both
+    # spellings for a nested scalar, and first() only reclaims (silences from the
+    # Scout) the names it is passed — omit the bare twin and it re-floods the
+    # raw-unmapped surface even though the value mapped fine.
+    _cau = _setting_bool(first(
+        "setting_climatisation_at_unlock",
+        "climatisation_settings.climatisation_element_settings.is_climatisation_at_unlock",
+        "is_climatisation_at_unlock",
+    ))
     if _cau is not None and d.climatisation_at_unlock is None:
         d.climatisation_at_unlock = _cau
     _mhe = _setting_bool(first("setting_mirror_heating_enabled"))
     if _mhe is not None and d.mirror_heating_enabled is None:
         d.mirror_heating_enabled = _mhe
-    _zfl = _setting_bool(first("setting_zone_enabled_front_left"))
+    _zfl = _setting_bool(first(
+        "setting_zone_enabled_front_left",
+        "climatisation_settings.climatisation_element_settings.zone_front_left_enabled",
+        "zone_front_left_enabled",
+    ))
     if _zfl is not None and d.climate_zone_front_left_enabled is None:
         d.climate_zone_front_left_enabled = _zfl
-    _zfr = _setting_bool(first("setting_zone_enabled_front_right"))
+    _zfr = _setting_bool(first(
+        "setting_zone_enabled_front_right",
+        "climatisation_settings.climatisation_element_settings.zone_front_right_enabled",
+        "zone_front_right_enabled",
+    ))
     if _zfr is not None and d.climate_zone_front_right_enabled is None:
         d.climate_zone_front_right_enabled = _zfr
     # v2.17.5 — the portal ships rear zones too (setting_zone_enabled_rear_*) but
     # only the front pair was aliased. Rear targets the BFF-shared
     # climate_zone_rear_left/right attrs (there is no _enabled twin for rear).
-    _zrl = _setting_bool(first("setting_zone_enabled_rear_left"))
+    # Scout 2026-09-25 — modern nested rear leaves added as extra candidates.
+    _zrl = _setting_bool(first(
+        "setting_zone_enabled_rear_left",
+        "climatisation_settings.climatisation_element_settings.zone_rear_left_enabled",
+        "zone_rear_left_enabled",
+    ))
     if _zrl is not None and d.climate_zone_rear_left is None:
         d.climate_zone_rear_left = _zrl
-    _zrr = _setting_bool(first("setting_zone_enabled_rear_right"))
+    _zrr = _setting_bool(first(
+        "setting_zone_enabled_rear_right",
+        "climatisation_settings.climatisation_element_settings.zone_rear_right_enabled",
+        "zone_rear_right_enabled",
+    ))
     if _zrr is not None and d.climate_zone_rear_right is None:
         d.climate_zone_rear_right = _zrr
     # v2.17.5 — LIVE 'active' status twins of the *_enabled settings above
