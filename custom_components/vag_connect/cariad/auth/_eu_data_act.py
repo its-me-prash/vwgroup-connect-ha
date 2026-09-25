@@ -1519,7 +1519,15 @@ _RAW_FIELD_CAP = 250
 #
 # Withheld, not silently dropped: the count is logged on every poll, so the
 # behaviour is observable rather than invisible.
-_CREDENTIAL_FIELDS: frozenset[str] = frozenset({"idp_idt"})
+_CREDENTIAL_FIELDS: frozenset[str] = frozenset({
+    "idp_idt",
+    # Scout 2026-09-25 (#1510) — a signed auth/attestation token whose value is a
+    # hex blob embedding the VIN plus a cryptographic signature. Credential +
+    # identity material, never vehicle data; withheld entirely (not merely
+    # silenced) so the VIN never reaches the diagnostic sensor or a public Scout
+    # report — one Scout issue already surfaced a decodable VIN inside this blob.
+    "auth_signature_response",
+})
 
 # b14 — NO field suppression. Policy (Prash): never hide Scout/raw fields; every
 # portal field is surfaced so it can be mapped. (The b10 ``_SCOUT_SKIP_FIELDS`` /
