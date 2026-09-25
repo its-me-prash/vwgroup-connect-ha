@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.16] - 2026-09-25 — A signed VIN-bearing auth token, kept out of diagnostics
+
+### Security
+- **A signed auth token that embeds the VIN is now withheld from discovery (#1510).** The portal ships
+  `auth_signature_response` — a hex blob containing the VIN plus a cryptographic signature. It's
+  credential/identity material, not vehicle data, so it now joins `idp_idt` in the withheld set: it
+  never reaches the raw-discovery diagnostic sensor (and therefore never a diagnostics download or a
+  public Vehicle Data Scout report). A Scout issue had already surfaced a decodable VIN inside it.
+
 ## [4.7.15] - 2026-09-25 — The new MEB climate dialect, mapped — and the Scout flood it caused, silenced
 
 ### Added

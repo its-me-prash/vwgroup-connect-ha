@@ -81,5 +81,10 @@ class TestTheTokenNeverReachesDiscovery:
                    for r in caplog.records), [r.getMessage() for r in caplog.records]
 
     def test_the_exception_list_is_narrow(self) -> None:
-        """If this ever grows, it should be a decision someone made on purpose."""
-        assert _CREDENTIAL_FIELDS == frozenset({"idp_idt"})
+        """If this ever grows, it should be a decision someone made on purpose.
+
+        #1510 (2026-09-25) — added ``auth_signature_response`` on purpose: a signed
+        token whose value embeds the VIN + a signature (credential/identity, not
+        vehicle data).
+        """
+        assert _CREDENTIAL_FIELDS == frozenset({"idp_idt", "auth_signature_response"})
