@@ -55,6 +55,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   rather than an open/closed enum — that feeds the existing hood sensor too (VW T-Roc, #1446).
   (The nested `target_temperature` VW is now shipping stays unmapped for now — its unit isn't in the
   published data dictionary and one sample isn't enough to decode safely.)
+- **Climate error code + trigger reason for portal cars (Vehicle Data Scout, #1492, VW Touareg).** A car
+  reporting a climate fault now surfaces the code on the existing climate-error-code sensor
+  (`climatisation_state_error_code` → `climate_error_code`), and the climatise trigger reason
+  (`climatisation_reason_trigger`, e.g. IMMEDIATE) is captured in diagnostics. (The same car's
+  `cycle_data_mileage` stays unmapped — it isn't in the data dictionary and its unit can't be decoded
+  from one sample.)
 
 
 ### Changed
@@ -80,6 +86,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   raised the CI coverage floor from 65% to 75% (actual is 79%).
 
 ### Fixed
+- **A climate system reporting "error" no longer reads as actively climatising (#1492).** The portal
+  `climatisation_state` can be `error`; it now surfaces as ERROR but derives climatisation-active as
+  false (only OFF and ERROR are non-active), instead of treating the fault as an active state.
 - **A vehicle disabled in HA (sold, retired) stayed fully polled by three background paths
   (#1434, thanks @skornehl).** `async_setup()`'s one-time prefetch already filtered its VIN
   list through `_active_vins()`, but that isn't the periodic driver — `update_interval` is
