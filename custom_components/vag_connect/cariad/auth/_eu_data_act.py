@@ -2405,6 +2405,21 @@ def map_dataset_to_vehicle_data(
             str(_legacy_cwhv).strip().lower() in ("true", "1")
         )
 
+    # Scout 2026-09-25 (#1449/#1451/#1452/#1453/#1454/#1455 + more) — the modern
+    # portal reports the climate state as an enum "CLIMATISATION_STATE_OFF" /
+    # "..._HEATING" / "..._COOLING" / "..._VENTILATION". The climatisation_state
+    # sensor + model field already exist (brand-native paths fill them); wire the
+    # portal leaf too, stripping the redundant prefix so it reads in the same
+    # OFF/HEATING format the other channels use, and derive climatisation_active
+    # the way the brand parsers do. Fill-if-empty (a brand-native read wins).
+    _cs = first("climatisation_state")
+    if isinstance(_cs, str) and _cs.strip() and d.climatisation_state is None:
+        _csv = _cs.strip().upper().replace("CLIMATISATION_STATE_", "")
+        if _csv and _csv != "INVALID":
+            d.climatisation_state = _csv
+            if d.climatisation_active is None:
+                d.climatisation_active = _csv != "OFF"
+
     # `in_cabin_temperature.temperature` — current interior temperature. The
     # companion `measurement_state` flags validity; skip an explicitly invalid
     # reading but accept when the flag is absent (not all reports carry it).

@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Climate state now shows for portal-read cars (Vehicle Data Scout, 2026-09-25).** The EU Data Act
+  portal reports `climatisation_state` (OFF / HEATING / COOLING / …), flagged by ~8 VW ID.x reporters.
+  It now feeds the existing climatisation-state sensor for portal cars — the redundant
+  `CLIMATISATION_STATE_` prefix is stripped to match the OFF/HEATING format the brand channels use.
+
+
 ### Changed
 - **A failed Data Act request-kickoff now records why (#1439, thanks @maki040).** When the portal
   can't create a Custom Data Request (e.g. a 503 backend error, or a 4xx account rejection), the
