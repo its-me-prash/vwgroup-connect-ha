@@ -764,6 +764,10 @@ class VehicleData:
     # v2.0.1 (#131 follow-up) — same false-negative reasoning as the
     # Access block: parser-miss must NOT default to "climate off".
     climatisation_active: bool | None = None
+    # Scout 2026-09-25 (#1492) — why climatisation was triggered (IMMEDIATE /
+    # TIMER / DEPARTURE / …), the climate twin of ``charging_reason``. Diagnostic;
+    # no dedicated sensor yet, surfaced via to_dict()/diagnostics.
+    climatisation_reason: str | None = None
     target_temperature: float | None = None
     # v2.18.0 (Phase C) — one-time historical export config flag
     # (RPC/RDT.climatisationWithoutHVPower). Official meaning: temperature

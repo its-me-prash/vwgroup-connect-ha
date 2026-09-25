@@ -2432,7 +2432,19 @@ def map_dataset_to_vehicle_data(
         if _csv and _csv != "INVALID":
             d.climatisation_state = _csv
             if d.climatisation_active is None:
-                d.climatisation_active = _csv != "OFF"
+                # Scout 2026-09-25 (#1492, Touareg eHybrid) — a car can report
+                # "error" here (paired with climatisation_state_error_code below);
+                # an errored system is NOT actively climatising, so OFF and ERROR
+                # are both non-active.
+                d.climatisation_active = _csv not in ("OFF", "ERROR")
+    # Scout 2026-09-25 (#1492) — why climatisation was triggered (e.g. "immediate").
+    # Climate twin of charging_reason; self-contained enum-shortening like the
+    # state above. Fill-if-empty.
+    _clim_reason = first("climatisation_reason_trigger", "climatisation_reason")
+    if isinstance(_clim_reason, str) and _clim_reason.strip() and d.climatisation_reason is None:
+        _crv = _clim_reason.strip().upper().replace("CLIMATISATION_REASON_TRIGGER_", "").replace("CLIMATISATION_REASON_", "")
+        if _crv and _crv != "INVALID":
+            d.climatisation_reason = _crv
 
     # `in_cabin_temperature.temperature` — current interior temperature. The
     # companion `measurement_state` flags validity; skip an explicitly invalid
@@ -3666,7 +3678,10 @@ def map_dataset_to_vehicle_data(
         )
     # climate_error_code / window_heating_error_code — drop "0"/"#0" like the
     # existing charging_state_error_code pattern.
-    _clim_err = first("climate_error_code")
+    # Scout 2026-09-25 (#1492) — the MEB portal spells it
+    # ``climatisation_state_error_code`` (present when climatisation_state ==
+    # "error"); same target field, same sentinel handling.
+    _clim_err = first("climate_error_code", "climatisation_state_error_code")
     if _clim_err is not None:
         _ces = str(_clim_err).strip()
         if _ces and _ces != "#0" and _to_float(_ces) != 0:
