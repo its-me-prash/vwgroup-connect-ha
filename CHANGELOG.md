@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.16] - 2026-09-25 — A signed VIN-bearing auth token, kept out of diagnostics
+
 ### Security
 - **A signed auth token that embeds the VIN is now withheld from discovery (#1510).** The portal ships
   `auth_signature_response` — a hex blob containing the VIN plus a cryptographic signature. It's
