@@ -860,9 +860,21 @@ def _is_sentinel(name: str, value: Any) -> bool:
     n = _num(value)
     if n is None:
         return False
+    low = name.lower()
+    # v4.7.x (competitor-parity, rafaelhutter) — 65535 (0xFFFF) is VW's uint16
+    # "no reading" marker on BOUNDED fields (SoC/range/charge-time/temp), but it
+    # is a perfectly plausible reading on a CUMULATIVE odometer-class distance:
+    # a car sitting at exactly 65,535 km. Name-agnostic dropping (via
+    # _GLOBAL_SENTINELS) would blank that. Carve the mileage/odometer/lifetime
+    # family out of the 65535 rule — "mileage"/"odometer" match every named
+    # odometer + lifetime-distance source and NO bounded field (service/oil
+    # intervals carry "distance", not "mileage"). The dedicated
+    # drop_odometer_sentinel (2,000,000 km ceiling) still screens the real uint32
+    # odometer sentinels; the three 32-bit markers stay global for all fields.
+    if n == 65535.0 and ("mileage" in low or "odometer" in low):
+        return False
     if n in _GLOBAL_SENTINELS:
         return True
-    low = name.lower()
     return any(needle in low and n in sents for needle, sents in _FIELD_SENTINELS)
 
 
