@@ -463,6 +463,11 @@ class VWEUClient(CariadBaseClient):
             v["vin"]: {
                 "model": _pick_model(v, v["vin"]),
                 "model_year": v.get("modelYear") or v.get("model_year"),
+                # #1538 — VW's own drivetrain classification for the car, e.g.
+                # "CARNET_ENROLLMENT_APPLICATION:ICE" on a Golf GTD. Applied as an
+                # additive drivetrain hint in _parse_status so an ICE car with an
+                # empty telemetry feed is still typed has_combustion=True.
+                "allocation_type": v.get("carnetAllocationType"),
             }
             for v in vehicles if v.get("vin")
         }
@@ -3516,6 +3521,25 @@ class VWEUClient(CariadBaseClient):
         # arrives as a 4-digit string and sometimes as int depending on
         # how the auth flow normalised the user profile JSON.
         d.model_year = safe_int(meta.get("model_year"), default=d.model_year)
+
+        # #1538 — VW's relations response classifies the drivetrain explicitly via
+        # ``carnetAllocationType`` (e.g. ``CARNET_ENROLLMENT_APPLICATION:ICE`` on a
+        # Golf GTD). It is the one authoritative signal that survives an EMPTY
+        # telemetry feed: an ICE car whose EU-Data-Act feed is no_content and whose
+        # authproxy status carries no fuel/range block otherwise stays
+        # has_combustion=False. Take the type after the last ':' and apply it as an
+        # ADDITIVE hint — only ever set a flag True, never force False, so a richer
+        # telemetry signal below still wins and this can't re-introduce a phantom
+        # flag (cf. #1316). is_electric/is_hybrid are re-derived from these flags at
+        # the end of the drivetrain parsing below.
+        _atype = str(meta.get("allocation_type") or "").rsplit(":", 1)[-1].strip().upper()
+        if _atype in ("ICE", "COMBUSTION"):
+            d.has_combustion = True
+        elif _atype in ("BEV", "ELECTRIC", "EV"):
+            d.has_battery = True
+        elif _atype in ("HYBRID", "PHEV", "PLUGINHYBRID", "PLUG_IN_HYBRID"):
+            d.has_battery = True
+            d.has_combustion = True
 
         # ── Charging ──────────────────────────────────────────────────────────
         # #923-sweep — drop the no-reading sentinel so 'invalid' never reaches the

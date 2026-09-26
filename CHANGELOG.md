@@ -43,6 +43,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **A combustion car with an empty data feed is now typed correctly (#1538, thanks @Latte9090).** A Golf
+  GTD (diesel / ICE) read over the vw.de channel showed `has_combustion = false` when its EU Data Act
+  feed was empty and the status carried no fuel/range block — even though VW's own relations response
+  classifies the car as ICE (`carnetAllocationType`). We now read that classification and set the
+  drivetrain from it (ICE → combustion, BEV → electric, hybrid → both), additively — only ever setting
+  a flag true, never forcing it false — so an empty feed no longer mistypes the car.
 - **An odometer sitting at exactly 65,535 km is no longer blanked.** `65535` (0xFFFF) is VW's
   "no reading" marker on bounded portal fields (state of charge, range, charge time, temperature), so
   it was dropped everywhere — including a genuine 65,535 km reading on the odometer / lifetime-distance.
