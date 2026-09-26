@@ -42,6 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **An odometer sitting at exactly 65,535 km is no longer blanked.** `65535` (0xFFFF) is VW's
+  "no reading" marker on bounded portal fields (state of charge, range, charge time, temperature), so
+  it was dropped everywhere — including a genuine 65,535 km reading on the odometer / lifetime-distance.
+  It's now kept for the mileage/odometer family (a plausible real value there) while still being
+  dropped on the bounded fields; the separate odometer guard still screens VW's real 32-bit "no value"
+  markers.
+
 ## [4.7.16] - 2026-09-25 — A signed VIN-bearing auth token, kept out of diagnostics
 
 ### Security
