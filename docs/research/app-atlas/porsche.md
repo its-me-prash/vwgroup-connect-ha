@@ -1,7 +1,7 @@
 # App Atlas — Porsche (My Porsche, North America)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-09-17
+> Last refreshed: 2026-09-26
 
 ## Identity
 
@@ -39,10 +39,10 @@ passing unnoticed behind a single row.
 
 | | |
 |---|---|
-| Latest version-name | `20.26.37` |
+| Latest version-name | `20.26.38` |
 | Source that responded | `apkmirror` |
 | Previously cached version | `20.26.37` |
-| Changed since last run? | No |
+| Changed since last run? | **YES** |
 
 
 ## Discovered via APK extraction (Phase A.2)
