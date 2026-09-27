@@ -56,6 +56,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   dropped on the bounded fields; the separate odometer guard still screens VW's real 32-bit "no value"
   markers.
 
+### Docs
+- **Clearer where the test-cohort opt-in actually lives (#584, thanks @Donath206).** A new FAQ entry
+  spells out that the toggle sits in **Configure** on the existing entry (dialog "VW Group Connect —
+  Settings"), not in the "Add integration" / „einrichten" wizard where you pick a login method — with
+  the German UI labels too, since that's exactly where the mix-up happened.
+
 ## [4.7.16] - 2026-09-25 — A signed VIN-bearing auth token, kept out of diagnostics
 
 ### Security

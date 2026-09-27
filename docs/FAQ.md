@@ -194,6 +194,38 @@ Sensors and binary_sensors stay enabled — full read-only telemetry.
 
 ---
 
+## 🧪 Where is the "test cohort" opt-in? (Configure ≠ Add)
+
+The **test cohort** is an opt-in toggle. Turn it on to let the
+integration try experimental reads on your car and, now and then,
+show a dismissible notice asking you to share a **redacted**
+diagnostics file so a new capability can be confirmed for your model
+(no VIN, GPS, tokens or email ever leave your system). It's off by
+default and you can switch it off again at any time.
+
+It lives in the **Configure / Options** dialog of the **existing**
+entry — **not** in the "Add integration" wizard where you first pick a
+login method:
+
+1. **Settings → Devices & Services → VW Group Connect**
+2. Click **Configure** (the cog on the entry — *not* "Add entry")
+3. In the dialog titled **"VW Group Connect — Settings"**, scroll to
+   **"Help improve VW Group Connect (opt-in test cohort)"** and turn it on
+
+> 🇩🇪 **Deutsche HA-Oberfläche:** **Einstellungen → Geräte & Dienste →
+> VW Group Connect → Konfigurieren** (Zahnrad am Eintrag, **nicht**
+> „Hinzufügen"/„Einrichten"). Im Dialog **„VW Group Connect —
+> Einstellungen"** den Haken **„Hilf mit, VW Group Connect zu
+> verbessern (freiwillige Testgruppe)"** setzen.
+
+If you instead see the wizard titled **"Set up VW Group Connect"** /
+**„VW Group Connect einrichten"** asking you to choose a login method
+(Browser-Login, E-Mail + Passwort, Volkswagen.de, MBB), you've opened
+the **Add** flow by mistake — go back and use **Configure** on the
+entry that already exists. (#584)
+
+---
+
 ## 🚗 My vehicle disappeared after a release — why?
 
 Two possible reasons (since v1.17.0 we surface a notification for
