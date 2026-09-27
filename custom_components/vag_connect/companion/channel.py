@@ -296,15 +296,20 @@ class CompanionChannel:
         self._source_data_age_s = find_sync_age(nodes, self._preset)
         fields = read_fields(nodes, self._preset)
         # v2.26.0 (C9) — values behind a detail screen (charge target/power/time
-        # on VW) are read by tapping a tile, reading, and coming BACK. Re-apply
-        # the cached detail values every poll so the sensors don't flap between
-        # the (infrequent) nav refreshes; only actually tap when it is opted in,
-        # the version gate holds, and the cadence window has elapsed.
+        # on VW) are read by tapping a tile, reading, and coming BACK. Only tap
+        # when it is opted in, the version gate holds, and the cadence window has
+        # elapsed; between those refreshes the cache re-supplies the detail values
+        # so the sensors don't flap.
+        # #1552 — run the scheduled refresh BEFORE re-applying the cache. Filling
+        # from the cache first made _augment_via_nav see every target already
+        # populated (its all()-guard) and skip the walk forever after the first
+        # read, so the detail sensors froze. Refresh first (against the true
+        # overview state), then let the cache only backfill gaps on non-due polls.
         if self._preset.nav_reads:
-            for key, val in self._nav_cache.items():
-                fields.setdefault(key, val)
             if self.nav_reads_enabled and self._nav_due():
                 await self._augment_via_nav(fields)
+            for key, val in self._nav_cache.items():
+                fields.setdefault(key, val)
         return fields
 
     async def _augment_via_nav(self, fields: dict[str, object]) -> None:
@@ -326,7 +331,10 @@ class CompanionChannel:
                 detail, walked = await self._walk_to_detail(nav.path)
                 if detail is not None:
                     for key, val in read_selectors(detail, nav.values).items():
-                        fields.setdefault(key, val)
+                        # #1552 — a fresh detail-screen value wins over a stale
+                        # overview value for the same key (direct assign, not
+                        # setdefault); the overview reading is what goes stale.
+                        fields[key] = val
                         self._nav_cache[key] = val
             except CompanionTransportError:
                 _LOGGER.debug(
