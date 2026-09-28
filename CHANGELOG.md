@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Brake-fluid warning now surfaces as its own binary sensor where the car reports it (Vehicle Data
+  Scout, #1592).** An Audi Q6 (PPE) ships the brake-fluid warning lamp as a raw FlexRay/ESC signal in
+  its Data Act export. It's now decoded into a "Brake Fluid" problem binary sensor (on = warning
+  active); cars that don't report the signal get no entity. Only the OFF state is confirmed so far, so
+  the active decode is conservative (anything that isn't the OFF value reads as a warning).
+
 ### Fixed
 - **A combustion car with an empty data feed is now typed correctly (#1538, thanks @Latte9090).** A Golf
   GTD (diesel / ICE) read over the vw.de channel showed `has_combustion = false` when its EU Data Act
@@ -55,6 +62,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   It's now kept for the mileage/odometer family (a plausible real value there) while still being
   dropped on the bounded fields; the separate odometer guard still screens VW's real 32-bit "no value"
   markers.
+- **The portal `climacontrol` flag now feeds the climate-active sensor instead of just being noise
+  (Vehicle Data Scout, #1603).** A VW Passat's Data Act export carries a bare `climacontrol` on/off flag
+  — the same "climate is running" datum the climatisation-active sensor already shows. It's now folded
+  in as a fallback (the richer climate-state read still wins) and no longer flagged as an unmapped field.
+- **A car the BFF doesn't serve no longer spams the log with 404s (#1590).** An Audi Q4 whose
+  selectivestatus read persistently returns 404 (the backend simply doesn't serve it) used to raise on
+  every poll — filling the error report and re-hitting the dead endpoint. After a few consecutive
+  structured 404s the integration now backs off for a few hours (re-probing automatically) and shows
+  the car's last-known data as stale instead of erroring, while a one-off or transient 404 still
+  surfaces as before.
 
 ### Docs
 - **Clearer where the test-cohort opt-in actually lives (#584, thanks @Donath206).** A new FAQ entry

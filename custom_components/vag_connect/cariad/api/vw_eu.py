@@ -161,6 +161,16 @@ _MBB_OPLIST_DENY_TTL = timedelta(hours=12)
 # stop per-poll hammering and short enough to self-heal unattended.
 _MBB_OPLIST_SOFT_DENY_TTL = timedelta(minutes=30)
 
+# #1590 — an Audi Q4 the BFF does not serve returns a STRUCTURED 404 on
+# selectivestatus every poll, spamming the Error Reporter and hammering a dead
+# endpoint. A "not served" 404 is more persistent than a bare 401 (30 min) but
+# far less definitive than the explicit gw.error.authentication verdict (12 h),
+# so back off 6 h and re-probe unattended. Require N consecutive structured 404s
+# (== the coordinator's _FAILURE_TOLERANCE) so one unlucky response never
+# silences a car that normally works.
+_SELECTIVESTATUS_UNSERVED_STRIKES = 3
+_SELECTIVESTATUS_UNSERVED_TTL = timedelta(hours=6)
+
 
 def _bff_request_id(resp: Any) -> str | None:
     """Extract the async request id from a BFF 202 command response."""
@@ -775,12 +785,75 @@ class VWEUClient(CariadBaseClient):
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"
+
+        # #1590 — per-VIN backoff when the BFF persistently 404s selectivestatus
+        # (this car simply is not served here). Lazy-init like the MBB deny cache
+        # so parser unit tests that build the client via __new__ don't AttributeError.
+        if not hasattr(self, "_selectivestatus_404_strikes"):
+            self._selectivestatus_404_strikes: dict[str, int] = {}
+        if not hasattr(self, "_selectivestatus_unserved_until"):
+            self._selectivestatus_unserved_until: dict[str, datetime] = {}
+        if not hasattr(self, "selectivestatus_unserved_vins"):
+            # public so diagnostics can surface it, like mbb_no_legacy_vins
+            self.selectivestatus_unserved_vins: set[str] = set()
+        _ss_now = datetime.now(tz=timezone.utc)
+        _ss_until = self._selectivestatus_unserved_until.get(vin)
+        if _ss_until is not None and _ss_until > _ss_now:
+            # Backed off: skip the dead read (and the parking/trip/SoH gap-fills
+            # on the same base) and return no_data, so the coordinator's stale-
+            # cache + supplementary-revive path degrades the car gracefully
+            # instead of raising every poll (no Error Reporter spam, no hammering).
+            _LOGGER.debug(
+                "selectivestatus backoff active for %s; skipping BFF read",
+                vin[-6:],
+            )
+            return VehicleData(vin=vin, no_data=True)
+
         # v2.8.0 quick win D — vehicle_status job covers the full
         # selectivestatus fetch (parser-health telemetry).
         with self._parser_job("vehicle_status"):
-            raw: dict[str, Any] = await self._get(
-                url, params={"jobs": _SELECTIVE_STATUS_JOBS},
-            )
+            try:
+                raw: dict[str, Any] = await self._get(
+                    url, params={"jobs": _SELECTIVE_STATUS_JOBS},
+                )
+            except APIError as err:
+                if err.status != 404:
+                    raise
+                from .._mbb import is_cariad_wrapper_404  # noqa: PLC0415
+
+                _ss_body = str(getattr(err, "body", "") or "")
+                # Transient 404s must self-heal via the coordinator's existing
+                # de-escalation — never count a strike or back off for them: the
+                # generic-router "404 page not found" edge blip and the cariad
+                # wrapper-404 (retry:true / upstream) are NOT "car not served".
+                if "404 page not found" in _ss_body or is_cariad_wrapper_404(_ss_body):
+                    raise
+                # A clean structured 404. Below the threshold, behave exactly as
+                # before (raise) so a one-off still surfaces and the hard-failure
+                # revive still runs; only a persistent run backs off.
+                _ss_strikes = self._selectivestatus_404_strikes.get(vin, 0) + 1
+                self._selectivestatus_404_strikes[vin] = _ss_strikes
+                if _ss_strikes < _SELECTIVESTATUS_UNSERVED_STRIKES:
+                    raise
+                _ss_first = vin not in self.selectivestatus_unserved_vins
+                self._selectivestatus_unserved_until[vin] = (
+                    _ss_now + _SELECTIVESTATUS_UNSERVED_TTL
+                )
+                self.selectivestatus_unserved_vins.add(vin)
+                _LOGGER.log(
+                    logging.WARNING if _ss_first else logging.DEBUG,
+                    "selectivestatus 404 x%d for %s — the BFF does not serve "
+                    "this car; backing off %dh, reads resume automatically if "
+                    "it becomes served",
+                    _ss_strikes,
+                    vin[-6:],
+                    int(_SELECTIVESTATUS_UNSERVED_TTL.total_seconds() // 3600),
+                )
+                return VehicleData(vin=vin, no_data=True)
+        # A successful read clears any accumulated backoff state for this VIN.
+        self._selectivestatus_404_strikes.pop(vin, None)
+        self._selectivestatus_unserved_until.pop(vin, None)
+        self.selectivestatus_unserved_vins.discard(vin)
 
         # Parking position (separate endpoint)
         parking: dict[str, Any] = {}

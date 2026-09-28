@@ -1617,6 +1617,9 @@
       "oil_level_warning": {
         "name": "Niveau d huile"
       },
+      "brake_fluid_warning": {
+        "name": "Liquide de frein"
+      },
       "seat_heating": {
         "name": "Chauffage des sièges"
       },

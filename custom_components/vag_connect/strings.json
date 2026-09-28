@@ -1602,6 +1602,9 @@
       "oil_level_warning": {
         "name": "Oil Level"
       },
+      "brake_fluid_warning": {
+        "name": "Brake Fluid"
+      },
       "warning_12v_low": {
         "name": "12V Battery Low"
       },

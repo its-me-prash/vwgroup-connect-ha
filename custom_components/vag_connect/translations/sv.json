@@ -1617,6 +1617,9 @@
       "oil_level_warning": {
         "name": "Oljenivå"
       },
+      "brake_fluid_warning": {
+        "name": "Bromsvätska"
+      },
       "seat_heating": {
         "name": "Sätesvärme"
       },

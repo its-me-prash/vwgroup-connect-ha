@@ -1560,6 +1560,9 @@
       "oil_level_warning": {
         "name": "Livello olio"
       },
+      "brake_fluid_warning": {
+        "name": "Liquido freni"
+      },
       "warning_12v_low": {
         "name": "Batteria 12V scarica"
       },
