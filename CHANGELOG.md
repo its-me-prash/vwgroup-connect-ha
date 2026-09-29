@@ -43,6 +43,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **A live vw.de state-of-charge no longer gets dragged to the EU Data Act battery figure (discussion #1231, thanks @Ra72xx).**
+  On a multi-channel car (vw.de read live + the EU Data Act portal filling gaps) the fresh vw.de SoC could be
+  overwritten by the portal's battery-energy figure, so the reading "bounced" to a lower number and lagged the live
+  channel. The portal feed is a ~15-minute batch that can re-send a frozen stop-charging snapshot, so a live on-demand
+  reading now always wins over it for SoC — on both the energy-sanity and the contested-value paths. Single-channel
+  portal cars are unchanged: there the battery figure still corrects a genuinely stuck reading.
 - **A combustion car with an empty data feed is now typed correctly (#1538, thanks @Latte9090).** A Golf
   GTD (diesel / ICE) read over the vw.de channel showed `has_combustion = false` when its EU Data Act
   feed was empty and the status carried no fuel/range block — even though VW's own relations response
