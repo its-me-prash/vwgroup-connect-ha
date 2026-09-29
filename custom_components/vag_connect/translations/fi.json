@@ -492,6 +492,24 @@
       "voltage_12v": {
         "name": "12 V:n akku"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Kennojännite (maks.)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Kennojännite (min.)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Akun jäähdytysnesteen paluulämpötila"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Akun kapasiteetti"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Talteen otettu energia"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Akkujännite"
+      },
       "wake_count_today": {
         "name": "Herätykset tänään"
       },
@@ -1559,6 +1577,9 @@
       },
       "oil_level_warning": {
         "name": "Öljytaso"
+      },
+      "brake_fluid_warning": {
+        "name": "Jarruneste"
       },
       "warning_12v_low": {
         "name": "12 V:n akku vähissä"

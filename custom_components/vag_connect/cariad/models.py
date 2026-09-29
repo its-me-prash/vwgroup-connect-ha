@@ -675,6 +675,17 @@ class VehicleData:
     hv_battery_min_temperature_c: float | None = None
     hv_battery_max_temperature_c: float | None = None
 
+    # #1622 (VW E3 VLAN Scout) — raw BMS cell-level telemetry from the EU Data
+    # Act export (FlexRay BMS_* signals, value shipped with a Unit_* suffix).
+    # Diagnostic, disabled by default, phantom-gated via _DATA_PRESENT_REQUIRED
+    # so only cars that actually report them get the entities.
+    hv_cell_voltage_max_mv: float | None = None
+    hv_cell_voltage_min_mv: float | None = None
+    hv_battery_coolant_return_temp_c: float | None = None
+    hv_battery_capacity_ah: float | None = None
+    hv_battery_recuperation_kwh: float | None = None
+    hv_battery_pack_voltage_v: float | None = None
+
     # Max AC charging current SETTING (user-requested) vs ACTUAL
     # deliverable amperage. ``maxChargeCurrentAC_setting`` is the
     # value the user picked in the brand app; ``maxChargeCurrentAC``
@@ -1547,6 +1558,14 @@ class VehicleData:
     oil_level_status: str | None = None
     oil_level_warning: bool | None = None
     oil_level_pct: int | None = None
+
+    # #1592 (Audi Q6 PPE Scout) — brake-fluid warning lamp from the raw
+    # FlexRay/ESC signal BCS_BrkFldWarn_XIX_ESC_03_XIX_HCP1_FlexRay_A
+    # (enum "BCS_BrkFld_Warning_Off" = fluid OK). Distinct from
+    # brake_fluid_change_due_at (service-interval date) and warning_brakes
+    # (brake-system lamp). None default + _DATA_PRESENT_REQUIRED gate so
+    # non-reporting cars get no phantom entity. PROBLEM class: True = red.
+    brake_fluid_warning: bool | None = None
 
     # v2.0.0 (Big-Bang) — Vehicle alarm (issue #33).
     # Cariad-BFF ``access.accessStatus.value`` may carry vehicleAlarm /

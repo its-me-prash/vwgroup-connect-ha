@@ -486,6 +486,24 @@
       "voltage_12v": {
         "name": "Baterie 12V"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Napětí článku (max)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Napětí článku (min)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Teplota zpátečky chladiva baterie"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Kapacita baterie"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Rekuperovaná energie"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Napětí baterie"
+      },
       "wake_count_today": {
         "name": "Probuzení dnes"
       },
@@ -1616,6 +1634,9 @@
       },
       "oil_level_warning": {
         "name": "Stav oleje"
+      },
+      "brake_fluid_warning": {
+        "name": "Brzdová kapalina"
       },
       "seat_heating": {
         "name": "Vyhřívání sedadel"

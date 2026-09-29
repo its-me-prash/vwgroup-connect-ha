@@ -486,6 +486,24 @@
       "voltage_12v": {
         "name": "12V-accu"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Celspanning (max)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Celspanning (min)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Retourtemperatuur batterijkoelvloeistof"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Batterijcapaciteit"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Gerecupereerde energie"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Batterijspanning"
+      },
       "wake_count_today": {
         "name": "Wake-ups vandaag"
       },
@@ -1616,6 +1634,9 @@
       },
       "oil_level_warning": {
         "name": "Oliepeil"
+      },
+      "brake_fluid_warning": {
+        "name": "Remvloeistof"
       },
       "seat_heating": {
         "name": "Stoelverwarming"

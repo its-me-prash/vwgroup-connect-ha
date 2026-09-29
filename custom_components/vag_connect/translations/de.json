@@ -492,6 +492,24 @@
       "voltage_12v": {
         "name": "12V-Batterie"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Zellspannung (Max)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Zellspannung (Min)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Batteriekühlmittel-Rücklauftemperatur"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Batteriekapazität"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Rekuperierte Energie"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Batteriespannung"
+      },
       "wake_count_today": {
         "name": "Wake-Ups heute"
       },
@@ -1559,6 +1577,9 @@
       },
       "oil_level_warning": {
         "name": "Ölstand"
+      },
+      "brake_fluid_warning": {
+        "name": "Bremsflüssigkeit"
       },
       "ota_update_available": {
         "name": "Software-Update verfügbar"

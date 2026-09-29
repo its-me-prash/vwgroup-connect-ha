@@ -492,6 +492,24 @@
       "voltage_12v": {
         "name": "12V-batteri"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Cellespenning (maks.)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Cellespenning (min.)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Returtemperatur batterikjølevæske"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Batterikapasitet"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Gjenvunnet energi"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Batterispenning"
+      },
       "wake_count_today": {
         "name": "Vekkinger i dag"
       },
@@ -1559,6 +1577,9 @@
       },
       "oil_level_warning": {
         "name": "Oljenivå"
+      },
+      "brake_fluid_warning": {
+        "name": "Bremsevæske"
       },
       "warning_12v_low": {
         "name": "12V-batteri lavt"
