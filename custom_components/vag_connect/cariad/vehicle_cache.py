@@ -445,7 +445,15 @@ def reconcile(
                 # frozen value under one capture time) override it. Leave
                 # soc_was_contested False so the energy-sanity guard below still
                 # catches a stale-high HV value (Fishermanjb .5, soc 94 vs 67%).
-                if merged.get("battery_soc_from_hv") is True:
+                # #1231 — likewise skip when the SoC is owned by a LIVE channel
+                # (vw.de / MBB / …). contested_fields is written ONLY by the EU-DA
+                # batch feed, so on a multi-channel car these candidates are that
+                # feed's leaf twins; resolving against them would overwrite a fresh
+                # live SoC (handed over by the live-supersede merge) with a batch
+                # value — the very clobber this whole family guards against. The
+                # energy-sanity guard below is _fresh_soc_is_live-gated too, so a
+                # live SoC stands untouched on both branches.
+                if merged.get("battery_soc_from_hv") is True or _fresh_soc_is_live:
                     continue
                 soc_was_contested = True
                 # break a stuck-on-stale SoC latch with live evidence (energy-
@@ -482,8 +490,16 @@ def reconcile(
     #     NOT a stale reading; only soc ABOVE energy on a settled car is suspect;
     #   * not charging — the same charge-lag guard from the other side; and
     #   * skipped when soc was already contest-resolved above (that path has the
-    #     candidate list and its own, richer evidence).
-    if not soc_was_contested:
+    #     candidate list and its own, richer evidence); and
+    #   * skipped when the SoC came from a LIVE channel (#1231 Ra72xx). The energy
+    #     anchor is the EU-DA batch feed's HV pack content; on a multi-channel car
+    #     battery_soc is vw.de's DISPLAY SoC — a different measurement basis (usable-
+    #     vs-gross + the display buffer sit it a few % above the ratio BY DESIGN) and
+    #     the batch energy can itself be a frozen stop-charging block, so comparing
+    #     the two is apples-to-oranges. A live SoC is a fresh on-demand read and is
+    #     never second-guessed here; the single-channel EU-DA case (soc AND energy
+    #     from the same feed, ``_fresh_soc_is_live`` False) still fires as before.
+    if not soc_was_contested and not _fresh_soc_is_live:
         _soc = merged.get("battery_soc")
         _sr = _energy_ratio(fresh)
         _cs = str(fresh.get("charging_state") or "").strip().upper()
