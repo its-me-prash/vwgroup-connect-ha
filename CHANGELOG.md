@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Battery cell-level telemetry for cars that report it (Vehicle Data Scout, #1622).** Some VW cars
+  ship raw battery-management (BMS) signals in their Data Act export. These now surface as diagnostic
+  sensors — highest/lowest cell voltage, battery coolant return temperature, battery capacity,
+  recuperated energy and pack voltage — and the cell-temperature extremes feed the existing HV battery
+  temperature (min/max) sensors. All are disabled by default and only created for cars that actually
+  report the signals; the raw module/cell index fields stay visible in diagnostics until their meaning
+  is documented.
+
 ### Fixed
 - **A combustion car with an empty data feed is now typed correctly (#1538, thanks @Latte9090).** A Golf
   GTD (diesel / ICE) read over the vw.de channel showed `has_combustion = false` when its EU Data Act

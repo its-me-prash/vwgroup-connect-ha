@@ -492,6 +492,24 @@
       "voltage_12v": {
         "name": "Batteria 12V"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Tensione cella (max)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Tensione cella (min)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Temperatura ritorno refrigerante batteria"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Capacità batteria"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Energia recuperata"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Tensione batteria"
+      },
       "wake_count_today": {
         "name": "Risvegli oggi"
       },

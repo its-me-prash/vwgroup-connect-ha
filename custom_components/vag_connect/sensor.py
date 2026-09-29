@@ -1138,6 +1138,82 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=1,
     ),
 
+    # #1622 (VW E3 VLAN Scout) — raw BMS cell-level telemetry from the EU Data
+    # Act export. Diagnostic, disabled by default; phantom-gated via
+    # _DATA_PRESENT_REQUIRED so only cars that report them get the entities.
+    VagSensorDescription(
+        key="hv_cell_voltage_max_mv",
+        translation_key="hv_cell_voltage_max_mv",
+        data_key="hv_cell_voltage_max_mv",
+        native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:sine-wave",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="hv_cell_voltage_min_mv",
+        translation_key="hv_cell_voltage_min_mv",
+        data_key="hv_cell_voltage_min_mv",
+        native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:sine-wave",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="hv_battery_coolant_return_temp_c",
+        translation_key="hv_battery_coolant_return_temp_c",
+        data_key="hv_battery_coolant_return_temp_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-water",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="hv_battery_capacity_ah",
+        translation_key="hv_battery_capacity_ah",
+        data_key="hv_battery_capacity_ah",
+        # No HA device class for ampere-hours (ENERGY_STORAGE is Wh, not Ah).
+        native_unit_of_measurement="Ah",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-high",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="hv_battery_recuperation_kwh",
+        translation_key="hv_battery_recuperation_kwh",
+        data_key="hv_battery_recuperation_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:battery-plus-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=3,
+    ),
+    VagSensorDescription(
+        key="hv_battery_pack_voltage_v",
+        translation_key="hv_battery_pack_voltage_v",
+        data_key="hv_battery_pack_voltage_v",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=1,
+    ),
+
     # v1.12.0 (#55) — daily wake-up counter. Vehicles cap remote wake-up
     # commands per day (typically 3-5 depending on backend). Once
     # exceeded the car silently ignores wake requests until midnight.
@@ -3946,6 +4022,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # so no phantom diagnostic entity appears.
     "hv_battery_min_temperature_c",
     "hv_battery_max_temperature_c",
+    # #1622 — raw BMS cell-level telemetry; only portal cars that ship the
+    # FlexRay BMS_* signals get these entities.
+    "hv_cell_voltage_max_mv",
+    "hv_cell_voltage_min_mv",
+    "hv_battery_coolant_return_temp_c",
+    "hv_battery_capacity_ah",
+    "hv_battery_recuperation_kwh",
+    "hv_battery_pack_voltage_v",
     "charge_max_ac_setting",
     "charge_max_ac_ampere",
     "auto_release_ac_connector_state",

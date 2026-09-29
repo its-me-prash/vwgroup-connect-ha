@@ -675,6 +675,17 @@ class VehicleData:
     hv_battery_min_temperature_c: float | None = None
     hv_battery_max_temperature_c: float | None = None
 
+    # #1622 (VW E3 VLAN Scout) — raw BMS cell-level telemetry from the EU Data
+    # Act export (FlexRay BMS_* signals, value shipped with a Unit_* suffix).
+    # Diagnostic, disabled by default, phantom-gated via _DATA_PRESENT_REQUIRED
+    # so only cars that actually report them get the entities.
+    hv_cell_voltage_max_mv: float | None = None
+    hv_cell_voltage_min_mv: float | None = None
+    hv_battery_coolant_return_temp_c: float | None = None
+    hv_battery_capacity_ah: float | None = None
+    hv_battery_recuperation_kwh: float | None = None
+    hv_battery_pack_voltage_v: float | None = None
+
     # Max AC charging current SETTING (user-requested) vs ACTUAL
     # deliverable amperage. ``maxChargeCurrentAC_setting`` is the
     # value the user picked in the brand app; ``maxChargeCurrentAC``

@@ -486,6 +486,24 @@
       "voltage_12v": {
         "name": "Akumulator 12V"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Napięcie ogniwa (maks.)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Napięcie ogniwa (min.)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Temperatura powrotu chłodziwa akumulatora"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Pojemność akumulatora"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Energia odzyskana"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Napięcie akumulatora"
+      },
       "wake_count_today": {
         "name": "Wybudzenia dziś"
       },

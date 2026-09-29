@@ -1311,6 +1311,21 @@ def _to_int(raw: str | None) -> int | None:
     return int(f) if f is not None else None
 
 
+def _lead_float(raw: str | None) -> float | None:
+    """Leading float of a '<number> Unit_<X>' portal scalar (#1622), else None.
+
+    The EU Data Act BMS/BCM leaves ship their value with the unit appended as a
+    token (e.g. "3644.0 Unit_MilliVolt"), which ``_to_float`` rejects. The
+    quantity is fixed by the field name, so we take the leading number and leave
+    the unit token to be validated in tests. Mirrors the split already used for
+    ``shortTermAverageConsumption`` below.
+    """
+    if raw is None:
+        return None
+    parts = str(raw).split()
+    return _to_float(parts[0]) if parts else None
+
+
 def _parse_pers_location(value: Any) -> tuple[float | None, float | None]:
     """#1378/#923 — parse the MEB portal ``persLocation`` leaf into a validated
     ``(lat, lon)``. Škoda Elroq (and other MEB cars) DO ship the vehicle position
@@ -2215,6 +2230,60 @@ def map_dataset_to_vehicle_data(
     tmax = _to_float(first("max_temperature", "battery_max_temperature"))
     if tmax is not None:
         d.hv_battery_max_temperature_c = tmax
+
+    # #1622 (VW E3 VLAN Scout) — raw BMS cell-level telemetry. Each value ships
+    # as "<number> Unit_<X>" (see _lead_float). For every field list BOTH the
+    # eu_data_act.-qualified path AND the bare leaf: the flattener emits both
+    # spellings for a wrapper scalar and does NOT synonym-link them, so both must
+    # be first() candidates or the leaf re-floods the Scout every poll.
+    # Cell-temperature extremes reuse the existing hv_battery_min/max_temperature_c
+    # (same physical quantity); fill-if-empty so a BFF/portal pack-temp still wins,
+    # while first() consumes the BMS twins off the Scout regardless.
+    _bms_tmin = _lead_float(first(
+        "eu_data_act.BMS_IstTemperatur_niedrigste_XIX_BMS_11_XIX_E3V_VLAN_Connect",
+        "BMS_IstTemperatur_niedrigste_XIX_BMS_11_XIX_E3V_VLAN_Connect"))
+    if _bms_tmin is not None and d.hv_battery_min_temperature_c is None:
+        d.hv_battery_min_temperature_c = round(_bms_tmin, 1)
+    _bms_tmax = _lead_float(first(
+        "eu_data_act.BMS_IstTemperatur_hoechste_XIX_BMS_11_XIX_E3V_VLAN_Connect",
+        "BMS_IstTemperatur_hoechste_XIX_BMS_11_XIX_E3V_VLAN_Connect"))
+    if _bms_tmax is not None and d.hv_battery_max_temperature_c is None:
+        d.hv_battery_max_temperature_c = round(_bms_tmax, 1)
+    # Cell voltage extremes — kept in mV (the raw integer datum, no lossy divide).
+    _bms_vmax = _lead_float(first(
+        "eu_data_act.BMS_IstZellspannung_hoechste_XIX_BMS_11_XIX_E3V_VLAN_Connect",
+        "BMS_IstZellspannung_hoechste_XIX_BMS_11_XIX_E3V_VLAN_Connect"))
+    if _bms_vmax is not None:
+        d.hv_cell_voltage_max_mv = _bms_vmax
+    _bms_vmin = _lead_float(first(
+        "eu_data_act.BMS_IstZellspannung_niedrigste_XIX_BMS_11_XIX_E3V_VLAN_Connect",
+        "BMS_IstZellspannung_niedrigste_XIX_BMS_11_XIX_E3V_VLAN_Connect"))
+    if _bms_vmin is not None:
+        d.hv_cell_voltage_min_mv = _bms_vmin
+    # Coolant return temperature (°C).
+    _bms_coolant = _lead_float(first(
+        "eu_data_act.BMS_RuecklaufTemperatur_XIX_BMS_25_XIX_E3V_VLAN_Connect",
+        "BMS_RuecklaufTemperatur_XIX_BMS_25_XIX_E3V_VLAN_Connect"))
+    if _bms_coolant is not None:
+        d.hv_battery_coolant_return_temp_c = round(_bms_coolant, 1)
+    # Battery capacity (Ah).
+    _bms_cap = _lead_float(first(
+        "eu_data_act.BMS_Kapazitaet_02_XIX_BMS_04_XIX_E3V_VLAN_Connect",
+        "BMS_Kapazitaet_02_XIX_BMS_04_XIX_E3V_VLAN_Connect"))
+    if _bms_cap is not None:
+        d.hv_battery_capacity_ah = round(_bms_cap, 1)
+    # Recuperated energy: ships in watt-seconds; HA ENERGY needs kWh (/ 3.6e6).
+    _bms_recup = _lead_float(first(
+        "eu_data_act.BMS_Rekuperation_XIX_BMS_05_XIX_E3V_VLAN_Connect",
+        "BMS_Rekuperation_XIX_BMS_05_XIX_E3V_VLAN_Connect"))
+    if _bms_recup is not None:
+        d.hv_battery_recuperation_kwh = round(_bms_recup / 3_600_000, 3)
+    # Pack voltage (V).
+    _bms_pack_v = _lead_float(first(
+        "eu_data_act.BMS_Spannung_XIX_BMS_20_XIX_E3V_VLAN_Connect",
+        "BMS_Spannung_XIX_BMS_20_XIX_E3V_VLAN_Connect"))
+    if _bms_pack_v is not None:
+        d.hv_battery_pack_voltage_v = round(_bms_pack_v, 1)
 
     # v2.17.5 — qualified door-lock fields win over the bare ``locked`` leaf: a
     # ``trunk.locked`` container ALSO emits a bare ``locked`` (cross-container

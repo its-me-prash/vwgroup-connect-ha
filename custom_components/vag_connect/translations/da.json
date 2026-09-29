@@ -492,6 +492,24 @@
       "voltage_12v": {
         "name": "12V-batteri"
       },
+      "hv_cell_voltage_max_mv": {
+        "name": "Cellespænding (maks.)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Cellespænding (min.)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Returtemperatur batterikølevæske"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Batterikapacitet"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Genvundet energi"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Batterispænding"
+      },
       "wake_count_today": {
         "name": "Opvækninger i dag"
       },
