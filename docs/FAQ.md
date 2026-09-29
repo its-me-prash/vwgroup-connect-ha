@@ -194,6 +194,69 @@ Sensors and binary_sensors stay enabled — full read-only telemetry.
 
 ---
 
+## 🧪 Where is the "test cohort" opt-in? (Configure ≠ Add)
+
+The **test cohort** is an opt-in toggle. Turn it on to let the
+integration try experimental reads on your car and, now and then,
+show a dismissible notice asking you to share a **redacted**
+diagnostics file so a new capability can be confirmed for your model
+(no VIN, GPS, tokens or email ever leave your system). It's off by
+default and you can switch it off again at any time.
+
+It lives in the **Configure / Options** dialog of the **existing**
+entry — **not** in the "Add integration" wizard where you first pick a
+login method:
+
+1. **Settings → Devices & Services → VW Group Connect**
+2. Click **Configure** (the cog on the entry — *not* "Add entry")
+3. In the dialog titled **"VW Group Connect — Settings"**, scroll to
+   **"Help improve VW Group Connect (opt-in test cohort)"** and turn it on
+
+> 🇩🇪 **Deutsche HA-Oberfläche:** **Einstellungen → Geräte & Dienste →
+> VW Group Connect → Konfigurieren** (Zahnrad am Eintrag, **nicht**
+> „Hinzufügen"/„Einrichten"). Im Dialog **„VW Group Connect —
+> Einstellungen"** den Haken **„Hilf mit, VW Group Connect zu
+> verbessern (freiwillige Testgruppe)"** setzen.
+
+If you instead see the wizard titled **"Set up VW Group Connect"** /
+**„VW Group Connect einrichten"** asking you to choose a login method
+(Browser-Login, E-Mail + Passwort, Volkswagen.de, MBB), you've opened
+the **Add** flow by mistake — go back and use **Configure** on the
+entry that already exists. (#584)
+
+---
+
+## 📱 Companion (ADB) phone: the app won't navigate after it wakes
+
+If you use the **companion phone** channel with **"wake screen to poll"**
+enabled and the reads come back empty, the phone is most likely waking to its
+**lock screen** rather than to the VW app. The screen turns on, but the
+navigator finds none of the app's controls, so every nav step aborts safely
+(you'll see `nav step '...' is not on the current screen; stopping the walk
+here` in the debug log). This is common on **Huawei / EMUI** and other OEMs
+whose lock screen reappears on every wake.
+
+On a **dedicated** companion phone (one you use only for this, not your daily
+phone), disable the lock screen once over ADB:
+
+```bash
+adb shell locksettings set-disabled true
+```
+
+The app is then immediately navigable after each wake. The integration
+deliberately does **not** try to dismiss the lock screen itself — that is too
+OEM- and device-specific to do safely — so a one-time `set-disabled` on the
+dedicated phone is the clean route. (#1552)
+
+> 🇩🇪 **Nur für ein dediziertes Companion-Handy** (nicht dein Alltags-Handy):
+> Wenn der Companion-Kanal mit „wake screen to poll" leere Reads liefert, wacht
+> das Handy meist auf dem **Sperrbildschirm** auf statt in der VW-App (häufig
+> auf Huawei/EMUI). Sperrbildschirm einmalig per ADB deaktivieren:
+> `adb shell locksettings set-disabled true` — danach ist die App nach jedem
+> Wecken sofort navigierbar.
+
+---
+
 ## 🚗 My vehicle disappeared after a release — why?
 
 Two possible reasons (since v1.17.0 we surface a notification for
