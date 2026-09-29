@@ -62,6 +62,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   It's now kept for the mileage/odometer family (a plausible real value there) while still being
   dropped on the bounded fields; the separate odometer guard still screens VW's real 32-bit "no value"
   markers.
+- **Companion (ADB) EV cars now get their battery entities (#1552, thanks @nekas123).** A companion-only
+  read that parsed a valid state of charge / range still left `has_battery` false, so the Battery SoC,
+  Electric Range and charging entities never appeared. A companion read now infers the battery from a
+  present SoC/range (like the brand parsers already do); it only ever sets the flag true, so a
+  combustion car is unaffected.
+- **Companion (ADB) detail-screen values no longer freeze after the first read (#1552, thanks @nekas123).**
+  The nav-read cache was re-applied before the "is a refresh due?" check, so the detail walk saw its
+  targets already filled and skipped forever after the first read — charge target / power / time (and,
+  on newer layouts, SoC and range) went stale. The scheduled refresh now runs first, and a fresh detail
+  value wins over a stale overview one.
+- **Companion (ADB) no longer halves its overnight poll rate for no reason (#1552, thanks @nekas123).**
+  The 22:00–05:00 cadence reduction saves cloud API calls, which a local ADB read doesn't make — so it
+  now skips a companion entry, unless the wake/sleep opt-in is on (there the slower night cadence also
+  cuts how often the phone screen wakes).
 - **The portal `climacontrol` flag now feeds the climate-active sensor instead of just being noise
   (Vehicle Data Scout, #1603).** A VW Passat's Data Act export carries a bare `climacontrol` on/off flag
   — the same "climate is running" datum the climatisation-active sensor already shows. It's now folded

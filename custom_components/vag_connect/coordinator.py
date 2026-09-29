@@ -4083,10 +4083,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 ) * 60,
                 _CC_MIN_INTERVAL_S,
             )
-            # Nightly reduction: double interval between 22:00 and 05:00
+            # Nightly reduction: double interval between 22:00 and 05:00 to cut
+            # overnight cloud API calls. The local ADB companion channel has no
+            # cloud quota, so the doubling only earns its keep there when its
+            # wake/sleep opt-in is on (a slower night cadence then also halves
+            # overnight phone-screen wakes). With a dedicated always-awake
+            # companion phone it just stales the local data, so skip it (#1552).
             hour = datetime.now().hour
             nightly = hour >= 22 or hour < 5
-            if nightly:
+            if nightly and not self._companion_skips_nightly_reduction():
                 interval_s = interval_s * 2
                 _LOGGER.debug("Nightly reduction active — interval doubled to %ds", interval_s)
             # Drop-anchored scheduling for EU-DA portal entries (daytime only, so
@@ -7973,6 +7978,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .const import CONF_STRATEGY, STRATEGY_COMPANION_ADB  # noqa: PLC0415
 
         return bool(self.entry.data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB)
+
+    def _companion_skips_nightly_reduction(self) -> bool:
+        """#1552 — a companion (ADB) entry reads over local ADB, which has no
+        cloud rate limit, so the overnight interval doubling only makes sense
+        when its wake/sleep opt-in is on (there the slower cadence also halves
+        overnight phone-screen wakes). A dedicated always-awake companion phone
+        should keep its daytime cadence at night, so skip the reduction for it."""
+        if not self.is_companion():
+            return False
+        from .const import CONF_COMPANION_WAKE_SLEEP  # noqa: PLC0415
+
+        # Read the toggle exactly like the companion client does (options THEN
+        # data — the Options flow writes to entry.options; see _companion_opt).
+        wake_sleep = bool(
+            self.entry.options.get(
+                CONF_COMPANION_WAKE_SLEEP,
+                self.entry.data.get(CONF_COMPANION_WAKE_SLEEP, False),
+            )
+        )
+        return not wake_sleep
 
     async def async_reset_companion_cooldown(self) -> None:
         """v2.26.0 (ckomma #22) — user-initiated clear of a stuck companion
