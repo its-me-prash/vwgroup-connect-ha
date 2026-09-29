@@ -1578,6 +1578,9 @@
       "oil_level_warning": {
         "name": "Ölstand"
       },
+      "brake_fluid_warning": {
+        "name": "Bremsflüssigkeit"
+      },
       "ota_update_available": {
         "name": "Software-Update verfügbar"
       },

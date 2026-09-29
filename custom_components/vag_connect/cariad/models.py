@@ -1559,6 +1559,14 @@ class VehicleData:
     oil_level_warning: bool | None = None
     oil_level_pct: int | None = None
 
+    # #1592 (Audi Q6 PPE Scout) — brake-fluid warning lamp from the raw
+    # FlexRay/ESC signal BCS_BrkFldWarn_XIX_ESC_03_XIX_HCP1_FlexRay_A
+    # (enum "BCS_BrkFld_Warning_Off" = fluid OK). Distinct from
+    # brake_fluid_change_due_at (service-interval date) and warning_brakes
+    # (brake-system lamp). None default + _DATA_PRESENT_REQUIRED gate so
+    # non-reporting cars get no phantom entity. PROBLEM class: True = red.
+    brake_fluid_warning: bool | None = None
+
     # v2.0.0 (Big-Bang) — Vehicle alarm (issue #33).
     # Cariad-BFF ``access.accessStatus.value`` may carry vehicleAlarm /
     # siren fields when the car's anti-theft system has triggered. Surfaced

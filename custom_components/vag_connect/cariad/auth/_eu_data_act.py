@@ -2534,6 +2534,18 @@ def map_dataset_to_vehicle_data(
         _crv = _clim_reason.strip().upper().replace("CLIMATISATION_REASON_TRIGGER_", "").replace("CLIMATISATION_REASON_", "")
         if _crv and _crv != "INVALID":
             d.climatisation_reason = _crv
+    # Scout 2026-09-28 (#1603, VW Passat eTSI) — the modern portal also ships a
+    # bare climate on/off flag `climacontrol` ("true"/"false"). Official dict
+    # 993a7694 (type=boolean): "Heating in the vehicle is in the preheating
+    # state (flag)" — i.e. climatisation is running, the same datum the
+    # climatisation_active binary sensor already exposes. Fold it in as a coarse
+    # FALLBACK: the richer climatisation_state enum above (and any brand-native
+    # read) already sets climatisation_active, so guard fill-if-empty. Call
+    # first() so the leaf is consumed/reclaimed from the Scout even when already
+    # filled; list BOTH twins — a plain-dict scalar emits both spellings unlinked.
+    _climactrl = first("eu_data_act.climacontrol", "climacontrol")
+    if _climactrl is not None and d.climatisation_active is None:
+        d.climatisation_active = str(_climactrl).strip().lower() in ("true", "1")
 
     # `in_cabin_temperature.temperature` — current interior temperature. The
     # companion `measurement_state` flags validity; skip an explicitly invalid
@@ -3765,6 +3777,24 @@ def map_dataset_to_vehicle_data(
         d.driver_braking_active = str(_brk).strip().lower() not in (
             "0", "", "false", "no", "off",
         )
+    # #1592 (Audi Q6 PPE Scout) — raw FlexRay/ESC brake-fluid warning lamp.
+    # Ships enum "BCS_BrkFld_Warning_Off" (note trailing space) when the fluid
+    # is OK. List BOTH the eu_data_act.-qualified path AND the bare leaf: the
+    # flattener emits both spellings for a wrapper-level scalar and does not
+    # synonym-link them, so the bare twin must be a first() candidate or it
+    # re-floods the Scout.
+    _brk_fld = first(
+        "eu_data_act.BCS_BrkFldWarn_XIX_ESC_03_XIX_HCP1_FlexRay_A",
+        "BCS_BrkFldWarn_XIX_ESC_03_XIX_HCP1_FlexRay_A",
+    )
+    if _brk_fld is not None and d.brake_fluid_warning is None:
+        # Only the OFF sample is confirmed ("..._Off" = inactive). The OFF value
+        # itself contains "Warning", so key on the ABSENCE of the "off" suffix,
+        # not the presence of "Warning": non-empty and not "...off" => warning
+        # active (the ON spelling is inferred until a live sample confirms it).
+        _bf = str(_brk_fld).strip().lower()
+        if _bf:
+            d.brake_fluid_warning = not _bf.endswith("off")
     # climate_error_code / window_heating_error_code — drop "0"/"#0" like the
     # existing charging_state_error_code pattern.
     # Scout 2026-09-25 (#1492) — the MEB portal spells it

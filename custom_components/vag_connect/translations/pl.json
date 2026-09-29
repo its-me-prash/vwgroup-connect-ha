@@ -1635,6 +1635,9 @@
       "oil_level_warning": {
         "name": "Poziom oleju"
       },
+      "brake_fluid_warning": {
+        "name": "Płyn hamulcowy"
+      },
       "seat_heating": {
         "name": "Podgrzewanie foteli"
       },

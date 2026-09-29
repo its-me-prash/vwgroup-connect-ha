@@ -1578,6 +1578,9 @@
       "oil_level_warning": {
         "name": "Öljytaso"
       },
+      "brake_fluid_warning": {
+        "name": "Jarruneste"
+      },
       "warning_12v_low": {
         "name": "12 V:n akku vähissä"
       },

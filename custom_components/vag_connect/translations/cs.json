@@ -1635,6 +1635,9 @@
       "oil_level_warning": {
         "name": "Stav oleje"
       },
+      "brake_fluid_warning": {
+        "name": "Brzdová kapalina"
+      },
       "seat_heating": {
         "name": "Vyhřívání sedadel"
       },
