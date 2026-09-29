@@ -25,7 +25,9 @@ import pytest
 from custom_components.vag_connect.companion.channel import CompanionChannel
 from custom_components.vag_connect.companion.client import CompanionClient
 from custom_components.vag_connect.companion.presets import PRESETS
+from custom_components.vag_connect.companion.transport import NetworkAdbTransport
 from custom_components.vag_connect.const import (
+    CONF_COMPANION_CLOSE_APP,
     CONF_COMPANION_WAKE_SLEEP,
     CONF_STRATEGY,
     STRATEGY_COMPANION_ADB,
@@ -191,3 +193,102 @@ class TestNightlyReductionWakeSleepVariant:
     def test_non_companion_entry_keeps_the_doubling(self) -> None:
         coord = _coord({CONF_STRATEGY: "cariad_bff"})
         assert coord._companion_skips_nightly_reduction() is False
+
+
+# --- Fix 4 (follow-up): close the car app after each read (@nekas123) ---------
+
+
+class _RecordingTransport:
+    """Fake transport for the channel-level close-app test: records the package
+    passed to force_stop_if_enabled and serves a bare overview so read() runs."""
+
+    def __init__(self) -> None:
+        self.connected = False
+        self.force_stopped: list[str] = []
+
+    async def connect(self) -> None:
+        self.connected = True
+
+    async def foreground_app(self, package: str) -> None:  # noqa: ARG002
+        return None
+
+    async def current_app_version(self, package: str) -> str | None:  # noqa: ARG002
+        return "4.3.2"
+
+    async def dump_ui(self) -> str:
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?><hierarchy rotation="0">'
+            '<node resource-id="" content-desc="Vehicle is locked" text="" '
+            'class="android.widget.TextView" clickable="false" '
+            'bounds="[0,0][100,50]" /></hierarchy>'
+        )
+
+    async def force_stop_if_enabled(
+        self, package: str, timeout_s: float = 10.0  # noqa: ARG002
+    ) -> None:
+        self.force_stopped.append(package)
+
+
+class TestCloseAppAfterRead:
+    def test_conf_key_is_stable(self) -> None:
+        assert CONF_COMPANION_CLOSE_APP == "companion_close_app"
+
+    @pytest.mark.asyncio
+    async def test_transport_force_stops_only_when_opted_in(self) -> None:
+        shells: list[str] = []
+
+        async def _spy(cmd: str, timeout_s: float = 10.0) -> str:  # noqa: ARG001
+            shells.append(cmd)
+            return ""
+
+        on = NetworkAdbTransport("h", 5555, "/k", close_app=True)
+        on.shell = _spy  # type: ignore[method-assign]
+        await on.force_stop_if_enabled("com.volkswagen.weconnect")
+        assert shells == ["am force-stop com.volkswagen.weconnect"]
+
+        shells.clear()
+        off = NetworkAdbTransport("h", 5555, "/k", close_app=False)
+        off.shell = _spy  # type: ignore[method-assign]
+        await off.force_stop_if_enabled("com.volkswagen.weconnect")
+        assert shells == []  # opt-in off => no-op
+
+    @pytest.mark.asyncio
+    async def test_empty_package_is_a_noop(self) -> None:
+        shells: list[str] = []
+
+        async def _spy(cmd: str, timeout_s: float = 10.0) -> str:  # noqa: ARG001
+            shells.append(cmd)
+            return ""
+
+        t = NetworkAdbTransport("h", 5555, "/k", close_app=True)
+        t.shell = _spy  # type: ignore[method-assign]
+        await t.force_stop_if_enabled("")
+        assert shells == []
+
+    @pytest.mark.asyncio
+    async def test_force_stop_failure_is_swallowed(self) -> None:
+        async def _boom(cmd: str, timeout_s: float = 10.0) -> str:  # noqa: ARG001
+            raise RuntimeError("device gone")
+
+        t = NetworkAdbTransport("h", 5555, "/k", close_app=True)
+        t.shell = _boom  # type: ignore[method-assign]
+        await t.force_stop_if_enabled("com.volkswagen.weconnect")  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_channel_force_stops_the_preset_package_after_read(self) -> None:
+        t = _RecordingTransport()
+        channel = CompanionChannel(t, _VW, time_fn=lambda: 10_000.0)  # type: ignore[arg-type]
+        await channel.read()
+        assert t.force_stopped == [_VW.package]
+
+    def test_client_threads_close_app_into_the_transport(self) -> None:
+        client = CompanionClient(
+            brand="volkswagen",
+            vin="wvwzzz1jzxw000003",
+            host="h",
+            port=5555,
+            adbkey_path="/k",
+            time_fn=lambda: 0.0,
+            close_app=True,
+        )
+        assert client._transport._close_app is True

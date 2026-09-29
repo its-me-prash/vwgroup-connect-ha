@@ -249,6 +249,13 @@ class CompanionChannel:
         try:
             return await self._read_once()
         finally:
+            # v4.9.0 (#1552) — if the close-app opt-in is on, force-stop the car
+            # app after every poll so the next read relaunches it fresh instead of
+            # scraping a stale cached screen. No-op otherwise. Optional transport
+            # capability, so guard for a transport that does not implement it.
+            _fstop = getattr(self._t, "force_stop_if_enabled", None)
+            if _fstop is not None:
+                await _fstop(self._preset.package)
             # v2.26.0 (#974) — if the wake/sleep opt-in is on, put the display
             # back to sleep after every poll that woke it (including a failed or
             # nav-tapping one). No-op otherwise. Optional transport capability,

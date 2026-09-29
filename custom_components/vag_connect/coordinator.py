@@ -1334,6 +1334,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             from .const import (  # noqa: PLC0415
                 CONF_COMPANION_ADDON_TOKEN,
                 CONF_COMPANION_AGENT_TOKEN,
+                CONF_COMPANION_CLOSE_APP,
                 CONF_COMPANION_READ_CHARGE_DETAIL,
                 CONF_COMPANION_READ_CLIMATE_DETAIL,
                 CONF_COMPANION_READ_PARKING_POSITION,
@@ -1388,6 +1389,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # charge detail" afterwards saw nothing happen (#968).
                 read_charge_detail=_companion_opt(CONF_COMPANION_READ_CHARGE_DETAIL),
                 wake_sleep=_companion_opt(CONF_COMPANION_WAKE_SLEEP),
+                close_app=_companion_opt(CONF_COMPANION_CLOSE_APP),
                 # #968 — when set, host/port above address the ADB Bridge
                 # add-on rather than the phone (Android 11+ wireless debugging
                 # needs the real adb binary, which the add-on bundles).
