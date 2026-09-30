@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Climate target temperature now shows for portal-read cars (Vehicle Data Scout, #1624 and many more reports).**
+  The modern MEB EU Data Act export carries the set cabin temperature under its climatisation-settings block as a raw
+  bus value. It now feeds the existing target-temperature sensor for cars that only have the portal read, decoded from
+  that bus value (multiple reporters cross-confirmed the scaling). A brand-native or app-backend reading still wins
+  where one is present.
+
 ## [4.8.0] - 2026-09-29 — BMS cell telemetry, a brake-fluid warning, and multi-channel SoC/typing fixes
 
 ### Added

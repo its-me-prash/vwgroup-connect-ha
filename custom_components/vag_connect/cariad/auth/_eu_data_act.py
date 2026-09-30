@@ -2470,6 +2470,28 @@ def map_dataset_to_vehicle_data(
             round(_legacy_tt / 10 - 273.15, 1) if _legacy_tt > 200 else _legacy_tt
         )
 
+    # Scout 2026-09-30 (#1624/#1630/#1629/#1626) — the modern MEB portal ships the
+    # climate target temperature under the nested climatisation_settings block as a
+    # raw bus value: 0..255 maps to 10..35.5 °C in 0.1 °C steps (the official
+    # dictionary encoding; four cross-samples 70/120/130 → 17/22/23 °C confirm it).
+    # The legacy deci-Kelvin path above would misread it (its >200 guard passes a
+    # value like 130 straight through as 130 °C), so decode it here on its own,
+    # guarded to the documented 0..255 range, and fill only if nothing else already
+    # provided the target (BFF / brand-native / legacy win). List both the qualified
+    # path and the bare leaf so the nested scalar is reclaimed from the Scout (same
+    # convention as climatisation_without_hv_power below).
+    _portal_tt = _to_float(first(
+        "eu_data_act.climatisation_settings.target_temperature",
+        "climatisation_settings.target_temperature",
+        "target_temperature",
+    ))
+    if (
+        _portal_tt is not None
+        and d.target_temperature is None
+        and 0.0 <= _portal_tt <= 255.0
+    ):
+        d.target_temperature = round(_portal_tt * 0.1 + 10.0, 1)
+
     # v2.18.0 (#702) — Touareg-era legacy export: the charger's picked AC
     # current limit in amperes. It sits under ``chargerSettings``, so it is the
     # *setting* twin (what the user chose), not the live deliverable amperage.
