@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A car removed from your account is no longer polled forever (#1628, thanks @ekirchma).** The vehicle list was read
+  from the account only at setup and the cache was never reconciled against it, so a deleted car kept getting polled
+  and 404-spamming the error log. On a genuine account read, a cached vehicle that's no longer on the account is now
+  pruned, so a reload/restart clears the removed car and its stale device is removed automatically. A partial or failed
+  enumeration never prunes, so a real car is never dropped by mistake.
+
 ## [4.8.0] - 2026-09-29 — BMS cell telemetry, a brake-fluid warning, and multi-channel SoC/typing fixes
 
 ### Added
