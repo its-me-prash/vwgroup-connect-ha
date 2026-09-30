@@ -1,6 +1,6 @@
 # App Atlas — Cross-Brand Summary
 
-> Auto-generated · Last refreshed: 2026-09-29 10:11 UTC
+> Auto-generated · Last refreshed: 2026-09-30 10:02 UTC
 
 | Brand | Android package | Latest version | Source | Expected backend | OLA enforced? |
 |---|---|---|---|---|---|
@@ -11,7 +11,7 @@
 | **Škoda (MyŠkoda)** | `cz.skodaauto.myskoda` | `8.17.0` | `google_play` | `mysmob` |  |
 | **Volkswagen US/CA (myVW)** | `com.vw.carnet.release` | `2026.7.28-9380` | `google_play` | `con_veh_net` |  |
 | **Porsche (My Porsche, North America)** | `com.porsche.one` | `21.26.39` | `apkmirror` | `ppa` |  |
-| **Porsche (My Porsche, rest-of-world)** | `de.porsche.one` | `20.26.38` | `apkcombo` | `ppa` |  |
+| **Porsche (My Porsche, rest-of-world)** | `de.porsche.one` | `21.26.39` | `apkcombo` | `ppa` |  |
 
 ## Methodology
 
