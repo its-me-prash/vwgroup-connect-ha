@@ -42,6 +42,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Security
+- **The stale-data repair no longer embeds your full VIN in its id (#1626, thanks @eddieari).** Home Assistant's
+  stale-data repair keyed its internal id on the raw VIN, which is written as-is into a diagnostics download — unlike
+  the VIN fields, which are masked — so a shared diagnostic could expose the full VIN. The id now uses the masked VIN,
+  and an id raised before the upgrade is cleared automatically.
+
 ## [4.8.0] - 2026-09-29 — BMS cell telemetry, a brake-fluid warning, and multi-channel SoC/typing fixes
 
 ### Added
