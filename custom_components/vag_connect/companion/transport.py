@@ -40,7 +40,8 @@ class NetworkAdbTransport:
     """
 
     def __init__(
-        self, host: str, port: int, adbkey_path: str, *, wake_sleep: bool = False
+        self, host: str, port: int, adbkey_path: str, *, wake_sleep: bool = False,
+        close_app: bool = False,
     ) -> None:
         self._host = host
         self._port = int(port)
@@ -51,6 +52,10 @@ class NetworkAdbTransport:
         # not stay lit permanently. The wake happens anyway (foreground_app);
         # this adds the matching sleep.
         self._wake_sleep = bool(wake_sleep)
+        # v4.9.0 (#1552) — when True, the car app is force-stopped after each read
+        # so the next poll relaunches it fresh instead of scraping a stale cached
+        # screen. OFF by default (a cold relaunch is slower).
+        self._close_app = bool(close_app)
 
     # -- connection -----------------------------------------------------------
 
@@ -191,6 +196,20 @@ class NetworkAdbTransport:
             return
         try:
             await self.shell("input keyevent 223", timeout_s)  # KEYCODE_SLEEP
+        except Exception:  # noqa: BLE001
+            pass
+
+    async def force_stop_if_enabled(
+        self, package: str, timeout_s: float = 10.0
+    ) -> None:
+        """Force-stop ``package`` after a poll (#1552), if the close-app opt-in is
+        on. No-op otherwise. Best-effort: a failure here must never turn a good
+        read into an error, so it swallows exceptions.
+        """
+        if not self._close_app or not package:
+            return
+        try:
+            await self.shell(f"am force-stop {package}", timeout_s)
         except Exception:  # noqa: BLE001
             pass
 

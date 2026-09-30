@@ -240,6 +240,7 @@
           "read_only_mode": "Mode lecture seule",
           "companion_read_charge_detail": "Companion : lire l'objectif de charge (navigue dans l'application)",
           "companion_wake_sleep": "Companion : réveiller l'écran pour interroger, puis le rendormir",
+          "companion_close_app": "Companion : fermer l'app auto après chaque lecture",
           "force_ppe_climate": "Climate Audi PPE/PPC (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Mises à jour push Skoda (MQTT, EXPÉRIMENTAL)",
           "enable_push_fcm": "Mises à jour push CUPRA/SEAT (FCM, EXPÉRIMENTAL)",
@@ -276,6 +277,7 @@
           "read_only_mode": "Lorsqu'activé, seuls les capteurs d'état sont créés — pas d'interrupteurs, boutons, verrous, climat ou curseurs qui envoient des commandes. Utile si vous voulez la télémétrie véhicule sans risque d'actionnement accidentel. Rechargez l'intégration après activation.",
           "companion_read_charge_detail": "Companion (ADB) uniquement. Lit aussi l'objectif de charge, la puissance et le temps restant qui se trouvent derrière l'écran de détail de la charge. Pour y accéder, l'application est PILOTÉE par appuis (environ toutes les 15 minutes) : n'activez cette option qu'après avoir vérifié que cela fonctionne sur votre téléphone. Désactivé par défaut. Rechargez l'intégration après activation.",
           "companion_wake_sleep": "Companion (ADB) uniquement. Réveille l'écran du téléphone avant chaque interrogation et le rendort ensuite, pour qu'un téléphone verrouillé ou en veille affiche l'application pendant la lecture sans rester allumé en permanence. Désactivé par défaut. Rechargez l'intégration après activation.",
+          "companion_close_app": "Companion (ADB) uniquement. Force l'arrêt (ferme) de l'app auto après chaque relève, pour que la lecture suivante la relance à neuf au lieu de lire un écran mis en cache. Utile sur les appareils où l'app fige ses valeurs entre deux relèves. Désactivé par défaut — un redémarrage à froid est plus lent. Rechargez après modification.",
           "force_ppe_climate": "Audi uniquement. Force le nouveau format de payload PPE/PPC (climatisationMode obligatoire, targetTemperature omis) au démarrage du climat. À activer uniquement si vous possédez une Q6 e-tron, A6 e-tron, RS e-tron GT Facelift ou A3 2024+ PHEV — sinon l'API renvoie 400. Rechargez l'intégration après activation.",
           "enable_push_mqtt": "EXPÉRIMENTAL : Skoda uniquement. Active le push MQTT en temps réel depuis le backend mysmob de Skoda (nécessite les paquets Python aiomqtt + firebase-messaging — actuellement importés à la demande, non préinstallés). Phase de base en v1.18.0 ; activation en direct en attente de validation par les testeurs de la communauté. Si le push est indisponible, l'intégration bascule silencieusement sur l'interrogation périodique. Rechargez l'intégration après avoir modifié ce réglage.",
           "enable_push_fcm": "EXPÉRIMENTAL : CUPRA/SEAT uniquement. Active le push Firebase Cloud Messaging en temps réel depuis le backend OLA (nécessite le paquet Python firebase-messaging — même import à la demande que l'option MQTT Skoda de la v1.18.0). Phase de base en v1.19.0 ; activation en direct en attente de validation par les testeurs de la communauté. Si le push est indisponible, l'intégration bascule silencieusement sur l'interrogation périodique. Rechargez l'intégration après avoir modifié ce réglage.",
@@ -485,6 +487,24 @@
       },
       "voltage_12v": {
         "name": "Batterie 12V"
+      },
+      "hv_cell_voltage_max_mv": {
+        "name": "Tension de cellule (max)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Tension de cellule (min)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Température retour liquide de refroidissement batterie"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Capacité de la batterie"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Énergie récupérée"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Tension de la batterie"
       },
       "wake_count_today": {
         "name": "Réveils aujourd'hui"
@@ -1616,6 +1636,9 @@
       },
       "oil_level_warning": {
         "name": "Niveau d huile"
+      },
+      "brake_fluid_warning": {
+        "name": "Liquide de frein"
       },
       "seat_heating": {
         "name": "Chauffage des sièges"

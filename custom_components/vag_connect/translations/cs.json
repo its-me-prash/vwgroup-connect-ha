@@ -240,6 +240,7 @@
           "read_only_mode": "Režim jen pro čtení",
           "companion_read_charge_detail": "Companion: číst cíl nabíjení (naviguje v aplikaci)",
           "companion_wake_sleep": "Companion: probudit displej k dotazu, poté uspat",
+          "companion_close_app": "Companion: zavřít aplikaci auta po každém čtení",
           "force_ppe_climate": "Audi PPE/PPC klima-tělo (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Push aktualizace Skoda (MQTT, EXPERIMENTÁLNÍ)",
           "enable_push_fcm": "Push aktualizace CUPRA/SEAT (FCM, EXPERIMENTÁLNÍ)",
@@ -276,6 +277,7 @@
           "read_only_mode": "Když je povoleno, vytváří se pouze stavové senzory — žádné spínače, tlačítka, zámky, klima ani posuvníky odesílající příkazy. Užitečné, pokud chcete telemetrii vozidla bez rizika náhodného spuštění. Po přepnutí znovu načtěte integraci.",
           "companion_read_charge_detail": "Pouze companion (ADB). Načítá navíc cíl nabíjení, výkon a zbývající čas, které jsou skryté za obrazovkou s detailem nabíjení. Kvůli tomu KLEPÁ do aplikace, aby se tam dostala (asi každých 15 minut), proto to zapínejte až po ověření, že postup na vašem telefonu funguje. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
           "companion_wake_sleep": "Pouze companion (ADB). Před každým dotazem probudí displej telefonu a poté ho zase uspí, takže zamčený nebo spící telefon během čtení zobrazí aplikaci, aniž by displej svítil trvale. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
+          "companion_close_app": "Pouze Companion (ADB). Po každém dotazu vynuceně ukončí (zavře) aplikaci auta, takže další čtení ji spustí znovu načisto místo čtení obrazovky ponechané v mezipaměti. Pomáhá na zařízeních, kde aplikace mezi čteními zamrzne své hodnoty. Výchozí: vypnuto — studený start je pomalejší. Po přepnutí znovu načtěte.",
           "force_ppe_climate": "Pouze Audi. Vynucuje nový PPE/PPC formát těla (climatisationMode povinný, targetTemperature vynechaný) při startu klimatizace. Zapnout pouze pokud vlastníš Q6 e-tron, A6 e-tron, RS e-tron GT Facelift nebo A3 2024+ PHEV — jinak API vrátí 400. Po zapnutí znovu načti integraci.",
           "enable_push_mqtt": "EXPERIMENTÁLNÍ: pouze Skoda. Umožňuje push v reálném čase přes MQTT z backendu Skoda mysmob (vyžaduje Python balíčky aiomqtt + firebase-messaging — momentálně se načítají líně, nejsou předinstalované). Základní fáze ve verzi v1.18.0; ostré nasazení čeká na ověření komunitními testery. Pokud push není dostupný, integrace se tiše vrátí k dotazování (polling). Po přepnutí integraci znovu načtěte.",
           "enable_push_fcm": "EXPERIMENTÁLNÍ: pouze CUPRA/SEAT. Umožňuje push v reálném čase přes Firebase Cloud Messaging z backendu OLA (vyžaduje Python balíček firebase-messaging — stejné líné načítání jako u přepínače Skoda MQTT ve verzi v1.18.0). Základní fáze ve verzi v1.19.0; ostré nasazení čeká na ověření komunitními testery. Pokud push není dostupný, integrace se tiše vrátí k dotazování (polling). Po přepnutí integraci znovu načtěte.",
@@ -485,6 +487,24 @@
       },
       "voltage_12v": {
         "name": "Baterie 12V"
+      },
+      "hv_cell_voltage_max_mv": {
+        "name": "Napětí článku (max)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Napětí článku (min)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Teplota zpátečky chladiva baterie"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Kapacita baterie"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Rekuperovaná energie"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Napětí baterie"
       },
       "wake_count_today": {
         "name": "Probuzení dnes"
@@ -1616,6 +1636,9 @@
       },
       "oil_level_warning": {
         "name": "Stav oleje"
+      },
+      "brake_fluid_warning": {
+        "name": "Brzdová kapalina"
       },
       "seat_heating": {
         "name": "Vyhřívání sedadel"

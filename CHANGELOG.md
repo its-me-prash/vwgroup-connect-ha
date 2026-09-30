@@ -42,7 +42,63 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Climate target temperature now shows for portal-read cars (Vehicle Data Scout, #1624 and many more reports).**
+  The modern MEB EU Data Act export carries the set cabin temperature under its climatisation-settings block as a raw
+  bus value. It now feeds the existing target-temperature sensor for cars that only have the portal read, decoded from
+  that bus value (multiple reporters cross-confirmed the scaling). A brand-native or app-backend reading still wins
+  where one is present.
+- **The mirror-heating setting now fills for modern portal cars too (Vehicle Data Scout, #1637, thanks @pietervanhertum).**
+  The modern MEB export carries the mirror-heating enable under its climatisation-settings block; it was the one leaf in
+  that block without a modern alias (the climate zones already had theirs), so it now feeds the existing mirror-heating
+  sensor instead of re-filing on the Scout.
+- **Companion (ADB): optionally close the car app after each read (#1552, thanks @nekas123).** A new
+  opt-in force-stops the car app once each poll finishes, so the next read relaunches it fresh instead
+  of scraping a screen the app left cached. It's for devices where the app freezes its own values
+  between reads; it's off by default (a cold relaunch is slower) and sits next to the existing companion
+  toggles in Configure. Reload after toggling.
+
 ### Fixed
+- **A car removed from your account is no longer polled forever (#1628, thanks @ekirchma).** The vehicle list was read
+  from the account only at setup and the cache was never reconciled against it, so a deleted car kept getting polled
+  and 404-spamming the error log. On a genuine account read, a cached vehicle that's no longer on the account is now
+  pruned, so a reload/restart clears the removed car and its stale device is removed automatically. A partial or failed
+  enumeration never prunes, so a real car is never dropped by mistake.
+- **The climate "time remaining to target temperature" no longer stays frozen after a run ends (#1231, thanks @Ra72xx).**
+  On a multi-channel car the climate ETA could come from the EU Data Act portal's batch feed, which keeps re-sending
+  the last run's value, while the live climatisation state (from the live channel) already reads off. The ETA now
+  zeroes whenever climatisation reads off — matching the app and the pre-heater timer — and it joins the live-supersede
+  rule the charging-time ETA already uses, so a live channel's value wins over a stale portal one.
+
+### Security
+- **The stale-data repair no longer embeds your full VIN in its id (#1626, thanks @eddieari).** Home Assistant's
+  stale-data repair keyed its internal id on the raw VIN, which is written as-is into a diagnostics download — unlike
+  the VIN fields, which are masked — so a shared diagnostic could expose the full VIN. The id now uses the masked VIN,
+  and an id raised before the upgrade is cleared automatically.
+
+## [4.8.0] - 2026-09-29 — BMS cell telemetry, a brake-fluid warning, and multi-channel SoC/typing fixes
+
+### Added
+- **Brake-fluid warning now surfaces as its own binary sensor where the car reports it (Vehicle Data
+  Scout, #1592).** An Audi Q6 (PPE) ships the brake-fluid warning lamp as a raw FlexRay/ESC signal in
+  its Data Act export. It's now decoded into a "Brake Fluid" problem binary sensor (on = warning
+  active); cars that don't report the signal get no entity. Only the OFF state is confirmed so far, so
+  the active decode is conservative (anything that isn't the OFF value reads as a warning).
+- **Battery cell-level telemetry for cars that report it (Vehicle Data Scout, #1622).** Some VW cars
+  ship raw battery-management (BMS) signals in their Data Act export. These now surface as diagnostic
+  sensors — highest/lowest cell voltage, battery coolant return temperature, battery capacity,
+  recuperated energy and pack voltage — and the cell-temperature extremes feed the existing HV battery
+  temperature (min/max) sensors. All are disabled by default and only created for cars that actually
+  report the signals; the raw module/cell index fields stay visible in diagnostics until their meaning
+  is documented.
+
+### Fixed
+- **A live vw.de state-of-charge no longer gets dragged to the EU Data Act battery figure (discussion #1231, thanks @Ra72xx).**
+  On a multi-channel car (vw.de read live + the EU Data Act portal filling gaps) the fresh vw.de SoC could be
+  overwritten by the portal's battery-energy figure, so the reading "bounced" to a lower number and lagged the live
+  channel. The portal feed is a ~15-minute batch that can re-send a frozen stop-charging snapshot, so a live on-demand
+  reading now always wins over it for SoC — on both the energy-sanity and the contested-value paths. Single-channel
+  portal cars are unchanged: there the battery figure still corrects a genuinely stuck reading.
 - **A combustion car with an empty data feed is now typed correctly (#1538, thanks @Latte9090).** A Golf
   GTD (diesel / ICE) read over the vw.de channel showed `has_combustion = false` when its EU Data Act
   feed was empty and the status carried no fuel/range block — even though VW's own relations response
@@ -55,6 +111,30 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   It's now kept for the mileage/odometer family (a plausible real value there) while still being
   dropped on the bounded fields; the separate odometer guard still screens VW's real 32-bit "no value"
   markers.
+- **Companion (ADB) EV cars now get their battery entities (#1552, thanks @nekas123).** A companion-only
+  read that parsed a valid state of charge / range still left `has_battery` false, so the Battery SoC,
+  Electric Range and charging entities never appeared. A companion read now infers the battery from a
+  present SoC/range (like the brand parsers already do); it only ever sets the flag true, so a
+  combustion car is unaffected.
+- **Companion (ADB) detail-screen values no longer freeze after the first read (#1552, thanks @nekas123).**
+  The nav-read cache was re-applied before the "is a refresh due?" check, so the detail walk saw its
+  targets already filled and skipped forever after the first read — charge target / power / time (and,
+  on newer layouts, SoC and range) went stale. The scheduled refresh now runs first, and a fresh detail
+  value wins over a stale overview one.
+- **Companion (ADB) no longer halves its overnight poll rate for no reason (#1552, thanks @nekas123).**
+  The 22:00–05:00 cadence reduction saves cloud API calls, which a local ADB read doesn't make — so it
+  now skips a companion entry, unless the wake/sleep opt-in is on (there the slower night cadence also
+  cuts how often the phone screen wakes).
+- **The portal `climacontrol` flag now feeds the climate-active sensor instead of just being noise
+  (Vehicle Data Scout, #1603).** A VW Passat's Data Act export carries a bare `climacontrol` on/off flag
+  — the same "climate is running" datum the climatisation-active sensor already shows. It's now folded
+  in as a fallback (the richer climate-state read still wins) and no longer flagged as an unmapped field.
+- **A car the BFF doesn't serve no longer spams the log with 404s (#1590).** An Audi Q4 whose
+  selectivestatus read persistently returns 404 (the backend simply doesn't serve it) used to raise on
+  every poll — filling the error report and re-hitting the dead endpoint. After a few consecutive
+  structured 404s the integration now backs off for a few hours (re-probing automatically) and shows
+  the car's last-known data as stale instead of erroring, while a one-off or transient 404 still
+  surfaces as before.
 
 ### Docs
 - **Clearer where the test-cohort opt-in actually lives (#584, thanks @Donath206).** A new FAQ entry

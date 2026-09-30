@@ -45,6 +45,7 @@ class CompanionClient:
         time_fn: Callable[[], float],
         read_charge_detail: bool = False,
         wake_sleep: bool = False,
+        close_app: bool = False,
         use_addon: bool = False,
         addon_token: str = "",
         relay_broker: object | None = None,
@@ -65,7 +66,7 @@ class CompanionClient:
             if not isinstance(relay_broker, CompanionRelayBroker):  # pragma: no cover
                 raise TypeError("relay_broker must be a CompanionRelayBroker")
             self._transport: NetworkAdbTransport = AgentRelayTransport(
-                relay_broker, wake_sleep=wake_sleep
+                relay_broker, wake_sleep=wake_sleep, close_app=close_app
             )
             self._source_channel = "companion_relay"
         elif use_addon:
@@ -75,11 +76,12 @@ class CompanionClient:
             from .addon_transport import AddOnAdbTransport  # noqa: PLC0415
 
             self._transport = AddOnAdbTransport(
-                host, port, token=addon_token, wake_sleep=wake_sleep
+                host, port, token=addon_token, wake_sleep=wake_sleep,
+                close_app=close_app,
             )
         else:
             self._transport = NetworkAdbTransport(
-                host, port, adbkey_path, wake_sleep=wake_sleep
+                host, port, adbkey_path, wake_sleep=wake_sleep, close_app=close_app
             )
         self._channel = CompanionChannel(
             self._transport, preset, time_fn=time_fn,
@@ -137,6 +139,13 @@ class CompanionClient:
         for key, val in fields.items():
             if hasattr(data, key):
                 setattr(data, key, val)
+        # #1552 — companion is a single source with no merge pass, so it never
+        # reaches the multi-channel drivetrain inference (_channel_merge). A parsed
+        # SoC or range still means this car has a traction battery, so set the flag
+        # here (mirrors the brand parsers, e.g. skoda.py / seat_cupra.py) — without
+        # it the electric entities stay hidden behind their has_battery gate.
+        if data.battery_soc is not None or data.electric_range_km is not None:
+            data.has_battery = True
         # A companion read is a two-way-capable source only when writes are on;
         # expose that so the entity layer can reflect it.
         data.companion_writes_enabled = self._channel.writes_enabled

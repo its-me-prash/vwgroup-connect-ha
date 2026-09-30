@@ -1334,6 +1334,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             from .const import (  # noqa: PLC0415
                 CONF_COMPANION_ADDON_TOKEN,
                 CONF_COMPANION_AGENT_TOKEN,
+                CONF_COMPANION_CLOSE_APP,
                 CONF_COMPANION_READ_CHARGE_DETAIL,
                 CONF_COMPANION_READ_CLIMATE_DETAIL,
                 CONF_COMPANION_READ_PARKING_POSITION,
@@ -1388,6 +1389,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # charge detail" afterwards saw nothing happen (#968).
                 read_charge_detail=_companion_opt(CONF_COMPANION_READ_CHARGE_DETAIL),
                 wake_sleep=_companion_opt(CONF_COMPANION_WAKE_SLEEP),
+                close_app=_companion_opt(CONF_COMPANION_CLOSE_APP),
                 # #968 — when set, host/port above address the ADB Bridge
                 # add-on rather than the phone (Android 11+ wireless debugging
                 # needs the real adb binary, which the add-on bundles).
@@ -1761,8 +1763,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 await self.hass.async_add_executor_job(_dd._load)
             except Exception:  # noqa: BLE001
                 pass
+            _enum_ok = False
             try:
                 vins = await self._cariad_client.get_vehicles()
+                _enum_ok = True
             except AuthenticationError:
                 # v2.21.1 (#875) — persisted IDK/legacy tokens can no longer be
                 # refreshed (VW's device-attestation wall 403s the refresh). We
@@ -1801,10 +1805,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await self._cariad_client.authenticate()
                     await self._arm_supplementary_channels()
                     vins = await self._cariad_client.get_vehicles()
+                    _enum_ok = True
                 except AuthenticationError:
                     vins = await self._enumerate_via_eu_data_act_fallback()
                     if not vins:
                         raise
+            # #1628 — capture the authoritative account VIN set BEFORE the cache
+            # fallback below, and ONLY from a genuine enumeration (get_vehicles);
+            # never from the EU-DA fallback (can be partial) or the cache fallback.
+            _account_vins = set(map(str, vins)) if (_enum_ok and vins) else None
             # Restart resilience: enumeration still empty (e.g. an acpp / read-only
             # silo whose first post-restart read 401'd, or a transient enumeration
             # failure) — fall back to the VINs already restored from the
@@ -1815,6 +1824,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 vins = [v for v in self.vehicles if not str(v).startswith("_")]
             if not vins:
                 return False
+
+            # #1628 (ekirchma) — a car removed from the account was polled forever:
+            # the vehicle set is only enumerated at setup and cached VINs were never
+            # reconciled against the live account, so a 404-ing deleted car kept
+            # spamming the error log. On a genuine, non-empty enumeration, prune any
+            # cached VIN no longer on the account (and its per-VIN sidecar state) so
+            # a reload/restart clears it; the pruned VIN then leaves the pushed data
+            # and _async_remove_stale_devices drops its device on the next push. The
+            # authoritative-only gate means a partial/failed enumeration never drops
+            # a real car (mirrors the cache-fallback safety above).
+            if _account_vins is not None:
+                self._prune_absent_vehicles(_account_vins, brand)
 
             # #923 — propagate the opt-in test-cohort flag to the vw.de
             # connector(s) (gates the experimental parkingposition probe) and
@@ -4083,10 +4104,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 ) * 60,
                 _CC_MIN_INTERVAL_S,
             )
-            # Nightly reduction: double interval between 22:00 and 05:00
+            # Nightly reduction: double interval between 22:00 and 05:00 to cut
+            # overnight cloud API calls. The local ADB companion channel has no
+            # cloud quota, so the doubling only earns its keep there when its
+            # wake/sleep opt-in is on (a slower night cadence then also halves
+            # overnight phone-screen wakes). With a dedicated always-awake
+            # companion phone it just stales the local data, so skip it (#1552).
             hour = datetime.now().hour
             nightly = hour >= 22 or hour < 5
-            if nightly:
+            if nightly and not self._companion_skips_nightly_reduction():
                 interval_s = interval_s * 2
                 _LOGGER.debug("Nightly reduction active — interval doubled to %ds", interval_s)
             # Drop-anchored scheduling for EU-DA portal entries (daytime only, so
@@ -6395,6 +6421,35 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             self.last_update_success = False
             self.async_update_listeners()
 
+    def _prune_absent_vehicles(self, account_vins: set[str], brand: str) -> None:
+        """#1628 — drop cached vehicles no longer on the account.
+
+        ``account_vins`` MUST come from a genuine, non-empty account enumeration
+        (never a partial/fallback list), so this never removes a real car. Pruning
+        stops the deleted car from being polled (the poll loop drives off
+        ``self.vehicles``); the pruned VIN then leaves the pushed data and
+        :meth:`_async_remove_stale_devices` removes its stale device on the next
+        push. Per-VIN sidecar state is dropped too so nothing dangles.
+        """
+        gone = [
+            v for v in list(self.vehicles)
+            if not str(v).startswith("_") and str(v) not in account_vins
+        ]
+        if not gone:
+            return
+        with self._vehicles_lock:
+            for v in gone:
+                self.vehicles.pop(v, None)
+                self.vehicle_failure_count.pop(v, None)
+                self.vehicle_last_good_at.pop(v, None)
+                self._optimistic_hold.pop(v, None)
+                self._data_act_kickoff_error.pop(v, None)
+                self._capabilities_fetched_at.pop(v, None)
+        _LOGGER.info(
+            "VW Group Connect: %d vehicle(s) no longer on the account pruned "
+            "from the cache for %s", len(gone), brand,
+        )
+
     async def _async_remove_stale_devices(self, current_vins: set) -> None:
         """Remove device registry entries for VINs no longer in the account.
 
@@ -7973,6 +8028,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .const import CONF_STRATEGY, STRATEGY_COMPANION_ADB  # noqa: PLC0415
 
         return bool(self.entry.data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB)
+
+    def _companion_skips_nightly_reduction(self) -> bool:
+        """#1552 — a companion (ADB) entry reads over local ADB, which has no
+        cloud rate limit, so the overnight interval doubling only makes sense
+        when its wake/sleep opt-in is on (there the slower cadence also halves
+        overnight phone-screen wakes). A dedicated always-awake companion phone
+        should keep its daytime cadence at night, so skip the reduction for it."""
+        if not self.is_companion():
+            return False
+        from .const import CONF_COMPANION_WAKE_SLEEP  # noqa: PLC0415
+
+        # Read the toggle exactly like the companion client does (options THEN
+        # data — the Options flow writes to entry.options; see _companion_opt).
+        wake_sleep = bool(
+            self.entry.options.get(
+                CONF_COMPANION_WAKE_SLEEP,
+                self.entry.data.get(CONF_COMPANION_WAKE_SLEEP, False),
+            )
+        )
+        return not wake_sleep
 
     async def async_reset_companion_cooldown(self) -> None:
         """v2.26.0 (ckomma #22) — user-initiated clear of a stuck companion

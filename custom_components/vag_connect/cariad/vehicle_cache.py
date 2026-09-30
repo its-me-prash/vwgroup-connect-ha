@@ -327,6 +327,15 @@ def reconcile(
     lines for debug logging. A falsy ``previous`` returns ``fresh`` untouched.
     """
     if not previous:
+        # #1231 — apply the climate idle-gate on the first poll too (no cache to
+        # reconcile against; the gate depends only on this poll's own final state).
+        # Only build a copy when it actually fires, so the "returns fresh untouched"
+        # contract (v2.15.0b13) still holds for every other first poll.
+        if (
+            fresh.get("climatisation_active") is False
+            and fresh.get("climate_remaining_time_min")
+        ):
+            return {**fresh, "climate_remaining_time_min": 0}, []
         return fresh, []
     # #1122 — a snapshot poisoned with a pre-fix odometer sentinel must not
     # resurrect itself (carry-forward) or block the real reading (monotonic).
@@ -445,7 +454,15 @@ def reconcile(
                 # frozen value under one capture time) override it. Leave
                 # soc_was_contested False so the energy-sanity guard below still
                 # catches a stale-high HV value (Fishermanjb .5, soc 94 vs 67%).
-                if merged.get("battery_soc_from_hv") is True:
+                # #1231 — likewise skip when the SoC is owned by a LIVE channel
+                # (vw.de / MBB / …). contested_fields is written ONLY by the EU-DA
+                # batch feed, so on a multi-channel car these candidates are that
+                # feed's leaf twins; resolving against them would overwrite a fresh
+                # live SoC (handed over by the live-supersede merge) with a batch
+                # value — the very clobber this whole family guards against. The
+                # energy-sanity guard below is _fresh_soc_is_live-gated too, so a
+                # live SoC stands untouched on both branches.
+                if merged.get("battery_soc_from_hv") is True or _fresh_soc_is_live:
                     continue
                 soc_was_contested = True
                 # break a stuck-on-stale SoC latch with live evidence (energy-
@@ -482,8 +499,16 @@ def reconcile(
     #     NOT a stale reading; only soc ABOVE energy on a settled car is suspect;
     #   * not charging — the same charge-lag guard from the other side; and
     #   * skipped when soc was already contest-resolved above (that path has the
-    #     candidate list and its own, richer evidence).
-    if not soc_was_contested:
+    #     candidate list and its own, richer evidence); and
+    #   * skipped when the SoC came from a LIVE channel (#1231 Ra72xx). The energy
+    #     anchor is the EU-DA batch feed's HV pack content; on a multi-channel car
+    #     battery_soc is vw.de's DISPLAY SoC — a different measurement basis (usable-
+    #     vs-gross + the display buffer sit it a few % above the ratio BY DESIGN) and
+    #     the batch energy can itself be a frozen stop-charging block, so comparing
+    #     the two is apples-to-oranges. A live SoC is a fresh on-demand read and is
+    #     never second-guessed here; the single-channel EU-DA case (soc AND energy
+    #     from the same feed, ``_fresh_soc_is_live`` False) still fires as before.
+    if not soc_was_contested and not _fresh_soc_is_live:
         _soc = merged.get("battery_soc")
         _sr = _energy_ratio(fresh)
         _cs = str(fresh.get("charging_state") or "").strip().upper()
@@ -530,4 +555,22 @@ def reconcile(
             f"{merged.get('last_seen_at')}; kept the newer recorded value (#465)"
         )
         merged["last_seen_at"] = previous["last_seen_at"]
+
+    # #1231 (Ra72xx) — climate ETA idle-gate. "Time remaining to target temp" is
+    # only meaningful while climatisation is actually running. On a multi-channel
+    # car the state is live-superseded to OFF (from a live channel) while the ETA
+    # can stay owned by the EU Data Act batch feed, which re-sends the last run's
+    # value indefinitely (the #1403 replay family). This runs on the FINAL merged
+    # state, so it covers both a single-channel car and the cross-channel case
+    # where the state and the ETA come from different channels. Only fires on an
+    # explicit OFF (climatisation_active is False), never on unknown (None).
+    if (
+        merged.get("climatisation_active") is False
+        and merged.get("climate_remaining_time_min")
+    ):
+        notes.append(
+            f"climate_remaining_time_min {merged.get('climate_remaining_time_min')} "
+            "held over from a finished run while climatisation reads off; zeroed (#1231)"
+        )
+        merged["climate_remaining_time_min"] = 0
     return merged, notes

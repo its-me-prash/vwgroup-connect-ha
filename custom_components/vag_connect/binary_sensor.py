@@ -251,6 +251,17 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:oil-level",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # #1592 — EU-DA portal brake-fluid warning lamp (Audi Q6 PPE, FlexRay/ESC).
+    # PROBLEM class: True = red. Gated by _DATA_PRESENT_REQUIRED so cars that
+    # don't report the signal get no phantom entity.
+    VagBinarySensorDescription(
+        key="brake_fluid_warning",
+        translation_key="brake_fluid_warning",
+        data_key="brake_fluid_warning",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        icon="mdi:car-brake-fluid-level",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 
 _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
@@ -877,6 +888,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # #901 — best-effort "driver is braking" indication. VW-only / firmware-
     # restricted at the parser; other vehicles stay None → no phantom entity.
     "driver_braking_active",
+    # #1592 — Audi Q6 PPE portal brake-fluid warning lamp; cars that don't
+    # report the FlexRay/ESC signal stay None → no phantom entity.
+    "brake_fluid_warning",
     # v2.5.0 (#306 goncal Mii) — sunroof is option-dependent. Many cars
     # don't have a sunroof; parser leaves field None → no phantom entity.
     "sunroof_open",

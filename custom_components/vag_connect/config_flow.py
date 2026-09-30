@@ -3379,6 +3379,7 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         # companion entry (both default OFF: each TAPS the phone, so a user opts
         # in only after confirming the flow on their own device).
         from .const import (  # noqa: PLC0415
+            CONF_COMPANION_CLOSE_APP,
             CONF_COMPANION_READ_CHARGE_DETAIL,
             CONF_COMPANION_WAKE_SLEEP,
             CONF_STRATEGY,
@@ -3397,6 +3398,15 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 default=current_options.get(
                     CONF_COMPANION_WAKE_SLEEP,
                     current_data.get(CONF_COMPANION_WAKE_SLEEP, False),
+                ),
+            )] = _BOOL_SELECTOR
+            # v4.9.0 (#1552) — force-stop the car app after each read so the next
+            # poll relaunches it fresh. OFF by default (a cold relaunch is slower).
+            schema[vol.Optional(
+                CONF_COMPANION_CLOSE_APP,
+                default=current_options.get(
+                    CONF_COMPANION_CLOSE_APP,
+                    current_data.get(CONF_COMPANION_CLOSE_APP, False),
                 ),
             )] = _BOOL_SELECTOR
             # v4.4.0 (#968) — the deeper nav-read opt-ins. Each walks further

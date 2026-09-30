@@ -240,6 +240,7 @@
           "read_only_mode": "Skrivebeskyttet modus",
           "companion_read_charge_detail": "Companion: les lademål (navigerer i appen)",
           "companion_wake_sleep": "Companion: vekk skjermen ved henting, sov etterpå",
+          "companion_close_app": "Companion: lukk bil-appen etter hver avlesning",
           "force_ppe_climate": "Audi PPE/PPC-klimadata (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push-oppdateringer (MQTT, EKSPERIMENTELL)",
           "enable_push_fcm": "CUPRA/SEAT push-oppdateringer (FCM, EKSPERIMENTELL)",
@@ -276,6 +277,7 @@
           "read_only_mode": "Når aktivert opprettes kun statussensorer — ingen brytere, knapper, låser, klima eller glidebrytere som sender kommandoer. Nyttig hvis du vil ha kjøretøytelemetri uten risiko for utilsiktet utløsing. Last inn integrasjonen på nytt etter endring.",
           "companion_read_charge_detail": "Kun for Companion (ADB). Leser i tillegg lademål, ladeeffekt og gjenstående tid som ligger bak ladedetaljskjermen. Dette TRYKKER i appen for å navigere dit (omtrent hvert 15. minutt), så aktiver det bare etter at du har bekreftet at flyten fungerer på telefonen din. Av som standard. Last inn på nytt etter endring.",
           "companion_wake_sleep": "Kun for Companion (ADB). Vekker telefonskjermen før hver henting og lar den sovne igjen etterpå, slik at en låst eller sovende telefon viser appen under avlesningen uten at skjermen står på hele tiden. Av som standard. Last inn på nytt etter endring.",
+          "companion_close_app": "Kun Companion (ADB). Tvangsstopper (lukker) bil-appen etter hver avspørring, slik at neste avlesning starter den på nytt i stedet for å lese en skjerm appen har latt bli liggende i buffer. Hjelper på enheter der appen fryser verdiene sine mellom avlesninger. Av som standard — en kald omstart er tregere. Last inn på nytt etter endring.",
           "force_ppe_climate": "Kun for Audi. Tvinger frem den nye PPE/PPC-datastrukturen (climatisationMode obligatorisk, targetTemperature utelatt) ved klimastart. Aktiver kun hvis du eier en Q6 e-tron, A6 e-tron, RS e-tron GT Facelift eller A3 2024+ PHEV — ellers returnerer klimastart 400. Last inn integrasjonen på nytt etter endring.",
           "enable_push_mqtt": "EKSPERIMENTELL: Kun for Skoda. Aktiverer sanntids MQTT-push fra Skodas mysmob-baksystem (krever Python-pakkene aiomqtt + firebase-messaging — for tiden lazy-importert, ikke forhåndsinstallert). Grunnlagsfase i v1.18.0; live-aktivering avventer validering fra fellesskapstestere. Hvis push er utilgjengelig, faller integrasjonen stille tilbake til polling. Last inn integrasjonen på nytt etter endring.",
           "enable_push_fcm": "EKSPERIMENTELL: Kun for CUPRA/SEAT. Aktiverer sanntids Firebase Cloud Messaging-push fra OLA-baksystemet (krever Python-pakken firebase-messaging — samme lazy-import som Skoda MQTT-bryteren i v1.18.0). Grunnlagsfase i v1.19.0; live-aktivering avventer validering fra fellesskapstestere. Hvis push er utilgjengelig, faller integrasjonen stille tilbake til polling. Last inn integrasjonen på nytt etter endring.",
@@ -491,6 +493,24 @@
       },
       "voltage_12v": {
         "name": "12V-batteri"
+      },
+      "hv_cell_voltage_max_mv": {
+        "name": "Cellespenning (maks.)"
+      },
+      "hv_cell_voltage_min_mv": {
+        "name": "Cellespenning (min.)"
+      },
+      "hv_battery_coolant_return_temp_c": {
+        "name": "Returtemperatur batterikjølevæske"
+      },
+      "hv_battery_capacity_ah": {
+        "name": "Batterikapasitet"
+      },
+      "hv_battery_recuperation_kwh": {
+        "name": "Gjenvunnet energi"
+      },
+      "hv_battery_pack_voltage_v": {
+        "name": "Batterispenning"
       },
       "wake_count_today": {
         "name": "Vekkinger i dag"
@@ -1559,6 +1579,9 @@
       },
       "oil_level_warning": {
         "name": "Oljenivå"
+      },
+      "brake_fluid_warning": {
+        "name": "Bremsevæske"
       },
       "warning_12v_low": {
         "name": "12V-batteri lavt"

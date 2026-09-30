@@ -238,3 +238,69 @@ def test_single_value_override_needs_fresh_energy() -> None:
         {"battery_soc": 94, "battery_available_kwh": 49.6, "battery_cap_kwh": 73.4},
         {"battery_soc": 94, "charging_state": "NOT_READY_FOR_CHARGING"},
     ) == 94
+
+
+# ── #1231 (Ra72xx) — a LIVE-channel SoC is never second-guessed by the EU-DA
+#    batch energy anchor (a different measurement basis) ─────────────────────────
+
+def test_1231_live_channel_soc_not_overridden_by_batch_energy() -> None:
+    """Ra72xx: vw.de (a LIVE channel) owns battery_soc=88 after the channel merge's
+    live-supersede; the energy anchor is EU-DA's HV pack content (~62 %). Pre-fix the
+    single-value sanity clobbered the fresh live 88 down to 62 (a 26-pt gap ≥ 15, not
+    charging) — but a live DISPLAY SoC and a batch usable/gross energy ratio are
+    different bases (and the batch feed can ship a frozen stop-charging block), so the
+    guard must NOT fire for a live SoC. 88 stands, no energy override note."""
+    prev = {"battery_soc": 85, "battery_soc_from_hv": True}
+    fresh = {
+        "battery_soc": 88,
+        # merge mis-attributes the flag: the value is vw.de's display SoC, but the
+        # EU-DA-owned battery_soc_from_hv (not in _LIVE_SUPERSEDE) stayed True.
+        "battery_soc_from_hv": True,
+        "battery_available_kwh": 40.0, "battery_cap_kwh": 64.0,  # ratio 62.5 %
+        "charging_state": "NOT_READY_FOR_CHARGING", "is_charging": False,
+        "field_sources": {
+            "battery_soc": "website_authproxy",
+            "battery_soc_from_hv": "eu_data_act",
+        },
+    }
+    merged, notes = reconcile(prev, fresh)
+    assert merged["battery_soc"] == 88  # the live vw.de value, not the 62 % ratio
+    assert not any("energy-derived" in n for n in notes)
+
+
+def test_1231_single_channel_eu_da_soc_still_energy_corrected() -> None:
+    """No regression to #1195/Fishermanjb: when battery_soc itself came from the
+    EU-DA batch feed (single channel — soc AND energy from the same feed,
+    ``_fresh_soc_is_live`` False), the single-value sanity STILL fires. Stale 94 sits
+    26 above the fresh 68 % energy on a not-charging car → replaced with 68."""
+    prev = {"battery_soc": 94, "battery_soc_from_hv": True}
+    fresh = {
+        "battery_soc": 94,
+        "battery_soc_from_hv": True,
+        "battery_available_kwh": 43.5, "battery_cap_kwh": 64.0,  # ratio 67.97 %
+        "charging_state": "NOT_READY_FOR_CHARGING", "is_charging": False,
+        "field_sources": {"battery_soc": "eu_data_act"},
+    }
+    merged, notes = reconcile(prev, fresh)
+    assert merged["battery_soc"] == 68  # round(67.97)
+    assert any("energy-derived" in n for n in notes)
+
+
+def test_1231_contested_leaf_does_not_override_live_channel_soc() -> None:
+    """#1231 completeness: a multi-channel car whose EU-DA supplement is leaf-only
+    (never a VALID HV pair → battery_soc_from_hv False) can still ship a CONTESTED
+    soc leaf. battery_soc is owned by the live vw.de channel (88); the contested
+    candidates [57, 62] are the EU-DA batch feed's leaf twins. Resolving against
+    them would overwrite the fresh live value with a batch number, so the contested
+    branch must skip a live-owned SoC exactly as the energy-sanity guard does —
+    88 stands, and no contested-resolution note is emitted."""
+    prev = {"battery_soc": 87, "battery_soc_from_hv": False}
+    fresh = {
+        "battery_soc": 88,
+        "battery_soc_from_hv": False,  # EU-DA leaf-only, never a valid HV pair
+        **_contest(57, 62),            # contested_fields written ONLY by EU-DA
+        "field_sources": {"battery_soc": "website_authproxy"},
+    }
+    merged, notes = reconcile(prev, fresh)
+    assert merged["battery_soc"] == 88  # the live vw.de value, not a 57/62 twin
+    assert not any("under one" in n for n in notes)  # contested resolution skipped
