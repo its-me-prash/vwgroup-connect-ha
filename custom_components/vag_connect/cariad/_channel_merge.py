@@ -82,6 +82,10 @@ _LIVE_TELEMETRY = frozenset({
     "external_power_supply_state", "energy_flow_active",
     # climate live state
     "climatisation_state", "climatisation_active",
+    # climate ETA (#1231) — the "time remaining to target temp" twin of the
+    # charge-time ETA above; a live channel must win over a stale portal batch
+    # value, exactly as remaining_time_target_soc does.
+    "climate_remaining_time_min",
 })
 
 # Volatile physical closure/lock state. Same reasoning as _LIVE_TELEMETRY: when
