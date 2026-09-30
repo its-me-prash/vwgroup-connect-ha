@@ -52,6 +52,29 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   The modern MEB export carries the mirror-heating enable under its climatisation-settings block; it was the one leaf in
   that block without a modern alias (the climate zones already had theirs), so it now feeds the existing mirror-heating
   sensor instead of re-filing on the Scout.
+- **Companion (ADB): optionally close the car app after each read (#1552, thanks @nekas123).** A new
+  opt-in force-stops the car app once each poll finishes, so the next read relaunches it fresh instead
+  of scraping a screen the app left cached. It's for devices where the app freezes its own values
+  between reads; it's off by default (a cold relaunch is slower) and sits next to the existing companion
+  toggles in Configure. Reload after toggling.
+
+### Fixed
+- **A car removed from your account is no longer polled forever (#1628, thanks @ekirchma).** The vehicle list was read
+  from the account only at setup and the cache was never reconciled against it, so a deleted car kept getting polled
+  and 404-spamming the error log. On a genuine account read, a cached vehicle that's no longer on the account is now
+  pruned, so a reload/restart clears the removed car and its stale device is removed automatically. A partial or failed
+  enumeration never prunes, so a real car is never dropped by mistake.
+- **The climate "time remaining to target temperature" no longer stays frozen after a run ends (#1231, thanks @Ra72xx).**
+  On a multi-channel car the climate ETA could come from the EU Data Act portal's batch feed, which keeps re-sending
+  the last run's value, while the live climatisation state (from the live channel) already reads off. The ETA now
+  zeroes whenever climatisation reads off — matching the app and the pre-heater timer — and it joins the live-supersede
+  rule the charging-time ETA already uses, so a live channel's value wins over a stale portal one.
+
+### Security
+- **The stale-data repair no longer embeds your full VIN in its id (#1626, thanks @eddieari).** Home Assistant's
+  stale-data repair keyed its internal id on the raw VIN, which is written as-is into a diagnostics download — unlike
+  the VIN fields, which are masked — so a shared diagnostic could expose the full VIN. The id now uses the masked VIN,
+  and an id raised before the upgrade is cleared automatically.
 
 ## [4.8.0] - 2026-09-29 — BMS cell telemetry, a brake-fluid warning, and multi-channel SoC/typing fixes
 

@@ -45,6 +45,7 @@ class CompanionClient:
         time_fn: Callable[[], float],
         read_charge_detail: bool = False,
         wake_sleep: bool = False,
+        close_app: bool = False,
         use_addon: bool = False,
         addon_token: str = "",
         relay_broker: object | None = None,
@@ -65,7 +66,7 @@ class CompanionClient:
             if not isinstance(relay_broker, CompanionRelayBroker):  # pragma: no cover
                 raise TypeError("relay_broker must be a CompanionRelayBroker")
             self._transport: NetworkAdbTransport = AgentRelayTransport(
-                relay_broker, wake_sleep=wake_sleep
+                relay_broker, wake_sleep=wake_sleep, close_app=close_app
             )
             self._source_channel = "companion_relay"
         elif use_addon:
@@ -75,11 +76,12 @@ class CompanionClient:
             from .addon_transport import AddOnAdbTransport  # noqa: PLC0415
 
             self._transport = AddOnAdbTransport(
-                host, port, token=addon_token, wake_sleep=wake_sleep
+                host, port, token=addon_token, wake_sleep=wake_sleep,
+                close_app=close_app,
             )
         else:
             self._transport = NetworkAdbTransport(
-                host, port, adbkey_path, wake_sleep=wake_sleep
+                host, port, adbkey_path, wake_sleep=wake_sleep, close_app=close_app
             )
         self._channel = CompanionChannel(
             self._transport, preset, time_fn=time_fn,

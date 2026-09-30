@@ -42,10 +42,14 @@ class AddOnAdbTransport(NetworkAdbTransport):
         token: str = "",
         session: object | None = None,
         wake_sleep: bool = False,
+        close_app: bool = False,
     ) -> None:
-        # The base class stores host/port and the wake_sleep opt-in; the adbkey
-        # path is meaningless here (the add-on owns the key), so it is blank.
-        super().__init__(host, port or _DEFAULT_PORT, "", wake_sleep=wake_sleep)
+        # The base class stores host/port and the wake_sleep/close_app opt-ins;
+        # the adbkey path is meaningless here (the add-on owns the key), so blank.
+        super().__init__(
+            host, port or _DEFAULT_PORT, "",
+            wake_sleep=wake_sleep, close_app=close_app,
+        )
         self._token = token or ""
         self._session = session
         self._serial: str | None = None
