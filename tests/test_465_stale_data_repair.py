@@ -49,18 +49,29 @@ def test_min_age_floor_is_well_past_a_parked_car_heartbeat() -> None:
 
 
 def test_repair_issue_id_is_per_vin() -> None:
+    # #1626 — the id is keyed per VIN (so a multi-car account isolates the stale
+    # one) but on the MASKED VIN, never the raw one: the id is dumped verbatim in a
+    # diagnostics download and a full VIN there is a leak. Deliberate change from
+    # the pre-fix raw-VIN id.
     hass = MagicMock()
-    with patch.object(repairs.ir, "async_create_issue") as create:
+    vin = "WVWZZZAUZ1234567"
+    masked = repairs.mask_vin(vin)
+    with patch.object(repairs.ir, "async_create_issue") as create, \
+            patch.object(repairs.ir, "async_delete_issue") as rdelete:
         repairs.raise_issue_stale_data(
-            hass, "entryX", "WVWZZZAUZ1234567",
-            masked_vin="…4567", age_hours=80,
+            hass, "entryX", vin, masked_vin="…4567", age_hours=80,
         )
     kwargs = create.call_args.kwargs
-    assert create.call_args.args[2] == "entryX_stale_data_WVWZZZAUZ1234567"
+    assert create.call_args.args[2] == f"entryX_stale_data_{masked}"
+    assert vin not in create.call_args.args[2]  # never the raw VIN
     assert kwargs["translation_key"] == "stale_data"
     assert kwargs["translation_placeholders"] == {"vin": "…4567", "age": "80"}
     assert kwargs["severity"] == repairs.ir.IssueSeverity.WARNING
+    # raise clears the legacy raw-VIN id so a pre-fix repair does not linger
+    assert f"entryX_stale_data_{vin}" in [c.args[2] for c in rdelete.call_args_list]
 
     with patch.object(repairs.ir, "async_delete_issue") as delete:
-        repairs.clear_stale_data_issue(hass, "entryX", "WVWZZZAUZ1234567")
-    assert delete.call_args.args[2] == "entryX_stale_data_WVWZZZAUZ1234567"
+        repairs.clear_stale_data_issue(hass, "entryX", vin)
+    _deleted = [c.args[2] for c in delete.call_args_list]
+    assert f"entryX_stale_data_{masked}" in _deleted  # matches the raised id
+    assert f"entryX_stale_data_{vin}" in _deleted      # + legacy cleanup

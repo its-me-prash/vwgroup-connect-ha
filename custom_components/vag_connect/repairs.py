@@ -37,6 +37,7 @@ from homeassistant.helpers.selector import (
     TextSelector,
 )
 
+from .cariad._util import mask_vin
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -597,10 +598,15 @@ def raise_issue_stale_data(
     lapsed. Dismissible; auto-clears the moment a fresher capture arrives. Keyed
     per VIN so a multi-car account isolates the stale one.
     """
+    # #1626 — the issue id must NOT embed the raw VIN: it is dumped verbatim in
+    # config-entry diagnostics (bypassing the VIN redaction) and has leaked a full
+    # VIN in a public Scout upload. Key on the masked VIN instead, and clear any
+    # legacy raw-VIN issue first so a pre-fix one does not linger after the upgrade.
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_stale_data_{vin}")
     ir.async_create_issue(
         hass,
         DOMAIN,
-        f"{entry_id}_stale_data_{vin}",
+        f"{entry_id}_stale_data_{mask_vin(vin)}",
         is_fixable=False,
         is_persistent=False,
         severity=ir.IssueSeverity.WARNING,
@@ -613,7 +619,12 @@ def raise_issue_stale_data(
 
 
 def clear_stale_data_issue(hass: HomeAssistant, entry_id: str, vin: str) -> None:
-    """Clear the per-VIN stale-data repair once a fresher capture arrives."""
+    """Clear the per-VIN stale-data repair once a fresher capture arrives.
+
+    Deletes both the masked-VIN id (#1626) and the legacy raw-VIN id, so a repair
+    raised before the upgrade is cleared too (delete is idempotent).
+    """
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_stale_data_{mask_vin(vin)}")
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_stale_data_{vin}")
 
 

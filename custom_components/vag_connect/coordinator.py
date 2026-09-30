@@ -1763,8 +1763,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 await self.hass.async_add_executor_job(_dd._load)
             except Exception:  # noqa: BLE001
                 pass
+            _enum_ok = False
             try:
                 vins = await self._cariad_client.get_vehicles()
+                _enum_ok = True
             except AuthenticationError:
                 # v2.21.1 (#875) — persisted IDK/legacy tokens can no longer be
                 # refreshed (VW's device-attestation wall 403s the refresh). We
@@ -1803,10 +1805,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await self._cariad_client.authenticate()
                     await self._arm_supplementary_channels()
                     vins = await self._cariad_client.get_vehicles()
+                    _enum_ok = True
                 except AuthenticationError:
                     vins = await self._enumerate_via_eu_data_act_fallback()
                     if not vins:
                         raise
+            # #1628 — capture the authoritative account VIN set BEFORE the cache
+            # fallback below, and ONLY from a genuine enumeration (get_vehicles);
+            # never from the EU-DA fallback (can be partial) or the cache fallback.
+            _account_vins = set(map(str, vins)) if (_enum_ok and vins) else None
             # Restart resilience: enumeration still empty (e.g. an acpp / read-only
             # silo whose first post-restart read 401'd, or a transient enumeration
             # failure) — fall back to the VINs already restored from the
@@ -1817,6 +1824,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 vins = [v for v in self.vehicles if not str(v).startswith("_")]
             if not vins:
                 return False
+
+            # #1628 (ekirchma) — a car removed from the account was polled forever:
+            # the vehicle set is only enumerated at setup and cached VINs were never
+            # reconciled against the live account, so a 404-ing deleted car kept
+            # spamming the error log. On a genuine, non-empty enumeration, prune any
+            # cached VIN no longer on the account (and its per-VIN sidecar state) so
+            # a reload/restart clears it; the pruned VIN then leaves the pushed data
+            # and _async_remove_stale_devices drops its device on the next push. The
+            # authoritative-only gate means a partial/failed enumeration never drops
+            # a real car (mirrors the cache-fallback safety above).
+            if _account_vins is not None:
+                self._prune_absent_vehicles(_account_vins, brand)
 
             # #923 — propagate the opt-in test-cohort flag to the vw.de
             # connector(s) (gates the experimental parkingposition probe) and
@@ -6401,6 +6420,35 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self._was_available = False
             self.last_update_success = False
             self.async_update_listeners()
+
+    def _prune_absent_vehicles(self, account_vins: set[str], brand: str) -> None:
+        """#1628 — drop cached vehicles no longer on the account.
+
+        ``account_vins`` MUST come from a genuine, non-empty account enumeration
+        (never a partial/fallback list), so this never removes a real car. Pruning
+        stops the deleted car from being polled (the poll loop drives off
+        ``self.vehicles``); the pruned VIN then leaves the pushed data and
+        :meth:`_async_remove_stale_devices` removes its stale device on the next
+        push. Per-VIN sidecar state is dropped too so nothing dangles.
+        """
+        gone = [
+            v for v in list(self.vehicles)
+            if not str(v).startswith("_") and str(v) not in account_vins
+        ]
+        if not gone:
+            return
+        with self._vehicles_lock:
+            for v in gone:
+                self.vehicles.pop(v, None)
+                self.vehicle_failure_count.pop(v, None)
+                self.vehicle_last_good_at.pop(v, None)
+                self._optimistic_hold.pop(v, None)
+                self._data_act_kickoff_error.pop(v, None)
+                self._capabilities_fetched_at.pop(v, None)
+        _LOGGER.info(
+            "VW Group Connect: %d vehicle(s) no longer on the account pruned "
+            "from the cache for %s", len(gone), brand,
+        )
 
     async def _async_remove_stale_devices(self, current_vins: set) -> None:
         """Remove device registry entries for VINs no longer in the account.
