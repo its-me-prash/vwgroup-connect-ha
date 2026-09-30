@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **The climate "time remaining to target temperature" no longer stays frozen after a run ends (#1231, thanks @Ra72xx).**
+  On a multi-channel car the climate ETA could come from the EU Data Act portal's batch feed, which keeps re-sending
+  the last run's value, while the live climatisation state (from the live channel) already reads off. The ETA now
+  zeroes whenever climatisation reads off — matching the app and the pre-heater timer — and it joins the live-supersede
+  rule the charging-time ETA already uses, so a live channel's value wins over a stale portal one.
+
 ## [4.8.0] - 2026-09-29 — BMS cell telemetry, a brake-fluid warning, and multi-channel SoC/typing fixes
 
 ### Added

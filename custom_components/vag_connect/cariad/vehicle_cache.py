@@ -327,6 +327,15 @@ def reconcile(
     lines for debug logging. A falsy ``previous`` returns ``fresh`` untouched.
     """
     if not previous:
+        # #1231 — apply the climate idle-gate on the first poll too (no cache to
+        # reconcile against; the gate depends only on this poll's own final state).
+        # Only build a copy when it actually fires, so the "returns fresh untouched"
+        # contract (v2.15.0b13) still holds for every other first poll.
+        if (
+            fresh.get("climatisation_active") is False
+            and fresh.get("climate_remaining_time_min")
+        ):
+            return {**fresh, "climate_remaining_time_min": 0}, []
         return fresh, []
     # #1122 — a snapshot poisoned with a pre-fix odometer sentinel must not
     # resurrect itself (carry-forward) or block the real reading (monotonic).
@@ -546,4 +555,22 @@ def reconcile(
             f"{merged.get('last_seen_at')}; kept the newer recorded value (#465)"
         )
         merged["last_seen_at"] = previous["last_seen_at"]
+
+    # #1231 (Ra72xx) — climate ETA idle-gate. "Time remaining to target temp" is
+    # only meaningful while climatisation is actually running. On a multi-channel
+    # car the state is live-superseded to OFF (from a live channel) while the ETA
+    # can stay owned by the EU Data Act batch feed, which re-sends the last run's
+    # value indefinitely (the #1403 replay family). This runs on the FINAL merged
+    # state, so it covers both a single-channel car and the cross-channel case
+    # where the state and the ETA come from different channels. Only fires on an
+    # explicit OFF (climatisation_active is False), never on unknown (None).
+    if (
+        merged.get("climatisation_active") is False
+        and merged.get("climate_remaining_time_min")
+    ):
+        notes.append(
+            f"climate_remaining_time_min {merged.get('climate_remaining_time_min')} "
+            "held over from a finished run while climatisation reads off; zeroed (#1231)"
+        )
+        merged["climate_remaining_time_min"] = 0
     return merged, notes
