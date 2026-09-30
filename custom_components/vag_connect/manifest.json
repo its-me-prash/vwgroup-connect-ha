@@ -21,7 +21,7 @@
   "requirements": [
     "firebase-messaging>=0.4.0",
     "aiomqtt>=2.0.0",
-    "adb-shell==0.4.4"
+    "adb-shell>=0.4.4"
   ],
   "version": "4.8.0"
 }
