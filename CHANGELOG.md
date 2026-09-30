@@ -48,6 +48,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   bus value. It now feeds the existing target-temperature sensor for cars that only have the portal read, decoded from
   that bus value (multiple reporters cross-confirmed the scaling). A brand-native or app-backend reading still wins
   where one is present.
+- **The mirror-heating setting now fills for modern portal cars too (Vehicle Data Scout, #1637, thanks @pietervanhertum).**
+  The modern MEB export carries the mirror-heating enable under its climatisation-settings block; it was the one leaf in
+  that block without a modern alias (the climate zones already had theirs), so it now feeds the existing mirror-heating
+  sensor instead of re-filing on the Scout.
 
 ## [4.8.0] - 2026-09-29 — BMS cell telemetry, a brake-fluid warning, and multi-channel SoC/typing fixes
 

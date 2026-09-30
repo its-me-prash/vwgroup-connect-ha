@@ -65,3 +65,27 @@ def test_leaf_reclaimed_from_scout_surface() -> None:
     assert d.target_temperature == 22.0
     leaves = {k.rsplit(".", 1)[-1] for k in (d.raw_unmapped_fields or {})}
     assert "target_temperature" not in leaves, "bare twin still floods the Scout"
+
+
+# Scout 2026-09-30 (#1637) — the modern nested mirror-heating enable leaf was the
+# one climatisation_element_settings sibling that never got its alias (the zone_*
+# leaves did). It feeds the existing mirror_heating_enabled field.
+def test_mirror_heating_modern_leaf_maps() -> None:
+    d = _map({"climatisation_settings": {
+        "climatisation_element_settings": {"is_mirror_heating_enabled": "true"}
+    }})
+    assert d.mirror_heating_enabled is True
+
+
+def test_mirror_heating_modern_leaf_reclaimed_from_scout() -> None:
+    syn: dict = {}
+    flat = _walk_fields(
+        {"eu_data_act": {"climatisation_settings": {
+            "climatisation_element_settings": {"is_mirror_heating_enabled": "true"}
+        }}},
+        None, syn,
+    )
+    d = map_dataset_to_vehicle_data(flat, VehicleData(vin="X"), field_syn=syn)
+    assert d.mirror_heating_enabled is True
+    leaves = {k.rsplit(".", 1)[-1] for k in (d.raw_unmapped_fields or {})}
+    assert "is_mirror_heating_enabled" not in leaves
