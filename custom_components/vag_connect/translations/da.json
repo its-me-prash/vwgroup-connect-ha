@@ -494,6 +494,24 @@
       "voltage_12v": {
         "name": "12V-batteri"
       },
+      "battery_12v_soc_pct": {
+        "name": "12V-batteriets ladning"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12V-batteriets temperatur"
+      },
+      "battery_12v_health_pct": {
+        "name": "12V-batteriets tilstand"
+      },
+      "battery_12v_current_a": {
+        "name": "12V-batteriets strøm"
+      },
+      "outside_humidity_pct": {
+        "name": "Udendørs luftfugtighed"
+      },
+      "outside_dew_point_c": {
+        "name": "Udendørs dugpunkt"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Cellespænding (maks.)"
       },
@@ -511,6 +529,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Batterispænding"
+      },
+      "hv_battery_current_a": {
+        "name": "HV-batteriets strøm"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV-batteriets energiforbrug"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV-batteriets fremløbstemperatur"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV-kølevæsketemperatur"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV SAC-temperatur"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV-kølevæskepumpens flow"
+      },
+      "climate_blower_target_v": {
+        "name": "Klimablæserens målspænding"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV-batteriets kølevæskeventil 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV-batteriets kølevæskeventil 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Placering af højeste celle"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Placering af laveste celle"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Placering af varmeste sensor"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Placering af koldeste sensor"
+      },
+      "climate_heatpump_state": {
+        "name": "Klima og varmepumpe"
       },
       "wake_count_today": {
         "name": "Opvækninger i dag"
@@ -1018,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Rapportudløser"
+      },
+      "portal_delivery_trigger": {
+        "name": "Udløser for datalevering"
       },
       "climate_mode": {
         "name": "Klimatilstand"
@@ -1582,6 +1645,12 @@
       },
       "brake_fluid_warning": {
         "name": "Bremsevæske"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Forbrugstælleren er løbet over"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Recuperationstælleren er løbet over"
       },
       "warning_12v_low": {
         "name": "12V-batteri lavt"

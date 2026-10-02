@@ -262,6 +262,27 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:car-brake-fluid-level",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v4.10.0 (#1661) — the BMS energy counters' wrap flags ("mindestens 1x
+    # übergelaufen", per the official V6.0 catalogue). True means the kWh total
+    # beside it has wrapped at least once and is no longer a clean cumulative
+    # figure, so these are the trust indicator for those two sensors rather than
+    # a fault — hence no PROBLEM class. Gated by _DATA_PRESENT_REQUIRED.
+    VagBinarySensorDescription(
+        key="hv_battery_consumption_overflow",
+        translation_key="hv_battery_consumption_overflow",
+        data_key="hv_battery_consumption_overflow",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="hv_battery_recuperation_overflow",
+        translation_key="hv_battery_recuperation_overflow",
+        data_key="hv_battery_recuperation_overflow",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
@@ -888,6 +909,10 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # #901 — best-effort "driver is braking" indication. VW-only / firmware-
     # restricted at the parser; other vehicles stay None → no phantom entity.
     "driver_braking_active",
+    # v4.10.0 (#1661) — BMS counter wrap flags; only portal cars shipping the
+    # BMS_05 Ueberlauf signals get these.
+    "hv_battery_consumption_overflow",
+    "hv_battery_recuperation_overflow",
     # #1592 — Audi Q6 PPE portal brake-fluid warning lamp; cars that don't
     # report the FlexRay/ESC signal stay None → no phantom entity.
     "brake_fluid_warning",

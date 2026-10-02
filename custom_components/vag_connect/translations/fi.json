@@ -494,6 +494,24 @@
       "voltage_12v": {
         "name": "12 V:n akku"
       },
+      "battery_12v_soc_pct": {
+        "name": "12 V akun varaus"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12 V akun lämpötila"
+      },
+      "battery_12v_health_pct": {
+        "name": "12 V akun kunto"
+      },
+      "battery_12v_current_a": {
+        "name": "12 V akun virta"
+      },
+      "outside_humidity_pct": {
+        "name": "Ulkoilman kosteus"
+      },
+      "outside_dew_point_c": {
+        "name": "Ulkoilman kastepiste"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Kennojännite (maks.)"
       },
@@ -511,6 +529,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Akkujännite"
+      },
+      "hv_battery_current_a": {
+        "name": "HV-akun virta"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV-akun energiankulutus"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV-akun menoveden lämpötila"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV-jäähdytysnesteen lämpötila"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV SAC -lämpötila"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV-jäähdytysnestepumpun virtaama"
+      },
+      "climate_blower_target_v": {
+        "name": "Ilmastointipuhaltimen tavoitejännite"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV-akun jäähdytysventtiili 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV-akun jäähdytysventtiili 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Korkeimman kennon sijainti"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Matalimman kennon sijainti"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Lämpimimmän anturin sijainti"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Kylmimmän anturin sijainti"
+      },
+      "climate_heatpump_state": {
+        "name": "Ilmastointi ja lämpöpumppu"
       },
       "wake_count_today": {
         "name": "Herätykset tänään"
@@ -1018,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Raportin laukaisin"
+      },
+      "portal_delivery_trigger": {
+        "name": "Tiedonvälityksen laukaisin"
       },
       "climate_mode": {
         "name": "Ilmastointitila"
@@ -1582,6 +1645,12 @@
       },
       "brake_fluid_warning": {
         "name": "Jarruneste"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Kulutuslaskuri ylivuoti"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Talteenottolaskuri ylivuoti"
       },
       "warning_12v_low": {
         "name": "12 V:n akku vähissä"

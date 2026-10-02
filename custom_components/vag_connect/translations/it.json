@@ -494,6 +494,24 @@
       "voltage_12v": {
         "name": "Batteria 12V"
       },
+      "battery_12v_soc_pct": {
+        "name": "Carica batteria 12 V"
+      },
+      "battery_12v_temperature_c": {
+        "name": "Temperatura batteria 12 V"
+      },
+      "battery_12v_health_pct": {
+        "name": "Salute batteria 12 V"
+      },
+      "battery_12v_current_a": {
+        "name": "Corrente batteria 12 V"
+      },
+      "outside_humidity_pct": {
+        "name": "Umidità esterna"
+      },
+      "outside_dew_point_c": {
+        "name": "Punto di rugiada esterno"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Tensione cella (max)"
       },
@@ -511,6 +529,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Tensione batteria"
+      },
+      "hv_battery_current_a": {
+        "name": "Corrente batteria AT"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Energia consumata batteria AT"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Temperatura mandata refrigerante batteria AT"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Temperatura refrigerante AT"
+      },
+      "hv_sac_temperature_c": {
+        "name": "Temperatura SAC AT"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Portata pompa refrigerante AT"
+      },
+      "climate_blower_target_v": {
+        "name": "Tensione target ventola clima"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Valvola refrigerante batteria AT 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Valvola refrigerante batteria AT 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Posizione cella con tensione massima"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Posizione cella con tensione minima"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Posizione sensore più caldo"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Posizione sensore più freddo"
+      },
+      "climate_heatpump_state": {
+        "name": "Climatizzazione e pompa di calore"
       },
       "wake_count_today": {
         "name": "Risvegli oggi"
@@ -1018,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Trigger report"
+      },
+      "portal_delivery_trigger": {
+        "name": "Trigger della consegna dati"
       },
       "climate_mode": {
         "name": "Modalità clima"
@@ -1582,6 +1645,12 @@
       },
       "brake_fluid_warning": {
         "name": "Liquido freni"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Contatore consumo in overflow"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Contatore recupero in overflow"
       },
       "warning_12v_low": {
         "name": "Batteria 12V scarica"

@@ -48,6 +48,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   was no way to tell which car was affected — and it really can be one and not the other. It now lists the cars that
   are actually without data, with the VIN shortened to its last six characters, because people paste these warnings
   into bug reports. With nothing known yet it falls back to the brand name, exactly as before.
+### Added
+- **Sixteen more HV, thermal and climate readings for cars on the raw-signal portal feed (#1661, thanks @dasebi91).**
+  The same feed we already read cell voltages from, but this car sends a different signal set from different control
+  units. New: drive-battery current (the sign is kept exactly as the car reports it — charging is positive), energy
+  drawn from the pack and whether those counters have wrapped, the coolant feed temperature and the whole HV coolant
+  loop, the two coolant valves, where in the pack the hottest/coldest sensor and the highest/lowest cell actually sit,
+  the climate and heat-pump state, the blower target, and the outside temperature. Two readings are deliberately not
+  believed: a −40 °C "no reading" sentinel, and a charge-plug status that reports as uninitialised — calling that
+  "no cable" would be a confident wrong answer.
+- **A lot of data the portal was already sending, in a shape we ignored (#1661, thanks @dasebi91).**
+  Some cars' portal feed carries whole vehicle diagnostic responses as encoded blobs — on the reporter's car that was
+  ten of them, thrown away on every poll. They're decoded now, which brings: the range the car's own display shows,
+  the complete 12 V battery picture (voltage, charge, temperature, ageing, current), an outside humidity and dew-point
+  reading (the integration had no humidity at all before), plus the odometer and a genuine per-read capture time.
+  The 12 V battery's charge is kept strictly apart from the drive battery's — they are not the same number. Blobs we
+  can't interpret yet are deliberately left untouched so they keep being reported instead of silently vanishing.
+- **The portal's own data-delivery trigger now has a sensor (Vehicle Data Scout, #1637 and 16 more reports).**
+  Twenty-two Scout reports landed in two days, across Volkswagen, VW Commercial, Audi and CUPRA, all for the same
+  leaf: the delivery trigger the EU Data Act snapshot carries about itself. It gets its own diagnostic sensor rather
+  than being folded into the existing report trigger — the official portal field catalogue documents those as two
+  different things with different value sets, so one sensor for both would have mixed two unrelated enums. Off by
+  default. A leaf nobody maps is re-reported on every single poll, which is how twenty-two issues happened.
 
 ### Fixed
 - **The volkswagen.de read channel no longer has to be re-added after every restart (#1659, thanks @Joassens).**
@@ -56,7 +78,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   stored-password re-login some users had switched on — it just told them to re-add the channel, every single
   restart. It's recognised now: the opt-in re-login gets its chance, and if it isn't on, the message says the
   session expired instead of something opaque.
-
 ## [4.9.0] - 2026-10-01 — Portal climate target temperature, a deleted-car cleanup, and a VIN kept out of the repair id
 
 ### Added
