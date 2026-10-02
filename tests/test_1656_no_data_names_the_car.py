@@ -56,14 +56,36 @@ def test_both_cars_listed_when_both_are_starved() -> None:
     assert ", " in label
 
 
-def test_falls_back_to_the_brand_when_nothing_is_known() -> None:
+def test_falls_back_to_the_brand_only_when_no_car_is_known() -> None:
     # a brand-new entry that has never had a successful read keeps the previous
     # wording rather than showing an empty bracket
     assert _coord({})._no_data_vehicle_labels() == "volkswagen"
     assert _coord(None)._no_data_vehicle_labels() == "volkswagen"
-    assert _coord({VIN_A: {"no_data": False}})._no_data_vehicle_labels() == (
-        "volkswagen"
-    )
+
+
+def test_names_the_known_car_even_when_nothing_is_flagged() -> None:
+    """@kalwados installed the release with the first version of this and still
+    saw only the brand. The Repair is raised from the PORTAL's no-data reason,
+    which is independent of any per-vehicle flag — and that flag is not reliably
+    set, so on the accounts this Repair fires for nothing matched. A car we know
+    about is named even when it carries no flag."""
+    c = _coord({VIN_A: {"model": "ID.3 Pro", "no_data": False}})
+    assert c._no_data_vehicle_labels() == "ID.3 Pro (***111111)"
+    # ...and with no flag key at all
+    c = _coord({VIN_A: {"model": "ID.3 Pro"}})
+    assert c._no_data_vehicle_labels() == "ID.3 Pro (***111111)"
+
+
+def test_a_flagged_car_still_wins_over_the_unflagged_ones() -> None:
+    # on a mixed account the starved car is the useful answer, so the
+    # name-everything fallback must not dilute it
+    c = _coord({
+        VIN_A: {"model": "ID.3 Pro", "no_data": True},
+        VIN_B: {"model": "ID.4", "no_data": False},
+    })
+    label = c._no_data_vehicle_labels()
+    assert "ID.3 Pro" in label
+    assert "ID.4" not in label
 
 
 def test_bookkeeping_keys_are_not_mistaken_for_cars() -> None:

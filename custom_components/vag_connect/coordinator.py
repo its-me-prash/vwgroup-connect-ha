@@ -64,6 +64,74 @@ from .cariad.models import VehicleData
 _LOGGER = logging.getLogger(__name__)
 
 
+def _age_s(raw: Any) -> float | None:
+    """Seconds since ``raw`` (datetime or ISO string), or None. (#1688)
+
+    Split out of :func:`_capture_age_s` so an age can be measured for a stamp
+    that is NOT ``last_seen_at`` — the portal's own ``last_snapshot_at``, which
+    answers a different question: not "when did the car record this" but "when
+    did the portal last hand us anything".
+    """
+    if isinstance(raw, datetime):
+        ts = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+    elif isinstance(raw, str) and raw:
+        try:
+            ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+    else:
+        return None
+    return (datetime.now(tz=timezone.utc) - ts).total_seconds()
+
+
+# #1688 — readings whose CHANGE proves the feed is live. Deliberately a small,
+# movement-shaped set: a value that only a driven, charged or opened car alters.
+# A config echo (a target temperature, a charge limit) can change without the
+# car reporting anything new, so none of those belong here.
+_LIVENESS_FIELDS: tuple[str, ...] = (
+    "odometer_km",
+    "mileage_km",
+    "battery_soc",
+    "fuel_level",
+    "electric_range_km",
+    "combustion_range_km",
+    "charging_state",
+    "is_charging",
+    "plug_connected",
+    "doors_locked",
+    "position_lat",
+    "position_lon",
+)
+
+
+def _values_moved(
+    previous: dict[str, Any] | None, current: dict[str, Any],
+) -> str | None:
+    """Name a reading that CHANGED between two polls, or None. (#1688)
+
+    Used one-directionally: a change proves the data is live and overrides a
+    frozen capture stamp, while no change proves nothing at all (a parked car
+    repeats its readings for days, and that case must keep relying on the
+    capture age or a genuinely dead feed would stop being reported).
+
+    Returns the field name rather than a bool so the debug line can say WHICH
+    reading moved — without printing the values, which include a position.
+    """
+    if not isinstance(previous, dict):
+        return None
+    for key in _LIVENESS_FIELDS:
+        if key not in previous or key not in current:
+            continue
+        before, now = previous.get(key), current.get(key)
+        if before is None or now is None:
+            continue
+        if before != now:
+            return key
+    return None
+
+
 def _capture_age_s(data: dict[str, Any]) -> float | None:
     """Seconds since the car's own data was captured (``last_seen_at``), or None.
 
@@ -2998,16 +3066,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         no per-vehicle state is available (a brand-new entry that has never had a
         successful read, or a test building the coordinator via ``__new__``).
         """
-        labels: list[str] = []
+        # #1656 follow-up: @kalwados installed the release carrying the first
+        # version of this and STILL saw only the brand. The reason is that the
+        # two conditions are independent — this Repair is raised from the
+        # PORTAL's ``last_no_data_reason``, while the first version only listed
+        # vehicles whose own ``no_data`` flag was truthy. That flag is not a
+        # reliable per-vehicle key (the poll paths record ``_poll_failed``
+        # instead), so on the very accounts the Repair fires for, nothing matched
+        # and it fell through to the brand name — i.e. the old wording.
+        #
+        # So: prefer the cars actually flagged, because on a mixed account naming
+        # the one that is starved is the useful answer. When nothing is flagged,
+        # name every car on the entry — the Repair means "this account's portal
+        # delivers nothing", so all of them are affected. Only an entry with no
+        # known cars at all falls back to the brand.
+        flagged: list[str] = []
+        known: list[str] = []
         for vin, veh in (getattr(self, "vehicles", None) or {}).items():
             if not isinstance(vin, str) or vin.startswith("_"):
                 continue
-            if not isinstance(veh, dict) or not veh.get("no_data"):
+            if not isinstance(veh, dict):
                 continue
             masked = mask_vin(vin)
             model = veh.get("model") or veh.get("name")
-            labels.append(f"{model} ({masked})" if model else masked)
-        return ", ".join(sorted(labels)) or str(self.entry.data.get(CONF_BRAND, ""))
+            label = f"{model} ({masked})" if model else masked
+            known.append(label)
+            if veh.get("no_data"):
+                flagged.append(label)
+        return (
+            ", ".join(sorted(flagged))
+            or ", ".join(sorted(known))
+            or str(self.entry.data.get(CONF_BRAND, ""))
+        )
 
     def _primary_channel_name(self) -> str:
         """v2.15.0b1 (C1) — label for the primary channel, for merge provenance.
@@ -6906,8 +6996,31 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # from the SAME capture-age + threshold so the binary and the Repair
             # can never disagree. Brand-agnostic; None (→ entity hidden) for a read
             # that carries no capture timestamp.
-            data["data_stale"] = _age >= _threshold_s if _age is not None else None
-            if _age is not None and _age >= _threshold_s:
+            # #1688 (@Datendieb) — a capture timestamp the car itself freezes
+            # must not outvote values we can SEE moving. On his Multivan the
+            # portal kept delivering (odometer 18987 → 19002, SoC 79 → 45 → 82
+            # across one afternoon) while car_captured_* stayed on 28 September,
+            # so the age came out at 105 h and the Repair fired on data that was
+            # minutes old. We report VW's stamp faithfully; the verdict built on
+            # it was the part that was wrong.
+            #
+            # The rule is deliberately ONE-DIRECTIONAL: changed values PROVE
+            # freshness, unchanged values prove nothing. A car parked for days
+            # legitimately repeats its readings, and that case must keep relying
+            # on the capture age — otherwise a genuinely frozen feed would stop
+            # being reported, which is what this Repair exists for.
+            _moved = _values_moved(_prev_snap, data)
+            if _moved and _age is not None and _age >= _threshold_s:
+                _LOGGER.debug(
+                    "VW Group Connect %s: capture stamp reads %dh old but %s "
+                    "changed since the last poll — not treating as stale (#1688)",
+                    mask_vin(_vin_sd), int(_age // 3600), _moved,
+                )
+            data["data_stale"] = (
+                None if _age is None
+                else (False if _moved else _age >= _threshold_s)
+            )
+            if _age is not None and _age >= _threshold_s and not _moved:
                 raise_issue_stale_data(
                     self.hass, self.entry.entry_id, _vin_sd,
                     masked_vin=mask_vin(_vin_sd), age_hours=int(_age // 3600),
@@ -6929,8 +7042,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 data["portal_health"] = _portal_health(
                     data, _reason, _age, _threshold_s
                 )
+                # #1688 — this is named for the SNAPSHOT and was computed from
+                # the capture age, so a car whose stamp is frozen reported
+                # "6317 minutes since the last snapshot" while last_snapshot_at
+                # right beside it read minutes ago. That self-contradiction is
+                # what put the reporter onto the real bug. Measure the snapshot.
+                _snap_at = getattr(_portal, "last_snapshot_at", None)
+                _snap_age = _age_s(_snap_at)
                 data["minutes_since_last_snapshot"] = (
-                    int(_age // 60) if _age is not None else None
+                    int(_snap_age // 60) if _snap_age is not None
+                    else (int(_age // 60) if _age is not None else None)
                 )
                 # #465/#1273 observability — surface the portal connector's own
                 # timestamps/counters so a user can see WHEN the data request was

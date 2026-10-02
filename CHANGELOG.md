@@ -42,6 +42,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A frozen timestamp from the car no longer makes fresh data look days old (#1688, thanks @Datendieb).**
+  His portal kept delivering all afternoon — odometer and charge level visibly moving — while the timestamp the car
+  reports about itself stayed five days old. The "data is stale" warning and problem sensor were built on that
+  timestamp alone, so they claimed 105 hours on data that was minutes old. A reading that has actually changed since
+  the last poll now proves the data is live and overrides the timestamp. Deliberately one-directional: unchanged
+  readings still prove nothing, because a car parked for days repeats them and a genuinely dead feed must still be
+  reported. He also spotted that "minutes since last snapshot" contradicted the snapshot time right next to it —
+  that field was measuring the car's timestamp instead of the snapshot, and now measures the snapshot.
+- **The "no vehicle data yet" warning really does name the car now (#1656, thanks @kalwados).**
+  The first attempt at this shipped in the last beta and still showed only the brand. The warning is raised from the
+  portal's own state, which is independent of any per-car flag — and the flag the first version filtered on isn't
+  reliably set, so on exactly the accounts this warning fires for, nothing matched and it fell back to the brand.
+  It now prefers the car that is actually flagged (useful when one car on the account works and another doesn't) and
+  otherwise names every car on the account, since the warning means the account's portal is delivering nothing.
+
 ### Added
 - **Plug-in hybrids on the volkswagen.de channel finally get a battery charge level (#1313, thanks @realynot and @fschulte2812).**
   On MBB plug-in hybrids the EU Data Act feed carries no drive-battery charge at all and the charging read is refused,
