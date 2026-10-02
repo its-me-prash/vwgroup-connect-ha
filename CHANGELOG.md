@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Security
+- **The Vehicle Data Scout can no longer post your VIN into a public issue (#1690).**
+  One portal field carries a credential blob with the car's VIN encoded inside it. The Scout masks VINs by looking
+  for them as readable text, so it never saw this one, and the length limit that follows happened to leave the VIN
+  inside the part that got posted. It had leaked five times — four of those were cleaned up by hand afterwards
+  without the masking itself being fixed. Encoded identifiers are now detected and the whole blob is replaced before
+  anything is written out; what remains says only what kind of value was removed and how long it was. Already-posted
+  issues were redacted. Nothing about ordinary readings changes.
+
 ### Added
 - **Battery-care mode now reports why it last spoke up (Vehicle Data Scout, #1444, thanks @josie127-neu).**
   A new diagnostic sensor (off by default) shows the battery-care notification state — whether the charge target was
