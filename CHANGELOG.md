@@ -43,6 +43,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Added
+- **Sixteen more HV, thermal and climate readings for cars on the raw-signal portal feed (#1661, thanks @dasebi91).**
+  The same feed we already read cell voltages from, but this car sends a different signal set from different control
+  units. New: drive-battery current (the sign is kept exactly as the car reports it — charging is positive), energy
+  drawn from the pack and whether those counters have wrapped, the coolant feed temperature and the whole HV coolant
+  loop, the two coolant valves, where in the pack the hottest/coldest sensor and the highest/lowest cell actually sit,
+  the climate and heat-pump state, the blower target, and the outside temperature. Two readings are deliberately not
+  believed: a −40 °C "no reading" sentinel, and a charge-plug status that reports as uninitialised — calling that
+  "no cable" would be a confident wrong answer.
 - **A lot of data the portal was already sending, in a shape we ignored (#1661, thanks @dasebi91).**
   Some cars' portal feed carries whole vehicle diagnostic responses as encoded blobs — on the reporter's car that was
   ten of them, thrown away on every poll. They're decoded now, which brings: the range the car's own display shows,
