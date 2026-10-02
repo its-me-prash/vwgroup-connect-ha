@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Spouštěč hlášení"
       },
+      "portal_delivery_trigger": {
+        "name": "Spouštěč doručení dat"
+      },
       "climate_mode": {
         "name": "Režim klimatizace"
       },

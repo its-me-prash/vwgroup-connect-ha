@@ -3183,6 +3183,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v4.10.0 (#1637 + 21 more Scouts) — the snapshot envelope's delivery marker.
+    # Separate from report_trigger on purpose: see portal_delivery_trigger in
+    # models.py. LOW, disabled-by-default, all brands.
+    VagSensorDescription(
+        key="portal_delivery_trigger",
+        translation_key="portal_delivery_trigger",
+        data_key="portal_delivery_trigger",
+        icon="mdi:package-down",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.16.2 (#671 audi Q6 Scout) — climatisationSettings.value.climatisationMode
     # readback (e.g. "comfort"). Diagnostic, disabled-by-default. Data-present
     # gated so cars that don't ship it never get a phantom "unknown" entity.
@@ -4134,6 +4145,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.16.2 (#636) — report-delivery trigger. EU-Data-Act dialect only;
     # non-EU-Data-Act channels never ship trigger_type → stays None → no phantom.
     "report_trigger",
+    # v4.10.0 (#1637 +21) — envelope delivery marker. Same reasoning: only the
+    # EU-Data-Act snapshot carries ``trigger`` → None elsewhere → no phantom.
+    "portal_delivery_trigger",
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
     # sentinels dropped to None at the parser → single-port cars never get a
     # plug2 entity; non-EU-Data-Act channels never ship the keys → no phantom.

@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Report trigger"
       },
+      "portal_delivery_trigger": {
+        "name": "Data delivery trigger"
+      },
       "climate_mode": {
         "name": "Climate mode"
       },

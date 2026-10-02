@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Wyzwalacz raportu"
       },
+      "portal_delivery_trigger": {
+        "name": "Wyzwalacz dostarczenia danych"
+      },
       "climate_mode": {
         "name": "Tryb klimatyzacji"
       },

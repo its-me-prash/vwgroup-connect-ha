@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Raportin laukaisin"
       },
+      "portal_delivery_trigger": {
+        "name": "Tiedonvälityksen laukaisin"
+      },
       "climate_mode": {
         "name": "Ilmastointitila"
       },

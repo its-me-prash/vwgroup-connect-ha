@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Déclencheur de rapport"
       },
+      "portal_delivery_trigger": {
+        "name": "Déclencheur de la livraison des données"
+      },
       "climate_mode": {
         "name": "Mode de climatisation"
       },

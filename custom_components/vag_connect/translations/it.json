@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Trigger report"
       },
+      "portal_delivery_trigger": {
+        "name": "Trigger della consegna dati"
+      },
       "climate_mode": {
         "name": "Modalità clima"
       },

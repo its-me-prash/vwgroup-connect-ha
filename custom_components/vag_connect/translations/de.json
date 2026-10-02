@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Report-Auslöser"
       },
+      "portal_delivery_trigger": {
+        "name": "Auslöser der Datenlieferung"
+      },
       "climate_mode": {
         "name": "Klimamodus"
       },

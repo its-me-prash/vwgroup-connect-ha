@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Rapportutlösare"
       },
+      "portal_delivery_trigger": {
+        "name": "Utlösare för dataleverans"
+      },
       "climate_mode": {
         "name": "Klimatläge"
       },

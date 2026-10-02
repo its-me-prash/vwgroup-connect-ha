@@ -1465,6 +1465,11 @@ _ENUM_PREFIXES = (
     # Scouts). Tokens: UPDATE_REASON_{INVALID,CHARGING,CLAMP15_OFF,CLAMP15_ON,
     # CLIMATISATION,OTHER} — dict-confirmed, so _shorten_enum strips the prefix.
     "UPDATE_REASON_",
+    # v4.10.0 — the envelope delivery marker's family (leaf ``trigger``). Only
+    # TRIGGER_NO_REASON observed so far, across 22 Scouts and four brands; the
+    # prefix is stripped so the sensor reads "NO_REASON" rather than shouting
+    # the protocol family at the user. See portal_delivery_trigger.
+    "TRIGGER_",
 )
 
 # v2.15.1 — labels appended to ``available_charge_modes`` per truthy
@@ -3052,6 +3057,21 @@ def map_dataset_to_vehicle_data(
     _trig = first("trigger_type")
     if _trig is not None and d.report_trigger is None:
         d.report_trigger = _shorten_enum(_trig)
+    # v4.10.0 (#1637 and 21 more Scouts in two days) — the snapshot envelope's own
+    # ``trigger`` leaf. Grounded against the official V6.0 field catalogue from
+    # #923: it lists 6610 data points, ``trigger_type`` among them ("Trigger of
+    # the call service": ROA/ICL/USM/…) and ``trigger`` NOWHERE. So this is the
+    # delivery wrapper's marker, not a vehicle data point, and it does NOT belong
+    # in report_trigger above — the vocabularies are disjoint (every sample to
+    # date is TRIGGER_NO_REASON, i.e. the periodic feed had no specific reason).
+    # It gets its own diagnostic field rather than being suppressed, so a car
+    # that one day ships a REAL trigger surfaces it instead of us having hidden
+    # the leaf. Both spellings are listed because the flattener emits the
+    # eu_data_act-prefixed path AND the bare leaf; naming only one of them leaves
+    # the twin in raw_unmapped_fields and the Scout keeps re-filing it.
+    _ptrig = first("eu_data_act.trigger", "trigger")
+    if _ptrig is not None and d.portal_delivery_trigger is None:
+        d.portal_delivery_trigger = _shorten_enum(_ptrig)
     # NOTE: scope_potential_total (PPE-only, opaque) and echo (constant
     # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
     # in raw_unmapped_fields (no first() call → no false signal).

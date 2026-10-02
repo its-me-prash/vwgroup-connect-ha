@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Disparador de informe"
       },
+      "portal_delivery_trigger": {
+        "name": "Disparador del envío de datos"
+      },
       "climate_mode": {
         "name": "Modo de climatización"
       },

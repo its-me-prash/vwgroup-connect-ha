@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Rapportutløser"
       },
+      "portal_delivery_trigger": {
+        "name": "Utløser for datalevering"
+      },
       "climate_mode": {
         "name": "Klimamodus"
       },

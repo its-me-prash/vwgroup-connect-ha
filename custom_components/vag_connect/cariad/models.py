@@ -1974,6 +1974,16 @@ class VehicleData:
     # ROA_REMOTE, "Trigger of the call service"). LOW — disabled-by-default.
     # sensor, diagnostic. Applies to all EU-Data-Act cars (not electric-only).
     report_trigger: str | None = None
+    # v4.10.0 (#1637 + 22 Scouts in two days) — the snapshot ENVELOPE's own
+    # delivery marker, leaf ``trigger``, value ``TRIGGER_NO_REASON`` on every
+    # sample so far (VW, VW Commercial, Audi, CUPRA alike). Deliberately NOT
+    # folded into ``report_trigger``: that one is the dict-listed ``trigger_type``
+    # ("Trigger of the call service": ROA/ICL/USM/…), and the official V6.0 field
+    # catalogue carries NO ``trigger`` entry at all among its 6610 data points —
+    # so the two are different things with disjoint vocabularies and conflating
+    # them would make one sensor lie. Own field instead: LOW, disabled-by-default
+    # diagnostic. ``TRIGGER_`` is in _ENUM_PREFIXES, so this reads "NO_REASON".
+    portal_delivery_trigger: str | None = None
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string (no enum list in the dict). LOW —

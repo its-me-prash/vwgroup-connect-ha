@@ -1019,6 +1019,9 @@
       "report_trigger": {
         "name": "Rapport-trigger"
       },
+      "portal_delivery_trigger": {
+        "name": "Trigger van gegevenslevering"
+      },
       "climate_mode": {
         "name": "Klimaatmodus"
       },
