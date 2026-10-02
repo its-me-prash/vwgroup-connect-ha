@@ -3991,6 +3991,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v4.10.0 (#1444) — battery-care-mode notification state (why battery care
+    # last spoke up). Enum string, LOW, off by default, phantom-gated.
+    VagSensorDescription(
+        key="battery_care_notification",
+        translation_key="battery_care_notification",
+        data_key="battery_care_notification",
+        icon="mdi:battery-heart-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -4383,6 +4393,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v4.10.0 (#1637 +21) — envelope delivery marker. Same reasoning: only the
     # EU-Data-Act snapshot carries ``trigger`` → None elsewhere → no phantom.
     "portal_delivery_trigger",
+    # v4.10.0 (#1444) — battery-care notification; only portal cars that ship
+    # the battery_care_mode block get it.
+    "battery_care_notification",
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
     # sentinels dropped to None at the parser → single-port cars never get a
     # plug2 entity; non-EU-Data-Act channels never ship the keys → no phantom.

@@ -191,6 +191,7 @@
       "email_two_factor_required": "Authentification 2FA par e-mail requise. Vérifiez votre boîte de réception (et spam) pour un code à 6 chiffres, puis connectez-vous manuellement dans l'application.",
       "too_many_requests": "Compte suspendu temporairement. Attendez 15 minutes.",
       "invalid_credentials": "Adresse e-mail ou mot de passe incorrect.",
+      "website_login_failed": "Votre adresse e-mail et votre mot de passe ne sont pas en cause — la connexion à volkswagen.de a passé cette étape puis a échoué plus loin (par exemple session expirée, boucle de redirection ou page non reconnue). La raison figure dans le journal de Home Assistant. Changer de mot de passe n'y changera rien ; si cela persiste, ouvrez un ticket en joignant cette ligne de journal.",
       "portal_interaction_required": "Le portail EU Data Act nécessite une action ponctuelle dans votre navigateur ou l'application de la marque (par ex. accepter les conditions, confirmer le consentement, terminer l'intégration / la sélection de région) avant que l'accès sans interface ne fonctionne. Ce n'est PAS un problème de mot de passe — ouvrez le portail une fois dans un navigateur, complétez l'invite, puis réessayez.",
       "upstream_unavailable": "Backend VW temporairement indisponible. C'est un problème côté serveur chez VW, PAS un problème d'identifiants. Veuillez patienter 5 à 15 minutes puis réessayer. NE reconfigurez PAS l'intégration.",
       "na_signin_attestation": "Votre adresse e-mail et votre mot de passe sont corrects — Volkswagen North America bloque désormais cette connexion derrière une vérification d'attestation d'appareil Google (Play Integrity) que seule l'application officielle sur un vrai téléphone peut réussir. Ressaisir votre mot de passe n'y changera rien ; il s'agit d'un verrou côté serveur de VW, pas d'un problème d'identifiants. (Suivi : ticket #1165.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "Pour activer ABRP, vous devez saisir à la fois l'api_key et le jeton du véhicule.",
       "invalid_auth": "Échec de la connexion. Vérifiez l'e-mail et le mot de passe de votre Volkswagen ID.",
       "cannot_connect": "Impossible de joindre Volkswagen. Veuillez réessayer.",
+      "invalid_credentials": "Adresse e-mail ou mot de passe incorrect.",
       "vweu_mfa_unsupported": "Ce compte nécessite un code par e-mail ou d'une application d'authentification, que VW EU bidirectionnel ne prend pas encore en charge. Utilisez plutôt les canaux en lecture seule.",
       "vweu_no_bff_data": "Connexion réussie, mais Volkswagen n'a pas encore renvoyé de données en direct pour cette voiture sur le backend moderne ; VW EU bidirectionnel n'a donc pas été activé et votre canal actuel reste inchangé. Veuillez réessayer plus tard, ou partagez un fichier de diagnostic pour que nous puissions examiner le problème.",
-      "terms_and_conditions": "Conditions d'utilisation à accepter. Connectez-vous dans l'application."
+      "terms_and_conditions": "Conditions d'utilisation à accepter. Connectez-vous dans l'application.",
+      "website_login_failed": "Votre adresse e-mail et votre mot de passe ne sont pas en cause — la connexion à volkswagen.de a passé cette étape puis a échoué plus loin (par exemple session expirée, boucle de redirection ou page non reconnue). La raison figure dans le journal de Home Assistant. Changer de mot de passe n'y changera rien ; si cela persiste, ouvrez un ticket en joignant cette ligne de journal."
     },
     "abort": {
       "not_volkswagen": "Ce canal est disponible uniquement pour Volkswagen.",
@@ -1372,6 +1375,9 @@
       },
       "battery_care_score_threshold": {
         "name": "Seuil du score de préservation de la batterie"
+      },
+      "battery_care_notification": {
+        "name": "Notification d'entretien de la batterie"
       },
       "cabin_temp": {
         "name": "Température de l'habitacle"

@@ -1564,6 +1564,10 @@ _ENUM_PREFIXES = (
     # Scouts). Tokens: UPDATE_REASON_{INVALID,CHARGING,CLAMP15_OFF,CLAMP15_ON,
     # CLIMATISATION,OTHER} — dict-confirmed, so _shorten_enum strips the prefix.
     "UPDATE_REASON_",
+    # v4.10.0 (#1444) — battery-care-mode notification family. Only the INVALID
+    # token actually carries the prefix in the catalogue's value list; the rest
+    # are already bare, so _shorten_enum simply passes them through.
+    "BCAM_NOTIFICATION_",
     # v4.10.0 — the envelope delivery marker's family (leaf ``trigger``). Only
     # TRIGGER_NO_REASON observed so far, across 22 Scouts and four brands; the
     # prefix is stripped so the sensor reads "NO_REASON" rather than shouting
@@ -3346,15 +3350,47 @@ def map_dataset_to_vehicle_data(
     # d3df7f3d / 2a12f8e6), so both stay UNITLESS with no device_class. Container
     # + bare spellings tried, mirroring the bidi pair above; first() drops the
     # uint16/int32 sentinels. The rest of the battery_care_mode.* family
-    # (bcam_notification, charge_bcam_threshold) stays Scout-visible.
+    # (charge_bcam_threshold) stays Scout-visible; bcam_notification is
+    # mapped just below (#1444).
+    #
+    # All three name the eu_data_act.-prefixed spelling FIRST. Verified by
+    # running the walker on this payload: it emits
+    # ``eu_data_act.battery_care_mode.<leaf>`` + the bare ``<leaf>`` and
+    # records NO synonym pair for this node shape, so first()'s collapse has
+    # nothing to work from unless the qualified name is listed explicitly.
+    # Without it the qualified twin stayed unconsumed and the Scout re-filed
+    # the leaf on every poll — which is what #1444 was.
+    #
+    # BOTH prefixed shapes are listed because the same datum arrives nested
+    # on some cars and flat on others: nested gives
+    # ``eu_data_act.battery_care_mode.<leaf>``, flat gives
+    # ``eu_data_act.<leaf>``. Naming only one leaves the other re-flooding
+    # for half the fleet.
     _bcam_score = _to_float(first(
+        "eu_data_act.battery_care_mode.bcam_score",
+        "eu_data_act.bcam_score",
         "battery_care_mode.bcam_score", "bcam_score"))
     if _bcam_score is not None and d.battery_care_score is None:
         d.battery_care_score = _bcam_score
     _bcam_thr = _to_float(first(
+        "eu_data_act.battery_care_mode.bcam_score_threshold",
+        "eu_data_act.bcam_score_threshold",
         "battery_care_mode.bcam_score_threshold", "bcam_score_threshold"))
     if _bcam_thr is not None and d.battery_care_score_threshold is None:
         d.battery_care_score_threshold = _bcam_thr
+    # v4.10.0 (#1444, @josie127-neu) — the notification leaf the comment above
+    # used to list as deliberately held. The official V6.0 catalogue documents
+    # its enum, so there is nothing left to guess, and holding it meant the
+    # Scout re-filed it on every poll. INVALID is the family's "no notification"
+    # sentinel and is dropped to None rather than shown as a state.
+    _bcam_note = first(
+        "eu_data_act.battery_care_mode.bcam_notification",
+        "eu_data_act.bcam_notification",
+        "battery_care_mode.bcam_notification", "bcam_notification")
+    if isinstance(_bcam_note, str) and _bcam_note.strip():
+        _bn = _shorten_enum(_bcam_note.strip())
+        if _bn and _bn.upper() != "INVALID" and d.battery_care_notification is None:
+            d.battery_care_notification = _bn
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string with no enum list in the dictionary (the enum

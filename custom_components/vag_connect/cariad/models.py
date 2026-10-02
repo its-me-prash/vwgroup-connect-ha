@@ -2215,6 +2215,16 @@ class VehicleData:
     # LOW — disabled-by-default diagnostic sensors.
     battery_care_score: float | None = None
     battery_care_score_threshold: float | None = None
+    # v4.10.0 (#1444, @josie127-neu) — battery-care-mode notification state.
+    # The official V6.0 field catalogue documents it as an enum:
+    # BCAM_NOTIFICATION_INVALID, IMMEDIATE_CHARGING_SOC_RESET_IN_NEXT_CHARGING_
+    # PROCESS, IMMEDIATE_CHARGING_NOTIFY_BCAM_IS_OFF, EXTENDED_CHARGING_SOC_
+    # RESET_IN_NEXT_CHARGING_PROCESS, EXTENDED_CHARGING_NOTIFY_BCAM_IS_OFF,
+    # BCAM_SCORE_VALUE_WARNING, BCAM_SCORE_VALUE_REACHED — i.e. why battery care
+    # mode last spoke up. It had been left Scout-visible because its meaning was
+    # unknown; the catalogue settles it, and a held leaf is re-reported on every
+    # poll. LOW — diagnostic, disabled by default.
+    battery_care_notification: str | None = None
 
     # ── v2.16.0 — volkswagen.de authproxy live-status read-path (BETA) ────────
     # Written by auth/_website_authproxy.py only (opt-in, read-only channel).

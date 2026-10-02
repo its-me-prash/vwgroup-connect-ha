@@ -42,6 +42,33 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Battery-care mode now reports why it last spoke up (Vehicle Data Scout, #1444, thanks @josie127-neu).**
+  A new diagnostic sensor (off by default) shows the battery-care notification state — whether the charge target was
+  reset for the next charge, whether care mode is off, or whether the care score hit its warning threshold. It had
+  been left unmapped because its meaning was a guess; VW's own field catalogue documents the values, so there was
+  nothing left to guess. Two long-standing neighbours of it (the care score and its threshold) were also quietly
+  re-reporting themselves to the Scout on every poll for cars that send them nested — that's fixed in passing.
+
+### Changed
+- **A read refused for a missing subscription now says so (#1659, thanks @Joassens).**
+  His maintenance read came back as `4007 connectivityLicenseInactive`, which is precise and tells you nothing about
+  what to do — he read it as a registration problem, so did I, and he eventually solved it by buying the paid Car-Net
+  subscription, which is exactly what the code meant. Those refusals now spell out the action, once per read, in the
+  log and in the error. The two cases are worded differently on purpose: an expired subscription needs paying for, an
+  account that isn't enrolled needs enrolling — and a refusal we haven't understood still says nothing rather than
+  guessing.
+
+### Fixed
+- **The volkswagen.de channel no longer tells you your password is wrong when it isn't (#1679, thanks @Fishermanjb; #1313, thanks @realynot).**
+  Both reporters had the channel refuse them with "email address or password incorrect" while the very same
+  credentials signed in fine on volkswagen.de and even reached the e-mail-code step. The login itself was careful
+  about this — it only gets a real "wrong credentials" answer from a specific refusal — but both places that show
+  you the result threw every other failure (an expired session, a redirect loop, a page it didn't recognise, the
+  portal being down) into the same message. So people were sent off to reset a password that was never the problem.
+  Only the genuine credential refusal says that now; everything else says it is *not* your password and points at
+  the log, which has carried the real reason for a while.
+
 ## [4.10.0b1] - 2026-10-02 — An EV that was not recognised as one, the data the portal hid in blobs, and a channel that needed re-adding after every restart
 
 ### Added

@@ -191,6 +191,7 @@
       "email_two_factor_required": "Wymagane 2FA przez e-mail. Sprawdź skrzynkę (i spam) w poszukiwaniu 6-cyfrowego kodu, następnie zaloguj się ręcznie w aplikacji.",
       "too_many_requests": "Konto tymczasowo zablokowane. Poczekaj 15 minut.",
       "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",
+      "website_login_failed": "Twój e-mail i hasło nie są problemem — logowanie do volkswagen.de przeszło ten etap i zawiodło dopiero później (na przykład wygasła sesja, pętla przekierowań albo nierozpoznana strona). Powód jest w dzienniku Home Assistanta. Zmiana hasła nie pomoże; jeśli to się powtarza, otwórz zgłoszenie i dołącz ten wiersz dziennika.",
       "portal_interaction_required": "Portal EU Data Act wymaga jednorazowej czynności w przeglądarce lub aplikacji marki (np. zaakceptowania warunków, potwierdzenia zgody, dokończenia onboardingu/wyboru regionu), zanim zadziała dostęp bez interfejsu. To NIE jest problem z hasłem — otwórz portal raz w przeglądarce, wykonaj polecenie i spróbuj ponownie.",
       "upstream_unavailable": "Backend VW chwilowo niedostępny. To problem po stronie serwera VW, a NIE błąd uwierzytelniania. Poczekaj 5–15 minut i spróbuj ponownie. NIE konfiguruj integracji ponownie.",
       "na_signin_attestation": "Twój e-mail i hasło są prawidłowe — Volkswagen w Ameryce Północnej blokuje teraz to logowanie za pomocą kontroli atestacji urządzenia Google (Play Integrity), którą może przejść tylko oficjalna aplikacja na prawdziwym telefonie. Ponowne wpisanie hasła nie pomoże; to blokada po stronie serwera VW, a nie problem z danymi logowania. (Śledzone w zgłoszeniu #1165.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "Aby włączyć ABRP, musisz podać zarówno api_key, jak i token pojazdu.",
       "invalid_auth": "Logowanie nieudane. Sprawdź adres e-mail i hasło do Volkswagen ID.",
       "cannot_connect": "Nie udało się połączyć z Volkswagenem. Spróbuj ponownie.",
+      "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",
       "vweu_mfa_unsupported": "To konto wymaga kodu z e-maila lub aplikacji uwierzytelniającej, czego VW EU Two-Way jeszcze nie obsługuje. Użyj zamiast tego kanałów tylko do odczytu.",
       "vweu_no_bff_data": "Zalogowano, ale Volkswagen nie zwrócił jeszcze żadnych danych na żywo dla tego auta z nowoczesnego backendu, więc VW EU Two-Way nie został włączony, a Twój obecny kanał pozostaje bez zmian. Spróbuj ponownie później lub udostępnij plik diagnostyczny, abyśmy mogli się temu przyjrzeć.",
-      "terms_and_conditions": "Warunki użytkowania muszą być zaakceptowane. Zaloguj się w aplikacji."
+      "terms_and_conditions": "Warunki użytkowania muszą być zaakceptowane. Zaloguj się w aplikacji.",
+      "website_login_failed": "Twój e-mail i hasło nie są problemem — logowanie do volkswagen.de przeszło ten etap i zawiodło dopiero później (na przykład wygasła sesja, pętla przekierowań albo nierozpoznana strona). Powód jest w dzienniku Home Assistanta. Zmiana hasła nie pomoże; jeśli to się powtarza, otwórz zgłoszenie i dołącz ten wiersz dziennika."
     },
     "abort": {
       "not_volkswagen": "Ten kanał jest dostępny wyłącznie dla Volkswagena.",
@@ -1372,6 +1375,9 @@
       },
       "battery_care_score_threshold": {
         "name": "Próg wyniku trybu ochrony akumulatora"
+      },
+      "battery_care_notification": {
+        "name": "Powiadomienie o trybie ochrony akumulatora"
       },
       "cabin_temp": {
         "name": "Temperatura w kabinie"
