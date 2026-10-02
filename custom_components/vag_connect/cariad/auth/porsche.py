@@ -178,6 +178,52 @@ _SCOPE = (
 )
 
 
+def _locale_params(country: str, language: str) -> dict[str, str]:
+    """Locale hints for ``/authorize``, as the Porsche One app sends them.
+
+    Read out of ``de.porsche.one`` 21.26.39 with androguard: the app's authorize
+    builder (``paf/user/auth/phone/impl/d``) takes the device locale and passes
+    ``ui_locales``, ``ext-country`` and ``ext-language`` through Auth0's
+    ``withParameters``. We sent none of them, which is the same omission that
+    once cost us the Audi model name (see graphql._locale_headers: no
+    ``Accept-Language``/``X-User-Country`` → ``media: null``).
+
+    Why it is worth sending even though nothing user-visible depends on it: the
+    Auth0 page we land on is machine-read, and ``_describe_wall`` recognises a
+    wall by ENGLISH keywords ("captcha", "consent", "robot", …). Without a
+    locale the rendered language is Auth0's guess, so a reporter's wall capture
+    can come back with no markers at all — exactly the gap that left #1337
+    unresolved ("which screen it was was never captured"). A locale that is
+    always present makes those captures comparable between reporters.
+
+    ``ext-country`` is LOWERCASE on purpose: the app computes it as
+    ``locale.getCountry().toLowerCase()``. That differs from the Audi header
+    path, which wants an uppercase ``X-User-Country`` — do not "fix" one to
+    match the other.
+
+    Deliberately NOT copied from the app:
+      * ``prompt=login`` — it forces a fresh login. Our flow relies on an
+        existing Auth0 session short-circuiting straight to a ``code`` (see the
+        "existing Auth0 session, skipping login form" path), and ``prompt=login``
+        would throw that away on every single call.
+      * ``device=touch`` — an app-shaped hint with no effect we can observe or
+        justify from a headless client.
+
+    A value we cannot derive is omitted rather than guessed: a wrong country
+    could put the account on the wrong market branch of the login, which is
+    worse than today's behaviour of sending nothing.
+    """
+    ctry = (country or "").strip()
+    lang = (language or "").strip().replace("_", "-").split("-")[0].lower()
+    params: dict[str, str] = {}
+    if lang:
+        params["ui_locales"] = f"{lang}-{ctry.upper()}" if ctry else lang
+        params["ext-language"] = lang
+    if ctry:
+        params["ext-country"] = ctry.lower()
+    return params
+
+
 def _pkce() -> tuple[str, str]:
     verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode()
     digest   = hashlib.sha256(verifier.encode()).digest()
@@ -212,6 +258,11 @@ class PorscheAuth:
         # ``PorscheLoginWallError`` so the UI/report can name what was hit.
         self._last_wall_screen: str = ""
         self._last_wall_marker: str = ""
+        # Locale for the /authorize call, copied from the owning client right
+        # before each login (same pattern as vw_eu's command helper) because the
+        # coordinator assigns the HA locale AFTER the client is constructed.
+        self._ha_country: str = ""
+        self._ha_language: str = ""
 
     async def authenticate(
         self,
@@ -276,6 +327,10 @@ class PorscheAuth:
                 "code_challenge":        challenge,
                 "code_challenge_method": "S256",
                 "state":                 state,
+                # Locale hints the official app sends and we did not — see
+                # _locale_params for what is copied, what is deliberately not,
+                # and why it matters for wall diagnostics.
+                **_locale_params(self._ha_country, self._ha_language),
             }
             async with self._session.get(
                 _AUTH_URL,
