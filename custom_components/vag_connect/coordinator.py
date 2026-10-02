@@ -2976,8 +2976,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             translation_key="data_act_no_data",
             translation_placeholders={
                 "brand": self.entry.data[CONF_BRAND],
+                "cars": self._no_data_vehicle_labels(),
             },
         )
+
+    def _no_data_vehicle_labels(self) -> str:
+        """#1656 (@kalwados) — name the cars this warning is actually about.
+
+        The Repair is raised per config entry, so an account with two cars of the
+        same brand got "no vehicle data yet (volkswagen)" twice over with no way
+        to tell which car was starved — and a mixed account really can have one
+        car delivering while another does not (@kalwados' own ID.4 reads while the
+        ID.3 does not, see #923). Only the vehicles currently flagged no-data are
+        listed, so the title names the actual problem.
+
+        VINs are masked. A Repair's text is local, but users paste it into issue
+        reports — that is precisely how a raw VIN reached GitHub in #1626 — so it
+        gets the same treatment as everything else that can be copied out.
+
+        Falls back to the brand name, i.e. exactly the previous wording, whenever
+        no per-vehicle state is available (a brand-new entry that has never had a
+        successful read, or a test building the coordinator via ``__new__``).
+        """
+        labels: list[str] = []
+        for vin, veh in (getattr(self, "vehicles", None) or {}).items():
+            if not isinstance(vin, str) or vin.startswith("_"):
+                continue
+            if not isinstance(veh, dict) or not veh.get("no_data"):
+                continue
+            masked = mask_vin(vin)
+            model = veh.get("model") or veh.get("name")
+            labels.append(f"{model} ({masked})" if model else masked)
+        return ", ".join(sorted(labels)) or str(self.entry.data.get(CONF_BRAND, ""))
 
     def _primary_channel_name(self) -> str:
         """v2.15.0b1 (C1) — label for the primary channel, for merge provenance.

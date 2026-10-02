@@ -105,6 +105,13 @@ def _norepair_stub(*, primary: Any, supp: Any) -> Any:
     client._supplementary_eu_portal = supp
     stub._cariad_client = client
     stub.hass = MagicMock()
+    # #1656 — the Repair now names the starved cars, so the stub borrows the real
+    # label builder rather than faking its output. No vehicles here, so it falls
+    # back to the brand name, i.e. the pre-#1656 wording.
+    stub.vehicles = {}
+    stub._no_data_vehicle_labels = (
+        VagConnectCoordinator._no_data_vehicle_labels.__get__(stub)
+    )
     return stub
 
 
