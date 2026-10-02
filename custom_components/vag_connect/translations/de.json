@@ -191,6 +191,7 @@
       "email_two_factor_required": "E-Mail-2FA nötig. Postfach (und Spam) auf 6-stelligen Code von VAG IDP prüfen, dann einmal manuell in der Marken-App anmelden.",
       "too_many_requests": "Account vorübergehend gesperrt (zu viele Anmeldeversuche). Bitte 15 Minuten warten.",
       "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
+      "website_login_failed": "Deine E-Mail-Adresse und dein Passwort sind nicht das Problem — die Anmeldung bei volkswagen.de ist daran vorbeigekommen und erst in einem späteren Schritt gescheitert (zum Beispiel abgelaufene Sitzung, Weiterleitungsschleife oder eine Seite, die nicht erkannt wurde). Der Grund steht im Home-Assistant-Protokoll. Ein neues Passwort hilft hier nicht; wenn es weiter auftritt, erstelle bitte ein Issue und füge diese Protokollzeile bei.",
       "portal_interaction_required": "Das EU-Data-Act-Portal benötigt eine einmalige Aktion in deinem Browser oder der Marken-App (z. B. AGB akzeptieren, Einwilligung bestätigen, Onboarding/Region-Auswahl abschließen), bevor der headless-Zugriff funktioniert. Das ist KEIN Passwort-Problem — öffne das Portal einmal im Browser, schließe die Abfrage ab und versuche es erneut.",
       "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren.",
       "na_signin_attestation": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — Volkswagen North America blockiert diese Anmeldung inzwischen hinter einer Google-Geräte-Attestierung (Play Integrity), die nur die offizielle App auf einem echten Smartphone bestehen kann. Das Passwort erneut einzugeben hilft nicht; das ist eine serverseitige Sperre von VW, kein Problem mit deinen Zugangsdaten. (Verfolgt unter #1165.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "Zum Aktivieren von ABRP musst du sowohl den api_key als auch den Fahrzeug-Token eingeben.",
       "invalid_auth": "Anmeldung fehlgeschlagen. Prüfe E-Mail-Adresse und Passwort deiner Volkswagen ID.",
       "cannot_connect": "Volkswagen konnte nicht erreicht werden. Bitte erneut versuchen.",
+      "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
       "vweu_mfa_unsupported": "Dieses Konto benötigt einen E-Mail- oder Authenticator-Code, den VW EU Two-Way noch nicht verarbeiten kann. Nutze stattdessen die nur-lesenden Kanäle.",
       "vweu_no_bff_data": "Angemeldet, aber Volkswagen hat für dieses Auto auf dem modernen Backend noch keine Live-Daten geliefert. VW EU Two-Way wurde daher nicht aktiviert und dein aktueller Kanal bleibt unverändert. Bitte versuche es später erneut oder teile eine Diagnose, damit wir uns das ansehen können.",
-      "terms_and_conditions": "Nutzungsbedingungen müssen akzeptiert werden. Einmal in der App anmelden und bestätigen."
+      "terms_and_conditions": "Nutzungsbedingungen müssen akzeptiert werden. Einmal in der App anmelden und bestätigen.",
+      "website_login_failed": "Deine E-Mail-Adresse und dein Passwort sind nicht das Problem — die Anmeldung bei volkswagen.de ist daran vorbeigekommen und erst in einem späteren Schritt gescheitert (zum Beispiel abgelaufene Sitzung, Weiterleitungsschleife oder eine Seite, die nicht erkannt wurde). Der Grund steht im Home-Assistant-Protokoll. Ein neues Passwort hilft hier nicht; wenn es weiter auftritt, erstelle bitte ein Issue und füge diese Protokollzeile bei."
     },
     "abort": {
       "not_volkswagen": "Dieser Kanal ist nur für Volkswagen verfügbar.",
@@ -1372,6 +1375,9 @@
       },
       "battery_care_score_threshold": {
         "name": "Batterieschonung Punktzahl-Schwelle"
+      },
+      "battery_care_notification": {
+        "name": "Batteriepflege-Hinweis"
       },
       "cabin_temp": {
         "name": "Innenraumtemperatur"

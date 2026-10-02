@@ -191,6 +191,7 @@
       "email_two_factor_required": "Email 2FA required. Check your inbox (and spam) for a 6-digit code from VAG IDP, then sign in manually in the brand app once.",
       "too_many_requests": "Account temporarily suspended (too many login attempts). Please wait 15 minutes.",
       "invalid_credentials": "Email address or password incorrect.",
+      "website_login_failed": "Your email and password are not the problem — the volkswagen.de login got past that and then failed at a later step (for example an expired session, a redirect loop, or a page it did not recognise). The reason is in the Home Assistant log. Changing your password will not help; if it keeps happening, please open an issue and include that log line.",
       "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, not a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
       "na_signin_attestation": "Your email and password are fine — Volkswagen North America now blocks this sign-in behind a Google device-attestation check (Play Integrity) that only the official app on a genuine phone can pass. Re-entering your password will not help; this is a VW server-side lock, not a credentials problem. (Tracked: #1165.)",
       "porsche_login_wall": "Your email and password are fine — the login got past the password step but then landed on a Porsche captcha/consent screen (seen on some accounts at my.porsche.com) that a headless login can't clear. Re-entering your password won't help; this is a Porsche-side wall, not a credentials problem. Try at most once — repeated attempts have locked Porsche accounts. (Tracked: #1337.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "To enable ABRP you must enter both the api_key and the per-vehicle token.",
       "invalid_auth": "Sign-in failed. Check your Volkswagen ID email and password.",
       "cannot_connect": "Could not reach Volkswagen. Please try again.",
+      "invalid_credentials": "Email address or password incorrect.",
       "vweu_mfa_unsupported": "This account needs an email or authenticator code, which VW EU Two-Way cannot handle yet. Use the read-only channels instead.",
       "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it.",
-      "terms_and_conditions": "Terms and conditions need to be accepted. Sign in to the app once and confirm."
+      "terms_and_conditions": "Terms and conditions need to be accepted. Sign in to the app once and confirm.",
+      "website_login_failed": "Your email and password are not the problem — the volkswagen.de login got past that and then failed at a later step (for example an expired session, a redirect loop, or a page it did not recognise). The reason is in the Home Assistant log. Changing your password will not help; if it keeps happening, please open an issue and include that log line."
     },
     "abort": {
       "not_volkswagen": "This channel is only available for Volkswagen.",
@@ -1405,6 +1408,9 @@
       },
       "battery_care_score_threshold": {
         "name": "Battery care score threshold"
+      },
+      "battery_care_notification": {
+        "name": "Battery care notification"
       },
       "cabin_temp": {
         "name": "Cabin Temperature"

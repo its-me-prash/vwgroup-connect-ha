@@ -191,6 +191,7 @@
       "email_two_factor_required": "E-post 2FA krävs. Kolla inkorgen (och skräp) efter en 6-siffrig kod, logga sedan in manuellt i appen.",
       "too_many_requests": "Kontot är tillfälligt spärrat. Vänta 15 minuter.",
       "invalid_credentials": "Felaktig e-postadress eller lösenord.",
+      "website_login_failed": "Din e-postadress och ditt lösenord är inte problemet — inloggningen på volkswagen.de kom förbi dem och misslyckades i ett senare steg (till exempel en utgången session, en omdirigeringsloop eller en sida den inte kände igen). Orsaken finns i Home Assistant-loggen. Ett nytt lösenord hjälper inte; om det fortsätter, öppna ett ärende och bifoga den loggraden.",
       "portal_interaction_required": "EU Data Act-portalen kräver en engångsåtgärd i din webbläsare eller varumärkesapp (t.ex. godkänna villkor, bekräfta samtycke, slutföra onboarding/regionval) innan huvudlös åtkomst fungerar. Detta är INTE ett lösenordsproblem — öppna portalen en gång i en webbläsare, slutför uppmaningen och försök igen.",
       "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen.",
       "na_signin_attestation": "Din e-postadress och ditt lösenord är korrekta — Volkswagen North America blockerar nu den här inloggningen bakom en enhetsattesteringskontroll från Google (Play Integrity) som bara den officiella appen på en äkta telefon kan passera. Att ange lösenordet igen hjälper inte; det här är en serverspärr hos VW, inte ett problem med inloggningsuppgifterna. (Spåras: #1165.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "För att aktivera ABRP måste du ange både api_key och fordonstoken.",
       "invalid_auth": "Inloggningen misslyckades. Kontrollera din Volkswagen ID-e-post och ditt lösenord.",
       "cannot_connect": "Kunde inte nå Volkswagen. Försök igen.",
+      "invalid_credentials": "Felaktig e-postadress eller lösenord.",
       "vweu_mfa_unsupported": "Det här kontot kräver en e-post- eller autentiseringskod, som VW EU Two-Way inte kan hantera ännu. Använd de skrivskyddade kanalerna istället.",
       "vweu_no_bff_data": "Inloggningen lyckades, men Volkswagen har ännu inte returnerat några live-data för den här bilen på det moderna backendet, så VW EU Two-Way aktiverades inte och din nuvarande kanal är oförändrad. Försök igen senare, eller dela en diagnostikfil så att vi kan titta på det.",
-      "terms_and_conditions": "Användarvillkor måste accepteras. Logga in i appen."
+      "terms_and_conditions": "Användarvillkor måste accepteras. Logga in i appen.",
+      "website_login_failed": "Din e-postadress och ditt lösenord är inte problemet — inloggningen på volkswagen.de kom förbi dem och misslyckades i ett senare steg (till exempel en utgången session, en omdirigeringsloop eller en sida den inte kände igen). Orsaken finns i Home Assistant-loggen. Ett nytt lösenord hjälper inte; om det fortsätter, öppna ett ärende och bifoga den loggraden."
     },
     "abort": {
       "not_volkswagen": "Den här kanalen är endast tillgänglig för Volkswagen.",
@@ -1372,6 +1375,9 @@
       },
       "battery_care_score_threshold": {
         "name": "Tröskel för batterivårdspoäng"
+      },
+      "battery_care_notification": {
+        "name": "Batterivårdsavisering"
       },
       "cabin_temp": {
         "name": "Kupétemperatur"

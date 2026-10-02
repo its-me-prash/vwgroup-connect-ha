@@ -332,6 +332,24 @@ class AuthenticationError(CariadError):
     """Login failed — wrong credentials or account issue."""
 
 
+class InvalidCredentialsError(AuthenticationError):
+    """The identity provider REJECTED the email/password pair itself.
+
+    Raised only where the upstream genuinely said "these credentials are wrong"
+    (the vw.de authproxy's HTTP 401 on the credential POST). Everything else a
+    login can fail with — a redirect loop, a dead SSO session, an unrecognised
+    challenge page, a portal outage, a 4xx carrying its own reason — stays a
+    plain ``AuthenticationError`` so the UI can say something true instead of
+    blaming the user's password.
+
+    #1679 (@Fishermanjb) and #1313 (@realynot) both reported "invalid
+    credentials" while the same credentials signed in fine on volkswagen.de, and
+    both config-flow sites mapped EVERY ``AuthenticationError`` to the same
+    "email or password incorrect". #957 had already noticed that and added a log
+    line, but left the user-facing verdict unchanged — this is the other half.
+    """
+
+
 class TokenRefreshRetryError(CariadError):
     """A token refresh was rejected TRANSIENTLY — not a dead refresh token.
 

@@ -53,8 +53,13 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from .._util import drop_charge_sentinel, drop_odometer_sentinel
-from .._bff_error_codes import decode_bff_error
-from ..exceptions import APIError, AuthenticationError
+from .._bff_error_codes import decode_bff_error, reason_for_bff_code
+from ..exceptions import (
+    APIError,
+    AuthenticationError,
+    CommandFailureReason,
+    InvalidCredentialsError,
+)
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action, _TC_MARKERS
 
@@ -79,6 +84,23 @@ _REDIRECT_URL = (
 # (the WeConnect vehicle backend). Each gets its own scope set. The authproxy
 # does the confidential OIDC exchange and lands the browser back on
 # ``_REDIRECT_URL`` with first-party cookies set.
+# #1659 — what a decoded BFF refusal actually asks the user to DO. Only codes
+# the command path already classifies as an entitlement gap get a sentence, and
+# the two gaps get DIFFERENT sentences: an expired subscription is fixed by
+# paying, a not-entitled account by being enrolled for the service. Everything
+# else (transient, consent, backend) gets none — inventing an action for a code
+# we have not understood is how a reporter loses a day.
+_ENTITLEMENT_HINTS: dict[CommandFailureReason, str] = {
+    CommandFailureReason.SUBSCRIPTION_EXPIRED: (
+        "this read needs an active paid connected-services subscription for "
+        "this car; check it in the brand app."
+    ),
+    CommandFailureReason.NOT_ENTITLED: (
+        "this account is not enrolled for that service on this car; enrol it "
+        "in the brand app."
+    ),
+}
+
 _LOGIN_PATH = "/app/authproxy/login"
 _LOGIN_PARAMS: dict[str, str] = {
     "fag": "vw-de,vwag-weconnect",
@@ -685,6 +707,8 @@ class WebsiteAuthProxyConnector:
         # bare status labels only ("404", "412", "200 no-value") — no PII. Without
         # this a fail-soft probe left zero trace and the whole cohort was blind.
         self.probe_outcomes: dict[str, str] = {}
+        # #1659 — one WARNING per refused read, not one per poll.
+        self._entitlement_logged: set[str] = set()
         # Pre-flight durable-MBB eligibility per VIN, classified from the guest-
         # readable relations read (carnetIndicator / platform / role — see
         # _authproxy.mbb_eligibility). Observability only: surfaced in diagnostics
@@ -936,7 +960,12 @@ class WebsiteAuthProxyConnector:
             ) from exc
 
         if landed_status == 401:
-            raise AuthenticationError(
+            # The ONLY place this login may claim the credentials are wrong: the
+            # IDP answered 401 to the credential POST itself. Every other failure
+            # below stays a plain AuthenticationError so the config flow can tell
+            # the user what actually happened instead of blaming their password
+            # (#1679, #1313 — see InvalidCredentialsError).
+            raise InvalidCredentialsError(
                 "Website authproxy: invalid email or password"
             )
         if landed_status >= 400 and "email-challenge" not in landed:
@@ -1623,6 +1652,7 @@ class WebsiteAuthProxyConnector:
                     # the log. Structured code only (decode_bff_error never
                     # returns free text), so nothing sensitive is surfaced.
                     _detail = ""
+                    _hint: str | None = None
                     try:
                         _decoded = decode_bff_error(
                             await resp.text(errors="replace")
@@ -1631,11 +1661,42 @@ class WebsiteAuthProxyConnector:
                         _decoded = None
                     if _decoded is not None:
                         _detail = f" (BFF {_decoded[0]} {_decoded[1]})"
+                        # #1659 (@Joassens) — the decoded code was precise and
+                        # completely unactionable: he read "4007
+                        # connectivityLicenseInactive" as a market/registration
+                        # problem (so did I, in writing), spent a day on it, and
+                        # then solved it by buying the paid Car-Net "Guide &
+                        # Inform Plus" subscription — which is what the code says.
+                        # The command path already classifies these codes; the
+                        # read path recorded the raw name only.
+                        #
+                        # The WORDING differs per reason on purpose: an expired
+                        # subscription is fixed by paying, a not-entitled account
+                        # by being enrolled for the service. Telling someone to
+                        # buy a subscription for userNotEnrolled would be a
+                        # confident wrong answer.
+                        #
+                        # ``probe_outcomes`` deliberately keeps ONLY the decoded
+                        # code: it is the machine-readable surface (diagnostics,
+                        # tests, cross-report comparison). The sentence belongs in
+                        # the log and on the raised error, where a human reads it.
+                        _reason = reason_for_bff_code(_decoded[0])
+                        _hint = (
+                            _ENTITLEMENT_HINTS.get(_reason) if _reason else None
+                        )
+                        if _hint and (record_as or "") not in self._entitlement_logged:
+                            self._entitlement_logged.add(record_as or "")
+                            _LOGGER.warning(
+                                "Website authproxy: %s refused with %s — %s "
+                                "Nothing to fix in the integration.",
+                                record_as or "a read", _decoded[1], _hint,
+                            )
                     if record_as:
                         self.probe_outcomes[record_as] = f"{resp.status}{_detail}"
                     raise AuthenticationError(
                         f"Website authproxy GET {_safe_url(url)} → HTTP "
                         f"{resp.status}{_detail}"
+                        + (f" — {_hint}" if _hint else "")
                     )
                 if resp.status >= 400:
                     if (
