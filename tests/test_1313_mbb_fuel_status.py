@@ -197,3 +197,53 @@ def test_the_read_is_wired_with_its_own_wall_guard():
     assert src.count('self.probe_outcomes[f"vwde_core_read:{_core_read}"]') >= len(
         {"charging", "maintenance", "fuel"} & set(stages)
     )
+
+
+def test_a_non_finite_number_cannot_take_down_the_whole_poll():
+    """Found by an adversarial review of this change.
+
+    ``float("nan")`` and ``float("inf")`` SUCCEED, and Python's json decoder
+    accepts bare ``NaN`` / ``Infinity`` literals by default — so such a token can
+    arrive from a real response. Passing it on blew up in ``int(round(...))`` with
+    a ValueError/OverflowError, and the read's guard only catches
+    AuthenticationError/APIError: one junk token would have escaped the guard and
+    discarded the charging and maintenance data collected beside it in the same
+    poll — exactly the harm the per-read guard exists to prevent.
+    """
+    for token in ("nan", "NaN", "inf", "-inf", "Infinity", "-Infinity"):
+        body = {"data": [
+            {"id": "secondaryEngine", "properties": [
+                {"name": "engineType", "value": "electric"},
+                {"name": "currentSOC_pct", "value": token},
+                {"name": "remainingRange_km", "value": token},
+            ]},
+            {"id": "primaryEngine", "properties": [
+                {"name": "engineType", "value": "gasoline"},
+                {"name": "currentFuelLevel_pct", "value": token},
+                {"name": "currentOilLevel_pct", "value": token},
+            ]},
+        ]}
+        d = _map(body)        # must not raise
+        assert d.battery_soc is None, token
+        assert d.electric_range_km is None, token
+        assert d.fuel_level is None, token
+        assert d.oil_level_pct is None, token
+
+
+def test_a_non_finite_token_does_not_cost_the_good_engine():
+    """A junk value on one drive must not discard the other drive's readings."""
+    body = {"data": [
+        {"id": "secondaryEngine", "properties": [
+            {"name": "engineType", "value": "electric"},
+            {"name": "currentSOC_pct", "value": "NaN"},
+        ]},
+        {"id": "primaryEngine", "properties": [
+            {"name": "engineType", "value": "gasoline"},
+            {"name": "currentFuelLevel_pct", "value": "76"},
+            {"name": "remainingRange_km", "value": "530"},
+        ]},
+    ]}
+    d = _map(body)
+    assert d.battery_soc is None
+    assert d.fuel_level == 76
+    assert d.combustion_range_km == 530

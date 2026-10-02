@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 import time
 import uuid
@@ -394,12 +395,23 @@ def _to_int_str(raw: Any) -> int | None:
 
 
 def _to_float_str(raw: Any) -> float | None:
+    """A ``fuel/status`` string number, or None.
+
+    Non-finite tokens are rejected, not just malformed ones: ``float("nan")`` and
+    ``float("inf")`` succeed, and Python's json decoder accepts bare ``NaN`` /
+    ``Infinity`` literals by default, so such a value can reach here from a real
+    response. Passing it on would then blow up in ``int(round(...))`` with a
+    ValueError/OverflowError — neither of which the read's guard catches, so a
+    single junk token would take down the whole poll and discard the charging and
+    maintenance data already collected beside it. Found by an adversarial review.
+    """
     if raw is None:
         return None
     try:
-        return float(str(raw).strip())
+        val = float(str(raw).strip())
     except (TypeError, ValueError):
         return None
+    return val if math.isfinite(val) else None
 
 def _fuel_engine_blocks(payload: Any) -> list[tuple[str, dict[str, str]]]:
     """Normalise a ``fuel/status`` body into ``[(engine_id, {name: value})]``.
