@@ -48,6 +48,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   was no way to tell which car was affected — and it really can be one and not the other. It now lists the cars that
   are actually without data, with the VIN shortened to its last six characters, because people paste these warnings
   into bug reports. With nothing known yet it falls back to the brand name, exactly as before.
+### Fixed
+- **An electric car whose feed has no state of charge no longer hides every EV entity (#1661, thanks @dasebi91).**
+  The integration decided a car was electric from its state of charge, electric range or charging state. The
+  reporter's ID.7 sends none of those three — but it does report a 218 Ah drive battery at 355 V with per-cell
+  voltages and pack temperatures, and it was still treated as not-electric, so the whole EV entity set stayed hidden.
+  That is what it looked like as "missing battery SoC": the sensor wasn't empty, the car wasn't recognised as electric
+  at all. A drive battery above 60 V (the legal high-voltage threshold, so a 48 V mild hybrid can't trip it) now
+  counts as evidence on its own. It only says "this car has a drive battery" — it deliberately doesn't claim the car
+  has no engine, because a pack voltage doesn't prove that.
 ### Added
 - **Sixteen more HV, thermal and climate readings for cars on the raw-signal portal feed (#1661, thanks @dasebi91).**
   The same feed we already read cell voltages from, but this car sends a different signal set from different control
