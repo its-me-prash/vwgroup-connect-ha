@@ -142,6 +142,25 @@ def build_maintenance_url(vin: str, gdc: str | None = None) -> str:
     )
 
 
+def build_fuel_url(vin: str, gdc: str | None = None) -> str:
+    """Energy state of both drives (``fuel/status``) — the MBB PHEV SoC source.
+
+    #1313: on MBB plug-in hybrids the portal feed ships no drive-battery state of
+    charge and ``charging/status`` is refused with ``4004 missingUserConsent``,
+    so those cars have had NO state of charge at all. ``fuel/status`` answers 200
+    on the same realm / gdc / resource host as the maintenance read and carries
+    both engines — @realynot confirmed it keeps answering across a lapsed and
+    renewed subscription, and @fschulte2812 confirmed the identical shape on a
+    different model year.
+    """
+    return build_authproxy_url(
+        f"vehicles/{vin}/fuel/status",
+        realm=_REALM_VWDE,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=gdc or _GDC_WCAR,
+    )
+
+
 def build_parkingposition_url(vin: str, gdc: str | None = None) -> str:
     """Last-parked GPS position (``parkingposition``) — EXPERIMENTAL / UNCONFIRMED.
 

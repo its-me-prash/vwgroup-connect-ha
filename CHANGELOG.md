@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Plug-in hybrids on the volkswagen.de channel finally get a battery charge level (#1313, thanks @realynot and @fschulte2812).**
+  On MBB plug-in hybrids the EU Data Act feed carries no drive-battery charge at all and the charging read is refused,
+  so those cars have had no state of charge — the one number most people actually want. There is another read on the
+  same session that returns both drives, and it is now used: drive-battery charge and electric range, plus fuel level,
+  combustion range and oil level. Which drive is the electric one is taken from the data rather than from its position
+  in the response, so a car that lists its engines the other way round still maps correctly. A reading from a live
+  brand channel still wins where one exists.
+
 ## [4.10.0b1] - 2026-10-02 — An EV that was not recognised as one, the data the portal hid in blobs, and a channel that needed re-adding after every restart
 
 ### Added
