@@ -320,6 +320,10 @@ class _OkLoginSession:
             return _FakeResp(url, json_data=_CHARGING_JSON)
         if "maintenance/status" in url:
             return _FakeResp(url, json_data=_MAINT_JSON)
+        if "fuel/status" in url:
+            # #1313 — the third core read. Soft-404 here so this test keeps
+            # asserting what the charging + maintenance bodies produce.
+            return _FakeResp(url, status=404)
         raise AssertionError(f"unmatched GET {url}")
 
     def post(self, url: str, **kw: Any) -> _FakeResp:
@@ -434,7 +438,11 @@ async def test_get_vehicle_data_401_raises() -> None:
             # #1 — a genuinely dead session 401s on every live read. charging and
             # maintenance are now attempted independently, so both wall; with no
             # tail data the poll re-raises for the caller's refresh + retry.
-            if "charging/status" in url or "maintenance/status" in url:
+            if (
+                "charging/status" in url
+                or "maintenance/status" in url
+                or "fuel/status" in url  # #1313 — third core read
+            ):
                 return _FakeResp(url, status=401)
             return _FakeResp(url, status=404)
 
@@ -458,6 +466,8 @@ async def test_get_vehicle_data_soft_404_is_graceful() -> None:
             if "charging/status" in url:
                 return _FakeResp(url, json_data=_CHARGING_JSON)
             if "maintenance/status" in url:
+                return _FakeResp(url, status=404)
+            if "fuel/status" in url:  # #1313 — third core read, also soft
                 return _FakeResp(url, status=404)
             raise AssertionError(f"unmatched GET {url}")
 

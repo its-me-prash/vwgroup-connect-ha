@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 import time
 import uuid
@@ -406,6 +407,131 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     for _blk in (battery, charging, plug, data):
         _bump_last_seen(d, _blk.get("carCapturedTimestamp"))
 
+    return d
+
+
+def _to_int_str(raw: Any) -> int | None:
+    """``fuel/status`` ships its numbers as strings ("76", "530", "100.0")."""
+    val = _to_float_str(raw)
+    return int(round(val)) if val is not None else None
+
+
+def _to_float_str(raw: Any) -> float | None:
+    """A ``fuel/status`` string number, or None.
+
+    Non-finite tokens are rejected, not just malformed ones: ``float("nan")`` and
+    ``float("inf")`` succeed, and Python's json decoder accepts bare ``NaN`` /
+    ``Infinity`` literals by default, so such a value can reach here from a real
+    response. Passing it on would then blow up in ``int(round(...))`` with a
+    ValueError/OverflowError — neither of which the read's guard catches, so a
+    single junk token would take down the whole poll and discard the charging and
+    maintenance data already collected beside it. Found by an adversarial review.
+    """
+    if raw is None:
+        return None
+    try:
+        val = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return val if math.isfinite(val) else None
+
+def _fuel_engine_blocks(payload: Any) -> list[tuple[str, dict[str, str]]]:
+    """Normalise a ``fuel/status`` body into ``[(engine_id, {name: value})]``.
+
+    Two shapes are in the wild on the same endpoint, both captured by reporters
+    on #1313:
+
+    * the LIST form — ``{"data": [{"id": "primaryEngine", "properties":
+      [{"name": "currentFuelLevel_pct", "value": "76"}, ...]}, ...]}``
+    * the DICT form — ``{"primaryEngine": {"currentFuelLevel_pct": "76", ...},
+      "secondaryEngine": {...}}``
+
+    Both carry the numbers as STRINGS, unlike every other surface the
+    integration parses, so the caller coerces. Anything else yields an empty
+    list and the caller leaves the vehicle untouched.
+    """
+    out: list[tuple[str, dict[str, str]]] = []
+
+    def _props(node: Any) -> dict[str, str]:
+        props = node.get("properties") if isinstance(node, dict) else None
+        if isinstance(props, list):
+            return {
+                str(p.get("name")): str(p.get("value"))
+                for p in props
+                if isinstance(p, dict) and p.get("name") is not None
+                and p.get("value") is not None
+            }
+        if isinstance(node, dict):
+            return {
+                k: str(v) for k, v in node.items()
+                if isinstance(k, str) and isinstance(v, (str, int, float))
+            }
+        return {}
+
+    if not isinstance(payload, dict):
+        return out
+    data = payload.get("data", payload)
+    if isinstance(data, list):
+        for node in data:
+            if isinstance(node, dict) and node.get("id"):
+                props = _props(node)
+                # the capture time sits on the NODE, beside "properties" — not
+                # inside it. The live channel owns the freshness anchor, so losing
+                # it here would make the stale-data repair misfire (#1419).
+                ts = node.get("carCapturedTimestamp")
+                if isinstance(ts, str) and ts:
+                    props.setdefault("carCapturedTimestamp", ts)
+                out.append((str(node["id"]), props))
+        return out
+    if isinstance(data, dict):
+        for key in ("primaryEngine", "secondaryEngine"):
+            if isinstance(data.get(key), dict):
+                out.append((key, _props(data[key])))
+    return out
+
+
+def map_fuel_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
+    """Map a ``fuel/status`` response onto ``VehicleData``.
+
+    #1313 — the point of this read: on MBB plug-in hybrids the portal feed ships
+    no drive-battery state of charge and ``charging/status`` is refused with
+    ``4004 missingUserConsent``, so those cars have had no SoC at all. This body
+    carries both drives, including ``currentSOC_pct``.
+
+    Engines are matched on their ``engineType``, NOT on primary/secondary.
+    Which drive is "primary" is a property of the car — on @realynot's Tiguan
+    the petrol engine is primary and the electric one secondary — so keying on
+    the position would mean guessing, while ``engineType`` states it outright.
+    An engine whose type we do not recognise is skipped rather than assigned to
+    whichever field happens to be free.
+
+    Every assignment is fill-if-empty: a live brand-native or BFF read always
+    wins, this is the fallback for cars that have nothing else.
+    """
+    blocks = _fuel_engine_blocks(payload)
+    if not blocks:
+        return d
+    _COMBUSTION = {"gasoline", "petrol", "diesel", "cng", "lpg"}
+    for _engine_id, props in blocks:
+        etype = (props.get("engineType") or "").strip().lower()
+        rng = _to_int_str(props.get("remainingRange_km"))
+        if etype == "electric":
+            soc = _to_int_str(props.get("currentSOC_pct"))
+            if soc is not None and 0 <= soc <= 100 and d.battery_soc is None:
+                d.battery_soc = soc
+            if rng is not None and d.electric_range_km is None:
+                d.electric_range_km = rng
+        elif etype in _COMBUSTION:
+            lvl = _to_int_str(props.get("currentFuelLevel_pct"))
+            if lvl is not None and 0 <= lvl <= 100 and d.fuel_level is None:
+                d.fuel_level = lvl
+            if rng is not None and d.combustion_range_km is None:
+                d.combustion_range_km = rng
+            oil = _to_float_str(props.get("currentOilLevel_pct"))
+            if oil is not None and 0 <= oil <= 100 and d.oil_level_pct is None:
+                d.oil_level_pct = int(round(oil))
+    for _engine_id, props in blocks:
+        _bump_last_seen(d, props.get("carCapturedTimestamp"))
     return d
 
 
@@ -2076,6 +2202,7 @@ class WebsiteAuthProxyConnector:
             # back to the stale portal feed — the #1357 electric-range gap.
             from .._authproxy import (  # noqa: PLC0415
                 build_charging_url,
+                build_fuel_url,
                 build_maintenance_url,
             )
 
@@ -2117,6 +2244,34 @@ class WebsiteAuthProxyConnector:
                 )
                 if isinstance(maintenance, dict):
                     map_maintenance_to_vehicle_data(maintenance, d)
+                    got_data = True
+            except (AuthenticationError, APIError) as exc:
+                _core_exc = _core_exc or exc
+                self.probe_outcomes[f"vwde_core_read:{_core_read}"] = (
+                    _http_status_from_exc(exc)
+                )
+                _LOGGER.info(
+                    "vw.de core read '%s' walled for %s (%s); continuing (#1)",
+                    _core_read, vin[-6:], exc,
+                )
+
+            # #1313 — fuel/status: the ONLY state-of-charge source on MBB plug-in
+            # hybrids. Their portal feed carries no drive-battery SoC and their
+            # charging/status is refused with 4004 missingUserConsent, so those
+            # cars had no SoC at all. Same realm / gdc / resource host as the
+            # maintenance read above, so it rides the session that already works;
+            # own guard like the other two, because a wall here must not cost the
+            # reads that already succeeded (#1 above).
+            _core_read = "fuel"
+            try:
+                fuel = await self._get_json(
+                    build_fuel_url(vin, self._gdc(vin)),
+                    accept="*/*",
+                    soft=True,
+                    record_as="vwde_fuel",
+                )
+                if fuel is not None:
+                    map_fuel_to_vehicle_data(fuel, d)
                     got_data = True
             except (AuthenticationError, APIError) as exc:
                 _core_exc = _core_exc or exc

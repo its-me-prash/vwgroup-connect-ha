@@ -49,6 +49,10 @@ def test_charging_wall_does_not_skip_maintenance() -> None:
     c._get_json = AsyncMock(side_effect=[
         AuthenticationError("charging 403"),
         {"data": {"maintenanceStatus": {}}},
+        # #1313 — fuel/status is the third core read; walled here so this test
+        # keeps testing what it is about (a charging wall not costing the
+        # maintenance read) rather than the new read's own behaviour.
+        AuthenticationError("fuel 403"),
     ])
     seen = {}
 
@@ -69,9 +73,11 @@ def test_both_core_walls_and_empty_tail_reraises() -> None:
     c._get_json = AsyncMock(side_effect=[
         AuthenticationError("charging 401"),
         AuthenticationError("maintenance 401"),
+        AuthenticationError("fuel 401"),  # #1313 — the third core read
     ])
     with pytest.raises(AuthenticationError):
         asyncio.run(c.get_vehicle_data(VIN))
     # both walls recorded before the re-raise
     assert c.probe_outcomes.get("vwde_core_read:charging")
     assert c.probe_outcomes.get("vwde_core_read:maintenance")
+    assert c.probe_outcomes.get("vwde_core_read:fuel")

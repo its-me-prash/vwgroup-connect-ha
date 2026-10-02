@@ -52,13 +52,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   issues were redacted. Nothing about ordinary readings changes.
 
 ### Added
+- **Plug-in hybrids on the volkswagen.de channel finally get a battery charge level (#1313, thanks @realynot and @fschulte2812).**
+  On MBB plug-in hybrids the EU Data Act feed carries no drive-battery charge at all and the charging read is refused,
+  so those cars have had no state of charge — the one number most people actually want. There is another read on the
+  same session that returns both drives, and it is now used: drive-battery charge and electric range, plus fuel level,
+  combustion range and oil level. Which drive is the electric one is taken from the data rather than from its position
+  in the response, so a car that lists its engines the other way round still maps correctly. A reading from a live
+  brand channel still wins where one exists.
 - **Battery-care mode now reports why it last spoke up (Vehicle Data Scout, #1444, thanks @josie127-neu).**
   A new diagnostic sensor (off by default) shows the battery-care notification state — whether the charge target was
   reset for the next charge, whether care mode is off, or whether the care score hit its warning threshold. It had
   been left unmapped because its meaning was a guess; VW's own field catalogue documents the values, so there was
   nothing left to guess. Two long-standing neighbours of it (the care score and its threshold) were also quietly
   re-reporting themselves to the Scout on every poll for cars that send them nested — that's fixed in passing.
-
 ### Changed
 - **A read refused for a missing subscription now says so (#1659, thanks @Joassens).**
   His maintenance read came back as `4007 connectivityLicenseInactive`, which is precise and tells you nothing about
@@ -67,7 +73,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   log and in the error. The two cases are worded differently on purpose: an expired subscription needs paying for, an
   account that isn't enrolled needs enrolling — and a refusal we haven't understood still says nothing rather than
   guessing.
-
 ### Fixed
 - **The volkswagen.de channel no longer tells you your password is wrong when it isn't (#1679, thanks @Fishermanjb; #1313, thanks @realynot).**
   Both reporters had the channel refuse them with "email address or password incorrect" while the very same
