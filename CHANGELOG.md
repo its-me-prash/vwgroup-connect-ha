@@ -68,6 +68,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   portal being down) into the same message. So people were sent off to reset a password that was never the problem.
   Only the genuine credential refusal says that now; everything else says it is *not* your password and points at
   the log, which has carried the real reason for a while.
+- **The Porsche login now tells Auth0 which language and country you are in.**
+  The official Porsche app passes the device locale into its login call; we sent
+  nothing, so the page we land on came back in whatever language Auth0 guessed.
+  That matters less for you than for us: when a login runs into one of Porsche's
+  wall screens, the integration describes it by looking for English keywords, so
+  an unexpected language could leave a report saying nothing at all about what
+  was hit. It now sends your Home Assistant language and country, which also
+  matches what the app does. Nothing is invented — a country the integration
+  doesn't know is simply left out rather than guessed.
 
 ## [4.10.0b1] - 2026-10-02 — An EV that was not recognised as one, the data the portal hid in blobs, and a channel that needed re-adding after every restart
 

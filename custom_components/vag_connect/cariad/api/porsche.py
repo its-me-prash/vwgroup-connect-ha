@@ -335,6 +335,12 @@ class PorscheClient:
     Not a subclass of CariadBaseClient because the auth system is different.
     """
 
+    # Home Assistant instance locale, pushed in by the coordinator (fail-soft
+    # setattr) after construction, same as every other brand client. The login
+    # forwards it to /authorize — see auth.porsche._locale_params.
+    _ha_country: str = ""
+    _ha_language: str = ""
+
     def __init__(
         self,
         session: ClientSession,
@@ -391,6 +397,12 @@ class PorscheClient:
         ``captcha_resume`` (G5, #1337) carries the replay descriptor for a
         post-password captcha; it is forwarded verbatim.
         """
+        # Hand the login the HA instance locale. The coordinator assigns
+        # ``_ha_country``/``_ha_language`` AFTER this client is constructed, so
+        # they are copied per call rather than snapshotted in __init__ (same
+        # pattern as the vw_eu command helper). See auth.porsche._locale_params.
+        self._auth._ha_country = str(getattr(self, "_ha_country", "") or "")
+        self._auth._ha_language = str(getattr(self, "_ha_language", "") or "")
         self._tokens = await self._auth.authenticate(
             self._email, self._password,
             captcha_code=captcha_code,

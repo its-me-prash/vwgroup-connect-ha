@@ -224,6 +224,22 @@ async def _validate_credentials(
         client = CariadClientFactory.create(
             brand, auth_session, username, password, country=country
         )
+        # Hand the client the HA instance locale, exactly as the coordinator does
+        # after it builds its own. Without this the INTERACTIVE login — the one a
+        # user actually performs, and the one that produces the wall captures the
+        # Porsche locale hints exist for — went out with no locale at all: the
+        # coordinator deliberately avoids a second interactive login (it bridges
+        # the token from here and refreshes instead), so its own locale-carrying
+        # login only runs once the refresh token has died. Fail-soft: a missing
+        # hass.config value must never break a login.
+        # setattr, not attribute assignment: the factory's return type is a union
+        # and only some members declare these, so a direct assignment fails mypy
+        # strict. Same call shape the coordinator uses.
+        try:
+            setattr(client, "_ha_language", hass.config.language or "")
+            setattr(client, "_ha_country", hass.config.country or "")
+        except Exception:  # noqa: BLE001
+            pass
         try:
             # isinstance (not brand == "porsche") so mypy narrows client to
             # PorscheClient here — its authenticate() is the only one with
