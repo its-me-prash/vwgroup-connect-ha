@@ -42,6 +42,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **A lot of data the portal was already sending, in a shape we ignored (#1661, thanks @dasebi91).**
+  Some cars' portal feed carries whole vehicle diagnostic responses as encoded blobs — on the reporter's car that was
+  ten of them, thrown away on every poll. They're decoded now, which brings: the range the car's own display shows,
+  the complete 12 V battery picture (voltage, charge, temperature, ageing, current), an outside humidity and dew-point
+  reading (the integration had no humidity at all before), plus the odometer and a genuine per-read capture time.
+  The 12 V battery's charge is kept strictly apart from the drive battery's — they are not the same number. Blobs we
+  can't interpret yet are deliberately left untouched so they keep being reported instead of silently vanishing.
+- **The portal's own data-delivery trigger now has a sensor (Vehicle Data Scout, #1637 and 16 more reports).**
+  Twenty-two Scout reports landed in two days, across Volkswagen, VW Commercial, Audi and CUPRA, all for the same
+  leaf: the delivery trigger the EU Data Act snapshot carries about itself. It gets its own diagnostic sensor rather
+  than being folded into the existing report trigger — the official portal field catalogue documents those as two
+  different things with different value sets, so one sensor for both would have mixed two unrelated enums. Off by
+  default. A leaf nobody maps is re-reported on every single poll, which is how twenty-two issues happened.
+
 ## [4.9.0] - 2026-10-01 — Portal climate target temperature, a deleted-car cleanup, and a VIN kept out of the repair id
 
 ### Added
