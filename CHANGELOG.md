@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **The "portal has no vehicle data yet" warning now names the car it's about (#1656, thanks @kalwados).**
+  The warning is raised once per account and only mentioned the brand, so with two Volkswagens on one account there
+  was no way to tell which car was affected — and it really can be one and not the other. It now lists the cars that
+  are actually without data, with the VIN shortened to its last six characters, because people paste these warnings
+  into bug reports. With nothing known yet it falls back to the brand name, exactly as before.
+
 ## [4.9.0] - 2026-10-01 — Portal climate target temperature, a deleted-car cleanup, and a VIN kept out of the repair id
 
 ### Added
