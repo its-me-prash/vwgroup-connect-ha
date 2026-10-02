@@ -4468,6 +4468,30 @@ def map_dataset_to_vehicle_data(
     has_e = (d.battery_soc is not None or d.electric_range_km is not None
              or d.charging_state is not None)
     has_c = d.fuel_level is not None or d.combustion_range_km is not None
+    # v4.10.0 (#1661, @dasebi91) — a traction pack counts as electric evidence in
+    # its own right. That car is an ID.7 reporting a 218 Ah pack at 355.8 V with
+    # per-cell voltages and pack temperatures, and it still came out
+    # has_battery=False: its portal feed carries no SoC, no electric range and no
+    # charging state, so none of the three tests above could fire and the entire
+    # EV entity set stayed hidden. That is what the reporter experienced as
+    # "missing battery SoC" — the SoC sensor was not missing a value, the car was
+    # not recognised as electric at all.
+    #
+    # The threshold is the legal one: ECE R100 / ISO 6469 define high voltage as
+    # above 60 V DC, so a 48 V mild-hybrid system can never satisfy it while any
+    # real traction pack does. Deliberately sets has_battery ONLY and leaves
+    # is_electric to the SoC/range path below: a pack voltage proves there is a
+    # drive battery, but it does not prove the car has no engine, and claiming a
+    # PHEV is a pure EV would be a confident wrong answer. Getting the entities to
+    # appear is the fix; guessing the drivetrain is not part of it.
+    # Kept as its own test rather than folded into has_e, because has_e also
+    # drives the is_hybrid / is_electric verdicts further down and a pack must
+    # not reach those.
+    if (
+        d.hv_battery_pack_voltage_v is not None
+        and d.hv_battery_pack_voltage_v >= 60
+    ):
+        d.has_battery = True
     if has_e:
         d.has_battery = True
     if has_c:
