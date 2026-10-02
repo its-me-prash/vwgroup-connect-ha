@@ -240,6 +240,7 @@
           "read_only_mode": "Read-only Mode",
           "companion_read_charge_detail": "Companion: read charge target (navigates the app)",
           "companion_wake_sleep": "Companion: wake screen to poll, sleep after",
+          "companion_close_app": "Companion: close car app after each read",
           "force_ppe_climate": "Audi PPE/PPC Climate body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
@@ -276,6 +277,7 @@
           "read_only_mode": "When enabled, only status sensors are created — no switches, buttons, locks, climate or sliders that send commands. Useful if you want vehicle telemetry without any risk of accidental actuation. Reload the integration after toggling.",
           "companion_read_charge_detail": "Companion (ADB) only. Also reads the charge target, power and remaining time that live behind the charge-detail screen. This TAPS the app to navigate there (about every 15 minutes), so enable it only after confirming the flow works on your phone. Off by default. Reload after toggling.",
           "companion_wake_sleep": "Companion (ADB) only. Wakes the phone display before each poll and puts it back to sleep afterwards, so a locked or sleeping phone shows the app during the read without keeping the screen on permanently. Off by default. Reload after toggling.",
+          "companion_close_app": "Companion (ADB) only. Force-stops (closes) the car app after each poll, so the next read relaunches it fresh instead of scraping a screen the app left cached. Helps on devices where the app freezes its values between reads. Off by default — a cold relaunch is slower. Reload after toggling.",
           "force_ppe_climate": "Audi-only. Forces the new PPE/PPC body shape (climatisationMode mandatory, targetTemperature omitted) on climate start. Enable only if you own a Q6 e-tron, A6 e-tron, RS e-tron GT Facelift or A3 2024+ PHEV — climate-start otherwise returns 400. Reload the integration after toggling.",
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
@@ -492,6 +494,24 @@
       "voltage_12v": {
         "name": "12V Battery"
       },
+      "battery_12v_soc_pct": {
+        "name": "12V battery charge"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12V battery temperature"
+      },
+      "battery_12v_health_pct": {
+        "name": "12V battery health"
+      },
+      "battery_12v_current_a": {
+        "name": "12V battery current"
+      },
+      "outside_humidity_pct": {
+        "name": "Outside humidity"
+      },
+      "outside_dew_point_c": {
+        "name": "Outside dew point"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Cell Voltage (Max)"
       },
@@ -509,6 +529,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Battery Pack Voltage"
+      },
+      "hv_battery_current_a": {
+        "name": "HV battery current"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV battery energy used"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV battery coolant feed temperature"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV coolant temperature"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV SAC temperature"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV coolant pump flow"
+      },
+      "climate_blower_target_v": {
+        "name": "Climate blower target voltage"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV battery coolant valve 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV battery coolant valve 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Highest cell location"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Lowest cell location"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Warmest sensor location"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Coolest sensor location"
+      },
+      "climate_heatpump_state": {
+        "name": "Climate and heat pump state"
       },
       "wake_count_today": {
         "name": "Wake-ups Today"
@@ -1016,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Report trigger"
+      },
+      "portal_delivery_trigger": {
+        "name": "Data delivery trigger"
       },
       "climate_mode": {
         "name": "Climate mode"
@@ -1581,6 +1646,12 @@
       "brake_fluid_warning": {
         "name": "Brake Fluid"
       },
+      "hv_battery_consumption_overflow": {
+        "name": "Energy-used counter wrapped"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Recuperation counter wrapped"
+      },
       "warning_12v_low": {
         "name": "12V Battery Low"
       },
@@ -2106,7 +2177,7 @@
       "description": "{brand} issues short-lived access tokens, so at your current update interval of **{current} minutes** nearly every poll has to refresh the token. That trips the refresh-storm guard — a cap on how often the integration may refresh, there to stop the brand account from being locked — and data stops updating until the guard resets.\n\nThis is a polling-frequency problem, not a login problem: re-authenticating will not fix it.\n\n**The fix:** raise the update interval to **{recommended} minutes** or more in Settings → Devices & Services → VW Group Connect → Configure. That keeps token refreshes under the limit and the data flowing.\n\nThis warning auto-clears the first time a token refresh succeeds again."
     },
     "data_act_no_data": {
-      "title": "EU Data Act portal: no vehicle data yet ({brand})",
+      "title": "EU Data Act portal: no vehicle data yet ({cars})",
       "description": "The EU Data Act portal signed in for {brand} but isn't returning any vehicle data yet.\n\nThe integration tries to create the continuous data request for you automatically, but on some accounts the portal keeps the browser session anonymous — and then the automatic request (and the in-app \"Create EU Data Act data request\" button) can't complete, so you have to create the request yourself in the portal. The usual causes of an empty feed:\n\n1. **Ownership/usership not confirmed for this car.** The portal must show your vehicle's ownership (or usership) as confirmed. If it isn't, confirm it there first — necessary, though not always sufficient on its own.\n2. **Data-sharing consent not granted for this car.** You grant the EU Data Act data-sharing consent per vehicle, once. Until you do, the request stays empty.\n3. **No continuous request exists yet.** If the automatic creation didn't take, create it yourself: in the portal, add a Custom Data Request with all clusters ticked at a 15-minute frequency. **First delete any older request for this same car** — the portal allows only one active request per vehicle, so an older one (for example a monthly request) for this car blocks the new one. Don't delete another car's request: on a mixed passenger + commercial account each car keeps its own request under its own realm (passenger cars under Volkswagen Personenkraftwagen, vans under Volkswagen Nutzfahrzeuge). The integration picks it up on the next poll — no restart needed.\n4. **The car hasn't sent anything new yet.** A fresh dataset is only published after the car has been driven, charged, or locked/unlocked, so a new request can take 15-60 minutes (or a short drive) to start filling.\n5. **A VW-side outage.** VW reported an all-brands EU Data Act portal outage from late May 2026; while it lasts the portal returns empty data for every tool, recovering brand by brand.\n6. **Or add the volkswagen.de website read channel.** In the integration's options you can add the read-only volkswagen.de website channel as an alternative source: it signs in on the volkswagen.de website (not the app backend that blocks the headless login), and for some cars returns fields the portal feed doesn't. It needs your Volkswagen ID to be the vehicle's confirmed primary user.\n\n**Quickest check:** open `eu-data-act.drivesomethinggreater.com`, sign in, and confirm (a) ownership/usership is confirmed, (b) the data-sharing consent is granted for this car, and (c) there is an active continuous (15-minute) data request with all clusters ticked — creating it yourself if none exists. If you see no data there either, it's the VW side — nothing this integration can do until VW restores it.\n\nThis is the read-only portal beta — the warning clears by itself once data arrives."
     },
     "data_act_browser_missing": {

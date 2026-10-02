@@ -240,6 +240,7 @@
           "read_only_mode": "Modo solo lectura",
           "companion_read_charge_detail": "Companion: leer el objetivo de carga (navega por la app)",
           "companion_wake_sleep": "Companion: despertar la pantalla para consultar y apagarla después",
+          "companion_close_app": "Companion: cerrar la app del coche tras cada lectura",
           "force_ppe_climate": "Climatización PPE/PPC Audi (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Actualizaciones push de Skoda (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "Actualizaciones push de CUPRA/SEAT (FCM, EXPERIMENTAL)",
@@ -276,6 +277,7 @@
           "read_only_mode": "Cuando está activado, solo se crean sensores de estado — sin interruptores, botones, cerraduras, clima o deslizadores que envíen comandos. Útil si quieres telemetría del vehículo sin riesgo de actuación accidental. Recarga la integración tras activar.",
           "companion_read_charge_detail": "Solo para Companion (ADB). Lee también el objetivo de carga, la potencia y el tiempo restante que están detrás de la pantalla de detalle de carga. Para llegar ahí PULSA en la app (cada 15 minutos aproximadamente), así que actívalo solo tras comprobar que el proceso funciona en tu teléfono. Desactivado por defecto. Recarga tras cambiarlo.",
           "companion_wake_sleep": "Solo para Companion (ADB). Despierta la pantalla del teléfono antes de cada consulta y la vuelve a apagar después, para que un teléfono bloqueado o en reposo muestre la app durante la lectura sin dejar la pantalla encendida de forma permanente. Desactivado por defecto. Recarga tras cambiarlo.",
+          "companion_close_app": "Solo Companion (ADB). Fuerza el cierre de la app del coche tras cada sondeo, para que la siguiente lectura la reinicie desde cero en lugar de leer una pantalla en caché. Útil en dispositivos donde la app congela sus valores entre lecturas. Desactivado por defecto — un reinicio en frío es más lento. Recarga tras cambiarlo.",
           "force_ppe_climate": "Solo para Audi. Fuerza el nuevo formato PPE/PPC (climatisationMode obligatorio, targetTemperature omitido) al iniciar la climatización. Activar solo si posees Q6 e-tron, A6 e-tron, RS e-tron GT Facelift o A3 2024+ PHEV — de lo contrario la API responde 400. Recarga la integración tras activar.",
           "enable_push_mqtt": "EXPERIMENTAL: solo Skoda. Habilita el push MQTT en tiempo real desde el backend mysmob de Skoda (requiere los paquetes de Python aiomqtt + firebase-messaging, actualmente importados de forma diferida, no preinstalados). Fase de base en la v1.18.0; la activación en vivo está pendiente de la validación de los probadores de la comunidad. Si el push no está disponible, la integración recurre silenciosamente al sondeo. Recarga la integración después de cambiar esta opción.",
           "enable_push_fcm": "EXPERIMENTAL: solo CUPRA/SEAT. Habilita el push de Firebase Cloud Messaging en tiempo real desde el backend OLA (requiere el paquete de Python firebase-messaging, la misma importación diferida que la opción de MQTT de Skoda de la v1.18.0). Fase de base en la v1.19.0; la activación en vivo está pendiente de la validación de los probadores de la comunidad. Si el push no está disponible, la integración recurre silenciosamente al sondeo. Recarga la integración después de cambiar esta opción.",
@@ -486,6 +488,24 @@
       "voltage_12v": {
         "name": "Batería 12V"
       },
+      "battery_12v_soc_pct": {
+        "name": "Carga de la batería de 12 V"
+      },
+      "battery_12v_temperature_c": {
+        "name": "Temperatura de la batería de 12 V"
+      },
+      "battery_12v_health_pct": {
+        "name": "Salud de la batería de 12 V"
+      },
+      "battery_12v_current_a": {
+        "name": "Corriente de la batería de 12 V"
+      },
+      "outside_humidity_pct": {
+        "name": "Humedad exterior"
+      },
+      "outside_dew_point_c": {
+        "name": "Punto de rocío exterior"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Tensión de celda (máx)"
       },
@@ -503,6 +523,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Tensión de la batería"
+      },
+      "hv_battery_current_a": {
+        "name": "Corriente de la batería AT"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Energía consumida de la batería AT"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Temperatura de ida del refrigerante AT"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Temperatura del refrigerante AT"
+      },
+      "hv_sac_temperature_c": {
+        "name": "Temperatura SAC AT"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Caudal de la bomba de refrigerante AT"
+      },
+      "climate_blower_target_v": {
+        "name": "Tensión objetivo del ventilador de clima"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Válvula de refrigerante AT 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Válvula de refrigerante AT 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Posición de la celda con mayor tensión"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Posición de la celda con menor tensión"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Posición del sensor más caliente"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Posición del sensor más frío"
+      },
+      "climate_heatpump_state": {
+        "name": "Climatización y bomba de calor"
       },
       "wake_count_today": {
         "name": "Despertares hoy"
@@ -1016,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Disparador de informe"
+      },
+      "portal_delivery_trigger": {
+        "name": "Disparador del envío de datos"
       },
       "climate_mode": {
         "name": "Modo de climatización"
@@ -1638,6 +1703,12 @@
       "brake_fluid_warning": {
         "name": "Líquido de frenos"
       },
+      "hv_battery_consumption_overflow": {
+        "name": "Contador de consumo desbordado"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Contador de recuperación desbordado"
+      },
       "seat_heating": {
         "name": "Calefacción de asientos"
       },
@@ -2102,7 +2173,7 @@
       "description": "El backend de la marca ha devuelto **3 respuestas de autenticación de tipo bloqueo** en los últimos 30 minutos (la más reciente HTTP {last_status}). Esto suele significar que VW ha bloqueado temporalmente la cuenta subyacente de la marca tras demasiados intentos fallidos de renovación de token.\n\nEl bloqueo normalmente se levanta en **unas pocas horas, hasta 24 horas**. La integración ha dejado de reintentar para no extender la ventana de bloqueo.\n\n**Mientras esperas**:\n\n1. **No** inicies ni cierres sesión repetidamente en la app del fabricante: eso extiende el bloqueo.\n2. Espera al menos 1-2 horas y luego abre la app oficial del fabricante en tu teléfono. Si la app te inicia sesión sin problemas, el backend ha desbloqueado tu cuenta.\n3. Una vez desbloqueada, aumenta el `scan_interval` en Ajustes → Dispositivos y servicios → VW Group Connect → Configurar a 15-30 minutos para reducir la presión futura.\n4. Opcional: habilita el modo de portal de solo lectura del EU Data Act a través del OptionsFlow para mantener cierto flujo de datos durante futuros incidentes.\n\nEsta advertencia desaparece automáticamente la primera vez que la siguiente renovación de token tiene éxito."
     },
     "data_act_no_data": {
-      "title": "Portal EU Data Act: aún no hay datos del vehículo ({brand})",
+      "title": "Portal EU Data Act: aún no hay datos del vehículo ({cars})",
       "description": "El portal de la Ley de Datos de la UE inició sesión para {brand} pero todavía no devuelve ningún dato del vehículo.\n\nLa integración intenta crear la solicitud de datos continua por ti automáticamente, pero en algunas cuentas el portal mantiene la sesión del navegador anónima — y entonces la solicitud automática (y el botón \"Crear solicitud de datos de la Ley de Datos de la UE\" dentro de la app) no puede completarse, por lo que tienes que crear la solicitud tú mismo en el portal. Las causas habituales de un feed vacío:\n\n1. **Propiedad/uso no confirmado para este coche.** El portal debe mostrar la propiedad (o el uso) de tu vehículo como confirmada. Si no lo está, confírmala allí primero — necesario, aunque no siempre suficiente por sí solo.\n2. **Consentimiento de intercambio de datos no otorgado para este coche.** El consentimiento de intercambio de datos de la Ley de Datos de la UE se otorga por vehículo, una sola vez. Hasta que lo hagas, la solicitud permanece vacía.\n3. **Todavía no existe ninguna solicitud continua.** Si la creación automática no funcionó, créala tú mismo: en el portal, añade una Solicitud de Datos Personalizada con todos los clústeres marcados a una frecuencia de 15 minutos. **Elimina primero cualquier solicitud más antigua de este mismo coche** — el portal solo permite una solicitud activa por vehículo, así que una más antigua (por ejemplo una mensual) de este coche bloquea la nueva. No elimines la solicitud de otro coche: en una cuenta mixta de turismos y vehículos comerciales cada coche conserva su propia solicitud en su propio ámbito (los turismos bajo Volkswagen Personenkraftwagen, las furgonetas bajo Volkswagen Nutzfahrzeuge). La integración la detecta en el siguiente sondeo — sin necesidad de reiniciar.\n4. **El coche todavía no ha enviado nada nuevo.** Solo se publica un conjunto de datos nuevo después de que el coche se haya conducido, cargado o bloqueado/desbloqueado, por lo que una solicitud nueva puede tardar entre 15 y 60 minutos (o un trayecto corto) en empezar a llenarse.\n5. **Una interrupción del lado de VW.** VW informó de una interrupción del portal de la Ley de Datos de la UE para todas las marcas desde finales de mayo de 2026; mientras dure, el portal devuelve datos vacíos para todas las herramientas, recuperándose marca por marca.\n6. **O añade el canal de lectura del sitio web volkswagen.de.** En las opciones de la integración puedes añadir el canal de solo lectura del sitio web volkswagen.de como fuente alternativa: inicia sesión en el sitio web volkswagen.de (no en el backend de la app que bloquea el inicio de sesión headless) y, para algunos coches, devuelve campos que el feed del portal no ofrece. Necesita que tu Volkswagen ID sea el usuario principal confirmado del vehículo.\n\n**Comprobación más rápida:** abre `eu-data-act.drivesomethinggreater.com`, inicia sesión y confirma (a) que la propiedad/uso está confirmada, (b) que el consentimiento de intercambio de datos está otorgado para este coche, y (c) que existe una solicitud de datos continua (de 15 minutos) activa con todos los clústeres marcados — creándola tú mismo si no existe ninguna. Si tampoco ves datos ahí, es el lado de VW — nada que esta integración pueda hacer hasta que VW lo restablezca.\n\nEsta es la beta del portal de solo lectura — la advertencia desaparece por sí sola en cuanto llegan los datos."
     },
     "data_act_browser_missing": {

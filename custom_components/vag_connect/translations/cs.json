@@ -240,6 +240,7 @@
           "read_only_mode": "Režim jen pro čtení",
           "companion_read_charge_detail": "Companion: číst cíl nabíjení (naviguje v aplikaci)",
           "companion_wake_sleep": "Companion: probudit displej k dotazu, poté uspat",
+          "companion_close_app": "Companion: zavřít aplikaci auta po každém čtení",
           "force_ppe_climate": "Audi PPE/PPC klima-tělo (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Push aktualizace Skoda (MQTT, EXPERIMENTÁLNÍ)",
           "enable_push_fcm": "Push aktualizace CUPRA/SEAT (FCM, EXPERIMENTÁLNÍ)",
@@ -276,6 +277,7 @@
           "read_only_mode": "Když je povoleno, vytváří se pouze stavové senzory — žádné spínače, tlačítka, zámky, klima ani posuvníky odesílající příkazy. Užitečné, pokud chcete telemetrii vozidla bez rizika náhodného spuštění. Po přepnutí znovu načtěte integraci.",
           "companion_read_charge_detail": "Pouze companion (ADB). Načítá navíc cíl nabíjení, výkon a zbývající čas, které jsou skryté za obrazovkou s detailem nabíjení. Kvůli tomu KLEPÁ do aplikace, aby se tam dostala (asi každých 15 minut), proto to zapínejte až po ověření, že postup na vašem telefonu funguje. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
           "companion_wake_sleep": "Pouze companion (ADB). Před každým dotazem probudí displej telefonu a poté ho zase uspí, takže zamčený nebo spící telefon během čtení zobrazí aplikaci, aniž by displej svítil trvale. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
+          "companion_close_app": "Pouze Companion (ADB). Po každém dotazu vynuceně ukončí (zavře) aplikaci auta, takže další čtení ji spustí znovu načisto místo čtení obrazovky ponechané v mezipaměti. Pomáhá na zařízeních, kde aplikace mezi čteními zamrzne své hodnoty. Výchozí: vypnuto — studený start je pomalejší. Po přepnutí znovu načtěte.",
           "force_ppe_climate": "Pouze Audi. Vynucuje nový PPE/PPC formát těla (climatisationMode povinný, targetTemperature vynechaný) při startu klimatizace. Zapnout pouze pokud vlastníš Q6 e-tron, A6 e-tron, RS e-tron GT Facelift nebo A3 2024+ PHEV — jinak API vrátí 400. Po zapnutí znovu načti integraci.",
           "enable_push_mqtt": "EXPERIMENTÁLNÍ: pouze Skoda. Umožňuje push v reálném čase přes MQTT z backendu Skoda mysmob (vyžaduje Python balíčky aiomqtt + firebase-messaging — momentálně se načítají líně, nejsou předinstalované). Základní fáze ve verzi v1.18.0; ostré nasazení čeká na ověření komunitními testery. Pokud push není dostupný, integrace se tiše vrátí k dotazování (polling). Po přepnutí integraci znovu načtěte.",
           "enable_push_fcm": "EXPERIMENTÁLNÍ: pouze CUPRA/SEAT. Umožňuje push v reálném čase přes Firebase Cloud Messaging z backendu OLA (vyžaduje Python balíček firebase-messaging — stejné líné načítání jako u přepínače Skoda MQTT ve verzi v1.18.0). Základní fáze ve verzi v1.19.0; ostré nasazení čeká na ověření komunitními testery. Pokud push není dostupný, integrace se tiše vrátí k dotazování (polling). Po přepnutí integraci znovu načtěte.",
@@ -486,6 +488,24 @@
       "voltage_12v": {
         "name": "Baterie 12V"
       },
+      "battery_12v_soc_pct": {
+        "name": "Nabití 12V baterie"
+      },
+      "battery_12v_temperature_c": {
+        "name": "Teplota 12V baterie"
+      },
+      "battery_12v_health_pct": {
+        "name": "Stav 12V baterie"
+      },
+      "battery_12v_current_a": {
+        "name": "Proud 12V baterie"
+      },
+      "outside_humidity_pct": {
+        "name": "Vnější vlhkost"
+      },
+      "outside_dew_point_c": {
+        "name": "Vnější rosný bod"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Napětí článku (max)"
       },
@@ -503,6 +523,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Napětí baterie"
+      },
+      "hv_battery_current_a": {
+        "name": "Proud HV baterie"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Odebraná energie HV baterie"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Teplota přívodu chladiva HV baterie"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Teplota chladiva HV"
+      },
+      "hv_sac_temperature_c": {
+        "name": "Teplota SAC HV"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Průtok pumpy chladiva HV"
+      },
+      "climate_blower_target_v": {
+        "name": "Cílové napětí ventilátoru klimatizace"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Ventil chladiva HV baterie 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Ventil chladiva HV baterie 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Pozice článku s nejvyšším napětím"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Pozice článku s nejnižším napětím"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Pozice nejteplejšího snímače"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Pozice nejchladnějšího snímače"
+      },
+      "climate_heatpump_state": {
+        "name": "Stav klimatizace a tepelného čerpadla"
       },
       "wake_count_today": {
         "name": "Probuzení dnes"
@@ -1016,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Spouštěč hlášení"
+      },
+      "portal_delivery_trigger": {
+        "name": "Spouštěč doručení dat"
       },
       "climate_mode": {
         "name": "Režim klimatizace"
@@ -1638,6 +1703,12 @@
       "brake_fluid_warning": {
         "name": "Brzdová kapalina"
       },
+      "hv_battery_consumption_overflow": {
+        "name": "Čítač spotřeby přetekl"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Čítač rekuperace přetekl"
+      },
       "seat_heating": {
         "name": "Vyhřívání sedadel"
       },
@@ -2102,7 +2173,7 @@
       "description": "Backend značky vrátil za posledních 30 minut **3 autentizační odpovědi třídy „zablokováno“** (naposledy HTTP {last_status}). To obvykle znamená, že VW dočasně zablokoval příslušný účet značky po příliš mnoha neúspěšných pokusech o obnovení tokenu.\n\nZablokování obvykle pomine během **několika hodin až 24 hodin**. Integrace přestala opakovat pokusy, aby se doba blokace neprodlužovala.\n\n**Zatímco čekáte**:\n\n1. **Nepřihlašujte se** opakovaně do aplikace výrobce a neodhlašujte se z ní — prodlužuje to blokaci.\n2. Počkejte alespoň 1–2 hodiny, poté otevřete oficiální aplikaci výrobce v telefonu. Pokud vás aplikace bez problémů přihlásí, backend váš účet odblokoval.\n3. Po odblokování zvyšte `scan_interval` v Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat na 15–30 minut, abyste snížili budoucí zátěž.\n4. Volitelně: aktivujte režim portálu EU Data Act jen pro čtení přes OptionsFlow, aby během budoucích incidentů dál proudila alespoň nějaká data.\n\nToto varování automaticky zmizí, jakmile poprvé úspěšně proběhne další obnovení tokenu."
     },
     "data_act_no_data": {
-      "title": "Portál EU Data Act: zatím žádná data vozidla ({brand})",
+      "title": "Portál EU Data Act: zatím žádná data vozidla ({cars})",
       "description": "Portál EU Data Act se přihlásil pro {brand}, ale zatím nevrací žádná data vozidla.\n\nIntegrace se za vás pokouší souvislý požadavek na data vytvořit automaticky, ale u některých účtů portál ponechá relaci prohlížeče anonymní — a pak se automatický požadavek (a tlačítko „Vytvořit požadavek na data podle EU Data Act\" v aplikaci) nemůže dokončit, takže si musíte požadavek v portálu vytvořit sami. Obvyklé příčiny prázdného přísunu dat:\n\n1. **Vlastnictví/užívání není pro toto vozidlo potvrzeno.** Portál musí u vašeho vozidla zobrazovat vlastnictví (nebo užívání) jako potvrzené. Pokud tomu tak není, potvrďte je tam nejdřív — nutné, i když samo o sobě ne vždy dostačující.\n2. **Souhlas se sdílením dat není pro toto vozidlo udělen.** Souhlas se sdílením dat podle EU Data Act udělujete pro každé vozidlo jednou. Dokud to neuděláte, požadavek zůstane prázdný.\n3. **Zatím neexistuje žádný souvislý požadavek.** Pokud automatické vytvoření neproběhlo, vytvořte jej sami: v portálu přidejte Vlastní požadavek na data (Custom Data Request) se všemi skupinami zaškrtnutými a s frekvencí 15 minut. **Nejprve smažte jakýkoli starší požadavek pro právě toto vozidlo** — portál povoluje jen jeden aktivní požadavek na vozidlo, takže starší (například měsíční) požadavek pro toto vozidlo blokuje nový. Nemažte požadavek jiného vozidla: u smíšeného účtu s osobními i užitkovými vozy si každé vozidlo zachovává svůj vlastní požadavek ve své vlastní sekci (osobní vozy pod Volkswagen Personenkraftwagen, dodávky pod Volkswagen Nutzfahrzeuge). Integrace jej převezme při dalším dotazu — restart není potřeba.\n4. **Vozidlo zatím neodeslalo nic nového.** Nová datová sada se zveřejní až poté, co bylo vozidlo řízeno, nabito nebo zamčeno/odemčeno, takže než se nový požadavek začne plnit, může to trvat 15–60 minut (nebo krátkou jízdu).\n5. **Výpadek na straně VW.** VW ohlásil výpadek portálu EU Data Act pro všechny značky od konce května 2026; dokud trvá, portál vrací prázdná data pro každý nástroj a zotavuje se značka po značce.\n6. **Nebo přidejte čtecí kanál webu volkswagen.de.** V možnostech integrace můžete jako alternativní zdroj přidat čtecí (read-only) kanál webu volkswagen.de: přihlásí se na webu volkswagen.de (ne do backendu aplikace, který blokuje bezhlavé přihlášení) a u některých vozidel vrací pole, která přísun z portálu nevrací. Vyžaduje, aby vaše Volkswagen ID bylo potvrzeným hlavním uživatelem vozidla.\n\n**Nejrychlejší kontrola:** otevřete `eu-data-act.drivesomethinggreater.com`, přihlaste se a ověřte, že (a) je potvrzeno vlastnictví/užívání, (b) je pro toto vozidlo udělen souhlas se sdílením dat a (c) existuje aktivní souvislý (15minutový) požadavek na data se všemi skupinami zaškrtnutými — pokud žádný neexistuje, vytvořte jej sami. Pokud ani tam nevidíte žádná data, je to na straně VW — tato integrace s tím nic nezmůže, dokud to VW neobnoví.\n\nToto je beta verze portálu jen pro čtení — jakmile data dorazí, upozornění samo zmizí."
     },
     "data_act_browser_missing": {

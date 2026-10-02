@@ -43,6 +43,13 @@ CONF_COMPANION_READ_CHARGE_DETAIL = "companion_read_charge_detail"
 # to sleep afterwards, so a locked/asleep phone shows the app (not the keyguard)
 # without needing "Stay awake" on permanently. OFF by default.
 CONF_COMPANION_WAKE_SLEEP        = "companion_wake_sleep"
+# v4.9.0 (#1552) — opt-in: force-stop (close) the car app after every poll, so
+# the next read relaunches it fresh instead of scraping a screen the app left
+# cached/stale. Helps on devices where the app freezes its own UI between reads
+# (@nekas123's P10). OFF by default: a force-stop makes the next read a cold
+# relaunch (slower, and can re-hit the app's backend sync), so a user opts in
+# only after confirming the freeze on their own device.
+CONF_COMPANION_CLOSE_APP         = "companion_close_app"
 # v2.27.0 (#968) — route the companion channel through the ADB Bridge add-on
 # instead of talking ADB to the phone directly. Android 11+ wireless debugging
 # needs TLS + pairing, which the pure-python transport cannot do, so a modern

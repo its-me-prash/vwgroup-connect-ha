@@ -240,6 +240,7 @@
           "read_only_mode": "Alleen-lezen modus",
           "companion_read_charge_detail": "Companion: laaddoel lezen (navigeert in de app)",
           "companion_wake_sleep": "Companion: scherm wekken om op te halen, daarna weer in slaap",
+          "companion_close_app": "Companion: auto-app na elke uitlezing sluiten",
           "force_ppe_climate": "Audi PPE/PPC klimaat-body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push-updates (MQTT, EXPERIMENTEEL)",
           "enable_push_fcm": "CUPRA/SEAT push-updates (FCM, EXPERIMENTEEL)",
@@ -276,6 +277,7 @@
           "read_only_mode": "Indien ingeschakeld worden alleen statussensoren aangemaakt — geen schakelaars, knoppen, sloten, klimaat of schuifregelaars die commando's verzenden. Handig als je voertuigtelemetrie wilt zonder risico op onbedoelde bediening. Herlaad de integratie na inschakelen.",
           "companion_read_charge_detail": "Alleen voor Companion (ADB). Leest ook het laaddoel, het vermogen en de resterende tijd die achter het laaddetailscherm zitten. Hiervoor wordt er in de app GETIKT om daarheen te navigeren (ongeveer elke 15 minuten), dus schakel dit pas in als je hebt bevestigd dat dit op je telefoon werkt. Standaard uit. Herlaad de integratie na het wijzigen.",
           "companion_wake_sleep": "Alleen voor Companion (ADB). Wekt het scherm van de telefoon vóór elke opvraging en laat het daarna weer slapen, zodat een vergrendelde of slapende telefoon de app toont tijdens het lezen zonder het scherm permanent aan te laten staan. Standaard uit. Herlaad de integratie na het wijzigen.",
+          "companion_close_app": "Alleen Companion (ADB). Stopt (sluit) de auto-app na elke uitlezing geforceerd, zodat de volgende uitlezing hem vers opstart in plaats van een in cache achtergebleven scherm te lezen. Nuttig op toestellen waar de app zijn waarden tussen uitlezingen bevriest. Standaard uit — een koude herstart is trager. Herlaad na wijziging.",
           "force_ppe_climate": "Alleen voor Audi. Forceert het nieuwe PPE/PPC body-formaat (climatisationMode verplicht, targetTemperature weggelaten) bij klimaat-start. Alleen inschakelen als je een Q6 e-tron, A6 e-tron, RS e-tron GT Facelift of A3 2024+ PHEV bezit — anders geeft de API 400 terug. Integratie herladen na inschakelen.",
           "enable_push_mqtt": "EXPERIMENTEEL: alleen Skoda. Schakelt realtime MQTT-push van de Skoda mysmob-backend in (vereist de Python-pakketten aiomqtt + firebase-messaging — momenteel lazy-imported, niet vooraf geïnstalleerd). Basisfase in v1.18.0; live-activering wacht op validatie door community-testers. Als push niet beschikbaar is, valt de integratie stilletjes terug op polling. Herlaad de integratie na het wijzigen.",
           "enable_push_fcm": "EXPERIMENTEEL: alleen CUPRA/SEAT. Schakelt realtime Firebase Cloud Messaging-push van de OLA-backend in (vereist het Python-pakket firebase-messaging — dezelfde lazy-import als de Skoda MQTT-schakelaar in v1.18.0). Basisfase in v1.19.0; live-activering wacht op validatie door community-testers. Als push niet beschikbaar is, valt de integratie stilletjes terug op polling. Herlaad de integratie na het wijzigen.",
@@ -486,6 +488,24 @@
       "voltage_12v": {
         "name": "12V-accu"
       },
+      "battery_12v_soc_pct": {
+        "name": "12V-accu lading"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12V-accu temperatuur"
+      },
+      "battery_12v_health_pct": {
+        "name": "12V-accu gezondheid"
+      },
+      "battery_12v_current_a": {
+        "name": "12V-accu stroom"
+      },
+      "outside_humidity_pct": {
+        "name": "Luchtvochtigheid buiten"
+      },
+      "outside_dew_point_c": {
+        "name": "Dauwpunt buiten"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Celspanning (max)"
       },
@@ -503,6 +523,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Batterijspanning"
+      },
+      "hv_battery_current_a": {
+        "name": "HV-accu stroom"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV-accu energieverbruik"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV-accu aanvoertemperatuur"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV-koelvloeistoftemperatuur"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV-SAC-temperatuur"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV-koelvloeistofpomp debiet"
+      },
+      "climate_blower_target_v": {
+        "name": "Streefspanning klimaatventilator"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV-accu koelvloeistofventiel 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV-accu koelvloeistofventiel 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Positie hoogste celspanning"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Positie laagste celspanning"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Positie warmste sensor"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Positie koudste sensor"
+      },
+      "climate_heatpump_state": {
+        "name": "Klimaatregeling en warmtepomp"
       },
       "wake_count_today": {
         "name": "Wake-ups vandaag"
@@ -1016,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Rapport-trigger"
+      },
+      "portal_delivery_trigger": {
+        "name": "Trigger van gegevenslevering"
       },
       "climate_mode": {
         "name": "Klimaatmodus"
@@ -1638,6 +1703,12 @@
       "brake_fluid_warning": {
         "name": "Remvloeistof"
       },
+      "hv_battery_consumption_overflow": {
+        "name": "Verbruiksteller omgelopen"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Recuperatieteller omgelopen"
+      },
       "seat_heating": {
         "name": "Stoelverwarming"
       },
@@ -2102,7 +2173,7 @@
       "description": "De backend van het merk heeft in de afgelopen 30 minuten **3 auth-reacties van de lock-klasse** teruggegeven (meest recent HTTP {last_status}). Dit betekent doorgaans dat VW het onderliggende merkaccount tijdelijk heeft geblokkeerd na te veel mislukte pogingen om het token te vernieuwen.\n\nDe vergrendeling wordt meestal binnen **enkele uren tot 24 uur** opgeheven. De integratie is gestopt met opnieuw proberen, zodat het vergrendelingsvenster niet wordt verlengd.\n\n**Terwijl je wacht**:\n\n1. Meld je **niet** herhaaldelijk aan/af bij de app van de fabrikant — dat verlengt de vergrendeling.\n2. Wacht minstens 1-2 uur en open daarna de officiële app van de fabrikant op je telefoon. Als de app je probleemloos aanmeldt, heeft de backend je account ontgrendeld.\n3. Verhoog na het ontgrendelen de `scan_interval` in Instellingen → Apparaten en services → VW Group Connect → Configureren naar 15-30 minuten om toekomstige druk te verminderen.\n4. Optioneel: schakel de alleen-lezen EU Data Act-portalmodus in via de OptionsFlow om tijdens toekomstige incidenten toch wat gegevens te blijven ontvangen.\n\nDeze waarschuwing verdwijnt automatisch zodra de volgende tokenvernieuwing voor het eerst slaagt."
     },
     "data_act_no_data": {
-      "title": "EU Data Act-portaal: nog geen voertuiggegevens ({brand})",
+      "title": "EU Data Act-portaal: nog geen voertuiggegevens ({cars})",
       "description": "Het EU Data Act-portaal is aangemeld voor {brand}, maar levert nog geen voertuiggegevens.\n\nDe integratie probeert het doorlopende gegevensverzoek automatisch voor je aan te maken, maar bij sommige accounts houdt het portaal de browsersessie anoniem — en dan kan het automatische verzoek (en de in-app-knop \"EU Data Act-gegevensverzoek aanmaken\") niet worden voltooid, dus moet je het verzoek zelf in het portaal aanmaken. De gebruikelijke oorzaken van een lege feed:\n\n1. **Eigendom/gebruikersrecht niet bevestigd voor deze auto.** Het portaal moet het eigendom (of gebruikersrecht) van je voertuig als bevestigd tonen. Als dat niet zo is, bevestig het daar dan eerst — noodzakelijk, maar op zichzelf niet altijd voldoende.\n2. **Toestemming voor gegevensdeling niet verleend voor deze auto.** Je verleent de EU Data Act-toestemming voor gegevensdeling één keer per voertuig. Zolang je dat niet doet, blijft het verzoek leeg.\n3. **Er bestaat nog geen doorlopend verzoek.** Als het automatisch aanmaken niet is gelukt, maak het dan zelf aan: voeg in het portaal een Custom Data Request toe met alle clusters aangevinkt op een frequentie van 15 minuten. **Verwijder eerst elk ouder verzoek voor precies deze auto** — het portaal staat maar één actief verzoek per voertuig toe, dus een ouder verzoek (bijvoorbeeld een maandelijks) voor deze auto blokkeert het nieuwe. Verwijder niet het verzoek van een andere auto: bij een gemengd account met personen- en bedrijfsvoertuigen behoudt elke auto zijn eigen verzoek onder zijn eigen gedeelte (personenauto's onder Volkswagen Personenkraftwagen, bestelwagens onder Volkswagen Nutzfahrzeuge). De integratie pikt het bij de volgende polling op — geen herstart nodig.\n4. **De auto heeft nog niets nieuws verstuurd.** Een nieuwe dataset wordt pas gepubliceerd nadat de auto is gereden, opgeladen of vergrendeld/ontgrendeld, dus een nieuw verzoek kan er 15-60 minuten (of een korte rit) over doen om zich te vullen.\n5. **Een storing aan VW-zijde.** VW meldde een storing van het EU Data Act-portaal voor alle merken vanaf eind mei 2026; zolang die duurt levert het portaal voor elke tool lege gegevens, en herstelt het merk voor merk.\n6. **Of voeg het leeskanaal van de volkswagen.de-website toe.** In de opties van de integratie kun je het alleen-lezen volkswagen.de-websitekanaal als alternatieve bron toevoegen: het meldt zich aan op de volkswagen.de-website (niet de app-backend die de headless login blokkeert), en levert voor sommige auto's velden die de portaalfeed niet levert. Daarvoor moet je Volkswagen ID de bevestigde hoofdgebruiker van het voertuig zijn.\n\n**Snelste controle:** open `eu-data-act.drivesomethinggreater.com`, meld je aan en bevestig (a) dat eigendom/gebruikersrecht is bevestigd, (b) dat de toestemming voor gegevensdeling voor deze auto is verleend, en (c) dat er een actief doorlopend gegevensverzoek (van 15 minuten) is met alle clusters aangevinkt — maak het zelf aan als er geen bestaat. Als je daar ook geen gegevens ziet, ligt het aan de VW-zijde — dan kan deze integratie niets doen totdat VW het herstelt.\n\nDit is de alleen-lezen portaalbèta — de waarschuwing verdwijnt vanzelf zodra er gegevens binnenkomen."
     },
     "data_act_browser_missing": {

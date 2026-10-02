@@ -240,6 +240,7 @@
           "read_only_mode": "Modalità sola lettura",
           "companion_read_charge_detail": "Companion: leggi l'obiettivo di ricarica (naviga nell'app)",
           "companion_wake_sleep": "Companion: accendi lo schermo per l'interrogazione, poi rimettilo in stop",
+          "companion_close_app": "Companion: chiudi l'app auto dopo ogni lettura",
           "force_ppe_climate": "Body clima Audi PPE/PPC (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Aggiornamenti push Skoda (MQTT, SPERIMENTALE)",
           "enable_push_fcm": "Aggiornamenti push CUPRA/SEAT (FCM, SPERIMENTALE)",
@@ -276,6 +277,7 @@
           "read_only_mode": "Quando abilitata, vengono creati solo i sensori di stato — nessun interruttore, pulsante, blocco, clima o cursore che invii comandi. Utile se vuoi la telemetria del veicolo senza alcun rischio di attivazione accidentale. Ricarica l'integrazione dopo aver modificato l'impostazione.",
           "companion_read_charge_detail": "Solo Companion (ADB). Legge anche l'obiettivo di ricarica, la potenza e il tempo rimanente che si trovano dietro la schermata di dettaglio della ricarica. Per arrivarci TOCCA l'app (circa ogni 15 minuti), quindi attivalo solo dopo aver verificato che la procedura funzioni sul tuo telefono. Disattivato per impostazione predefinita. Ricarica dopo aver modificato l'impostazione.",
           "companion_wake_sleep": "Solo Companion (ADB). Accende lo schermo del telefono prima di ogni interrogazione e lo rimette in stop subito dopo, così un telefono bloccato o in stop mostra l'app durante la lettura senza tenere il display sempre acceso. Disattivato per impostazione predefinita. Ricarica dopo aver modificato l'impostazione.",
+          "companion_close_app": "Solo Companion (ADB). Forza l'arresto (chiude) dell'app auto dopo ogni lettura, così la lettura successiva la riavvia da zero invece di leggere una schermata rimasta in cache. Utile sui dispositivi dove l'app congela i valori tra una lettura e l'altra. Disattivato per impostazione predefinita — un riavvio a freddo è più lento. Ricarica dopo la modifica.",
           "force_ppe_climate": "Solo per Audi. Forza il nuovo formato body PPE/PPC (climatisationMode obbligatorio, targetTemperature omesso) all'avvio del clima. Abilita solo se possiedi un Q6 e-tron, A6 e-tron, RS e-tron GT Facelift o A3 2024+ PHEV — altrimenti l'avvio del clima restituisce 400. Ricarica l'integrazione dopo aver modificato l'impostazione.",
           "enable_push_mqtt": "SPERIMENTALE: solo per Skoda. Abilita il push MQTT in tempo reale dal backend Skoda mysmob (richiede i pacchetti Python aiomqtt + firebase-messaging — attualmente importati in lazy, non preinstallati). Fase di fondamenta in v1.18.0; l'attivazione live è in attesa della validazione dei tester della community. Se il push non è disponibile, l'integrazione ripiega silenziosamente sul polling. Ricarica l'integrazione dopo aver modificato l'impostazione.",
           "enable_push_fcm": "SPERIMENTALE: solo CUPRA/SEAT. Abilita il push in tempo reale via Firebase Cloud Messaging dal backend OLA (richiede il pacchetto Python firebase-messaging — stesso lazy-import del toggle MQTT Skoda della v1.18.0). Fase di fondamenta in v1.19.0; l'attivazione live è in attesa della validazione dei tester della community. Se il push non è disponibile, l'integrazione ripiega silenziosamente sul polling. Ricarica l'integrazione dopo aver modificato l'impostazione.",
@@ -492,6 +494,24 @@
       "voltage_12v": {
         "name": "Batteria 12V"
       },
+      "battery_12v_soc_pct": {
+        "name": "Carica batteria 12 V"
+      },
+      "battery_12v_temperature_c": {
+        "name": "Temperatura batteria 12 V"
+      },
+      "battery_12v_health_pct": {
+        "name": "Salute batteria 12 V"
+      },
+      "battery_12v_current_a": {
+        "name": "Corrente batteria 12 V"
+      },
+      "outside_humidity_pct": {
+        "name": "Umidità esterna"
+      },
+      "outside_dew_point_c": {
+        "name": "Punto di rugiada esterno"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Tensione cella (max)"
       },
@@ -509,6 +529,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Tensione batteria"
+      },
+      "hv_battery_current_a": {
+        "name": "Corrente batteria AT"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Energia consumata batteria AT"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Temperatura mandata refrigerante batteria AT"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Temperatura refrigerante AT"
+      },
+      "hv_sac_temperature_c": {
+        "name": "Temperatura SAC AT"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Portata pompa refrigerante AT"
+      },
+      "climate_blower_target_v": {
+        "name": "Tensione target ventola clima"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Valvola refrigerante batteria AT 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Valvola refrigerante batteria AT 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Posizione cella con tensione massima"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Posizione cella con tensione minima"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Posizione sensore più caldo"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Posizione sensore più freddo"
+      },
+      "climate_heatpump_state": {
+        "name": "Climatizzazione e pompa di calore"
       },
       "wake_count_today": {
         "name": "Risvegli oggi"
@@ -1016,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Trigger report"
+      },
+      "portal_delivery_trigger": {
+        "name": "Trigger della consegna dati"
       },
       "climate_mode": {
         "name": "Modalità clima"
@@ -1581,6 +1646,12 @@
       "brake_fluid_warning": {
         "name": "Liquido freni"
       },
+      "hv_battery_consumption_overflow": {
+        "name": "Contatore consumo in overflow"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Contatore recupero in overflow"
+      },
       "warning_12v_low": {
         "name": "Batteria 12V scarica"
       },
@@ -2102,7 +2173,7 @@
       "description": "Il backend della marca ha restituito **3 risposte di autenticazione di tipo blocco** negli ultimi 30 minuti (più di recente HTTP {last_status}). Questo di solito significa che VW ha bloccato temporaneamente l'account della marca sottostante dopo troppi tentativi falliti di rinnovo del token.\n\nIl blocco di solito si risolve entro **poche ore fino a 24 ore**. L'integrazione ha smesso di riprovare così da non prolungare la finestra di blocco.\n\n**Mentre aspetti**:\n\n1. **Non** accedere / uscire ripetutamente dall'app del produttore — questo prolunga il blocco.\n2. Attendi almeno 1-2 ore, poi apri l'app ufficiale del produttore sul telefono. Se l'app ti fa accedere senza problemi, il backend ha sbloccato il tuo account.\n3. Una volta sbloccato, aumenta lo `scan_interval` in Impostazioni → Dispositivi e servizi → VW Group Connect → Configura a 15-30 minuti per ridurre la pressione futura.\n4. Facoltativo: abilita la modalità portale EU Data Act in sola lettura tramite l'OptionsFlow per mantenere un flusso di dati durante futuri incidenti.\n\nQuesto avviso si cancella automaticamente al primo rinnovo del token riuscito."
     },
     "data_act_no_data": {
-      "title": "Portale EU Data Act: ancora nessun dato del veicolo ({brand})",
+      "title": "Portale EU Data Act: ancora nessun dato del veicolo ({cars})",
       "description": "Il portale dell'EU Data Act ha effettuato l'accesso per {brand} ma non restituisce ancora alcun dato del veicolo.\n\nL'integrazione tenta di creare automaticamente per te la richiesta di dati continua, ma su alcuni account il portale mantiene anonima la sessione del browser — e in tal caso la richiesta automatica (e il pulsante \"Crea richiesta dati EU Data Act\" nell'app) non riesce a completarsi, quindi devi creare tu stesso la richiesta nel portale. Le cause abituali di un feed vuoto:\n\n1. **Proprietà/utilizzo non confermati per questa auto.** Il portale deve mostrare come confermata la proprietà (o l'utilizzo) del tuo veicolo. Se non lo è, confermala prima lì — necessario, anche se da solo non sempre sufficiente.\n2. **Consenso alla condivisione dei dati non concesso per questa auto.** Il consenso alla condivisione dei dati dell'EU Data Act si concede per veicolo, una volta sola. Finché non lo fai, la richiesta resta vuota.\n3. **Non esiste ancora alcuna richiesta continua.** Se la creazione automatica non ha avuto effetto, creala tu stesso: nel portale, aggiungi una Richiesta dati personalizzata con tutti i cluster selezionati a una frequenza di 15 minuti. **Elimina prima qualsiasi richiesta più vecchia per questa stessa auto** — il portale consente una sola richiesta attiva per veicolo, quindi una più vecchia (ad esempio una mensile) per questa auto blocca quella nuova. Non eliminare la richiesta di un'altra auto: su un account misto di autovetture e veicoli commerciali ogni auto conserva la propria richiesta nel proprio ambito (le autovetture sotto Volkswagen Personenkraftwagen, i furgoni sotto Volkswagen Nutzfahrzeuge). L'integrazione la rileva al prossimo polling — nessun riavvio necessario.\n4. **L'auto non ha ancora inviato nulla di nuovo.** Un nuovo set di dati viene pubblicato solo dopo che l'auto è stata guidata, ricaricata o bloccata/sbloccata, quindi una nuova richiesta può impiegare 15-60 minuti (o un breve tragitto) prima di iniziare a riempirsi.\n5. **Un'interruzione lato VW.** VW ha segnalato un'interruzione del portale EU Data Act per tutti i marchi a partire da fine maggio 2026; finché dura, il portale restituisce dati vuoti per ogni strumento, ripristinandosi marchio per marchio.\n6. **Oppure aggiungi il canale di lettura del sito web volkswagen.de.** Nelle opzioni dell'integrazione puoi aggiungere il canale di sola lettura del sito web volkswagen.de come fonte alternativa: effettua l'accesso sul sito web volkswagen.de (non il backend dell'app che blocca il login headless) e per alcune auto restituisce campi che il feed del portale non fornisce. Richiede che il tuo Volkswagen ID sia l'utente primario confermato del veicolo.\n\n**Verifica più rapida:** apri `eu-data-act.drivesomethinggreater.com`, accedi e conferma che (a) la proprietà/l'utilizzo sia confermato, (b) il consenso alla condivisione dei dati sia concesso per questa auto e (c) sia presente una richiesta dati continua (15 minuti) attiva con tutti i cluster selezionati — creandola tu stesso se non ne esiste nessuna. Se anche lì non vedi dati, il problema è lato VW — questa integrazione non può fare nulla finché VW non lo ripristina.\n\nQuesta è la beta del portale in sola lettura — l'avviso scompare da solo una volta arrivati i dati."
     },
     "data_act_browser_missing": {

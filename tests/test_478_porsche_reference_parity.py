@@ -136,11 +136,18 @@ def _coord_self(reason: str = "", *, pending: bool = True) -> SimpleNamespace:
     portal = SimpleNamespace(last_login_interaction="", last_no_data_reason=reason)
     client = SimpleNamespace(_eu_portal=portal, _supplementary_eu_portal=None)
     entry = SimpleNamespace(entry_id="e1", data={CONF_BRAND: "skoda"})
-    return SimpleNamespace(
+    me = SimpleNamespace(
         _cariad_client=client, entry=entry, hass=MagicMock(),
         _portal_interaction_reason="",
         _data_act_session_expired_pending=pending,
+        vehicles={},
     )
+    # #1656 — the Repair now names the starved cars; borrow the real label
+    # builder. With no vehicles it falls back to the brand, as before.
+    me._no_data_vehicle_labels = (
+        VagConnectCoordinator._no_data_vehicle_labels.__get__(me)
+    )
+    return me
 
 
 def test_session_expired_repair_is_remembered_when_raised() -> None:

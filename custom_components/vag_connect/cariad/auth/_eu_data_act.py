@@ -29,6 +29,8 @@ Attribution in LEGAL.md.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import io
 import json
 import logging
@@ -1326,6 +1328,103 @@ def _lead_float(raw: str | None) -> float | None:
     return _to_float(parts[0]) if parts else None
 
 
+# v4.10.0 (#1661, @dasebi91's ID.7 on ID.SW 5.6) — the portal also delivers whole
+# UDS diagnostic responses, base64-encoded, under keys shaped
+# ``LL_<ecu>UDS_ReadDataByIdentMeasuValue_<name>_0x<DID>`` (plus an optional
+# ``_<n>`` instance suffix when the same DID arrives from several logical links).
+# The official V6.0 catalogue lists 77 of them across 14 control units, so these
+# are dispatched on the DID — the stable part — rather than on the full field
+# name: the ECU prefix and the instance suffix carry no semantics, and matching
+# whole names would miss every ``_0x1E0E_1`` variant another car ships.
+_UDS_KEY_RE = re.compile(
+    r"UDS_ReadDataByIdentMeasuValue_.*?_(0x[0-9A-Fa-f]+)(?:_\d+)?$"
+)
+
+# The DIDs we decode, lower-cased. Everything else stays Scout-visible: an
+# envelope we cannot interpret must keep being reported, not be swallowed.
+#   0x2AB6 cluster range display      0x2AF7 12 V battery health
+#   0x27C3 outside humidity sensor    0x2BD  standard ambient conditions
+#   0x1E0E/0F HV pack temp extremes   0x1E33/34 HV cell voltage extremes
+_UDS_HANDLED_DIDS = frozenset(
+    {"0x2ab6", "0x2af7", "0x27c3", "0x2bd", "0x1e0e", "0x1e0f", "0x1e33", "0x1e34"}
+)
+
+
+def _uds_envelope(raw: str | None) -> tuple[dict[str, str], str | None]:
+    """Decode one base64 UDS envelope into ``({param: value}, capture_ts)``.
+
+    The payload is a JSON document (``diagDataResults_Response_Schema_V1.3``)
+    whose values sit in ``DiagnosticData[].DataObjects[].Values[]``, sometimes one
+    level deeper inside a ``Structure`` list. Only nodes reporting success are
+    read, so a refused or timed-out ECU read can never be mistaken for a reading.
+    Fail-soft throughout: anything unexpected yields ``({}, None)`` and the field
+    stays Scout-visible rather than producing a half-parsed value.
+    """
+    if not raw:
+        return {}, None
+    try:
+        doc = json.loads(base64.b64decode(str(raw), validate=True))
+    except (ValueError, TypeError, binascii.Error):
+        return {}, None
+    if not isinstance(doc, dict):
+        return {}, None
+    nodes = doc.get("DiagnosticData")
+    if not isinstance(nodes, list):
+        return {}, None
+    params: dict[str, str] = {}
+    captured: str | None = None
+
+    def _collect(val: Any) -> None:
+        if isinstance(val, list):
+            for item in val:
+                _collect(item)
+            return
+        if not isinstance(val, dict):
+            return
+        name = val.get("ParamShortName")
+        if isinstance(name, str):
+            inner = val.get("Value")
+            if isinstance(inner, (str, int, float)) and name not in params:
+                params[name] = str(inner)
+            _collect(val.get("Structure"))
+
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        if str(node.get("DiagNodeStatus", "")).lower() != "success":
+            continue
+        ts = node.get("Timestamp")
+        if isinstance(ts, str) and captured is None:
+            captured = ts
+        for obj in node.get("DataObjects") or ():
+            if not isinstance(obj, dict):
+                continue
+            if str(obj.get("Result", "Success")).lower() != "success":
+                continue
+            _collect(obj.get("Values"))
+    return params, captured
+
+
+def _overflow_flag(raw: str | None, current: bool | None) -> bool | None:
+    """#1661 — a BMS counter's "übergelaufen" flag, fill-if-empty.
+
+    The signal reports the literal token ``Ueberlauf`` when the counter has
+    wrapped at least once, and a negated form otherwise. Only those two shapes
+    are believed: an unrecognised token leaves the flag unset rather than
+    claiming the counter is intact, because the flag's whole job is to say
+    whether the kWh total beside it can be trusted.
+    """
+    if current is not None or raw is None:
+        return current
+    token = str(raw).strip().lower()
+    if not token:
+        return current
+    negated = token.startswith(("kein", "nicht", "no_", "not_")) or "nicht_ueber" in token
+    if "ueberlauf" in token or "overflow" in token:
+        return not negated
+    return current
+
+
 def _parse_pers_location(value: Any) -> tuple[float | None, float | None]:
     """#1378/#923 — parse the MEB portal ``persLocation`` leaf into a validated
     ``(lat, lon)``. Škoda Elroq (and other MEB cars) DO ship the vehicle position
@@ -1465,6 +1564,11 @@ _ENUM_PREFIXES = (
     # Scouts). Tokens: UPDATE_REASON_{INVALID,CHARGING,CLAMP15_OFF,CLAMP15_ON,
     # CLIMATISATION,OTHER} — dict-confirmed, so _shorten_enum strips the prefix.
     "UPDATE_REASON_",
+    # v4.10.0 — the envelope delivery marker's family (leaf ``trigger``). Only
+    # TRIGGER_NO_REASON observed so far, across 22 Scouts and four brands; the
+    # prefix is stripped so the sensor reads "NO_REASON" rather than shouting
+    # the protocol family at the user. See portal_delivery_trigger.
+    "TRIGGER_",
 )
 
 # v2.15.1 — labels appended to ``available_charge_modes`` per truthy
@@ -2285,6 +2389,139 @@ def map_dataset_to_vehicle_data(
     if _bms_pack_v is not None:
         d.hv_battery_pack_voltage_v = round(_bms_pack_v, 1)
 
+    # v4.10.0 (#1661, @dasebi91's ID.7 on ID.SW 5.6) — the same raw-signal dialect,
+    # but this car ships a DIFFERENT signal set: the extremes come off BMS_28
+    # instead of BMS_11 and it adds whole control units we had never seen deliver
+    # (HVL charge socket, HVLE, eTM thermal management, KL climate, KBI/BCM1
+    # cluster). Every name and unit below is grounded in the official V6.0 field
+    # catalogue (@Testius007's export, archived under #923): 34 of 34 of this
+    # car's unmapped leaves are listed there, with the descriptions quoted inline.
+    def _sig(name: str) -> str | None:
+        """One raw signal, both spellings. See the #1622 note above: the
+        flattener emits the qualified path AND the bare leaf without linking
+        them, so naming only one leaves the twin to re-flood the Scout."""
+        return first(f"eu_data_act.{name}", name)
+
+    # "Aktueller Strom der Batterie. Stromrichtung: Ladestrom wird mit positivem
+    # Vorzeichen" — so the sign is meaningful and is NOT normalised away:
+    # discharging reads negative, exactly as the car reports it.
+    _bms_cur = _lead_float(_sig("BMS_Strom_XIX_BMS_20_XIX_E3V_VLAN_Connect"))
+    if _bms_cur is not None:
+        d.hv_battery_current_a = round(_bms_cur, 2)
+    # "Zähler: Energieentnahme aus der HV-Batterie" — a counter in watt-seconds,
+    # same scaling as the recuperation counter above.
+    _bms_cons = _lead_float(_sig("BMS_Verbrauch_XIX_BMS_05_XIX_E3V_VLAN_Connect"))
+    if _bms_cons is not None:
+        d.hv_battery_consumption_kwh = round(_bms_cons / 3_600_000, 3)
+    # "…mindestens 1x übergelaufen" — the wrap flags for those two counters. They
+    # decide whether the kWh totals above can be trusted, so they are surfaced
+    # rather than dropped. Only an explicit value is believed; an unrecognised
+    # token stays None instead of silently reading "fine".
+    d.hv_battery_consumption_overflow = _overflow_flag(
+        _sig("BMS_Verbrauch_Ueberlauf_XIX_BMS_05_XIX_E3V_VLAN_Connect"),
+        d.hv_battery_consumption_overflow)
+    d.hv_battery_recuperation_overflow = _overflow_flag(
+        _sig("BMS_Rekuperation_Ueberlauf_XIX_BMS_05_XIX_E3V_VLAN_Connect"),
+        d.hv_battery_recuperation_overflow)
+    # "Kühlmittel-Vorlauftemperatur" — the feed-side twin of the return
+    # temperature #1622 already mapped.
+    _bms_feed = _lead_float(
+        _sig("BMS_VorlaufTemperatur_XIX_BMS_25_XIX_E3V_VLAN_Connect"))
+    if _bms_feed is not None:
+        d.hv_battery_coolant_feed_temp_c = round(_bms_feed, 1)
+    # "Status Ventil; wassergekühltes Batteriesystem" — coolant shut-off valves.
+    for _n, _attr in (
+        ("BMS_Status_Ventil1_XIX_BMS_25_XIX_E3V_VLAN_Connect",
+         "hv_battery_valve_1_state"),
+        ("BMS_Status_Ventil2_XIX_BMS_25_XIX_E3V_VLAN_Connect",
+         "hv_battery_valve_2_state"),
+    ):
+        _v = _sig(_n)
+        if _v is not None and getattr(d, _attr) is None:
+            setattr(d, _attr, str(_v).strip() or None)
+    # "Momentanwert: Temperatur der Traktionsbatterie" — the pack's own headline
+    # temperature, into the existing battery_temp (fill-if-empty).
+    _bms_temp = _lead_float(_sig("BMS_Temperatur_XIX_BMS_25_XIX_E3V_VLAN_Connect"))
+    if _bms_temp is not None and d.battery_temp is None:
+        d.battery_temp = round(_bms_temp, 1)
+    # "Aktuelle Spannung an den Batterie-HV-Anschlüssen" — the same quantity as
+    # the pack voltage above, measured at the terminals. Fill-if-empty so a car
+    # shipping both keeps the BMS_Spannung reading, while this leaf is still
+    # consumed off the Scout and a car shipping only this one gets a value.
+    _bms_link_v = _lead_float(
+        _sig("BMS_Spannung_Zwischenkreis_XIX_BMS_20_XIX_E3V_VLAN_Connect"))
+    if _bms_link_v is not None and d.hv_battery_pack_voltage_v is None:
+        d.hv_battery_pack_voltage_v = round(_bms_link_v, 1)
+    # "RTM-Signal: Nummer (ID) des Moduls/der Zelle mit der aktuell höchsten/
+    # niedrigsten …" — where in the pack the extreme sits. Module and cell (or
+    # sensor) arrive as two leaves; both are consumed and reported as one
+    # "module/cell" location so the pair reads as the single fact it is.
+    for _mod, _idx, _attr in (
+        ("BMS_IstZellSpannungMax_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstZellSpannungMax_Zell_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_cell_voltage_max_location"),
+        ("BMS_IstZellSpannungMin_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstZellSpannungMin_Zell_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_cell_voltage_min_location"),
+        ("BMS_IstTemperaturMax_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstTemperaturMax_Sensor_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_battery_temp_max_location"),
+        ("BMS_IstTemperaturMin_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstTemperaturMin_Sensor_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_battery_temp_min_location"),
+    ):
+        _mv, _iv = _lead_float(_sig(_mod)), _lead_float(_sig(_idx))
+        if _mv is not None and _iv is not None and getattr(d, _attr) is None:
+            setattr(d, _attr, f"{int(_mv)}/{int(_iv)}")
+    # "Soll-Kühlwasservolumenstrom von Pumpe 1 Kühlkreis HV Komponenten" and
+    # "Wassertemperatur 1 Kühlkreis HV Komponenten" — the HV coolant loop.
+    _etm_flow = _lead_float(
+        _sig("eTM_Pumpe1_Volumenstrom_XIX_eTM_01_XIX_E3V_VLAN_Connect"))
+    if _etm_flow is not None:
+        d.hv_coolant_pump_flow_lpm = round(_etm_flow, 1)
+    _etm_temp = _lead_float(_sig("eTM_Temperatur_1_XIX_eTM_01_XIX_E3V_VLAN_Connect"))
+    if _etm_temp is not None:
+        d.hv_coolant_temp_c = round(_etm_temp, 1)
+    # "Isttemperatur SAC". @dasebi91's car reports exactly -40.0 °C, which is the
+    # bottom of the signal's range and the classic "no reading" sentinel for
+    # these temperature signals — so it is consumed but never assigned.
+    _sac = _lead_float(_sig("HVLE_Temperatur_XIX_IPB_03_XIX_E3V_VLAN_Connect"))
+    if _sac is not None and _sac > -40 and d.hv_sac_temperature_c is None:
+        d.hv_sac_temperature_c = round(_sac, 1)
+    # "Status der Klimatisierung und Wärmepumpe wird ausgegeben" and the blower's
+    # target voltage.
+    _kl = _sig("KL_K_Status_XIX_Klima_EV_06_XIX_E3V_VLAN_Connect")
+    if _kl is not None and d.climate_heatpump_state is None:
+        d.climate_heatpump_state = str(_kl).strip() or None
+    _blow = _lead_float(_sig("KL_Geblspng_Soll_XIX_Klima_12_XIX_E3V_VLAN_Connect"))
+    if _blow is not None:
+        d.climate_blower_target_v = round(_blow, 1)
+    # "Stellt den Status des Ladesteckers hinsichtlich Präsenz zur Verfügung".
+    # @dasebi91's car reports "Init" — the uninitialised state, which must NOT be
+    # read as "no cable": only an explicit gesteckt/nicht-gesteckt is believed.
+    _plug_sig = _sig("HVL_Steckerstatus_XIX_HVL_01_XIX_E3V_VLAN_Connect")
+    if _plug_sig is not None and d.plug_connected is None:
+        _ps = str(_plug_sig).strip().lower()
+        if "gesteckt" in _ps:
+            d.plug_connected = "nicht" not in _ps
+    # Outside temperature, three ways on this car: the cluster's damped value
+    # ("gefilterter"), the CSO topic (documented by the catalogue as KELVIN — the
+    # existing deci-Kelvin path would turn 290.65 K into -244 °C) and the raw
+    # sensor ("ungefilterter"). Each gets its own consuming call so none re-floods
+    # the Scout; the damped cluster value is preferred because that is the number
+    # the driver sees.
+    _ot = _lead_float(
+        _sig("KBI_Aussen_Temp_gef_XIX_Temperaturen_01_XIX_E3V_VLAN_Connect"))
+    if _ot is not None and d.outside_temp is None:
+        d.outside_temp = round(_ot, 1)
+    _ot_k = _lead_float(_sig("cso_v1_drivingenvironment_outdoorTemperature_subscribe"))
+    if _ot_k is not None and d.outside_temp is None and 200 < _ot_k < 340:
+        d.outside_temp = round(_ot_k - 273.15, 1)
+    _ot_raw = _lead_float(
+        _sig("BCM1_Aussen_Temp_ungef_XIX_Klima_Sensor_02_MQB_XIX_E3V_VLAN_Connect"))
+    if _ot_raw is not None and d.outside_temp is None:
+        d.outside_temp = round(_ot_raw, 1)
+
     # v2.17.5 — qualified door-lock fields win over the bare ``locked`` leaf: a
     # ``trunk.locked`` container ALSO emits a bare ``locked`` (cross-container
     # collision) that would otherwise mis-set doors_locked from the trunk state.
@@ -2469,6 +2706,28 @@ def map_dataset_to_vehicle_data(
         d.target_temperature = (
             round(_legacy_tt / 10 - 273.15, 1) if _legacy_tt > 200 else _legacy_tt
         )
+
+    # Scout 2026-09-30 (#1624/#1630/#1629/#1626) — the modern MEB portal ships the
+    # climate target temperature under the nested climatisation_settings block as a
+    # raw bus value: 0..255 maps to 10..35.5 °C in 0.1 °C steps (the official
+    # dictionary encoding; four cross-samples 70/120/130 → 17/22/23 °C confirm it).
+    # The legacy deci-Kelvin path above would misread it (its >200 guard passes a
+    # value like 130 straight through as 130 °C), so decode it here on its own,
+    # guarded to the documented 0..255 range, and fill only if nothing else already
+    # provided the target (BFF / brand-native / legacy win). List both the qualified
+    # path and the bare leaf so the nested scalar is reclaimed from the Scout (same
+    # convention as climatisation_without_hv_power below).
+    _portal_tt = _to_float(first(
+        "eu_data_act.climatisation_settings.target_temperature",
+        "climatisation_settings.target_temperature",
+        "target_temperature",
+    ))
+    if (
+        _portal_tt is not None
+        and d.target_temperature is None
+        and 0.0 <= _portal_tt <= 255.0
+    ):
+        d.target_temperature = round(_portal_tt * 0.1 + 10.0, 1)
 
     # v2.18.0 (#702) — Touareg-era legacy export: the charger's picked AC
     # current limit in amperes. It sits under ``chargerSettings``, so it is the
@@ -3030,6 +3289,21 @@ def map_dataset_to_vehicle_data(
     _trig = first("trigger_type")
     if _trig is not None and d.report_trigger is None:
         d.report_trigger = _shorten_enum(_trig)
+    # v4.10.0 (#1637 and 21 more Scouts in two days) — the snapshot envelope's own
+    # ``trigger`` leaf. Grounded against the official V6.0 field catalogue from
+    # #923: it lists 6610 data points, ``trigger_type`` among them ("Trigger of
+    # the call service": ROA/ICL/USM/…) and ``trigger`` NOWHERE. So this is the
+    # delivery wrapper's marker, not a vehicle data point, and it does NOT belong
+    # in report_trigger above — the vocabularies are disjoint (every sample to
+    # date is TRIGGER_NO_REASON, i.e. the periodic feed had no specific reason).
+    # It gets its own diagnostic field rather than being suppressed, so a car
+    # that one day ships a REAL trigger surfaces it instead of us having hidden
+    # the leaf. Both spellings are listed because the flattener emits the
+    # eu_data_act-prefixed path AND the bare leaf; naming only one of them leaves
+    # the twin in raw_unmapped_fields and the Scout keeps re-filing it.
+    _ptrig = first("eu_data_act.trigger", "trigger")
+    if _ptrig is not None and d.portal_delivery_trigger is None:
+        d.portal_delivery_trigger = _shorten_enum(_ptrig)
     # NOTE: scope_potential_total (PPE-only, opaque) and echo (constant
     # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
     # in raw_unmapped_fields (no first() call → no false signal).
@@ -3957,7 +4231,17 @@ def map_dataset_to_vehicle_data(
     ))
     if _cau is not None and d.climatisation_at_unlock is None:
         d.climatisation_at_unlock = _cau
-    _mhe = _setting_bool(first("setting_mirror_heating_enabled"))
+    # Scout 2026-09-30 (#1637) — the modern MEB portal ships the mirror-heating
+    # enable under the nested climatisation_element_settings block too (the zone_*
+    # leaves got their modern aliases, this one was missed). Same bool, same field;
+    # list both the qualified path and the bare leaf so the nested scalar is
+    # reclaimed from the Scout.
+    _mhe = _setting_bool(first(
+        "setting_mirror_heating_enabled",
+        "eu_data_act.climatisation_settings.climatisation_element_settings.is_mirror_heating_enabled",
+        "climatisation_settings.climatisation_element_settings.is_mirror_heating_enabled",
+        "is_mirror_heating_enabled",
+    ))
     if _mhe is not None and d.mirror_heating_enabled is None:
         d.mirror_heating_enabled = _mhe
     _zfl = _setting_bool(first(
@@ -4071,6 +4355,112 @@ def map_dataset_to_vehicle_data(
             d.combustion_range_km = d.electric_range_km
         d.electric_range_km = None
 
+    # v4.10.0 (#1661, @dasebi91) — base64 UDS envelopes. This car's portal feed
+    # carried 43 values of which only 12 mapped; ten of the rest were whole UDS
+    # diagnostic responses, and inside them sat the car's own displayed range, its
+    # full 12 V battery health cluster, an outside humidity sensor and the
+    # odometer — all thrown away because the value was an opaque base64 string.
+    # Dispatch is on the DID (see _UDS_KEY_RE), every assignment is fill-if-empty
+    # so a brand-native read always wins, and every reading is range-checked: a
+    # refused ECU read or a sensor sentinel must never become a plausible value.
+    # Envelopes whose DID we do NOT map are deliberately left unconsumed so the
+    # Scout keeps reporting them — the catalogue lists 77 and we map eight.
+    _uds_seen: dict[str, dict[str, str]] = {}
+    _uds_ts: str | None = None
+    for _key in list(fields):
+        _m = _UDS_KEY_RE.search(_key)
+        if not _m:
+            continue
+        _did = _m.group(1).lower()
+        if _did not in _UDS_HANDLED_DIDS:
+            continue
+        _params, _cap = _uds_envelope(fields.get(_key))
+        if not _params:
+            continue
+        _uds_seen.setdefault(_did, _params)
+        if _cap and (_uds_ts is None or _cap > _uds_ts):
+            _uds_ts = _cap
+        used.add(_key)
+
+    def _udsf(did: str, param: str, lo: float, hi: float) -> float | None:
+        """A UDS param as a float, only when inside its plausible range."""
+        val = _to_float((_uds_seen.get(did) or {}).get(param))
+        return val if val is not None and lo <= val <= hi else None
+
+    # DID 0x2AB6 "Calculated_value_range_display" — the range the instrument
+    # cluster shows. Primary/secondary DRIVE map straight onto the existing
+    # primary/secondary engine range fields, so no drivetrain guess is needed
+    # (which drive is electric differs per car); the sum feeds total range. Only
+    # trusted when the envelope says the unit is kilometres.
+    if (_uds_seen.get("0x2ab6") or {}).get("Param_RangeUnitDispl", "").lower() in (
+        "kilometre", "kilometer", "km",
+    ):
+        _r_sum = _udsf("0x2ab6", "Param_RangeSumDispl", 0, 2000)
+        if _r_sum is not None and d.total_range_km is None:
+            d.total_range_km = int(_r_sum)
+        _r_pri = _udsf("0x2ab6", "Param_RangePrimaDriveDispl", 0, 2000)
+        if _r_pri is not None and d.primary_engine_range_km is None:
+            d.primary_engine_range_km = int(_r_pri)
+        _r_sec = _udsf("0x2ab6", "Param_RangeSoncoDriveDispl", 0, 2000)
+        if _r_sec is not None and d.secondary_engine_range_km is None:
+            d.secondary_engine_range_km = int(_r_sec)
+
+    # DID 0x2AF7 "Low_voltage_battery" — the 12 V starter battery. Its state of
+    # charge is NOT the traction SoC; see the field comments in models.py.
+    _v12 = _udsf("0x2af7", "Param_BatteVolta", 6, 18)
+    if _v12 is not None and d.voltage_12v is None:
+        d.voltage_12v = round(_v12, 2)
+    _s12 = _udsf("0x2af7", "Param_BatteStateOfCharg", 0, 100)
+    if _s12 is not None and d.battery_12v_soc_pct is None:
+        d.battery_12v_soc_pct = int(_s12)
+    _t12 = _udsf("0x2af7", "Param_BatteTempe", -60, 120)
+    if _t12 is not None and d.battery_12v_temperature_c is None:
+        d.battery_12v_temperature_c = _t12
+    _h12 = _udsf("0x2af7", "Param_BatteAgingCapac", 0, 100)
+    if _h12 is not None and d.battery_12v_health_pct is None:
+        d.battery_12v_health_pct = int(_h12)
+    _c12 = _udsf("0x2af7", "Param_BatteCurre", -500, 500)
+    if _c12 is not None and d.battery_12v_current_a is None:
+        d.battery_12v_current_a = _c12
+
+    # DID 0x27C3 "Humidity_Sensor_Outside" — ambient air temperature, relative
+    # humidity and dew point from one sensor.
+    _air = _udsf("0x27c3", "Param_AirTempe", -60, 80)
+    if _air is not None and d.outside_temp is None:
+        d.outside_temp = _air
+    _hum = _udsf("0x27c3", "Param_RelatHumid", 0, 100)
+    if _hum is not None and d.outside_humidity_pct is None:
+        d.outside_humidity_pct = int(_hum)
+    _dew = _udsf("0x27c3", "Param_DewPoint", -60, 60)
+    if _dew is not None and d.outside_dew_point_c is None:
+        d.outside_dew_point_c = _dew
+
+    # DID 0x2BD "Standard_ambient_conditions" — carries the odometer.
+    _km = _udsf("0x2bd", "Param_KmMilea", 0, 3_000_000)
+    if _km is not None and d.odometer_km is None:
+        d.odometer_km = int(_km)
+
+    # DIDs 0x1E0E / 0x1E0F / 0x1E33 / 0x1E34 — HV pack extremes, same readings
+    # the BMS_11 raw signals carry on other cars but with finer resolution.
+    _hvmax = _udsf("0x1e0e", "Param_MeasuTempe", -60, 120)
+    if _hvmax is not None and d.hv_battery_max_temperature_c is None:
+        d.hv_battery_max_temperature_c = _hvmax
+    _hvmin = _udsf("0x1e0f", "Param_MeasuTempe", -60, 120)
+    if _hvmin is not None and d.hv_battery_min_temperature_c is None:
+        d.hv_battery_min_temperature_c = _hvmin
+    _cvmax = _udsf("0x1e33", "Param_CellVolta", 1.5, 5.0)
+    if _cvmax is not None and d.hv_cell_voltage_max_mv is None:
+        d.hv_cell_voltage_max_mv = round(_cvmax * 1000, 1)
+    _cvmin = _udsf("0x1e34", "Param_CellVolta", 1.5, 5.0)
+    if _cvmin is not None and d.hv_cell_voltage_min_mv is None:
+        d.hv_cell_voltage_min_mv = round(_cvmin * 1000, 1)
+
+    # The envelopes carry a genuine per-read capture time. #923 (@Testius007)
+    # asked for exactly this anchor and I had to answer that no payload carried
+    # one yet; this is that payload. Freshest success node wins, fill-if-empty.
+    if _uds_ts and d.last_seen_at is None:
+        d.last_seen_at = _epoch_or_iso(_uds_ts) or _uds_ts
+
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a
     # PHEV like the Golf GTE flagged as neither). Additive: only set flags True
@@ -4078,6 +4468,30 @@ def map_dataset_to_vehicle_data(
     has_e = (d.battery_soc is not None or d.electric_range_km is not None
              or d.charging_state is not None)
     has_c = d.fuel_level is not None or d.combustion_range_km is not None
+    # v4.10.0 (#1661, @dasebi91) — a traction pack counts as electric evidence in
+    # its own right. That car is an ID.7 reporting a 218 Ah pack at 355.8 V with
+    # per-cell voltages and pack temperatures, and it still came out
+    # has_battery=False: its portal feed carries no SoC, no electric range and no
+    # charging state, so none of the three tests above could fire and the entire
+    # EV entity set stayed hidden. That is what the reporter experienced as
+    # "missing battery SoC" — the SoC sensor was not missing a value, the car was
+    # not recognised as electric at all.
+    #
+    # The threshold is the legal one: ECE R100 / ISO 6469 define high voltage as
+    # above 60 V DC, so a 48 V mild-hybrid system can never satisfy it while any
+    # real traction pack does. Deliberately sets has_battery ONLY and leaves
+    # is_electric to the SoC/range path below: a pack voltage proves there is a
+    # drive battery, but it does not prove the car has no engine, and claiming a
+    # PHEV is a pure EV would be a confident wrong answer. Getting the entities to
+    # appear is the fix; guessing the drivetrain is not part of it.
+    # Kept as its own test rather than folded into has_e, because has_e also
+    # drives the is_hybrid / is_electric verdicts further down and a pack must
+    # not reach those.
+    if (
+        d.hv_battery_pack_voltage_v is not None
+        and d.hv_battery_pack_voltage_v >= 60
+    ):
+        d.has_battery = True
     if has_e:
         d.has_battery = True
     if has_c:

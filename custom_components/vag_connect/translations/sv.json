@@ -240,6 +240,7 @@
           "read_only_mode": "Skrivskyddat läge",
           "companion_read_charge_detail": "Companion: läs laddningsmål (navigerar i appen)",
           "companion_wake_sleep": "Companion: väck skärmen för hämtning, släck efteråt",
+          "companion_close_app": "Companion: stäng bil-appen efter varje avläsning",
           "force_ppe_climate": "Audi PPE/PPC klimat-body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push-uppdateringar (MQTT, EXPERIMENTELLT)",
           "enable_push_fcm": "CUPRA/SEAT push-uppdateringar (FCM, EXPERIMENTELLT)",
@@ -276,6 +277,7 @@
           "read_only_mode": "När aktiverat skapas endast statussensorer — inga brytare, knappar, lås, klimat eller reglage som skickar kommandon. Användbart om du vill ha fordonstelemetri utan risk för oavsiktlig aktivering. Ladda om integrationen efter ändring.",
           "companion_read_charge_detail": "Endast Companion (ADB). Läser även laddningsmål, effekt och återstående tid som ligger bakom laddningsdetaljvyn. Detta TRYCKER i appen för att navigera dit (ungefär var 15:e minut), så aktivera det först när du har bekräftat att flödet fungerar på din telefon. Av som standard. Ladda om efter ändring.",
           "companion_wake_sleep": "Endast Companion (ADB). Väcker telefonens skärm före varje hämtning och släcker den igen efteråt, så att en låst eller sovande telefon visar appen under avläsningen utan att skärmen är tänd hela tiden. Av som standard. Ladda om efter ändring.",
+          "companion_close_app": "Endast Companion (ADB). Tvångsstoppar (stänger) bil-appen efter varje avläsning, så att nästa läsning startar om den från början i stället för att läsa en skärm som appen lämnat i cache. Hjälper på enheter där appen fryser sina värden mellan avläsningar. Av som standard — en kall omstart är långsammare. Ladda om efter ändring.",
           "force_ppe_climate": "Endast Audi. Tvingar det nya PPE/PPC body-formatet (climatisationMode obligatoriskt, targetTemperature utelämnat) vid klimatstart. Aktivera bara om du äger en Q6 e-tron, A6 e-tron, RS e-tron GT Facelift eller A3 2024+ PHEV — annars svarar API:t med 400. Ladda om integrationen efter aktivering.",
           "enable_push_mqtt": "EXPERIMENTELLT: Endast Skoda. Aktiverar MQTT-push i realtid från Skodas mysmob-backend (kräver Python-paketen aiomqtt + firebase-messaging — importeras för närvarande lazy, inte förinstallerade). Grundläggningsfas i v1.18.0; live-aktivering väntar på validering av community-testare. Om push inte är tillgängligt faller integrationen tyst tillbaka till pollning. Ladda om integrationen efter att du växlat inställningen.",
           "enable_push_fcm": "EXPERIMENTELLT: Endast CUPRA/SEAT. Aktiverar Firebase Cloud Messaging-push i realtid från OLA-backend (kräver Python-paketet firebase-messaging — samma lazy-import som Skoda MQTT-växlingen i v1.18.0). Grundläggningsfas i v1.19.0; live-aktivering väntar på validering av community-testare. Om push inte är tillgängligt faller integrationen tyst tillbaka till pollning. Ladda om integrationen efter att du växlat inställningen.",
@@ -486,6 +488,24 @@
       "voltage_12v": {
         "name": "12V-batteri"
       },
+      "battery_12v_soc_pct": {
+        "name": "12V-batteriets laddning"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12V-batteriets temperatur"
+      },
+      "battery_12v_health_pct": {
+        "name": "12V-batteriets hälsa"
+      },
+      "battery_12v_current_a": {
+        "name": "12V-batteriets ström"
+      },
+      "outside_humidity_pct": {
+        "name": "Luftfuktighet ute"
+      },
+      "outside_dew_point_c": {
+        "name": "Daggpunkt ute"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Cellspänning (max)"
       },
@@ -503,6 +523,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Batterispänning"
+      },
+      "hv_battery_current_a": {
+        "name": "HV-batteriets ström"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV-batteriets energiförbrukning"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV-batteriets framledningstemperatur"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV-kylvätsketemperatur"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV SAC-temperatur"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV-kylvätskepumpens flöde"
+      },
+      "climate_blower_target_v": {
+        "name": "Klimatfläktens målspänning"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV-batteriets kylvätskeventil 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV-batteriets kylvätskeventil 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Placering av högsta cellen"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Placering av lägsta cellen"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Placering av varmaste sensorn"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Placering av kallaste sensorn"
+      },
+      "climate_heatpump_state": {
+        "name": "Klimat och värmepump"
       },
       "wake_count_today": {
         "name": "Väckningar idag"
@@ -1016,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Rapportutlösare"
+      },
+      "portal_delivery_trigger": {
+        "name": "Utlösare för dataleverans"
       },
       "climate_mode": {
         "name": "Klimatläge"
@@ -1638,6 +1703,12 @@
       "brake_fluid_warning": {
         "name": "Bromsvätska"
       },
+      "hv_battery_consumption_overflow": {
+        "name": "Förbrukningsräknaren har slagit runt"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Återmatningsräknaren har slagit runt"
+      },
       "seat_heating": {
         "name": "Sätesvärme"
       },
@@ -2102,7 +2173,7 @@
       "description": "Märkets backend har returnerat **3 låsklassade autentiseringssvar** de senaste 30 minuterna (senast HTTP {last_status}). Detta betyder vanligtvis att VW tillfälligt har blockerat det underliggande märkeskontot efter för många misslyckade försök att förnya token.\n\nLåset släpper vanligtvis inom **några timmar upp till 24 timmar**. Integrationen har slutat göra nya försök så att låsperioden inte förlängs.\n\n**Medan du väntar**:\n\n1. Logga **inte** in och ut ur tillverkarens app upprepade gånger — det förlänger låset.\n2. Vänta minst 1–2 timmar och öppna sedan den officiella tillverkarappen på din telefon. Om appen loggar in dig utan problem har backend låst upp ditt konto.\n3. När det är upplåst höjer du `scan_interval` i Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera till 15–30 minuter för att minska framtida belastning.\n4. Valfritt: aktivera det skrivskyddade EU Data Act-portalläget via OptionsFlow för att hålla en del data flödande vid framtida incidenter.\n\nDenna varning försvinner automatiskt första gången nästa token-förnyelse lyckas."
     },
     "data_act_no_data": {
-      "title": "EU Data Act-portalen: ingen fordonsdata ännu ({brand})",
+      "title": "EU Data Act-portalen: ingen fordonsdata ännu ({cars})",
       "description": "EU Data Act-portalen loggade in för {brand} men returnerar ännu inga fordonsdata.\n\nIntegrationen försöker skapa den kontinuerliga dataförfrågan åt dig automatiskt, men på vissa konton håller portalen webbläsarsessionen anonym — och då kan den automatiska förfrågan (och knappen \"Skapa dataförfrågan enligt EU:s dataakt\" i appen) inte slutföras, så du måste skapa förfrågan själv i portalen. De vanliga orsakerna till ett tomt flöde:\n\n1. **Ägarskap/nyttjanderätt är inte bekräftat för den här bilen.** Portalen måste visa ditt fordons ägarskap (eller nyttjanderätt) som bekräftat. Om det inte gör det, bekräfta det där först — nödvändigt, men inte alltid tillräckligt i sig.\n2. **Samtycke till datadelning är inte beviljat för den här bilen.** Du beviljar samtycket till datadelning enligt EU:s dataakt per fordon, en gång. Tills du gör det förblir förfrågan tom.\n3. **Ingen kontinuerlig förfrågan finns ännu.** Om den automatiska skapelsen inte gick igenom, skapa den själv: lägg till en anpassad dataförfrågan (Custom Data Request) i portalen med alla kluster ikryssade och en frekvens på 15 minuter. **Ta först bort alla äldre förfrågningar för just den här bilen** — portalen tillåter bara en aktiv förfrågan per fordon, så en äldre (till exempel en månatlig) förfrågan för den här bilen blockerar den nya. Ta inte bort en annan bils förfrågan: på ett blandat konto med person- och nyttofordon behåller varje bil sin egen förfrågan under sitt eget område (personbilar under Volkswagen Personenkraftwagen, skåpbilar under Volkswagen Nutzfahrzeuge). Integrationen plockar upp den vid nästa avläsning — ingen omstart behövs.\n4. **Bilen har inte skickat något nytt ännu.** En ny datamängd publiceras först efter att bilen har körts, laddats eller låsts/låsts upp, så en ny förfrågan kan ta 15–60 minuter (eller en kort körtur) innan den börjar fyllas.\n5. **Ett avbrott på VW:s sida.** VW rapporterade ett avbrott i EU Data Act-portalen för alla varumärken från slutet av maj 2026; så länge det pågår returnerar portalen tomma data för alla verktyg och återhämtar sig varumärke för varumärke.\n6. **Eller lägg till läskanalen för webbplatsen volkswagen.de.** I integrationens inställningar kan du lägga till den skrivskyddade webbplatskanalen volkswagen.de som en alternativ källa: den loggar in på webbplatsen volkswagen.de (inte app-backenden som blockerar den huvudlösa inloggningen), och returnerar för vissa bilar fält som portalflödet inte gör. Det kräver att ditt Volkswagen ID är fordonets bekräftade primära användare.\n\n**Snabbaste kontrollen:** öppna `eu-data-act.drivesomethinggreater.com`, logga in och bekräfta (a) att ägarskap/nyttjanderätt är bekräftat, (b) att samtycket till datadelning är beviljat för den här bilen, och (c) att det finns en aktiv kontinuerlig dataförfrågan (15 minuter) med alla kluster ikryssade — skapa den själv om ingen finns. Om du inte ser några data där heller är det VW:s sida — inget den här integrationen kan göra förrän VW återställer den.\n\nDetta är den skrivskyddade portal-betan — varningen försvinner av sig själv när data kommer in."
     },
     "data_act_browser_missing": {

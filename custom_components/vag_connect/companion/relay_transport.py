@@ -27,11 +27,12 @@ class AgentRelayTransport(NetworkAdbTransport):
     """Drives the phone through its agent's outbound poll."""
 
     def __init__(
-        self, broker: CompanionRelayBroker, *, wake_sleep: bool = False
+        self, broker: CompanionRelayBroker, *, wake_sleep: bool = False,
+        close_app: bool = False,
     ) -> None:
         # No host/port and no ADB key: there is nothing for HA to dial. The base
         # class only stores them, and every method that used them is overridden.
-        super().__init__("", 0, "", wake_sleep=wake_sleep)
+        super().__init__("", 0, "", wake_sleep=wake_sleep, close_app=close_app)
         self._broker = broker
 
     # -- connection -----------------------------------------------------------

@@ -244,6 +244,7 @@
           "read_only_mode": "Nur-Lesen-Modus",
           "companion_read_charge_detail": "Companion: Ladeziel lesen (navigiert in der App)",
           "companion_wake_sleep": "Companion: Display zum Abfragen wecken, danach schlafen",
+          "companion_close_app": "Companion: Auto-App nach jedem Lesen schließen",
           "client_id_override": "OAuth client_id Override (Power-User)",
           "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch anlegen",
           "supplementary_authproxy": "Volkswagen.de-Lesekanal hinzufügen oder aktualisieren (Daten zusammenführen)",
@@ -280,6 +281,7 @@
           "read_only_mode": "Wenn aktiv: nur Status-Sensoren werden erstellt, keine Schalter/Buttons/Schlösser/Climate die Befehle senden würden. Schützt vor versehentlicher Auslösung und Subscription-zählenden Kommandos.",
           "companion_read_charge_detail": "Nur Companion (ADB). Liest zusätzlich Ladeziel, Ladeleistung und Restzeit, die hinter dem Lade-Detailscreen liegen. Dafür TIPPT die App zur Navigation dorthin (etwa alle 15 Minuten) — nur aktivieren, wenn der Ablauf auf deinem Handy funktioniert. Standard aus. Nach Änderung neu laden.",
           "companion_wake_sleep": "Nur Companion (ADB). Weckt das Display vor jeder Abfrage und legt es danach wieder schlafen, damit ein gesperrtes/schlafendes Handy die App während des Lesens zeigt, ohne den Bildschirm dauerhaft an zu lassen. Standard aus. Nach Änderung neu laden.",
+          "companion_close_app": "Nur Companion (ADB). Beendet (schließt) die Auto-App nach jeder Abfrage per Force-Stop, damit der nächste Lesevorgang sie frisch startet, statt einen zwischengespeicherten Screen abzugreifen. Hilft auf Geräten, wo die App ihre Werte zwischen den Lesevorgängen einfriert. Standard aus — ein Kaltstart ist langsamer. Nach Änderung neu laden.",
           "client_id_override": "Power-User Eskapeluke wenn die Community einen frischen OAuth client_id in einer neuen VW Group APK entdeckt bevor unser täglicher Atlas-Builder ihn findet. Paste den vollen UUID@apps_vw-dilab_com String hier rein, dann probiert der Resolver ihn ZUERST bei jedem authenticate, mit allen bestehenden client_ids weiter als Fallback in der Chain. Leer lassen für Default-Verhalten. Format: 8-4-4-4-12 hex Zeichen gefolgt von @apps_vw-dilab_com. Ungültige Werte werden stillschweigend ignoriert.",
           "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb hier abschaltbar. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: an — nur abschalten, wenn du den Request lieber selbst im Portal verwaltest.",
           "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
@@ -492,6 +494,24 @@
       "voltage_12v": {
         "name": "12V-Batterie"
       },
+      "battery_12v_soc_pct": {
+        "name": "12V-Batterie Ladezustand"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12V-Batterie Temperatur"
+      },
+      "battery_12v_health_pct": {
+        "name": "12V-Batterie Zustand"
+      },
+      "battery_12v_current_a": {
+        "name": "12V-Batterie Strom"
+      },
+      "outside_humidity_pct": {
+        "name": "Außenluftfeuchte"
+      },
+      "outside_dew_point_c": {
+        "name": "Außen-Taupunkt"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Zellspannung (Max)"
       },
@@ -509,6 +529,48 @@
       },
       "hv_battery_pack_voltage_v": {
         "name": "Batteriespannung"
+      },
+      "hv_battery_current_a": {
+        "name": "Antriebsbatterie Strom"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Entnommene Energie"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Batteriekühlmittel-Vorlauftemperatur"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Kühlmitteltemperatur Antriebskomponenten"
+      },
+      "hv_sac_temperature_c": {
+        "name": "SAC-Temperatur"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Kühlmittelpumpe Volumenstrom"
+      },
+      "climate_blower_target_v": {
+        "name": "Klimagebläse Sollspannung"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Batteriekühlmittel-Ventil 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Batteriekühlmittel-Ventil 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Position der höchsten Zellspannung"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Position der niedrigsten Zellspannung"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Position des wärmsten Sensors"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Position des kältesten Sensors"
+      },
+      "climate_heatpump_state": {
+        "name": "Klimatisierung und Wärmepumpe"
       },
       "wake_count_today": {
         "name": "Wake-Ups heute"
@@ -1016,6 +1078,9 @@
       },
       "report_trigger": {
         "name": "Report-Auslöser"
+      },
+      "portal_delivery_trigger": {
+        "name": "Auslöser der Datenlieferung"
       },
       "climate_mode": {
         "name": "Klimamodus"
@@ -1581,6 +1646,12 @@
       "brake_fluid_warning": {
         "name": "Bremsflüssigkeit"
       },
+      "hv_battery_consumption_overflow": {
+        "name": "Verbrauchszähler übergelaufen"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Rekuperationszähler übergelaufen"
+      },
       "ota_update_available": {
         "name": "Software-Update verfügbar"
       },
@@ -2106,7 +2177,7 @@
       "description": "Das Marken-Backend hat in den letzten 30 Minuten **3 Lock-Antworten** zurückgegeben (zuletzt HTTP {last_status}). Das bedeutet typischerweise, dass VW dein Marken-Konto nach zu vielen fehlgeschlagenen Token-Refreshes vorübergehend gesperrt hat.\n\nDie Sperre wird normalerweise innerhalb von **wenigen Stunden bis 24 Stunden** aufgehoben. Die Integration hat die Versuche eingestellt, damit das Sperrfenster sich nicht verlängert.\n\n**Während du wartest**:\n\n1. **Nicht** wiederholt in der offiziellen App ein- und ausloggen, das verlängert die Sperre.\n2. Mindestens 1-2 Stunden warten, dann die offizielle Hersteller-App auf dem Handy öffnen. Wenn sich die App sauber einloggt, ist dein Konto wieder entsperrt.\n3. Nach dem Entsperren `scan_interval` in Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren auf 15-30 Minuten erhöhen, um zukünftigen Druck zu reduzieren.\n4. Optional: Den read-only EU Data Act Portal-Modus via OptionsFlow aktivieren, um bei zukünftigen Vorfällen weiter Daten zu bekommen.\n\nDiese Warnung verschwindet automatisch beim nächsten erfolgreichen Token-Refresh."
     },
     "data_act_no_data": {
-      "title": "EU-Data-Act-Portal: noch keine Fahrzeugdaten ({brand})",
+      "title": "EU-Data-Act-Portal: noch keine Fahrzeugdaten ({cars})",
       "description": "Das EU-Data-Act-Portal hat sich für {brand} angemeldet, liefert aber noch keine Fahrzeugdaten.\n\nDie Integration versucht, die fortlaufende Datenanfrage automatisch für dich zu erstellen, aber bei manchen Konten hält das Portal die Browser-Sitzung anonym — und dann kann die automatische Anfrage (und der In-App-Button „EU-Data-Act-Datenanfrage erstellen\") nicht abgeschlossen werden, sodass du die Anfrage selbst im Portal erstellen musst. Die üblichen Ursachen für einen leeren Feed:\n\n1. **Eigentümerschaft/Nutzerschaft für dieses Auto nicht bestätigt.** Das Portal muss die Eigentümerschaft (oder Nutzerschaft) deines Fahrzeugs als bestätigt anzeigen. Falls nicht, bestätige sie dort zuerst — notwendig, aber allein nicht immer ausreichend.\n2. **Einwilligung zur Datenfreigabe für dieses Auto nicht erteilt.** Du erteilst die EU-Data-Act-Einwilligung zur Datenfreigabe einmalig pro Fahrzeug. Bis du das tust, bleibt die Anfrage leer.\n3. **Es existiert noch keine fortlaufende Anfrage.** Falls die automatische Erstellung nicht funktioniert hat, erstelle sie selbst: Füge im Portal eine benutzerdefinierte Datenanfrage (Custom Data Request) mit allen angehakten Clustern und einer Frequenz von 15 Minuten hinzu. **Lösche zuerst jede ältere Anfrage für genau dieses Auto** — das Portal erlaubt nur eine aktive Anfrage pro Fahrzeug, sodass eine ältere (z. B. eine monatliche) für dieses Auto die neue blockiert. Lösche nicht die Anfrage eines anderen Autos: Bei einem gemischten Konto aus Pkw und Nutzfahrzeugen behält jedes Auto seine eigene Anfrage in seinem eigenen Bereich (Pkw unter Volkswagen Personenkraftwagen, Transporter unter Volkswagen Nutzfahrzeuge). Die Integration übernimmt sie beim nächsten Abruf — kein Neustart nötig.\n4. **Das Auto hat noch nichts Neues gesendet.** Ein neuer Datensatz wird erst veröffentlicht, nachdem das Auto gefahren, geladen oder ver-/entriegelt wurde, daher kann es 15-60 Minuten (oder eine kurze Fahrt) dauern, bis sich eine neue Anfrage zu füllen beginnt.\n5. **Eine Störung auf VW-Seite.** VW hat eine markenübergreifende Störung des EU-Data-Act-Portals seit Ende Mai 2026 gemeldet; solange sie anhält, liefert das Portal für jedes Tool leere Daten und erholt sich Marke für Marke.\n6. **Oder füge den Lesekanal der volkswagen.de-Website hinzu.** In den Optionen der Integration kannst du den schreibgeschützten volkswagen.de-Website-Kanal als alternative Quelle hinzufügen: Er meldet sich auf der volkswagen.de-Website an (nicht am App-Backend, das den Headless-Login blockiert) und liefert für manche Autos Felder, die der Portal-Feed nicht hat. Dafür muss deine Volkswagen ID der bestätigte Hauptnutzer des Fahrzeugs sein.\n\n**Schnellste Prüfung:** Öffne `eu-data-act.drivesomethinggreater.com`, melde dich an und stelle sicher, dass (a) die Eigentümerschaft/Nutzerschaft bestätigt ist, (b) die Einwilligung zur Datenfreigabe für dieses Auto erteilt ist und (c) eine aktive fortlaufende (15-Minuten-)Datenanfrage mit allen angehakten Clustern existiert — erstelle sie selbst, falls keine vorhanden ist. Wenn du auch dort keine Daten siehst, liegt es an der VW-Seite — diese Integration kann nichts tun, bis VW es wiederherstellt.\n\nDies ist die schreibgeschützte Portal-Beta — die Warnung verschwindet von selbst, sobald Daten eintreffen."
     },
     "data_act_session_expired": {

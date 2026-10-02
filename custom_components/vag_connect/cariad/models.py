@@ -685,6 +685,44 @@ class VehicleData:
     hv_battery_capacity_ah: float | None = None
     hv_battery_recuperation_kwh: float | None = None
     hv_battery_pack_voltage_v: float | None = None
+    # v4.10.0 (#1661, ID.7 on ID.SW 5.6) — the rest of the raw HV/thermal signal
+    # set that car delivers. Names, units and semantics are all quoted from the
+    # official V6.0 portal field catalogue (archived under #923). All diagnostic,
+    # disabled-by-default, phantom-gated: only cars whose portal feed carries
+    # these signals get the entities.
+    #
+    # Pack current. The catalogue is explicit that charge current is POSITIVE, so
+    # the sign is kept as reported — a discharging pack reads negative.
+    hv_battery_current_a: float | None = None
+    # "Zähler: Energieentnahme aus der HV-Batterie" — a watt-second counter,
+    # converted to kWh like the recuperation counter beside it.
+    hv_battery_consumption_kwh: float | None = None
+    # The two counters' wrap flags ("mindestens 1x übergelaufen"). They say
+    # whether the kWh totals can be trusted, so they are surfaced, not dropped.
+    hv_battery_consumption_overflow: bool | None = None
+    hv_battery_recuperation_overflow: bool | None = None
+    # Coolant FEED temperature — the twin of hv_battery_coolant_return_temp_c.
+    hv_battery_coolant_feed_temp_c: float | None = None
+    # Coolant shut-off valve states of the water-cooled pack (enum strings).
+    hv_battery_valve_1_state: str | None = None
+    hv_battery_valve_2_state: str | None = None
+    # Where in the pack the current extreme sits, as "module/cell" (voltage) and
+    # "module/sensor" (temperature). The portal ships each as two separate ID
+    # leaves; they are joined because they are one fact.
+    hv_cell_voltage_max_location: str | None = None
+    hv_cell_voltage_min_location: str | None = None
+    hv_battery_temp_max_location: str | None = None
+    hv_battery_temp_min_location: str | None = None
+    # The HV components' coolant loop: pump 1 target flow and water temperature.
+    hv_coolant_pump_flow_lpm: float | None = None
+    hv_coolant_temp_c: float | None = None
+    # "Isttemperatur SAC". -40 °C is the signal's bottom-of-range sentinel and is
+    # never assigned (see the parser note).
+    hv_sac_temperature_c: float | None = None
+    # "Status der Klimatisierung und Wärmepumpe" (enum string, e.g. cabin
+    # cooling with heat pump) and the climate blower's target voltage.
+    climate_heatpump_state: str | None = None
+    climate_blower_target_v: float | None = None
 
     # Max AC charging current SETTING (user-requested) vs ACTUAL
     # deliverable amperage. ``maxChargeCurrentAC_setting`` is the
@@ -787,6 +825,12 @@ class VehicleData:
     # plugged in. Config, not telemetry.
     climatisation_without_hv_power: bool | None = None
     outside_temp: float | None = None
+    # v4.10.0 (#1661) — the outside humidity sensor's other two readings, from the
+    # portal's base64 UDS envelope for DID 0x27C3 ("Humidity_Sensor_Outside").
+    # The same envelope carries the air temperature that feeds ``outside_temp``.
+    # Diagnostic; nothing else in the integration had a humidity reading before.
+    outside_humidity_pct: int | None = None
+    outside_dew_point_c: float | None = None
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal `in_cabin_temperature.
     # temperature`: current interior °C. No brand's status endpoint
     # exposed a cabin reading before; portal-only. Brand-restricted via
@@ -1429,6 +1473,17 @@ class VehicleData:
     # is "battery dead").
     voltage_12v: float | None = None
     warning_12v_low: bool | None = None
+    # v4.10.0 (#1661) — the rest of the 12 V battery's own health cluster, read
+    # out of the portal's base64 UDS envelope for DID 0x2AF7 ("Low_voltage_
+    # battery", catalogue-confirmed). Distinct from ``aux_battery_energy_pct``,
+    # which is the energy-MANAGEMENT level, not a state of charge. These are the
+    # starter battery, never the traction pack — a car can report 98 % here while
+    # its HV SoC is unknown, and conflating the two would be a dangerous lie.
+    # All diagnostic, disabled-by-default.
+    battery_12v_soc_pct: int | None = None
+    battery_12v_temperature_c: float | None = None
+    battery_12v_health_pct: int | None = None
+    battery_12v_current_a: float | None = None
 
     # v1.11.0 (#91 closure) — Vehicle lights status.
     # ``lights_on`` is the safe aggregate ("any light on?"); created
@@ -1974,6 +2029,16 @@ class VehicleData:
     # ROA_REMOTE, "Trigger of the call service"). LOW — disabled-by-default.
     # sensor, diagnostic. Applies to all EU-Data-Act cars (not electric-only).
     report_trigger: str | None = None
+    # v4.10.0 (#1637 + 22 Scouts in two days) — the snapshot ENVELOPE's own
+    # delivery marker, leaf ``trigger``, value ``TRIGGER_NO_REASON`` on every
+    # sample so far (VW, VW Commercial, Audi, CUPRA alike). Deliberately NOT
+    # folded into ``report_trigger``: that one is the dict-listed ``trigger_type``
+    # ("Trigger of the call service": ROA/ICL/USM/…), and the official V6.0 field
+    # catalogue carries NO ``trigger`` entry at all among its 6610 data points —
+    # so the two are different things with disjoint vocabularies and conflating
+    # them would make one sensor lie. Own field instead: LOW, disabled-by-default
+    # diagnostic. ``TRIGGER_`` is in _ENUM_PREFIXES, so this reads "NO_REASON".
+    portal_delivery_trigger: str | None = None
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string (no enum list in the dict). LOW —
