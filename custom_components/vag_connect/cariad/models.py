@@ -787,6 +787,12 @@ class VehicleData:
     # plugged in. Config, not telemetry.
     climatisation_without_hv_power: bool | None = None
     outside_temp: float | None = None
+    # v4.10.0 (#1661) — the outside humidity sensor's other two readings, from the
+    # portal's base64 UDS envelope for DID 0x27C3 ("Humidity_Sensor_Outside").
+    # The same envelope carries the air temperature that feeds ``outside_temp``.
+    # Diagnostic; nothing else in the integration had a humidity reading before.
+    outside_humidity_pct: int | None = None
+    outside_dew_point_c: float | None = None
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal `in_cabin_temperature.
     # temperature`: current interior °C. No brand's status endpoint
     # exposed a cabin reading before; portal-only. Brand-restricted via
@@ -1429,6 +1435,17 @@ class VehicleData:
     # is "battery dead").
     voltage_12v: float | None = None
     warning_12v_low: bool | None = None
+    # v4.10.0 (#1661) — the rest of the 12 V battery's own health cluster, read
+    # out of the portal's base64 UDS envelope for DID 0x2AF7 ("Low_voltage_
+    # battery", catalogue-confirmed). Distinct from ``aux_battery_energy_pct``,
+    # which is the energy-MANAGEMENT level, not a state of charge. These are the
+    # starter battery, never the traction pack — a car can report 98 % here while
+    # its HV SoC is unknown, and conflating the two would be a dangerous lie.
+    # All diagnostic, disabled-by-default.
+    battery_12v_soc_pct: int | None = None
+    battery_12v_temperature_c: float | None = None
+    battery_12v_health_pct: int | None = None
+    battery_12v_current_a: float | None = None
 
     # v1.11.0 (#91 closure) — Vehicle lights status.
     # ``lights_on`` is the safe aggregate ("any light on?"); created

@@ -488,6 +488,24 @@
       "voltage_12v": {
         "name": "Baterie 12V"
       },
+      "battery_12v_soc_pct": {
+        "name": "Nabití 12V baterie"
+      },
+      "battery_12v_temperature_c": {
+        "name": "Teplota 12V baterie"
+      },
+      "battery_12v_health_pct": {
+        "name": "Stav 12V baterie"
+      },
+      "battery_12v_current_a": {
+        "name": "Proud 12V baterie"
+      },
+      "outside_humidity_pct": {
+        "name": "Vnější vlhkost"
+      },
+      "outside_dew_point_c": {
+        "name": "Vnější rosný bod"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Napětí článku (max)"
       },

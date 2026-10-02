@@ -488,6 +488,24 @@
       "voltage_12v": {
         "name": "Batería 12V"
       },
+      "battery_12v_soc_pct": {
+        "name": "Carga de la batería de 12 V"
+      },
+      "battery_12v_temperature_c": {
+        "name": "Temperatura de la batería de 12 V"
+      },
+      "battery_12v_health_pct": {
+        "name": "Salud de la batería de 12 V"
+      },
+      "battery_12v_current_a": {
+        "name": "Corriente de la batería de 12 V"
+      },
+      "outside_humidity_pct": {
+        "name": "Humedad exterior"
+      },
+      "outside_dew_point_c": {
+        "name": "Punto de rocío exterior"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Tensión de celda (máx)"
       },

@@ -488,6 +488,24 @@
       "voltage_12v": {
         "name": "12V-accu"
       },
+      "battery_12v_soc_pct": {
+        "name": "12V-accu lading"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12V-accu temperatuur"
+      },
+      "battery_12v_health_pct": {
+        "name": "12V-accu gezondheid"
+      },
+      "battery_12v_current_a": {
+        "name": "12V-accu stroom"
+      },
+      "outside_humidity_pct": {
+        "name": "Luchtvochtigheid buiten"
+      },
+      "outside_dew_point_c": {
+        "name": "Dauwpunt buiten"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Celspanning (max)"
       },

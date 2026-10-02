@@ -488,6 +488,24 @@
       "voltage_12v": {
         "name": "12V-batteri"
       },
+      "battery_12v_soc_pct": {
+        "name": "12V-batteriets laddning"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12V-batteriets temperatur"
+      },
+      "battery_12v_health_pct": {
+        "name": "12V-batteriets hälsa"
+      },
+      "battery_12v_current_a": {
+        "name": "12V-batteriets ström"
+      },
+      "outside_humidity_pct": {
+        "name": "Luftfuktighet ute"
+      },
+      "outside_dew_point_c": {
+        "name": "Daggpunkt ute"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Cellspänning (max)"
       },

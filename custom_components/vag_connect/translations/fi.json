@@ -494,6 +494,24 @@
       "voltage_12v": {
         "name": "12 V:n akku"
       },
+      "battery_12v_soc_pct": {
+        "name": "12 V akun varaus"
+      },
+      "battery_12v_temperature_c": {
+        "name": "12 V akun lämpötila"
+      },
+      "battery_12v_health_pct": {
+        "name": "12 V akun kunto"
+      },
+      "battery_12v_current_a": {
+        "name": "12 V akun virta"
+      },
+      "outside_humidity_pct": {
+        "name": "Ulkoilman kosteus"
+      },
+      "outside_dew_point_c": {
+        "name": "Ulkoilman kastepiste"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Kennojännite (maks.)"
       },

@@ -29,6 +29,8 @@ Attribution in LEGAL.md.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import io
 import json
 import logging
@@ -1326,6 +1328,81 @@ def _lead_float(raw: str | None) -> float | None:
     return _to_float(parts[0]) if parts else None
 
 
+# v4.10.0 (#1661, @dasebi91's ID.7 on ID.SW 5.6) — the portal also delivers whole
+# UDS diagnostic responses, base64-encoded, under keys shaped
+# ``LL_<ecu>UDS_ReadDataByIdentMeasuValue_<name>_0x<DID>`` (plus an optional
+# ``_<n>`` instance suffix when the same DID arrives from several logical links).
+# The official V6.0 catalogue lists 77 of them across 14 control units, so these
+# are dispatched on the DID — the stable part — rather than on the full field
+# name: the ECU prefix and the instance suffix carry no semantics, and matching
+# whole names would miss every ``_0x1E0E_1`` variant another car ships.
+_UDS_KEY_RE = re.compile(
+    r"UDS_ReadDataByIdentMeasuValue_.*?_(0x[0-9A-Fa-f]+)(?:_\d+)?$"
+)
+
+# The DIDs we decode, lower-cased. Everything else stays Scout-visible: an
+# envelope we cannot interpret must keep being reported, not be swallowed.
+#   0x2AB6 cluster range display      0x2AF7 12 V battery health
+#   0x27C3 outside humidity sensor    0x2BD  standard ambient conditions
+#   0x1E0E/0F HV pack temp extremes   0x1E33/34 HV cell voltage extremes
+_UDS_HANDLED_DIDS = frozenset(
+    {"0x2ab6", "0x2af7", "0x27c3", "0x2bd", "0x1e0e", "0x1e0f", "0x1e33", "0x1e34"}
+)
+
+
+def _uds_envelope(raw: str | None) -> tuple[dict[str, str], str | None]:
+    """Decode one base64 UDS envelope into ``({param: value}, capture_ts)``.
+
+    The payload is a JSON document (``diagDataResults_Response_Schema_V1.3``)
+    whose values sit in ``DiagnosticData[].DataObjects[].Values[]``, sometimes one
+    level deeper inside a ``Structure`` list. Only nodes reporting success are
+    read, so a refused or timed-out ECU read can never be mistaken for a reading.
+    Fail-soft throughout: anything unexpected yields ``({}, None)`` and the field
+    stays Scout-visible rather than producing a half-parsed value.
+    """
+    if not raw:
+        return {}, None
+    try:
+        doc = json.loads(base64.b64decode(str(raw), validate=True))
+    except (ValueError, TypeError, binascii.Error):
+        return {}, None
+    if not isinstance(doc, dict):
+        return {}, None
+    nodes = doc.get("DiagnosticData")
+    if not isinstance(nodes, list):
+        return {}, None
+    params: dict[str, str] = {}
+    captured: str | None = None
+
+    def _collect(val: Any) -> None:
+        if isinstance(val, list):
+            for item in val:
+                _collect(item)
+            return
+        if not isinstance(val, dict):
+            return
+        name = val.get("ParamShortName")
+        if isinstance(name, str):
+            inner = val.get("Value")
+            if isinstance(inner, (str, int, float)) and name not in params:
+                params[name] = str(inner)
+            _collect(val.get("Structure"))
+
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        if str(node.get("DiagNodeStatus", "")).lower() != "success":
+            continue
+        ts = node.get("Timestamp")
+        if isinstance(ts, str) and captured is None:
+            captured = ts
+        for obj in node.get("DataObjects") or ():
+            if not isinstance(obj, dict):
+                continue
+            if str(obj.get("Result", "Success")).lower() != "success":
+                continue
+            _collect(obj.get("Values"))
+    return params, captured
 def _parse_pers_location(value: Any) -> tuple[float | None, float | None]:
     """#1378/#923 — parse the MEB portal ``persLocation`` leaf into a validated
     ``(lat, lon)``. Škoda Elroq (and other MEB cars) DO ship the vehicle position
@@ -4122,6 +4199,112 @@ def map_dataset_to_vehicle_data(
         if d.combustion_range_km is None:
             d.combustion_range_km = d.electric_range_km
         d.electric_range_km = None
+
+    # v4.10.0 (#1661, @dasebi91) — base64 UDS envelopes. This car's portal feed
+    # carried 43 values of which only 12 mapped; ten of the rest were whole UDS
+    # diagnostic responses, and inside them sat the car's own displayed range, its
+    # full 12 V battery health cluster, an outside humidity sensor and the
+    # odometer — all thrown away because the value was an opaque base64 string.
+    # Dispatch is on the DID (see _UDS_KEY_RE), every assignment is fill-if-empty
+    # so a brand-native read always wins, and every reading is range-checked: a
+    # refused ECU read or a sensor sentinel must never become a plausible value.
+    # Envelopes whose DID we do NOT map are deliberately left unconsumed so the
+    # Scout keeps reporting them — the catalogue lists 77 and we map eight.
+    _uds_seen: dict[str, dict[str, str]] = {}
+    _uds_ts: str | None = None
+    for _key in list(fields):
+        _m = _UDS_KEY_RE.search(_key)
+        if not _m:
+            continue
+        _did = _m.group(1).lower()
+        if _did not in _UDS_HANDLED_DIDS:
+            continue
+        _params, _cap = _uds_envelope(fields.get(_key))
+        if not _params:
+            continue
+        _uds_seen.setdefault(_did, _params)
+        if _cap and (_uds_ts is None or _cap > _uds_ts):
+            _uds_ts = _cap
+        used.add(_key)
+
+    def _udsf(did: str, param: str, lo: float, hi: float) -> float | None:
+        """A UDS param as a float, only when inside its plausible range."""
+        val = _to_float((_uds_seen.get(did) or {}).get(param))
+        return val if val is not None and lo <= val <= hi else None
+
+    # DID 0x2AB6 "Calculated_value_range_display" — the range the instrument
+    # cluster shows. Primary/secondary DRIVE map straight onto the existing
+    # primary/secondary engine range fields, so no drivetrain guess is needed
+    # (which drive is electric differs per car); the sum feeds total range. Only
+    # trusted when the envelope says the unit is kilometres.
+    if (_uds_seen.get("0x2ab6") or {}).get("Param_RangeUnitDispl", "").lower() in (
+        "kilometre", "kilometer", "km",
+    ):
+        _r_sum = _udsf("0x2ab6", "Param_RangeSumDispl", 0, 2000)
+        if _r_sum is not None and d.total_range_km is None:
+            d.total_range_km = int(_r_sum)
+        _r_pri = _udsf("0x2ab6", "Param_RangePrimaDriveDispl", 0, 2000)
+        if _r_pri is not None and d.primary_engine_range_km is None:
+            d.primary_engine_range_km = int(_r_pri)
+        _r_sec = _udsf("0x2ab6", "Param_RangeSoncoDriveDispl", 0, 2000)
+        if _r_sec is not None and d.secondary_engine_range_km is None:
+            d.secondary_engine_range_km = int(_r_sec)
+
+    # DID 0x2AF7 "Low_voltage_battery" — the 12 V starter battery. Its state of
+    # charge is NOT the traction SoC; see the field comments in models.py.
+    _v12 = _udsf("0x2af7", "Param_BatteVolta", 6, 18)
+    if _v12 is not None and d.voltage_12v is None:
+        d.voltage_12v = round(_v12, 2)
+    _s12 = _udsf("0x2af7", "Param_BatteStateOfCharg", 0, 100)
+    if _s12 is not None and d.battery_12v_soc_pct is None:
+        d.battery_12v_soc_pct = int(_s12)
+    _t12 = _udsf("0x2af7", "Param_BatteTempe", -60, 120)
+    if _t12 is not None and d.battery_12v_temperature_c is None:
+        d.battery_12v_temperature_c = _t12
+    _h12 = _udsf("0x2af7", "Param_BatteAgingCapac", 0, 100)
+    if _h12 is not None and d.battery_12v_health_pct is None:
+        d.battery_12v_health_pct = int(_h12)
+    _c12 = _udsf("0x2af7", "Param_BatteCurre", -500, 500)
+    if _c12 is not None and d.battery_12v_current_a is None:
+        d.battery_12v_current_a = _c12
+
+    # DID 0x27C3 "Humidity_Sensor_Outside" — ambient air temperature, relative
+    # humidity and dew point from one sensor.
+    _air = _udsf("0x27c3", "Param_AirTempe", -60, 80)
+    if _air is not None and d.outside_temp is None:
+        d.outside_temp = _air
+    _hum = _udsf("0x27c3", "Param_RelatHumid", 0, 100)
+    if _hum is not None and d.outside_humidity_pct is None:
+        d.outside_humidity_pct = int(_hum)
+    _dew = _udsf("0x27c3", "Param_DewPoint", -60, 60)
+    if _dew is not None and d.outside_dew_point_c is None:
+        d.outside_dew_point_c = _dew
+
+    # DID 0x2BD "Standard_ambient_conditions" — carries the odometer.
+    _km = _udsf("0x2bd", "Param_KmMilea", 0, 3_000_000)
+    if _km is not None and d.odometer_km is None:
+        d.odometer_km = int(_km)
+
+    # DIDs 0x1E0E / 0x1E0F / 0x1E33 / 0x1E34 — HV pack extremes, same readings
+    # the BMS_11 raw signals carry on other cars but with finer resolution.
+    _hvmax = _udsf("0x1e0e", "Param_MeasuTempe", -60, 120)
+    if _hvmax is not None and d.hv_battery_max_temperature_c is None:
+        d.hv_battery_max_temperature_c = _hvmax
+    _hvmin = _udsf("0x1e0f", "Param_MeasuTempe", -60, 120)
+    if _hvmin is not None and d.hv_battery_min_temperature_c is None:
+        d.hv_battery_min_temperature_c = _hvmin
+    _cvmax = _udsf("0x1e33", "Param_CellVolta", 1.5, 5.0)
+    if _cvmax is not None and d.hv_cell_voltage_max_mv is None:
+        d.hv_cell_voltage_max_mv = round(_cvmax * 1000, 1)
+    _cvmin = _udsf("0x1e34", "Param_CellVolta", 1.5, 5.0)
+    if _cvmin is not None and d.hv_cell_voltage_min_mv is None:
+        d.hv_cell_voltage_min_mv = round(_cvmin * 1000, 1)
+
+    # The envelopes carry a genuine per-read capture time. #923 (@Testius007)
+    # asked for exactly this anchor and I had to answer that no payload carried
+    # one yet; this is that payload. Freshest success node wins, fill-if-empty.
+    if _uds_ts and d.last_seen_at is None:
+        d.last_seen_at = _epoch_or_iso(_uds_ts) or _uds_ts
 
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a

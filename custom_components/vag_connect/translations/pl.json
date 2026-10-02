@@ -488,6 +488,24 @@
       "voltage_12v": {
         "name": "Akumulator 12V"
       },
+      "battery_12v_soc_pct": {
+        "name": "Naładowanie akumulatora 12 V"
+      },
+      "battery_12v_temperature_c": {
+        "name": "Temperatura akumulatora 12 V"
+      },
+      "battery_12v_health_pct": {
+        "name": "Stan akumulatora 12 V"
+      },
+      "battery_12v_current_a": {
+        "name": "Prąd akumulatora 12 V"
+      },
+      "outside_humidity_pct": {
+        "name": "Wilgotność zewnętrzna"
+      },
+      "outside_dew_point_c": {
+        "name": "Punkt rosy na zewnątrz"
+      },
       "hv_cell_voltage_max_mv": {
         "name": "Napięcie ogniwa (maks.)"
       },

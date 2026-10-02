@@ -1137,6 +1137,76 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=1,
     ),
+    # v4.10.0 (#1661) — the rest of the 12 V battery's health cluster, decoded out
+    # of the portal's UDS envelope for DID 0x2AF7. Starter battery only — never
+    # the traction pack. Phantom-gated via _DATA_PRESENT_REQUIRED.
+    VagSensorDescription(
+        key="battery_12v_soc_pct",
+        translation_key="battery_12v_soc_pct",
+        data_key="battery_12v_soc_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="battery_12v_temperature_c",
+        translation_key="battery_12v_temperature_c",
+        data_key="battery_12v_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="battery_12v_health_pct",
+        translation_key="battery_12v_health_pct",
+        data_key="battery_12v_health_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:heart-pulse",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="battery_12v_current_a",
+        translation_key="battery_12v_current_a",
+        data_key="battery_12v_current_a",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=3,
+    ),
+    # v4.10.0 (#1661) — the outside humidity sensor's two other readings (the air
+    # temperature from the same envelope feeds outside_temp). First humidity
+    # reading the integration has ever had.
+    VagSensorDescription(
+        key="outside_humidity_pct",
+        translation_key="outside_humidity_pct",
+        data_key="outside_humidity_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="outside_dew_point_c",
+        translation_key="outside_dew_point_c",
+        data_key="outside_dew_point_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=1,
+    ),
 
     # #1622 (VW E3 VLAN Scout) — raw BMS cell-level telemetry from the EU Data
     # Act export. Diagnostic, disabled by default; phantom-gated via
@@ -4041,6 +4111,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "hv_battery_capacity_ah",
     "hv_battery_recuperation_kwh",
     "hv_battery_pack_voltage_v",
+    # v4.10.0 (#1661) — decoded out of the portal's UDS envelopes (DIDs 0x2AF7 /
+    # 0x27C3). Only cars whose feed carries those envelopes get the entities.
+    "battery_12v_soc_pct",
+    "battery_12v_temperature_c",
+    "battery_12v_health_pct",
+    "battery_12v_current_a",
+    "outside_humidity_pct",
+    "outside_dew_point_c",
     "charge_max_ac_setting",
     "charge_max_ac_ampere",
     "auto_release_ac_connector_state",
