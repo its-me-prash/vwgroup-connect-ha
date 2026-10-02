@@ -57,6 +57,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   reliably set, so on exactly the accounts this warning fires for, nothing matched and it fell back to the brand.
   It now prefers the car that is actually flagged (useful when one car on the account works and another doesn't) and
   otherwise names every car on the account, since the warning means the account's portal is delivering nothing.
+### Security
+- **The Vehicle Data Scout can no longer post your VIN into a public issue (#1690).**
+  One portal field carries a credential blob with the car's VIN encoded inside it. The Scout masks VINs by looking
+  for them as readable text, so it never saw this one, and the length limit that follows happened to leave the VIN
+  inside the part that got posted. It had leaked five times — four of those were cleaned up by hand afterwards
+  without the masking itself being fixed. Encoded identifiers are now detected and the whole blob is replaced before
+  anything is written out; what remains says only what kind of value was removed and how long it was. Already-posted
+  issues were redacted. Nothing about ordinary readings changes.
 
 ### Added
 - **Plug-in hybrids on the volkswagen.de channel finally get a battery charge level (#1313, thanks @realynot and @fschulte2812).**
