@@ -530,6 +530,48 @@
       "hv_battery_pack_voltage_v": {
         "name": "Batteriespannung"
       },
+      "hv_battery_current_a": {
+        "name": "Antriebsbatterie Strom"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Entnommene Energie"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Batteriekühlmittel-Vorlauftemperatur"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Kühlmitteltemperatur Antriebskomponenten"
+      },
+      "hv_sac_temperature_c": {
+        "name": "SAC-Temperatur"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Kühlmittelpumpe Volumenstrom"
+      },
+      "climate_blower_target_v": {
+        "name": "Klimagebläse Sollspannung"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Batteriekühlmittel-Ventil 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Batteriekühlmittel-Ventil 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Position der höchsten Zellspannung"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Position der niedrigsten Zellspannung"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Position des wärmsten Sensors"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Position des kältesten Sensors"
+      },
+      "climate_heatpump_state": {
+        "name": "Klimatisierung und Wärmepumpe"
+      },
       "wake_count_today": {
         "name": "Wake-Ups heute"
       },
@@ -1603,6 +1645,12 @@
       },
       "brake_fluid_warning": {
         "name": "Bremsflüssigkeit"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Verbrauchszähler übergelaufen"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Rekuperationszähler übergelaufen"
       },
       "ota_update_available": {
         "name": "Software-Update verfügbar"

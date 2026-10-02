@@ -1403,6 +1403,28 @@ def _uds_envelope(raw: str | None) -> tuple[dict[str, str], str | None]:
                 continue
             _collect(obj.get("Values"))
     return params, captured
+
+
+def _overflow_flag(raw: str | None, current: bool | None) -> bool | None:
+    """#1661 — a BMS counter's "übergelaufen" flag, fill-if-empty.
+
+    The signal reports the literal token ``Ueberlauf`` when the counter has
+    wrapped at least once, and a negated form otherwise. Only those two shapes
+    are believed: an unrecognised token leaves the flag unset rather than
+    claiming the counter is intact, because the flag's whole job is to say
+    whether the kWh total beside it can be trusted.
+    """
+    if current is not None or raw is None:
+        return current
+    token = str(raw).strip().lower()
+    if not token:
+        return current
+    negated = token.startswith(("kein", "nicht", "no_", "not_")) or "nicht_ueber" in token
+    if "ueberlauf" in token or "overflow" in token:
+        return not negated
+    return current
+
+
 def _parse_pers_location(value: Any) -> tuple[float | None, float | None]:
     """#1378/#923 — parse the MEB portal ``persLocation`` leaf into a validated
     ``(lat, lon)``. Škoda Elroq (and other MEB cars) DO ship the vehicle position
@@ -2366,6 +2388,139 @@ def map_dataset_to_vehicle_data(
         "BMS_Spannung_XIX_BMS_20_XIX_E3V_VLAN_Connect"))
     if _bms_pack_v is not None:
         d.hv_battery_pack_voltage_v = round(_bms_pack_v, 1)
+
+    # v4.10.0 (#1661, @dasebi91's ID.7 on ID.SW 5.6) — the same raw-signal dialect,
+    # but this car ships a DIFFERENT signal set: the extremes come off BMS_28
+    # instead of BMS_11 and it adds whole control units we had never seen deliver
+    # (HVL charge socket, HVLE, eTM thermal management, KL climate, KBI/BCM1
+    # cluster). Every name and unit below is grounded in the official V6.0 field
+    # catalogue (@Testius007's export, archived under #923): 34 of 34 of this
+    # car's unmapped leaves are listed there, with the descriptions quoted inline.
+    def _sig(name: str) -> str | None:
+        """One raw signal, both spellings. See the #1622 note above: the
+        flattener emits the qualified path AND the bare leaf without linking
+        them, so naming only one leaves the twin to re-flood the Scout."""
+        return first(f"eu_data_act.{name}", name)
+
+    # "Aktueller Strom der Batterie. Stromrichtung: Ladestrom wird mit positivem
+    # Vorzeichen" — so the sign is meaningful and is NOT normalised away:
+    # discharging reads negative, exactly as the car reports it.
+    _bms_cur = _lead_float(_sig("BMS_Strom_XIX_BMS_20_XIX_E3V_VLAN_Connect"))
+    if _bms_cur is not None:
+        d.hv_battery_current_a = round(_bms_cur, 2)
+    # "Zähler: Energieentnahme aus der HV-Batterie" — a counter in watt-seconds,
+    # same scaling as the recuperation counter above.
+    _bms_cons = _lead_float(_sig("BMS_Verbrauch_XIX_BMS_05_XIX_E3V_VLAN_Connect"))
+    if _bms_cons is not None:
+        d.hv_battery_consumption_kwh = round(_bms_cons / 3_600_000, 3)
+    # "…mindestens 1x übergelaufen" — the wrap flags for those two counters. They
+    # decide whether the kWh totals above can be trusted, so they are surfaced
+    # rather than dropped. Only an explicit value is believed; an unrecognised
+    # token stays None instead of silently reading "fine".
+    d.hv_battery_consumption_overflow = _overflow_flag(
+        _sig("BMS_Verbrauch_Ueberlauf_XIX_BMS_05_XIX_E3V_VLAN_Connect"),
+        d.hv_battery_consumption_overflow)
+    d.hv_battery_recuperation_overflow = _overflow_flag(
+        _sig("BMS_Rekuperation_Ueberlauf_XIX_BMS_05_XIX_E3V_VLAN_Connect"),
+        d.hv_battery_recuperation_overflow)
+    # "Kühlmittel-Vorlauftemperatur" — the feed-side twin of the return
+    # temperature #1622 already mapped.
+    _bms_feed = _lead_float(
+        _sig("BMS_VorlaufTemperatur_XIX_BMS_25_XIX_E3V_VLAN_Connect"))
+    if _bms_feed is not None:
+        d.hv_battery_coolant_feed_temp_c = round(_bms_feed, 1)
+    # "Status Ventil; wassergekühltes Batteriesystem" — coolant shut-off valves.
+    for _n, _attr in (
+        ("BMS_Status_Ventil1_XIX_BMS_25_XIX_E3V_VLAN_Connect",
+         "hv_battery_valve_1_state"),
+        ("BMS_Status_Ventil2_XIX_BMS_25_XIX_E3V_VLAN_Connect",
+         "hv_battery_valve_2_state"),
+    ):
+        _v = _sig(_n)
+        if _v is not None and getattr(d, _attr) is None:
+            setattr(d, _attr, str(_v).strip() or None)
+    # "Momentanwert: Temperatur der Traktionsbatterie" — the pack's own headline
+    # temperature, into the existing battery_temp (fill-if-empty).
+    _bms_temp = _lead_float(_sig("BMS_Temperatur_XIX_BMS_25_XIX_E3V_VLAN_Connect"))
+    if _bms_temp is not None and d.battery_temp is None:
+        d.battery_temp = round(_bms_temp, 1)
+    # "Aktuelle Spannung an den Batterie-HV-Anschlüssen" — the same quantity as
+    # the pack voltage above, measured at the terminals. Fill-if-empty so a car
+    # shipping both keeps the BMS_Spannung reading, while this leaf is still
+    # consumed off the Scout and a car shipping only this one gets a value.
+    _bms_link_v = _lead_float(
+        _sig("BMS_Spannung_Zwischenkreis_XIX_BMS_20_XIX_E3V_VLAN_Connect"))
+    if _bms_link_v is not None and d.hv_battery_pack_voltage_v is None:
+        d.hv_battery_pack_voltage_v = round(_bms_link_v, 1)
+    # "RTM-Signal: Nummer (ID) des Moduls/der Zelle mit der aktuell höchsten/
+    # niedrigsten …" — where in the pack the extreme sits. Module and cell (or
+    # sensor) arrive as two leaves; both are consumed and reported as one
+    # "module/cell" location so the pair reads as the single fact it is.
+    for _mod, _idx, _attr in (
+        ("BMS_IstZellSpannungMax_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstZellSpannungMax_Zell_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_cell_voltage_max_location"),
+        ("BMS_IstZellSpannungMin_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstZellSpannungMin_Zell_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_cell_voltage_min_location"),
+        ("BMS_IstTemperaturMax_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstTemperaturMax_Sensor_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_battery_temp_max_location"),
+        ("BMS_IstTemperaturMin_Modul_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "BMS_IstTemperaturMin_Sensor_ID_XIX_BMS_28_XIX_E3V_VLAN_Connect",
+         "hv_battery_temp_min_location"),
+    ):
+        _mv, _iv = _lead_float(_sig(_mod)), _lead_float(_sig(_idx))
+        if _mv is not None and _iv is not None and getattr(d, _attr) is None:
+            setattr(d, _attr, f"{int(_mv)}/{int(_iv)}")
+    # "Soll-Kühlwasservolumenstrom von Pumpe 1 Kühlkreis HV Komponenten" and
+    # "Wassertemperatur 1 Kühlkreis HV Komponenten" — the HV coolant loop.
+    _etm_flow = _lead_float(
+        _sig("eTM_Pumpe1_Volumenstrom_XIX_eTM_01_XIX_E3V_VLAN_Connect"))
+    if _etm_flow is not None:
+        d.hv_coolant_pump_flow_lpm = round(_etm_flow, 1)
+    _etm_temp = _lead_float(_sig("eTM_Temperatur_1_XIX_eTM_01_XIX_E3V_VLAN_Connect"))
+    if _etm_temp is not None:
+        d.hv_coolant_temp_c = round(_etm_temp, 1)
+    # "Isttemperatur SAC". @dasebi91's car reports exactly -40.0 °C, which is the
+    # bottom of the signal's range and the classic "no reading" sentinel for
+    # these temperature signals — so it is consumed but never assigned.
+    _sac = _lead_float(_sig("HVLE_Temperatur_XIX_IPB_03_XIX_E3V_VLAN_Connect"))
+    if _sac is not None and _sac > -40 and d.hv_sac_temperature_c is None:
+        d.hv_sac_temperature_c = round(_sac, 1)
+    # "Status der Klimatisierung und Wärmepumpe wird ausgegeben" and the blower's
+    # target voltage.
+    _kl = _sig("KL_K_Status_XIX_Klima_EV_06_XIX_E3V_VLAN_Connect")
+    if _kl is not None and d.climate_heatpump_state is None:
+        d.climate_heatpump_state = str(_kl).strip() or None
+    _blow = _lead_float(_sig("KL_Geblspng_Soll_XIX_Klima_12_XIX_E3V_VLAN_Connect"))
+    if _blow is not None:
+        d.climate_blower_target_v = round(_blow, 1)
+    # "Stellt den Status des Ladesteckers hinsichtlich Präsenz zur Verfügung".
+    # @dasebi91's car reports "Init" — the uninitialised state, which must NOT be
+    # read as "no cable": only an explicit gesteckt/nicht-gesteckt is believed.
+    _plug_sig = _sig("HVL_Steckerstatus_XIX_HVL_01_XIX_E3V_VLAN_Connect")
+    if _plug_sig is not None and d.plug_connected is None:
+        _ps = str(_plug_sig).strip().lower()
+        if "gesteckt" in _ps:
+            d.plug_connected = "nicht" not in _ps
+    # Outside temperature, three ways on this car: the cluster's damped value
+    # ("gefilterter"), the CSO topic (documented by the catalogue as KELVIN — the
+    # existing deci-Kelvin path would turn 290.65 K into -244 °C) and the raw
+    # sensor ("ungefilterter"). Each gets its own consuming call so none re-floods
+    # the Scout; the damped cluster value is preferred because that is the number
+    # the driver sees.
+    _ot = _lead_float(
+        _sig("KBI_Aussen_Temp_gef_XIX_Temperaturen_01_XIX_E3V_VLAN_Connect"))
+    if _ot is not None and d.outside_temp is None:
+        d.outside_temp = round(_ot, 1)
+    _ot_k = _lead_float(_sig("cso_v1_drivingenvironment_outdoorTemperature_subscribe"))
+    if _ot_k is not None and d.outside_temp is None and 200 < _ot_k < 340:
+        d.outside_temp = round(_ot_k - 273.15, 1)
+    _ot_raw = _lead_float(
+        _sig("BCM1_Aussen_Temp_ungef_XIX_Klima_Sensor_02_MQB_XIX_E3V_VLAN_Connect"))
+    if _ot_raw is not None and d.outside_temp is None:
+        d.outside_temp = round(_ot_raw, 1)
 
     # v2.17.5 — qualified door-lock fields win over the bare ``locked`` leaf: a
     # ``trunk.locked`` container ALSO emits a bare ``locked`` (cross-container

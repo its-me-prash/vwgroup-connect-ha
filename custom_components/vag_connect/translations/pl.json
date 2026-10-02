@@ -524,6 +524,48 @@
       "hv_battery_pack_voltage_v": {
         "name": "Napięcie akumulatora"
       },
+      "hv_battery_current_a": {
+        "name": "Prąd akumulatora WN"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Energia pobrana z akumulatora WN"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Temperatura zasilania chłodziwa WN"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Temperatura chłodziwa WN"
+      },
+      "hv_sac_temperature_c": {
+        "name": "Temperatura SAC WN"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Przepływ pompy chłodziwa WN"
+      },
+      "climate_blower_target_v": {
+        "name": "Napięcie zadane dmuchawy klimatyzacji"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Zawór chłodziwa akumulatora WN 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Zawór chłodziwa akumulatora WN 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Pozycja ogniwa o najwyższym napięciu"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Pozycja ogniwa o najniższym napięciu"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Pozycja najcieplejszego czujnika"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Pozycja najzimniejszego czujnika"
+      },
+      "climate_heatpump_state": {
+        "name": "Klimatyzacja i pompa ciepła"
+      },
       "wake_count_today": {
         "name": "Wybudzenia dziś"
       },
@@ -1660,6 +1702,12 @@
       },
       "brake_fluid_warning": {
         "name": "Płyn hamulcowy"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Licznik zużycia przepełniony"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Licznik rekuperacji przepełniony"
       },
       "seat_heating": {
         "name": "Podgrzewanie foteli"

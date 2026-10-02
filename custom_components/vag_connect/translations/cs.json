@@ -524,6 +524,48 @@
       "hv_battery_pack_voltage_v": {
         "name": "Napětí baterie"
       },
+      "hv_battery_current_a": {
+        "name": "Proud HV baterie"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Odebraná energie HV baterie"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Teplota přívodu chladiva HV baterie"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Teplota chladiva HV"
+      },
+      "hv_sac_temperature_c": {
+        "name": "Teplota SAC HV"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Průtok pumpy chladiva HV"
+      },
+      "climate_blower_target_v": {
+        "name": "Cílové napětí ventilátoru klimatizace"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Ventil chladiva HV baterie 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Ventil chladiva HV baterie 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Pozice článku s nejvyšším napětím"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Pozice článku s nejnižším napětím"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Pozice nejteplejšího snímače"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Pozice nejchladnějšího snímače"
+      },
+      "climate_heatpump_state": {
+        "name": "Stav klimatizace a tepelného čerpadla"
+      },
       "wake_count_today": {
         "name": "Probuzení dnes"
       },
@@ -1660,6 +1702,12 @@
       },
       "brake_fluid_warning": {
         "name": "Brzdová kapalina"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Čítač spotřeby přetekl"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Čítač rekuperace přetekl"
       },
       "seat_heating": {
         "name": "Vyhřívání sedadel"

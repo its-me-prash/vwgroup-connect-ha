@@ -530,6 +530,48 @@
       "hv_battery_pack_voltage_v": {
         "name": "Battery Pack Voltage"
       },
+      "hv_battery_current_a": {
+        "name": "HV battery current"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV battery energy used"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV battery coolant feed temperature"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV coolant temperature"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV SAC temperature"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV coolant pump flow"
+      },
+      "climate_blower_target_v": {
+        "name": "Climate blower target voltage"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV battery coolant valve 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV battery coolant valve 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Highest cell location"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Lowest cell location"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Warmest sensor location"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Coolest sensor location"
+      },
+      "climate_heatpump_state": {
+        "name": "Climate and heat pump state"
+      },
       "wake_count_today": {
         "name": "Wake-ups Today"
       },
@@ -1603,6 +1645,12 @@
       },
       "brake_fluid_warning": {
         "name": "Brake Fluid"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Energy-used counter wrapped"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Recuperation counter wrapped"
       },
       "warning_12v_low": {
         "name": "12V Battery Low"

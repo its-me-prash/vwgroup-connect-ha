@@ -524,6 +524,48 @@
       "hv_battery_pack_voltage_v": {
         "name": "Tension de la batterie"
       },
+      "hv_battery_current_a": {
+        "name": "Courant batterie HT"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "Énergie consommée batterie HT"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "Température départ liquide batterie HT"
+      },
+      "hv_coolant_temp_c": {
+        "name": "Température liquide de refroidissement HT"
+      },
+      "hv_sac_temperature_c": {
+        "name": "Température SAC HT"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "Débit pompe liquide HT"
+      },
+      "climate_blower_target_v": {
+        "name": "Tension de consigne du ventilateur"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "Vanne liquide batterie HT 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "Vanne liquide batterie HT 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Position de la cellule la plus haute"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Position de la cellule la plus basse"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Position du capteur le plus chaud"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Position du capteur le plus froid"
+      },
+      "climate_heatpump_state": {
+        "name": "Climatisation et pompe à chaleur"
+      },
       "wake_count_today": {
         "name": "Réveils aujourd'hui"
       },
@@ -1660,6 +1702,12 @@
       },
       "brake_fluid_warning": {
         "name": "Liquide de frein"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Compteur de consommation rebouclé"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Compteur de récupération rebouclé"
       },
       "seat_heating": {
         "name": "Chauffage des sièges"

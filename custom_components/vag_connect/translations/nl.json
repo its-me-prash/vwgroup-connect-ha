@@ -524,6 +524,48 @@
       "hv_battery_pack_voltage_v": {
         "name": "Batterijspanning"
       },
+      "hv_battery_current_a": {
+        "name": "HV-accu stroom"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV-accu energieverbruik"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV-accu aanvoertemperatuur"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV-koelvloeistoftemperatuur"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV-SAC-temperatuur"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV-koelvloeistofpomp debiet"
+      },
+      "climate_blower_target_v": {
+        "name": "Streefspanning klimaatventilator"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV-accu koelvloeistofventiel 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV-accu koelvloeistofventiel 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Positie hoogste celspanning"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Positie laagste celspanning"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Positie warmste sensor"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Positie koudste sensor"
+      },
+      "climate_heatpump_state": {
+        "name": "Klimaatregeling en warmtepomp"
+      },
       "wake_count_today": {
         "name": "Wake-ups vandaag"
       },
@@ -1660,6 +1702,12 @@
       },
       "brake_fluid_warning": {
         "name": "Remvloeistof"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Verbruiksteller omgelopen"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Recuperatieteller omgelopen"
       },
       "seat_heating": {
         "name": "Stoelverwarming"

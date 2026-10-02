@@ -524,6 +524,48 @@
       "hv_battery_pack_voltage_v": {
         "name": "Batterispänning"
       },
+      "hv_battery_current_a": {
+        "name": "HV-batteriets ström"
+      },
+      "hv_battery_consumption_kwh": {
+        "name": "HV-batteriets energiförbrukning"
+      },
+      "hv_battery_coolant_feed_temp_c": {
+        "name": "HV-batteriets framledningstemperatur"
+      },
+      "hv_coolant_temp_c": {
+        "name": "HV-kylvätsketemperatur"
+      },
+      "hv_sac_temperature_c": {
+        "name": "HV SAC-temperatur"
+      },
+      "hv_coolant_pump_flow_lpm": {
+        "name": "HV-kylvätskepumpens flöde"
+      },
+      "climate_blower_target_v": {
+        "name": "Klimatfläktens målspänning"
+      },
+      "hv_battery_valve_1_state": {
+        "name": "HV-batteriets kylvätskeventil 1"
+      },
+      "hv_battery_valve_2_state": {
+        "name": "HV-batteriets kylvätskeventil 2"
+      },
+      "hv_cell_voltage_max_location": {
+        "name": "Placering av högsta cellen"
+      },
+      "hv_cell_voltage_min_location": {
+        "name": "Placering av lägsta cellen"
+      },
+      "hv_battery_temp_max_location": {
+        "name": "Placering av varmaste sensorn"
+      },
+      "hv_battery_temp_min_location": {
+        "name": "Placering av kallaste sensorn"
+      },
+      "climate_heatpump_state": {
+        "name": "Klimat och värmepump"
+      },
       "wake_count_today": {
         "name": "Väckningar idag"
       },
@@ -1660,6 +1702,12 @@
       },
       "brake_fluid_warning": {
         "name": "Bromsvätska"
+      },
+      "hv_battery_consumption_overflow": {
+        "name": "Förbrukningsräknaren har slagit runt"
+      },
+      "hv_battery_recuperation_overflow": {
+        "name": "Återmatningsräknaren har slagit runt"
       },
       "seat_heating": {
         "name": "Sätesvärme"

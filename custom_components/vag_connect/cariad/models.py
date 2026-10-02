@@ -685,6 +685,44 @@ class VehicleData:
     hv_battery_capacity_ah: float | None = None
     hv_battery_recuperation_kwh: float | None = None
     hv_battery_pack_voltage_v: float | None = None
+    # v4.10.0 (#1661, ID.7 on ID.SW 5.6) — the rest of the raw HV/thermal signal
+    # set that car delivers. Names, units and semantics are all quoted from the
+    # official V6.0 portal field catalogue (archived under #923). All diagnostic,
+    # disabled-by-default, phantom-gated: only cars whose portal feed carries
+    # these signals get the entities.
+    #
+    # Pack current. The catalogue is explicit that charge current is POSITIVE, so
+    # the sign is kept as reported — a discharging pack reads negative.
+    hv_battery_current_a: float | None = None
+    # "Zähler: Energieentnahme aus der HV-Batterie" — a watt-second counter,
+    # converted to kWh like the recuperation counter beside it.
+    hv_battery_consumption_kwh: float | None = None
+    # The two counters' wrap flags ("mindestens 1x übergelaufen"). They say
+    # whether the kWh totals can be trusted, so they are surfaced, not dropped.
+    hv_battery_consumption_overflow: bool | None = None
+    hv_battery_recuperation_overflow: bool | None = None
+    # Coolant FEED temperature — the twin of hv_battery_coolant_return_temp_c.
+    hv_battery_coolant_feed_temp_c: float | None = None
+    # Coolant shut-off valve states of the water-cooled pack (enum strings).
+    hv_battery_valve_1_state: str | None = None
+    hv_battery_valve_2_state: str | None = None
+    # Where in the pack the current extreme sits, as "module/cell" (voltage) and
+    # "module/sensor" (temperature). The portal ships each as two separate ID
+    # leaves; they are joined because they are one fact.
+    hv_cell_voltage_max_location: str | None = None
+    hv_cell_voltage_min_location: str | None = None
+    hv_battery_temp_max_location: str | None = None
+    hv_battery_temp_min_location: str | None = None
+    # The HV components' coolant loop: pump 1 target flow and water temperature.
+    hv_coolant_pump_flow_lpm: float | None = None
+    hv_coolant_temp_c: float | None = None
+    # "Isttemperatur SAC". -40 °C is the signal's bottom-of-range sentinel and is
+    # never assigned (see the parser note).
+    hv_sac_temperature_c: float | None = None
+    # "Status der Klimatisierung und Wärmepumpe" (enum string, e.g. cabin
+    # cooling with heat pump) and the climate blower's target voltage.
+    climate_heatpump_state: str | None = None
+    climate_blower_target_v: float | None = None
 
     # Max AC charging current SETTING (user-requested) vs ACTUAL
     # deliverable amperage. ``maxChargeCurrentAC_setting`` is the
