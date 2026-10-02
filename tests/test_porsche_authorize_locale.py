@@ -155,3 +155,28 @@ def test_authorize_sends_the_params(monkeypatch):
     # the PKCE/scope essentials must still be there
     assert params.get("code_challenge_method") == "S256"
     assert params.get("response_type") == "code"
+
+
+def test_the_interactive_config_flow_login_also_gets_the_locale():
+    """The login a user actually performs is the config flow's, not the
+    coordinator's: the coordinator bridges the token from here and refreshes
+    instead of logging in again, so its own locale-carrying login only runs once
+    the refresh token has died. An adversarial review of this change found the
+    config-flow client was never given the locale, which made the whole point of
+    the change (comparable wall captures) not apply to the path that produces
+    them."""
+    import inspect
+
+    from custom_components.vag_connect import config_flow as cf
+
+    src = inspect.getsource(cf._validate_credentials)
+    assert "_ha_language" in src and "_ha_country" in src, (
+        "the interactive login must receive the HA locale"
+    )
+    # ...and it must be fail-soft: a missing hass.config value cannot break a login
+    i = src.index("_ha_language")
+    assert "try:" in src[max(0, i - 400):i]
+    assert "except Exception" in src[i:i + 400]
+    # ...and it must happen BEFORE the login is driven (the first real call, not
+    # the mentions in docstrings/comments above it)
+    assert i < src.index("await client.authenticate(")

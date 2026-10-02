@@ -189,7 +189,7 @@ def _locale_params(country: str, language: str) -> dict[str, str]:
     ``Accept-Language``/``X-User-Country`` → ``media: null``).
 
     Why it is worth sending even though nothing user-visible depends on it: the
-    Auth0 page we land on is machine-read, and ``_describe_wall`` recognises a
+    Auth0 page we land on is machine-read, and ``_page_marker`` recognises a
     wall by ENGLISH keywords ("captcha", "consent", "robot", …). Without a
     locale the rendered language is Auth0's guess, so a reporter's wall capture
     can come back with no markers at all — exactly the gap that left #1337
