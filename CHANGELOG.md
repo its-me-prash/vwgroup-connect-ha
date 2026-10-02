@@ -49,6 +49,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   are actually without data, with the VIN shortened to its last six characters, because people paste these warnings
   into bug reports. With nothing known yet it falls back to the brand name, exactly as before.
 
+### Fixed
+- **The volkswagen.de read channel no longer has to be re-added after every restart (#1659, thanks @Joassens).**
+  On some accounts the silent session resume bounced straight back to the portal's own login page. That landing
+  wasn't recognised as a dead session, so the channel reported "could not silently resume" and never tried the
+  stored-password re-login some users had switched on — it just told them to re-add the channel, every single
+  restart. It's recognised now: the opt-in re-login gets its chance, and if it isn't on, the message says the
+  session expired instead of something opaque.
+
 ## [4.9.0] - 2026-10-01 — Portal climate target temperature, a deleted-car cleanup, and a VIN kept out of the repair id
 
 ### Added

@@ -1029,8 +1029,23 @@ class WebsiteAuthProxyConnector:
             _URL_VIN_RE.sub("<vin>", _URL_UUID_RE.sub("<uuid>", landed_path)),
             status,
         )
-        if not on_portal and (
-            "/u/login" in landed_path or "/signin-service" in landed_path
+        # #1659 (@Joassens) — second dead-resume shape, and the one that made the
+        # channel need a manual re-add after EVERY Home Assistant restart. The
+        # refresh GET is itself aimed at _LOGIN_PATH, so landing back on that
+        # exact path means the redirect chain never left the login endpoint: the
+        # silent resume achieved nothing. It is on the portal host, and carries
+        # neither /u/login nor /signin-service, so it matched none of the tests
+        # below — it fell all the way through to the generic "refresh did not land
+        # on the portal" raise, which skips relogin_if_allowed() entirely. Users
+        # who opted into the credential re-login never got it, and the error told
+        # them to re-add the channel instead. Kept as its own clause rather than
+        # by loosening the IDP test above, so no other landing changes verdict.
+        _back_on_login_endpoint = (
+            on_portal and landed_path.rstrip("/") == _LOGIN_PATH.rstrip("/")
+        )
+        if _back_on_login_endpoint or (
+            not on_portal
+            and ("/u/login" in landed_path or "/signin-service" in landed_path)
         ):
             # v4.7.11 (#465/#632/#966) — the silent SSO resume is dead. When the
             # user opted in, do ONE cooldown-bounded credential re-login here
