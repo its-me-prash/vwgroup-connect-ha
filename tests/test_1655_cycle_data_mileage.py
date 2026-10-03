@@ -58,15 +58,15 @@ def _map(payload: dict, base: VehicleData | None = None) -> VehicleData:
 def test_every_reported_value_maps_as_kilometres_unscaled() -> None:
     for who, raw in REPORTED.items():
         d = _map({"cycle_data_mileage": raw})
-        assert d.cycle_data_mileage_km == float(raw), who
+        assert d.cyclic_trip_distance_km == float(raw), who
 
 
 def test_no_scale_factor_is_applied() -> None:
     """The guard against reading the ``*_distance`` (100 m) convention into the
     ``*_mileage`` (km) one — a factor-10 error that would look plausible."""
     d = _map({"cycle_data_mileage": "26432"})
-    assert d.cycle_data_mileage_km == 26432.0
-    assert d.cycle_data_mileage_km != 2643.2
+    assert d.cyclic_trip_distance_km == 26432.0
+    assert d.cyclic_trip_distance_km != 2643.2
 
 
 def test_the_two_samples_from_one_car_preserve_the_evidence() -> None:
@@ -74,8 +74,8 @@ def test_the_two_samples_from_one_car_preserve_the_evidence() -> None:
     half hours on one car. The mapping must carry that delta through untouched —
     any scaling or rounding would destroy the one measurement that settled what
     kind of quantity this is."""
-    earlier = _map({"cycle_data_mileage": "26432"}).cycle_data_mileage_km
-    later = _map({"cycle_data_mileage": "26448"}).cycle_data_mileage_km
+    earlier = _map({"cycle_data_mileage": "26432"}).cyclic_trip_distance_km
+    later = _map({"cycle_data_mileage": "26448"}).cyclic_trip_distance_km
     assert (earlier, later) == (26432.0, 26448.0)
     assert later - earlier == 16.0
 
@@ -98,12 +98,12 @@ def test_a_car_that_declares_miles_is_not_converted() -> None:
         "cycle_data_mileage": "26432",
     })
     assert d.odometer_km == round(26500 * 1.60934)   # unit-companion field
-    assert d.cycle_data_mileage_km == 26432.0        # fixed-km field
+    assert d.cyclic_trip_distance_km == 26432.0        # fixed-km field
 
 
 def test_the_prefixed_spelling_maps_too() -> None:
     d = _map({"eu_data_act": {"cycle_data_mileage": "1830"}})
-    assert d.cycle_data_mileage_km == 1830.0
+    assert d.cyclic_trip_distance_km == 1830.0
 
 
 def test_it_no_longer_floods_the_scout() -> None:
@@ -130,8 +130,8 @@ def test_the_odometer_is_not_filled_from_it() -> None:
 
 def test_a_value_already_present_wins() -> None:
     base = VehicleData(vin="X")
-    base.cycle_data_mileage_km = 999.0
-    assert _map({"cycle_data_mileage": "26432"}, base).cycle_data_mileage_km == 999.0
+    base.cyclic_trip_distance_km = 999.0
+    assert _map({"cycle_data_mileage": "26432"}, base).cyclic_trip_distance_km == 999.0
 
 
 def test_the_minus_one_not_set_sentinel_is_dropped() -> None:
@@ -140,7 +140,7 @@ def test_the_minus_one_not_set_sentinel_is_dropped() -> None:
     ``drop_odometer_sentinel`` (negative → None), which is also why this
     mapping carries no separate ``>= 0`` check — one would be dead code."""
     for negative in ("-1", "-0.5", "-26432"):
-        assert _map({"cycle_data_mileage": negative}).cycle_data_mileage_km is None
+        assert _map({"cycle_data_mileage": negative}).cyclic_trip_distance_km is None
 
 
 def test_it_is_carried_forward_like_its_lifetime_siblings() -> None:
@@ -153,29 +153,29 @@ def test_it_is_carried_forward_like_its_lifetime_siblings() -> None:
         MONOTONIC_INCREASING_FIELDS,
     )
 
-    assert "cycle_data_mileage_km" in CARRY_FORWARD_FIELDS
+    assert "cyclic_trip_distance_km" in CARRY_FORWARD_FIELDS
     # ...but NOT monotonic: if the memory turns out to be resettable, a genuine
     # reset has to win instead of being latched at the old high value.
-    assert "cycle_data_mileage_km" not in MONOTONIC_INCREASING_FIELDS
+    assert "cyclic_trip_distance_km" not in MONOTONIC_INCREASING_FIELDS
 
 
 def test_the_uint32_sentinels_are_dropped() -> None:
     for sentinel in ("4294967295", "2147483647", "429496729"):
         d = _map({"cycle_data_mileage": sentinel})
-        assert d.cycle_data_mileage_km is None, sentinel
+        assert d.cyclic_trip_distance_km is None, sentinel
 
 
 def test_sixty_five_thousand_is_a_real_reading_not_a_sentinel() -> None:
     """65535 is VW's uint16 "no reading" marker on BOUNDED fields, but a car
     sitting at exactly 65,535 km is perfectly plausible — the parser's
     mileage/odometer carve-out must keep it."""
-    assert _map({"cycle_data_mileage": "65535"}).cycle_data_mileage_km == 65535.0
+    assert _map({"cycle_data_mileage": "65535"}).cyclic_trip_distance_km == 65535.0
 
 
 def test_garbage_does_not_raise_or_map() -> None:
     for raw in ("", "   ", "n/a", "NaN", "inf", "-inf", "Infinity"):
         d = _map({"cycle_data_mileage": raw})
-        assert d.cycle_data_mileage_km is None, raw
+        assert d.cyclic_trip_distance_km is None, raw
 
 
 def test_the_sibling_memories_still_map() -> None:
@@ -190,11 +190,11 @@ def test_the_sibling_memories_still_map() -> None:
     assert d.last_trip_distance_km == 120
     assert d.lifetime_trip_distance_km == 26000
     assert d.last_trip_start_odometer_km == 25880
-    assert d.cycle_data_mileage_km == 1830
+    assert d.cyclic_trip_distance_km == 1830
 
 
 def test_it_is_in_the_diagnostics_dump() -> None:
-    assert _map({"cycle_data_mileage": "43"}).to_dict()["cycle_data_mileage_km"] == 43
+    assert _map({"cycle_data_mileage": "43"}).to_dict()["cyclic_trip_distance_km"] == 43
 
 
 def test_the_sensor_is_measurement_until_the_reset_question_is_answered() -> None:
@@ -215,14 +215,44 @@ def test_the_sensor_is_measurement_until_the_reset_question_is_answered() -> Non
         SENSOR_DESCRIPTIONS,
     )
 
-    d = next(x for x in SENSOR_DESCRIPTIONS if x.key == "cycle_data_mileage_km")
-    assert d.data_key == "cycle_data_mileage_km"
+    d = next(x for x in SENSOR_DESCRIPTIONS if x.key == "cyclic_trip_distance_km")
+    assert d.data_key == "cyclic_trip_distance_km"
     assert d.native_unit_of_measurement == UnitOfLength.KILOMETERS
     assert d.device_class == SensorDeviceClass.DISTANCE
     assert d.state_class == SensorStateClass.MEASUREMENT
     assert d.entity_registry_enabled_default is False
     # portal-only leaf → gated, so no phantom "unknown" entity elsewhere
-    assert "cycle_data_mileage_km" in _DATA_PRESENT_REQUIRED
+    assert "cyclic_trip_distance_km" in _DATA_PRESENT_REQUIRED
+
+
+def test_the_entity_name_names_the_refuel_memory_in_every_language() -> None:
+    """The name follows the manufacturer's OWN label for this memory ("From
+    refuelling" / "All journeys between two fill-ups", from the app's decoded
+    string resources, key family ``..._rts_cyclicTrips*``), independently
+    identified by @DanyZdog93 from his dashboard. So every translation has to
+    name the refuel/fill-up concept rather than the raw field name — a generic
+    "cycle distance" would throw that grounding away.
+    """
+    base = os.path.join(
+        os.path.dirname(__file__), "..", "custom_components", "vag_connect"
+    )
+    #: the refuel/fill-up word each language uses
+    word = {
+        "strings": "refuel", "en": "refuel", "de": "tanken", "nl": "tanken",
+        "fr": "plein", "it": "rifornimento", "es": "repostaje",
+        "cs": "tankov", "da": "optankning", "fi": "tankkauksesta",
+        "nb": "fylling", "pl": "tankowania", "sv": "tankning",
+    }
+    files = [os.path.join(base, "strings.json")] + glob.glob(
+        os.path.join(base, "translations", "*.json")
+    )
+    assert len(files) >= 13, files
+    for f in files:
+        with open(f, encoding="utf-8") as fh:
+            sensor = json.load(fh)["entity"]["sensor"]
+        lang = os.path.splitext(os.path.basename(f))[0]
+        name = sensor["cyclic_trip_distance_km"]["name"]
+        assert word[lang] in name.lower(), (f, name, word[lang])
 
 
 def test_the_name_is_translated_everywhere() -> None:
@@ -236,6 +266,6 @@ def test_the_name_is_translated_everywhere() -> None:
     for f in files:
         with open(f, encoding="utf-8") as fh:
             sensor = json.load(fh)["entity"]["sensor"]
-        assert "cycle_data_mileage_km" in sensor, f
-        name = sensor["cycle_data_mileage_km"]["name"]
+        assert "cyclic_trip_distance_km" in sensor, f
+        name = sensor["cyclic_trip_distance_km"]["name"]
         assert isinstance(name, str) and name.strip(), f

@@ -1376,8 +1376,8 @@
       "battery_care_score_threshold": {
         "name": "Soglia punteggio cura batteria"
       },
-      "cycle_data_mileage_km": {
-        "name": "Distanza dati ciclo"
+      "cyclic_trip_distance_km": {
+        "name": "Distanza dall'ultimo rifornimento"
       },
       "climatisation_duration_raw": {
         "name": "Durata climatizzazione (grezza)"

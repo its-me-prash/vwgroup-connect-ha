@@ -1376,8 +1376,8 @@
       "battery_care_score_threshold": {
         "name": "Terskel for batterisparing-poengsum"
       },
-      "cycle_data_mileage_km": {
-        "name": "Avstand for syklusdata"
+      "cyclic_trip_distance_km": {
+        "name": "Avstand siden siste fylling"
       },
       "climatisation_duration_raw": {
         "name": "Klimatiseringsvarighet (rå)"

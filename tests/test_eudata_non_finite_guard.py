@@ -78,7 +78,7 @@ def test_a_nan_token_cannot_abort_a_whole_snapshot() -> None:
     assert d.battery_soc == 62          # the good field survived
     assert d.target_temperature == 22.0  # and so did the good neighbour
     assert d.odometer_km is None
-    assert d.cycle_data_mileage_km is None
+    assert d.cyclic_trip_distance_km is None
     assert d.climatisation_duration_raw is None
 
 

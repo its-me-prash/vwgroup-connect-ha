@@ -3021,8 +3021,9 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=0,
     ),
     # v4.10.0 (Scout #1655/#1578/#1579/#1681/#1687/#1492/#1592/#1603 — 10
-    # reports, 7 accounts) — the third trip-computer memory, ``cycle_data_
-    # mileage``, in km (see the parser for how the unit was established).
+    # reports, 7 accounts) — the trip memory the manufacturer's app labels
+    # "From refuelling", in km (see models.py for the grounding and the one
+    # open question about pure BEVs).
     #
     # MEASUREMENT, not TOTAL_INCREASING, and that is deliberate: the two
     # siblings split exactly along "does it reset" — the lifetime memory above
@@ -3034,9 +3035,9 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
     # double-count distance the odometer already carries. Upgrading later is one
     # line; un-poisoning accumulated statistics is not.
     VagSensorDescription(
-        key="cycle_data_mileage_km",
-        translation_key="cycle_data_mileage_km",
-        data_key="cycle_data_mileage_km",
+        key="cyclic_trip_distance_km",
+        translation_key="cyclic_trip_distance_km",
+        data_key="cyclic_trip_distance_km",
         native_unit_of_measurement=UnitOfLength.KILOMETERS,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -4443,7 +4444,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # (#1655 + 9). Neither is shipped by any other channel → None elsewhere →
     # no phantom entity.
     "climatisation_duration_raw",
-    "cycle_data_mileage_km",
+    "cyclic_trip_distance_km",
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
     # sentinels dropped to None at the parser → single-port cars never get a
     # plug2 entity; non-EU-Data-Act channels never ship the keys → no phantom.

@@ -1376,8 +1376,8 @@
       "battery_care_score_threshold": {
         "name": "Batterieschonung Punktzahl-Schwelle"
       },
-      "cycle_data_mileage_km": {
-        "name": "Zyklusdaten-Strecke"
+      "cyclic_trip_distance_km": {
+        "name": "Strecke seit dem Tanken"
       },
       "climatisation_duration_raw": {
         "name": "Klimatisierungsdauer (Rohwert)"

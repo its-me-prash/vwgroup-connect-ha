@@ -4172,8 +4172,12 @@ def map_dataset_to_vehicle_data(
         d.last_trip_start_odometer_km = _st_start
     # v4.10.0 (Scout #1655/#1578/#1579/#1681/#1687/#1492/#1592/#1603 — 10
     # reports, 7 accounts) — ``cycle_data_mileage``: the THIRD member of the
-    # trip-computer family above. The leaf is NOT in the official V6.0
-    # catalogue, which is why it was held; two things settled it.
+    # trip-computer family above, and the one the manufacturer's app shows as
+    # "From refuelling" — "All journeys between two fill-ups" (its string
+    # resources call the memory "cyclic", which is this field's ``cycle_``
+    # prefix; see models.py for the full grounding). The leaf is NOT in the
+    # official V6.0 catalogue, which is why it was held; two things settled
+    # the unit.
     #
     # 1. The catalogue documents its two siblings with the identical
     #    ``*_data_mileage`` suffix — ``short_term_data_mileage`` /
@@ -4213,8 +4217,8 @@ def map_dataset_to_vehicle_data(
     _cycle_km = _to_float(drop_odometer_sentinel(
         first("eu_data_act.cycle_data_mileage", "cycle_data_mileage")
     ))
-    if _cycle_km is not None and d.cycle_data_mileage_km is None:
-        d.cycle_data_mileage_km = _cycle_km
+    if _cycle_km is not None and d.cyclic_trip_distance_km is None:
+        d.cyclic_trip_distance_km = _cycle_km
 
     # D. Fuel / fluids / SCR.
     _oil_l = _to_float(first("oil_level_total_max"))

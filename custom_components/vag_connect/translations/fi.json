@@ -1376,8 +1376,8 @@
       "battery_care_score_threshold": {
         "name": "Akun säästötilan pistemäärän raja"
       },
-      "cycle_data_mileage_km": {
-        "name": "Jaksotietojen matka"
+      "cyclic_trip_distance_km": {
+        "name": "Matka viime tankkauksesta"
       },
       "climatisation_duration_raw": {
         "name": "Ilmastoinnin kesto (raaka)"

@@ -76,7 +76,7 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     # "unknown" between deliveries. It is never per-poll-suppressed, and it is
     # deliberately NOT in MONOTONIC_INCREASING_FIELDS, so if the memory turns out
     # to be resettable a genuine reset still wins here instead of being latched.
-    "cycle_data_mileage_km",
+    "cyclic_trip_distance_km",
 })
 
 # v4.7.11 (#465, toglo) — STATIC master data that ONLY the vw.de channel supplies

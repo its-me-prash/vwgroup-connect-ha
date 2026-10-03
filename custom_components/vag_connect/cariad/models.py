@@ -2046,10 +2046,32 @@ class VehicleData:
     # v4.10.0 (Scout #1655 @user222008, #1578/#1592 @iansyder8, #1579
     # @DanyZdog93, #1681/#1682/#1683 @Nicohlav, #1687 @Neurupp2, #1492
     # @4ndy-bo, #1603 @checkner89 — 10 reports, 7 accounts) —
-    # ``cycle_data_mileage``, a trip-computer memory distance in KILOMETRES.
+    # ``cycle_data_mileage``, a trip-computer memory distance in KILOMETRES:
+    # the distance covered since the last refuelling (on a hybrid, since the
+    # last charge or refuelling).
     #
-    # The leaf itself is NOT in the official V6.0 catalogue, so it was held
-    # unmapped for a week. Two pieces of evidence settled it:
+    # WHAT IT IS, from the manufacturer's own app rather than from a guess
+    # (com.volkswagen.weconnect 4.3.2, decoded string resources): the app ships
+    # a whole screen for this memory under the key family
+    # ``..._rts_cyclicTrips*`` — "From refuelling" on a combustion car, "From
+    # charging or refuelling" on a hybrid, spelled out as "All journeys between
+    # two fill-ups". The app's own word for the memory is "cyclic", which is
+    # exactly this field's ``cycle_`` prefix, so the name ties to the concept
+    # without inference. @DanyZdog93 (#1579) had identified it independently
+    # from his dashboard: the counter with the fuel-pump icon, resetting on
+    # refuelling rather than at trip boundaries, 141 -> 238 km after driving.
+    #
+    # NOT established: what resets it on a pure BEV. The app's hybrid wording
+    # says a charge does, but @iansyder8's Q6 e-tron (#1578/#1592) grew
+    # 26432 -> 26448 across a day without resetting, so on a BEV it may simply
+    # never reset. Asked in #1578; until it is answered the entity name follows
+    # the app's combustion wording, which is what six of the seven reporting
+    # accounts drive.
+    #
+    # The leaf itself is NOT in the official V6.0 catalogue (nor in the 7990-
+    # entry shipped dictionary, nor in any competing integration's field set),
+    # so it was held unmapped for a week. Two pieces of evidence settled the
+    # UNIT before the app confirmed the meaning:
     #   1. @iansyder8 reported the SAME car twice on one day — 26432 at 14:25
     #      UTC (#1578) and 26448 at 20:00 UTC (#1592). +16 in five and a half
     #      hours: it ACCUMULATES while driving, so it is neither an index, nor a
@@ -2070,7 +2092,7 @@ class VehicleData:
     # memory has ever been cleared. Whether THIS memory is resettable is the one
     # open question (asked in #1578), which is also why its sensor is
     # MEASUREMENT rather than TOTAL_INCREASING — see sensor.py.
-    cycle_data_mileage_km: float | None = None
+    cyclic_trip_distance_km: float | None = None
     # Trigger info about the last battery-charger update (string, e.g. "other").
     # LOW — disabled-by-default. sensor, diagnostic.
     charger_update_trigger: str | None = None

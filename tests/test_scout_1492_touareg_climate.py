@@ -59,7 +59,7 @@ def test_cycle_data_mileage_is_mapped_in_km_and_silenced() -> None:
     # behaviour. @4ndy-bo's 784 reads back unscaled, and the leaf stops being
     # re-filed on every poll.
     d = _map({"cycle_data_mileage": "784"})
-    assert d.cycle_data_mileage_km == 784.0
+    assert d.cyclic_trip_distance_km == 784.0
     leaves = {k.rsplit(".", 1)[-1] for k in (d.raw_unmapped_fields or {})}
     assert "cycle_data_mileage" not in leaves
 

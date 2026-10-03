@@ -1409,8 +1409,8 @@
       "battery_care_score_threshold": {
         "name": "Battery care score threshold"
       },
-      "cycle_data_mileage_km": {
-        "name": "Cycle data distance"
+      "cyclic_trip_distance_km": {
+        "name": "Distance since refuelling"
       },
       "climatisation_duration_raw": {
         "name": "Climatisation duration (raw)"
