@@ -549,6 +549,23 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v4.10.0 (Scout #1689 + 13 more reports from 12 accounts) — the portal's
+    # raw ``climatisation_settings.duration``. Deliberately UNITLESS and with no
+    # device class: the official V6.0 catalogue does not document the leaf, so a
+    # run length, a timer length and a remaining time are all still possible and
+    # they do not share a unit. Mapped so the number is visible and the Scout
+    # stops re-filing it; named "(raw)" so nobody reads a minute into it. The
+    # catalogue-documented minute value lives in ``climate_remaining_time_min``
+    # right above and is NOT fed from here. No state_class — an unknown quantity
+    # has no business in long-term statistics.
+    VagSensorDescription(
+        key="climatisation_duration_raw",
+        translation_key="climatisation_duration_raw",
+        data_key="climatisation_duration_raw",
+        icon="mdi:fan-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.8.0 - Auxiliary heating (Standheizung) status. CARIAD-BFF ships
     # the raw enum string under
     # ``auxiliaryHeating.auxiliaryHeatingStatus.value.{operationMode,
@@ -3003,6 +3020,31 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:map-marker-distance",
         suggested_display_precision=0,
     ),
+    # v4.10.0 (Scout #1655/#1578/#1579/#1681/#1687/#1492/#1592/#1603 — 10
+    # reports, 7 accounts) — the third trip-computer memory, ``cycle_data_
+    # mileage``, in km (see the parser for how the unit was established).
+    #
+    # MEASUREMENT, not TOTAL_INCREASING, and that is deliberate: the two
+    # siblings split exactly along "does it reset" — the lifetime memory above
+    # is TOTAL_INCREASING, the per-trip ``last_trip_distance_km`` is
+    # MEASUREMENT — and for THIS memory we do not know yet (asked in #1578).
+    # MEASUREMENT is the reading that is correct either way; it just records the
+    # value. TOTAL_INCREASING would additionally publish a long-term statistics
+    # SUM, and if the memory turns out to be resettable that sum would silently
+    # double-count distance the odometer already carries. Upgrading later is one
+    # line; un-poisoning accumulated statistics is not.
+    VagSensorDescription(
+        key="cycle_data_mileage_km",
+        translation_key="cycle_data_mileage_km",
+        data_key="cycle_data_mileage_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=0,
+    ),
     # LOW — odometer at window start. Disabled-by-default.
     VagSensorDescription(
         key="lifetime_trip_start_odometer_km",
@@ -4396,6 +4438,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v4.10.0 (#1444) — battery-care notification; only portal cars that ship
     # the battery_care_mode block get it.
     "battery_care_notification",
+    # v4.10.0 (Scout) — both EU-Data-Act-portal-only leaves: the raw
+    # climatisation duration (#1689 + 13) and the third trip-computer memory
+    # (#1655 + 9). Neither is shipped by any other channel → None elsewhere →
+    # no phantom entity.
+    "climatisation_duration_raw",
+    "cycle_data_mileage_km",
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
     # sentinels dropped to None at the parser → single-port cars never get a
     # plug2 entity; non-EU-Data-Act channels never ship the keys → no phantom.
