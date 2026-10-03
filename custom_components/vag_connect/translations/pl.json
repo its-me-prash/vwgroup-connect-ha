@@ -1376,6 +1376,12 @@
       "battery_care_score_threshold": {
         "name": "Próg wyniku trybu ochrony akumulatora"
       },
+      "cycle_data_mileage_km": {
+        "name": "Dystans danych cyklu"
+      },
+      "climatisation_duration_raw": {
+        "name": "Czas klimatyzacji (surowy)"
+      },
       "battery_care_notification": {
         "name": "Powiadomienie o trybie ochrony akumulatora"
       },

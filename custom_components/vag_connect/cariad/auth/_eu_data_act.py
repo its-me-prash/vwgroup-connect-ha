@@ -34,6 +34,7 @@ import binascii
 import io
 import json
 import logging
+import math
 import os
 import re
 import uuid
@@ -665,6 +666,15 @@ def _parse_ts(value: Any) -> float | None:
 
     Handles epoch seconds, epoch milliseconds (heuristic: > 1e12 → ms) and
     ISO-8601 strings. Unparseable → None (caller falls back to array order).
+
+    v4.10.0 — a NON-FINITE value is unparseable, same as a word. ``NaN`` and
+    ``Infinity`` are valid JSON literals, so one can arrive in a capture-time
+    field, and ``float()`` accepts both. The resolved timestamp is a SORT KEY
+    for picking the freshest of several candidates, and every comparison against
+    NaN is False — so one junk stamp made "freshest" arbitrary, which silently
+    picks a stale reading over a current one. (``last_seen_at`` itself was never
+    at risk: the conversion to a timestamp string already catches the
+    ValueError. The ranking had no such guard.)
     """
     if value is None:
         return None
@@ -672,6 +682,8 @@ def _parse_ts(value: Any) -> float | None:
         return None
     if isinstance(value, (int, float)):
         f = float(value)
+        if not math.isfinite(f):
+            return None
         return f / 1000.0 if f > 1e12 else f
     if isinstance(value, str):
         s = value.strip()
@@ -679,6 +691,8 @@ def _parse_ts(value: Any) -> float | None:
             return None
         try:
             f = float(s)
+            if not math.isfinite(f):
+                return None
             return f / 1000.0 if f > 1e12 else f
         except ValueError:
             pass
@@ -1300,12 +1314,35 @@ def _walk_fields(
 
 
 def _to_float(raw: str | None) -> float | None:
+    """Portal scalar → float, or ``None`` when there is no usable number.
+
+    v4.10.0 — NON-FINITE values return None. ``float("nan")`` and
+    ``float("inf")`` SUCCEED, and Python's json decoder accepts bare ``NaN`` /
+    ``Infinity`` literals by default, so such a token really can arrive in a
+    portal payload. Passing it on was harmful in three distinct ways:
+
+    * ``_to_int`` raised ``ValueError: cannot convert float NaN to integer``,
+      and it is called 66 times in this mapper — one junk token would abort the
+      whole snapshot's mapping, discarding every good field beside it.
+    * a NaN assigned to a mapped field reaches ``to_dict()`` and the diagnostics
+      download, which HA serialises with the stdlib encoder — that emits the
+      bare literal ``NaN``, which strict JSON parsers reject, so the dump a
+      reporter attaches to an issue can no longer be read back.
+    * a field with no range guard accepts it silently. Guards of the shape
+      ``0 <= v <= 255`` do NOT let NaN through (every comparison against NaN is
+      False, so such a guard rejects it) — which is exactly why the guard-less
+      assignments are the exposed ones.
+
+    Found by the non-finite case of the climatisation-duration tests (#1689);
+    the same class of bug was caught by review in the vw.de fuel parser.
+    """
     if raw is None:
         return None
     try:
-        return float(str(raw).replace(",", "."))
+        val = float(str(raw).replace(",", "."))
     except (ValueError, TypeError):
         return None
+    return val if math.isfinite(val) else None
 
 
 def _to_int(raw: str | None) -> int | None:
@@ -2733,6 +2770,72 @@ def map_dataset_to_vehicle_data(
     ):
         d.target_temperature = round(_portal_tt * 0.1 + 10.0, 1)
 
+    # v4.10.0 (Scout #1689 + 13 more, 12 accounts) — the OTHER leaf in that same
+    # nested block: ``climatisation_settings.duration``. It is NOT in the
+    # official V6.0 catalogue, so neither its unit nor its meaning is known: a
+    # run length, a configured timer length and a remaining time each want a
+    # different sensor and a different unit. All fourteen reports read 0, and in
+    # the seven that also carried ``climatisation_state`` it was OFF — which
+    # points at a run-time without proving it (the other seven did not list the
+    # state at all, so theirs is unknown, not different).
+    #
+    # Mapped as a RAW, unitless diagnostic value rather than held: a held leaf
+    # is re-reported on every poll by every car that has it, which is what those
+    # fourteen reports are. It deliberately does NOT feed
+    # ``climate_remaining_time_min`` — that field is catalogue-documented in
+    # minutes, and filling it from an unknown unit would clobber a known-good
+    # value with a guess.
+    #
+    # ONLY the container-qualified spellings are candidates. The walker also
+    # emits a BARE ``duration`` leaf for this node, but "duration" is generic
+    # enough that a second node can carry it too (verified: with a
+    # ``charging_timer.duration`` present, the bare leaf holds the OTHER node's
+    # last-wins value) — so naming it here would map a foreign number into this
+    # field on any car where this node is absent. The ambiguous twin is instead
+    # reclaimed below, under two conditions that are each necessary.
+    _clima_dur_names = (
+        "eu_data_act.climatisation_settings.duration",
+        "climatisation_settings.duration",
+    )
+    _clima_dur_src = next((n for n in _clima_dur_names if n in fields), None)
+    _clima_dur = _to_float(first(*_clima_dur_names))
+    if _clima_dur is not None and d.climatisation_duration_raw is None:
+        d.climatisation_duration_raw = _clima_dur
+    if _clima_dur_src is not None and "duration" in fields:
+        # Reclaim the ambiguous bare twin so the Scout stops re-filing it — but
+        # only when it can be nothing else, or we would silence a genuinely
+        # undiscovered reading (the no-suppression policy).
+        #
+        # (1) No OTHER node may carry a ``duration`` leaf. ``eu_data_act.
+        #     duration`` counts as another node here and is deliberately NOT
+        #     exempt: the walker emits the bare twin UNPREFIXED, so a key
+        #     spelled ``eu_data_act.duration`` can only be a ``duration``
+        #     sitting directly under the dataset root — a different datum. An
+        #     earlier version of this block exempted it and consumed it, which
+        #     made a root-level ``duration`` of 45 vanish from the Scout while
+        #     being mapped nowhere (found by an adversarial review of this
+        #     change, reproduced, fixed here).
+        # (2) The twin's VALUE must equal the qualified node's. Two shapes emit
+        #     a foreign ``duration`` with NO dotted spelling for condition (1)
+        #     to see — a data-point node whose field name is plainly "duration",
+        #     and a node inside an array — and in both the bare leaf then holds
+        #     the foreign value. Equality is what separates "this is our node's
+        #     twin" from "this is someone else's reading"; a foreign 1234 next
+        #     to our 0 no longer gets consumed.
+        #
+        # What stays unavoidable: a root-level ``duration`` with the SAME value
+        # as ours in a dataset that is not root-wrapped is indistinguishable
+        # from the twin, so it is consumed. Nothing is lost by it — the value is
+        # identical — but it is a known limit rather than an oversight.
+        _other_dur = [
+            k for k in fields
+            if k != "duration"
+            and k.rsplit(".", 1)[-1] == "duration"
+            and k not in _clima_dur_names
+        ]
+        if not _other_dur and fields["duration"] == fields[_clima_dur_src]:
+            used.add("duration")
+
     # v2.18.0 (#702) — Touareg-era legacy export: the charger's picked AC
     # current limit in amperes. It sits under ``chargerSettings``, so it is the
     # *setting* twin (what the user chose), not the live deliverable amperage.
@@ -3913,6 +4016,51 @@ def map_dataset_to_vehicle_data(
     _st_start = _to_int(first("short_term_data_start_mileage"))
     if _st_start is not None and _st_start >= 0:
         d.last_trip_start_odometer_km = _st_start
+    # v4.10.0 (Scout #1655/#1578/#1579/#1681/#1687/#1492/#1592/#1603 — 10
+    # reports, 7 accounts) — ``cycle_data_mileage``: the THIRD member of the
+    # trip-computer family above. The leaf is NOT in the official V6.0
+    # catalogue, which is why it was held; two things settled it.
+    #
+    # 1. The catalogue documents its two siblings with the identical
+    #    ``*_data_mileage`` suffix — ``short_term_data_mileage`` /
+    #    ``long_term_data_mileage``, "Overall Mileage for short/long term
+    #    trips", unit **km**, category "Trip Statistics". Those two are mapped
+    #    directly above and below with NO scale factor, so this one gets the
+    #    same treatment: km, as delivered. (The ``*_distance`` siblings are the
+    #    ones in 100 m steps — different suffix, different unit; mixing the two
+    #    conventions up would be a factor-10 error.)
+    # 2. @iansyder8 reported the same car twice on one day: 26432 at 14:25 UTC
+    #    (#1578) and 26448 at 20:00 UTC (#1592). That establishes that it
+    #    ACCUMULATES while driving — not an index, a status code or a countdown.
+    #    It does not establish the unit on its own: +16 fits miles just as well.
+    #    Point 1 is what fixes the unit.
+    #
+    # NOT added to the miles→km post-process above, and that is a decision, not
+    # an omission. A review of this change argued it was a bug; the catalogue
+    # settles it the other way. Unit companions exist for exactly four fields
+    # (``mileage.unit``, ``distance.unit`` and the two cruising-range units) —
+    # i.e. only those carry a per-car unit, which is why ``mileage`` itself is
+    # documented with NO unit at all. Every ``*_data_mileage`` and
+    # ``maintenance_interval_*`` field instead documents a FIXED ``km``
+    # ("always in km" / "in each case in kilometers"). Converting this one on a
+    # miles car would therefore introduce the 1.6x error, not remove it.
+    #
+    # Negatives and the uint32 markers are screened by
+    # ``drop_odometer_sentinel`` (negative or >= 2,000,000 km -> None), which
+    # also covers the family's -1 "not set yet" marker (#764: it leaked -1 km
+    # onto a start odometer once already). Deliberately NOT written to
+    # ``odometer_km``: whether this memory is resettable is still open (asked in
+    # #1578), and filling the odometer from a resettable counter would be a
+    # confident wrong answer on every car that has cleared it.
+    #
+    # BOTH prefixed spellings are listed: the leaf arrives bare on cars whose
+    # dataset is flat and under an ``eu_data_act`` root on others, and naming
+    # only one leaves the twin unconsumed — the #1444 lesson.
+    _cycle_km = _to_float(drop_odometer_sentinel(
+        first("eu_data_act.cycle_data_mileage", "cycle_data_mileage")
+    ))
+    if _cycle_km is not None and d.cycle_data_mileage_km is None:
+        d.cycle_data_mileage_km = _cycle_km
 
     # D. Fuel / fluids / SCR.
     _oil_l = _to_float(first("oil_level_total_max"))
