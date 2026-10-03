@@ -42,7 +42,37 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **The third trip-computer memory is now a distance sensor (Vehicle Data Scout, #1655 and nine more reports — thanks @user222008, @iansyder8, @DanyZdog93, @Nicohlav, @Neurupp2, @4ndy-bo and @checkner89).**
+  Ten reports from seven accounts kept naming the same unmapped leaf, and it is in none of the 6610 entries of the official portal field
+  catalogue — so for a week it was held rather than given a guessed unit, because a distance, a service counter and a
+  plain index would each need a different sensor. Two things settled it. One reporter happened to send the same car
+  twice on one day, five and a half hours apart, and the value had grown by sixteen — so it counts up as you drive,
+  which rules out an index or a countdown. And the catalogue does document its two siblings under the identical
+  naming scheme: the car's own short-term and long-term trip memories, both in kilometres. So this is the third of
+  those memories, and it reads in kilometres with no conversion. Diagnostic, off by default. It deliberately does not
+  feed the odometer: the two are different quantities, and one open question remains — whether this memory can be
+  reset in the car. That answer is also why the sensor records the value without claiming a long-term total; a total
+  would quietly double-count distance the odometer already carries if the memory ever gets cleared.
+- **The climatisation duration the portal sends is visible instead of swallowed (Vehicle Data Scout, #1689 and thirteen more reports).**
+  Twelve accounts reported this leaf, and the catalogue does not document it either. "Duration" could be how long a
+  climatisation run lasted, how long one was configured for, or how long is left — three different sensors with three
+  different units. All fourteen reports read zero, and in the seven that also carried the climatisation state it was
+  off, which hints at a run time without proving it. Rather than invent a unit, the raw number gets its own sensor with no unit at all and
+  "(raw)" in its name, off by default, and it is kept well away from the climate ETA sensor beside it, which is
+  documented in minutes. A leaf nobody maps is re-reported on every poll, which is how fourteen issues happened.
+
 ### Fixed
+- **A single junk number from the portal could discard a whole snapshot.**
+  JSON allows the bare literals `NaN` and `Infinity`, and the portal is parsed as JSON, so one of those really can
+  arrive in a reading. It then flowed straight through the parser's number conversion — where turning it into a whole
+  number raises an error, and that aborted the mapping of everything else delivered in the same snapshot. If it did
+  land in a sensor instead, it made the diagnostics download invalid JSON, so the dump attached to a bug report could
+  no longer be read. The same literal in a capture-time field was worse again: that value is the sort key for picking
+  the freshest of several readings, and since every comparison against it is false, "freshest" became arbitrary — and
+  if it reached the last-seen anchor, the freshness check itself raised. Non-finite values are now dropped where they
+  are converted, like any other unusable reading, and everything sent beside them survives. Found by a test written
+  for the duration sensor above.
 - **A negative reading from the car's trip computer no longer reaches a distance or duration sensor.**
   Three of the trip-computer values already ignored a negative reading; their twenty-odd siblings did not, so a
   negative could land on a sensor where it makes no sense — a trip distance below zero, a negative travel time, a
@@ -55,6 +85,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   average monthly distance carries the maintenance prefix but is a distance you drove, so it does get the guard.
   Left alone on purpose: electric, auxiliary and recuperation averages, which are net-energy figures — a downhill
   trip can recover more than it uses, so a negative there may be the truth.
+
 - **Cars set to miles no longer get a 1.6x service interval, oil interval, monthly average or last-trip distance.**
   A UK or US car's portal feed says which unit the car *displays*, and the integration used to convert every distance
   it had mapped whenever it saw "miles". But only some of the portal's distances actually follow the car's display:

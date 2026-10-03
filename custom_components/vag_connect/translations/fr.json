@@ -1376,6 +1376,12 @@
       "battery_care_score_threshold": {
         "name": "Seuil du score de préservation de la batterie"
       },
+      "cycle_data_mileage_km": {
+        "name": "Distance des données de cycle"
+      },
+      "climatisation_duration_raw": {
+        "name": "Durée de climatisation (brute)"
+      },
       "battery_care_notification": {
         "name": "Notification d'entretien de la batterie"
       },

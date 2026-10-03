@@ -1376,6 +1376,12 @@
       "battery_care_score_threshold": {
         "name": "Drempel batterijzorg-score"
       },
+      "cycle_data_mileage_km": {
+        "name": "Afstand cyclusgegevens"
+      },
+      "climatisation_duration_raw": {
+        "name": "Klimaatregelingsduur (ruw)"
+      },
       "battery_care_notification": {
         "name": "Accuzorg-melding"
       },

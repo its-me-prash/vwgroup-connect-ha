@@ -1376,6 +1376,12 @@
       "battery_care_score_threshold": {
         "name": "Prahové skóre šetření baterie"
       },
+      "cycle_data_mileage_km": {
+        "name": "Vzdálenost dat cyklu"
+      },
+      "climatisation_duration_raw": {
+        "name": "Doba klimatizace (nezpracovaná)"
+      },
       "battery_care_notification": {
         "name": "Upozornění péče o baterii"
       },
