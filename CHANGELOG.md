@@ -42,6 +42,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **The "data is stale" warning stops firing on fresh data, and per-field capture times finally appear (#1688, thanks @Datendieb).**
+  He downloaded one of his own portal files and found what the integration had been missing: **every reading in it carries
+  its own capture time**, minutes old — while the single "vehicle last reported" value the manufacturer sends alongside
+  was frozen five days earlier. The integration only ever read that one frozen value, so it announced data as four days
+  old while the readings beside it were from that afternoon. The earlier fix helped only for the one poll in which a
+  reading happened to change, which is why he kept seeing the warning come back minutes later.
+  The reason the per-reading times were ignored is embarrassingly small: they arrive under a spelling the parser did not
+  recognise — and it is the most common spelling there is, 411 of the stored sample files use it against 140 for the one
+  the parser knew. Two more things were quietly broken by the same gap. The per-reading capture times were empty
+  everywhere (he spotted that too), and when a file repeats the same reading at different times — which this feed does
+  constantly — the integration could pick the older one, because with no timestamps to compare it fell back to the order
+  the file happened to list them in.
+  Freshness now anchors on the readings themselves whenever the manufacturer's own timestamp is older than they are,
+  preferring the odometer's own capture so the "last reported" time can never run ahead of the reading it describes.
+  Cars that send no per-reading times behave exactly as before.
+
 ## [4.10.0b4] - 2026-10-04 — A channel that logged in and then said nothing
 
 ### Fixed

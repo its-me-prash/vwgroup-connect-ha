@@ -655,9 +655,23 @@ def classify_portal_login_failure(
 # ── Dataset parsing + curated field mapping ────────────────────────────────
 
 # v2.13.0 (P1) — timestamp keys carried alongside a datapoint/report node.
+# Sibling keys on a data-point node whose VALUE is that point's capture time.
+# Read as the point's own, genuine freshness (as opposed to the dataset floor).
+#
+# v4.10.0 (#1688, @Datendieb) — ``timestampUtc`` was missing, and it is the most
+# common spelling there is: 411 occurrences across the archived captures,
+# against 140 for the bare ``timestamp``. The lookup is an exact dict access, so
+# on every car whose points carry THAT spelling the walker read no per-point
+# timestamp at all. Three things followed, all invisible: the per-field capture
+# map came back empty (``field_captured_ts: {}`` — exactly what the reporter
+# saw), the #529 coherence cap had nothing to cap with, and latest-wins
+# resolution for a contested field fell back to array order instead of real
+# freshness. His portal file carries every point at 16:59/17:00 while the car's
+# own capture field is frozen five days earlier, which is what produced a
+# "105 hours old" verdict on data minutes old.
 _TS_KEYS = (
-    "capturedAt", "carCapturedTimestamp", "timestamp", "recordedAt",
-    "lastUpdated", "ts", "time", "datetime",
+    "capturedAt", "carCapturedTimestamp", "timestampUtc", "timestamp",
+    "recordedAt", "lastUpdated", "ts", "time", "datetime",
 )
 
 
@@ -3768,6 +3782,39 @@ def map_dataset_to_vehicle_data(
         "profile_state_report.car_captured_time",
         "profile_state_report.instrument_cluster_time",
     )
+    # v4.10.0 (#1688, @Datendieb) — the car's own capture field can be FROZEN
+    # while every data point in the same file is minutes old. His portal file
+    # carries each point at 16:59/17:00 and the car's own field at 09:49 five
+    # days earlier, so anchoring on the car's field reported "105 hours old" on
+    # fresh data, and the one-directional b2 rule only cleared it for the single
+    # poll in which a reading happened to change. When the newest GENUINE
+    # per-point capture is newer than the car's own field, the car's field is
+    # demonstrably not a freshness source for this snapshot: anchor on the data
+    # instead, preferring the odometer's own point (so #529 still holds — the
+    # anchor never runs ahead of the reading it describes).
+    _newest_point = max(field_ts.values()) if field_ts else None
+    _odo_point = (
+        next((field_ts[k] for k in ("mileage.value", "mileage", "odometer",
+                                    "totalMileage") if k in field_ts), None)
+        if field_ts else None
+    )
+    _cap_ts_for_staleness = _parse_ts(_cap) if _cap is not None else None
+    if (
+        d.last_seen_at is None
+        and _newest_point is not None
+        and (_cap_ts_for_staleness is None
+             or _newest_point > _cap_ts_for_staleness)
+    ):
+        _anchor = _odo_point if _odo_point is not None else _newest_point
+        _anchor_iso = _epoch_or_iso(str(_anchor))
+        if _anchor_iso is not None:
+            d.last_seen_at = _anchor_iso
+            _LOGGER.debug(
+                "EU Data Act: anchored freshness on the per-point capture "
+                "(%s) — the vehicle's own capture field was older or absent",
+                _anchor_iso,
+            )
+
     if _cap is not None and d.last_seen_at is None:
         cap_iso = _epoch_or_iso(_cap)
         # #529 step 2: never advance last_seen_at PAST the snapshot the surfaced
