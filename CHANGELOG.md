@@ -42,6 +42,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Cars set to miles no longer get a 1.6x service interval, oil interval, monthly average or last-trip distance.**
+  A UK or US car's portal feed says which unit the car *displays*, and the integration used to convert every distance
+  it had mapped whenever it saw "miles". But only some of the portal's distances actually follow the car's display:
+  the manufacturer's own field catalogue gives a unit companion to exactly eight data points — the odometer, a
+  generic distance, the two estimated cruising ranges, the per-engine range list, the two service-due values and tyre
+  pressures — and documents every other distance as kilometres outright, several of them spelled out as "always in
+  km". So four readings were being multiplied although they already arrived in kilometres: the distance to the next
+  service and to the next oil change, the average monthly distance, and the last trip. On cars that report their
+  ranges under the catalogue's kilometre-documented names, the range sensors were inflated the same way.
+  Whether a value needs converting is now decided from the field it came from rather than from the sensor it feeds —
+  which matters because most of these sensors can be filled from either kind of field, sometimes on the same car.
+  Nothing changes for a car reporting kilometres, the odometer still converts as before, and readings from the older
+  flat payload dialects — which is where the conversion was originally established from real cars — keep converting
+  too, since nothing documents those either way.
+
 ## [4.10.0b2] - 2026-10-03 — A VIN the Scout should never have printed, two repairs that told the truth, and a charge level MBB hybrids never had
 
 ### Added

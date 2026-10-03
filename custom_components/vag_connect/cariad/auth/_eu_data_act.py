@@ -1544,6 +1544,45 @@ def _is_miles(unit_raw: str | None) -> bool:
     return str(unit_raw).strip().lower() in ("miles", "mile", "mi", "1")
 
 
+# Source leaves whose unit is FIXED at kilometres, so a value taken from them
+# must never go through the miles post-process — not even on a car whose
+# ``mileage.unit`` companion says miles.
+#
+# Grounded in the official V6.0 catalogue (1891 continuous field definitions),
+# which models the question structurally: a unit COMPANION exists for exactly
+# eight data points (``mileage.unit``, ``distance.unit``, the two
+# ``estimatedcruisingrange*.unit``, ``battery_state_report.cruising_ranges.[*]
+# .unit``, ``service_maintenances.[*].due_in_{distance,time}.unit`` and
+# ``tires.[*].unit``) — those are the points whose unit varies per car, which is
+# also why ``mileage`` itself is documented with NO unit at all. Every leaf
+# below instead declares ``km`` in its own unit column, several of them in the
+# description as well ("in kilometer", "always in km", "in each case in
+# kilometers"). Scaling those by 1.60934 on a miles car produced a 1.6x error
+# rather than fixing one.
+#
+# ``inspection_distance`` is the snake-case spelling of the camel-case
+# ``inspectionDistance`` the catalogue documents as "(km)"; same datum, so it
+# travels with it. ``_UDS_KM_SOURCE`` marks the values decoded from the
+# instrument-cluster DID 0x2AB6 block, which is read ONLY when that envelope
+# states its unit is kilometres (see the gate there) — km by construction.
+# Those two were never actually scaled, because that block is decoded further
+# down than the post-process runs; recording their source is insurance, so the
+# escape is explicit rather than a property of where the lines happen to sit.
+_UDS_KM_SOURCE = "uds:0x2ab6"
+_FIXED_KM_LEAVES: frozenset[str] = frozenset({
+    "cruising_range_primary_engine",
+    "cruising_range_secondary_engine",
+    "cruising_range_combined",
+    "inspectionDistance", "inspection_distance",
+    "maintenance_interval_distance_until_inspection",
+    "maintenance_interval_distance_until_oil_change",
+    "maintenance_interval_monthly_mileage",
+    "short_term_data_mileage", "short_term_data_start_mileage",
+    "long_term_data_mileage", "long_term_data_start_mileage",
+    _UDS_KM_SOURCE,
+})
+
+
 _ENUM_PREFIXES = (
     "CHARGE_STATE_", "CHARGE_MODE_", "CHARGING_MODE_",
     "IMMEDIATE_ACTION_STATE_",
@@ -1752,6 +1791,20 @@ def map_dataset_to_vehicle_data(
     """
     used: set[str] = set()
     syn = field_syn or {}
+    # The leaf the LAST first()/first_freshest() call actually matched. A one-slot
+    # box rather than a return value so the ~200 existing call sites stay
+    # untouched; read it through ``first_src()`` (below), never directly, so the
+    # read can never drift away from its call.
+    _matched: list[str | None] = [None]
+    # attr -> the source leaf its value came from, recorded AT THE ASSIGNMENT.
+    # Only the distance attributes need it, for the miles post-process: whether a
+    # value must be scaled is a property of the SOURCE leaf, not of the target
+    # attribute (several of these attributes have both km-documented and
+    # unit-variable sources). Recorded at the assignment and not inside first(),
+    # because one first() call can feed different attributes depending on the
+    # drivetrain, and because a fill-if-empty guard can skip an assignment whose
+    # first() call already matched.
+    dist_src: dict[str, str] = {}
 
     def _record(attr: str | None, chosen: str | None, names: tuple[str, ...]) -> None:
         """v4.7.11 (#465/#529/#1218 parity ADOPT) — stash the RESOLVED source
@@ -1787,6 +1840,7 @@ def map_dataset_to_vehicle_data(
                 break
 
     def first(*names: str, record_as: str | None = None) -> str | None:
+        _matched[0] = None
         for n in names:
             if n in fields:
                 val = fields[n]
@@ -1836,8 +1890,23 @@ def map_dataset_to_vehicle_data(
                     if other in fields:
                         used.add(other)
                 _record(record_as, n, names)
+                _matched[0] = n
                 return val
         return None
+
+    def first_src(*names: str, record_as: str | None = None) -> tuple[str | None, str | None]:
+        """``first()``, plus WHICH leaf it matched.
+
+        The miles post-process at the end of this function needs the source, not
+        just the value: several distance attributes can be filled either from a
+        leaf the catalogue documents in kilometres or from one whose unit varies
+        per car, and only the latter may be scaled. Reading the match through
+        this wrapper (rather than the one-slot box directly) keeps the read
+        welded to its call — a later edit cannot slip another first() in
+        between.
+        """
+        val = first(*names, record_as=record_as)
+        return val, _matched[0]
 
     def first_freshest(*names: str, record_as: str | None = None) -> str | None:
         """Like ``first()``, but when the SAME datum is reported under multiple
@@ -1884,6 +1953,7 @@ def map_dataset_to_vehicle_data(
                 best[2], best[3],
             )
         _record(record_as, best[2], names)
+        _matched[0] = best[2]
         return best[3]
 
     def freshest_by_value(*names: str) -> str | None:
@@ -2021,15 +2091,18 @@ def map_dataset_to_vehicle_data(
         # frozen leaf (soulriding's CUPRA Born datasets 11/13/14; #465 Arno-MA-73).
         d.battery_soc_from_hv = _hv_soc is not None
 
-    odo = _to_int(first("mileage.value", "mileage", "odometer", "totalMileage",
+    _odo_val, _odo_src = first_src("mileage.value", "mileage", "odometer", "totalMileage",
                         # v2.29.x — UUID last-resort (openWB vweuda catalog).
                         "41c0805c-43e5-313e-9dfb-356cb8d20f7c",
                         "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",
-                        record_as="odometer_km"))
+                        record_as="odometer_km")
+    odo = _to_int(_odo_val)
     if odo is not None:
         # v3.0.2 (#1122) — _GLOBAL_SENTINELS drops the RAW uint32 sentinel here,
         # but not its 0.1-km-scaled form (429_496_729); the shared guard does.
         d.odometer_km = drop_odometer_sentinel(odo)
+        if d.odometer_km is not None:
+            dist_src["odometer_km"] = _odo_src or ""
 
     # #1378/#923 — MEB portal cars (Skoda Elroq …) ship the vehicle position in
     # the CONTINUOUS feed under ``persLocation`` ("[lat, lon]") — the sample #923
@@ -2161,7 +2234,7 @@ def map_dataset_to_vehicle_data(
     #      before).
     et_raw = first("engine_type", "battery_state_report.cruising_ranges.0.engine_type")
     et = (et_raw or "").upper()
-    primary_raw = _to_int(first(
+    _pri_raw_val, _pri_src = first_src(
         "cruising_range_primary_engine", "primaryEngineRange",
         # #1220 (CUPRA Raval, new platform) — the primary range ships under the
         # OFFICIAL EU-DA dict leaf ``estimatedcruisingrangeprimary(.value)``, which
@@ -2176,12 +2249,14 @@ def map_dataset_to_vehicle_data(
         # 0ca40e18); we only had the fallback. Both are last-resort after names.
         "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",
         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
-    ))
-    secondary_raw = _to_int(first(
+    )
+    primary_raw = _to_int(_pri_raw_val)
+    _sec_raw_val, _sec_src = first_src(
         "cruising_range_secondary_engine",
         # #1220 — official secondary-range dict leaf (PHEV combustion range).
         "estimatedcruisingrangesecondary.value", "estimatedcruisingrangesecondary",
-    ))
+    )
+    secondary_raw = _to_int(_sec_raw_val)
     has_fuel = (
         first("fuel_level_current_level", "tank_current_level",
               "fuelLevel_pct", "fuel_level", "fuelLevel") is not None
@@ -2202,29 +2277,36 @@ def map_dataset_to_vehicle_data(
         # electric (this is the #555/#565 swap fix).
         if primary_raw is not None and d.combustion_range_km is None:
             d.combustion_range_km = primary_raw
+            dist_src["combustion_range_km"] = _pri_src or ""
         if secondary_raw is not None and d.electric_range_km is None:
             d.electric_range_km = secondary_raw
+            dist_src["electric_range_km"] = _sec_src or ""
     else:
         # BEV / electric-primary (UNCHANGED behaviour): primary range is the
         # electric range, secondary (if any) stays on its own sensor below.
         if primary_raw is not None and d.electric_range_km is None:
             d.electric_range_km = primary_raw
+            dist_src["electric_range_km"] = _pri_src or ""
 
     # range_km — the headline "range" sensor. Keep the legacy ordering (the bare
     # ``range``/total spellings first, then the primary engine range) untouched
     # so the existing range_km behaviour is preserved for every car.
-    rng = _to_int(first("range", "cruising_range_primary_engine",
-                        "totalRange_km", "primaryEngineRange",
-                        # #1220 (CUPRA Raval) — official primary-range dict leaf.
-                        "estimatedcruisingrangeprimary.value",
-                        "estimatedcruisingrangeprimary",
-                        "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",
-                        "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
-                        record_as="range_km"))
+    _rng_val, _rng_src = first_src(
+        "range", "cruising_range_primary_engine",
+        "totalRange_km", "primaryEngineRange",
+        # #1220 (CUPRA Raval) — official primary-range dict leaf.
+        "estimatedcruisingrangeprimary.value",
+        "estimatedcruisingrangeprimary",
+        "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",
+        "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
+        record_as="range_km")
+    rng = _to_int(_rng_val)
     if rng is not None:
         d.range_km = rng
+        dist_src["range_km"] = _rng_src or ""
         if d.electric_range_km is None:
             d.electric_range_km = rng
+            dist_src["electric_range_km"] = _rng_src or ""
 
     # #717 / #764 — the portal reports charge power at 0.1-kW resolution (deci-kW),
     # so battery_state_report.charge_power / charge_power / charging_power all scale
@@ -2848,17 +2930,23 @@ def map_dataset_to_vehicle_data(
     if mnu is not None:
         d.max_number_users = mnu
 
-    sec_rng = _to_int(first("cruising_range_secondary_engine"))
+    _sec_rng_val, _sec_rng_src = first_src("cruising_range_secondary_engine")
+    sec_rng = _to_int(_sec_rng_val)
     if sec_rng is not None:
         d.secondary_engine_range_km = sec_rng
+        dist_src["secondary_engine_range_km"] = _sec_rng_src or ""
 
-    comb_rng = _to_int(first("cruising_range_combined", "totalRange_km"))
+    _comb_val, _comb_src = first_src("cruising_range_combined", "totalRange_km")
+    comb_rng = _to_int(_comb_val)
     if comb_rng is not None:
         d.total_range_km = comb_rng
+        dist_src["total_range_km"] = _comb_src or ""
 
-    insp = _to_int(first("inspectionDistance", "inspection_distance"))
+    _insp_val, _insp_src = first_src("inspectionDistance", "inspection_distance")
+    insp = _to_int(_insp_val)
     if insp is not None and d.service_km is None:
         d.service_km = insp
+        dist_src["service_km"] = _insp_src or ""
 
     # b5 — flat MQB maintenance intervals + lock + window-heating that the raw
     # field discovery surfaced in real Golf-class portal payloads. Mapping them
@@ -2875,9 +2963,12 @@ def map_dataset_to_vehicle_data(
     def _svc(v: int) -> int:
         return -v if v < 0 else v
 
-    svc_km = _to_int(first("maintenance_interval_distance_until_inspection"))
+    _svc_km_val, _svc_km_src = first_src(
+        "maintenance_interval_distance_until_inspection")
+    svc_km = _to_int(_svc_km_val)
     if svc_km is not None and d.service_km is None:
         d.service_km = _svc(svc_km)
+        dist_src["service_km"] = _svc_km_src or ""
     svc_days = _to_int(first("maintenance_interval__time_until_inspection"))
     if svc_days is not None:
         if d.service_due_in_days is None:
@@ -2892,10 +2983,13 @@ def map_dataset_to_vehicle_data(
             d.service_due_at = _svc(svc_days)
     # Scout #1430 (Škoda Octavia) — ``inspectionOilDistance`` is the Škoda
     # EU-portal leaf for the distance until the next oil service.
-    oil_km = _to_int(first("maintenance_interval_distance_until_oil_change",
-                           "inspectionOilDistance"))
+    _oil_km_val, _oil_km_src = first_src(
+        "maintenance_interval_distance_until_oil_change",
+        "inspectionOilDistance")
+    oil_km = _to_int(_oil_km_val)
     if oil_km is not None and d.oil_service_km is None:
         d.oil_service_km = _svc(oil_km)
+        dist_src["oil_service_km"] = _oil_km_src or ""
     oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
     if oil_days is not None:
         if d.oil_service_due_in_days is None:
@@ -3052,9 +3146,11 @@ def map_dataset_to_vehicle_data(
     # the dictionary: mileage km, travel_time min, speed km/h. Consumption fields
     # (l/1000km, kWh/1000km) are deferred — current values look like sentinels;
     # they stay Scout-visible for a live A/B before we trust the scale.
-    _st_dist = _to_float(first("short_term_data_mileage"))
+    _st_dist_val, _st_dist_src = first_src("short_term_data_mileage")
+    _st_dist = _to_float(_st_dist_val)
     if _st_dist is not None and d.last_trip_distance_km is None:
         d.last_trip_distance_km = _st_dist
+        dist_src["last_trip_distance_km"] = _st_dist_src or ""
     _st_time = _to_int(first("short_term_data_travel_time"))
     if _st_time is not None and d.last_trip_duration_min is None:
         d.last_trip_duration_min = _st_time
@@ -3072,9 +3168,11 @@ def map_dataset_to_vehicle_data(
     _insw = _to_int(first("maintenance_interval_inspection_warning"))
     if _insw is not None:
         d.warning_inspection = _insw == 1
-    _mm = _to_int(first("maintenance_interval_monthly_mileage"))
+    _mm_val, _mm_src = first_src("maintenance_interval_monthly_mileage")
+    _mm = _to_int(_mm_val)
     if _mm is not None:
         d.monthly_mileage_km = _mm
+        dist_src["monthly_mileage_km"] = _mm_src or ""
 
     # remaining times (minutes)
     _rcl = _dur_to_min(first("remaining_climatisation_time", "remaining_climate_time"))
@@ -3106,11 +3204,36 @@ def map_dataset_to_vehicle_data(
     # plus a companion unit field; our sensors are km-typed, so convert once
     # here (km cars hit the no-op branch). Post-process so the individual field
     # mappings above stay untouched.
+    #
+    # v4.10.0 — per SOURCE LEAF, not per attribute. The companion field says
+    # what unit the car DISPLAYS, and only the data points that ship a unit
+    # companion of their own actually follow it; the rest of the portal's
+    # distances declare a fixed km in the catalogue and arrive in km whatever
+    # the car's display is set to. Scaling those was a 1.6x error on every
+    # UK/US car — on the service interval, the oil interval, the monthly
+    # average, the last-trip distance and, when a car ships the
+    # ``cruising_range_*`` dialect, on the ranges as well. Each of these
+    # attributes can be filled from EITHER kind of leaf, so the decision cannot
+    # be made from the attribute name: ``dist_src`` carries the leaf that
+    # actually filled it (recorded at the assignment), and a leaf in
+    # ``_FIXED_KM_LEAVES`` is never scaled. An unknown source still scales,
+    # which keeps the legacy/flat dialects (``range``, ``primaryEngineRange``,
+    # ``totalRange_km``, the odometer family) behaving exactly as before —
+    # those are the payloads the conversion was originally grounded on.
+    #
+    # NOTE on position: this loop runs in the MIDDLE of the mapper, so distance
+    # mappings further down (the instrument-cluster DID block) were never
+    # scaled at all. That stays as it is — moving the loop to the end would
+    # start scaling values nobody has evidence about — but it does mean a new
+    # distance mapping added BELOW this point silently opts out. Add it above,
+    # or record its source leaf.
     if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")):
         for _attr in ("odometer_km", "range_km", "electric_range_km",
                       "combustion_range_km", "secondary_engine_range_km",
                       "total_range_km", "service_km", "oil_service_km",
                       "monthly_mileage_km", "last_trip_distance_km"):
+            if dist_src.get(_attr) in _FIXED_KM_LEAVES:
+                continue
             _val = getattr(d, _attr)
             if _val is not None:
                 setattr(d, _attr, round(_val * 1.60934))
@@ -4434,12 +4557,14 @@ def map_dataset_to_vehicle_data(
         _r_sum = _udsf("0x2ab6", "Param_RangeSumDispl", 0, 2000)
         if _r_sum is not None and d.total_range_km is None:
             d.total_range_km = int(_r_sum)
+            dist_src["total_range_km"] = _UDS_KM_SOURCE
         _r_pri = _udsf("0x2ab6", "Param_RangePrimaDriveDispl", 0, 2000)
         if _r_pri is not None and d.primary_engine_range_km is None:
             d.primary_engine_range_km = int(_r_pri)
         _r_sec = _udsf("0x2ab6", "Param_RangeSoncoDriveDispl", 0, 2000)
         if _r_sec is not None and d.secondary_engine_range_km is None:
             d.secondary_engine_range_km = int(_r_sec)
+            dist_src["secondary_engine_range_km"] = _UDS_KM_SOURCE
 
     # DID 0x2AF7 "Low_voltage_battery" — the 12 V starter battery. Its state of
     # charge is NOT the traction SoC; see the field comments in models.py.
