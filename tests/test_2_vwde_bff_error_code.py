@@ -64,6 +64,9 @@ def _conn(resp: _Resp) -> WebsiteAuthProxyConnector:
     c._session = _Session(resp)  # type: ignore[assignment]
     c._headers = lambda d: d  # type: ignore[assignment]
     c.probe_outcomes = {}
+    # #1659 — the read path now latches one WARNING per refused read, so a
+    # connector built via __new__ needs the latch the real __init__ creates.
+    c._entitlement_logged = set()
     return c
 
 

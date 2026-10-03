@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 import time
 import uuid
@@ -50,10 +51,18 @@ from urllib.parse import parse_qs, urlparse
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
+from ._http2 import H2Session
+
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from .._util import drop_charge_sentinel, drop_odometer_sentinel
-from .._bff_error_codes import decode_bff_error
-from ..exceptions import APIError, AuthenticationError
+from .._bff_error_codes import decode_bff_error, reason_for_bff_code
+from ..exceptions import (
+    AuthProxyUnavailableError,
+    APIError,
+    AuthenticationError,
+    CommandFailureReason,
+    InvalidCredentialsError,
+)
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action, _TC_MARKERS
 
@@ -78,6 +87,23 @@ _REDIRECT_URL = (
 # (the WeConnect vehicle backend). Each gets its own scope set. The authproxy
 # does the confidential OIDC exchange and lands the browser back on
 # ``_REDIRECT_URL`` with first-party cookies set.
+# #1659 — what a decoded BFF refusal actually asks the user to DO. Only codes
+# the command path already classifies as an entitlement gap get a sentence, and
+# the two gaps get DIFFERENT sentences: an expired subscription is fixed by
+# paying, a not-entitled account by being enrolled for the service. Everything
+# else (transient, consent, backend) gets none — inventing an action for a code
+# we have not understood is how a reporter loses a day.
+_ENTITLEMENT_HINTS: dict[CommandFailureReason, str] = {
+    CommandFailureReason.SUBSCRIPTION_EXPIRED: (
+        "this read needs an active paid connected-services subscription for "
+        "this car; check it in the brand app."
+    ),
+    CommandFailureReason.NOT_ENTITLED: (
+        "this account is not enrolled for that service on this car; enrol it "
+        "in the brand app."
+    ),
+}
+
 _LOGIN_PATH = "/app/authproxy/login"
 _LOGIN_PARAMS: dict[str, str] = {
     "fag": "vw-de,vwag-weconnect",
@@ -387,6 +413,131 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     return d
 
 
+def _to_int_str(raw: Any) -> int | None:
+    """``fuel/status`` ships its numbers as strings ("76", "530", "100.0")."""
+    val = _to_float_str(raw)
+    return int(round(val)) if val is not None else None
+
+
+def _to_float_str(raw: Any) -> float | None:
+    """A ``fuel/status`` string number, or None.
+
+    Non-finite tokens are rejected, not just malformed ones: ``float("nan")`` and
+    ``float("inf")`` succeed, and Python's json decoder accepts bare ``NaN`` /
+    ``Infinity`` literals by default, so such a value can reach here from a real
+    response. Passing it on would then blow up in ``int(round(...))`` with a
+    ValueError/OverflowError — neither of which the read's guard catches, so a
+    single junk token would take down the whole poll and discard the charging and
+    maintenance data already collected beside it. Found by an adversarial review.
+    """
+    if raw is None:
+        return None
+    try:
+        val = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return val if math.isfinite(val) else None
+
+def _fuel_engine_blocks(payload: Any) -> list[tuple[str, dict[str, str]]]:
+    """Normalise a ``fuel/status`` body into ``[(engine_id, {name: value})]``.
+
+    Two shapes are in the wild on the same endpoint, both captured by reporters
+    on #1313:
+
+    * the LIST form — ``{"data": [{"id": "primaryEngine", "properties":
+      [{"name": "currentFuelLevel_pct", "value": "76"}, ...]}, ...]}``
+    * the DICT form — ``{"primaryEngine": {"currentFuelLevel_pct": "76", ...},
+      "secondaryEngine": {...}}``
+
+    Both carry the numbers as STRINGS, unlike every other surface the
+    integration parses, so the caller coerces. Anything else yields an empty
+    list and the caller leaves the vehicle untouched.
+    """
+    out: list[tuple[str, dict[str, str]]] = []
+
+    def _props(node: Any) -> dict[str, str]:
+        props = node.get("properties") if isinstance(node, dict) else None
+        if isinstance(props, list):
+            return {
+                str(p.get("name")): str(p.get("value"))
+                for p in props
+                if isinstance(p, dict) and p.get("name") is not None
+                and p.get("value") is not None
+            }
+        if isinstance(node, dict):
+            return {
+                k: str(v) for k, v in node.items()
+                if isinstance(k, str) and isinstance(v, (str, int, float))
+            }
+        return {}
+
+    if not isinstance(payload, dict):
+        return out
+    data = payload.get("data", payload)
+    if isinstance(data, list):
+        for node in data:
+            if isinstance(node, dict) and node.get("id"):
+                props = _props(node)
+                # the capture time sits on the NODE, beside "properties" — not
+                # inside it. The live channel owns the freshness anchor, so losing
+                # it here would make the stale-data repair misfire (#1419).
+                ts = node.get("carCapturedTimestamp")
+                if isinstance(ts, str) and ts:
+                    props.setdefault("carCapturedTimestamp", ts)
+                out.append((str(node["id"]), props))
+        return out
+    if isinstance(data, dict):
+        for key in ("primaryEngine", "secondaryEngine"):
+            if isinstance(data.get(key), dict):
+                out.append((key, _props(data[key])))
+    return out
+
+
+def map_fuel_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
+    """Map a ``fuel/status`` response onto ``VehicleData``.
+
+    #1313 — the point of this read: on MBB plug-in hybrids the portal feed ships
+    no drive-battery state of charge and ``charging/status`` is refused with
+    ``4004 missingUserConsent``, so those cars have had no SoC at all. This body
+    carries both drives, including ``currentSOC_pct``.
+
+    Engines are matched on their ``engineType``, NOT on primary/secondary.
+    Which drive is "primary" is a property of the car — on @realynot's Tiguan
+    the petrol engine is primary and the electric one secondary — so keying on
+    the position would mean guessing, while ``engineType`` states it outright.
+    An engine whose type we do not recognise is skipped rather than assigned to
+    whichever field happens to be free.
+
+    Every assignment is fill-if-empty: a live brand-native or BFF read always
+    wins, this is the fallback for cars that have nothing else.
+    """
+    blocks = _fuel_engine_blocks(payload)
+    if not blocks:
+        return d
+    _COMBUSTION = {"gasoline", "petrol", "diesel", "cng", "lpg"}
+    for _engine_id, props in blocks:
+        etype = (props.get("engineType") or "").strip().lower()
+        rng = _to_int_str(props.get("remainingRange_km"))
+        if etype == "electric":
+            soc = _to_int_str(props.get("currentSOC_pct"))
+            if soc is not None and 0 <= soc <= 100 and d.battery_soc is None:
+                d.battery_soc = soc
+            if rng is not None and d.electric_range_km is None:
+                d.electric_range_km = rng
+        elif etype in _COMBUSTION:
+            lvl = _to_int_str(props.get("currentFuelLevel_pct"))
+            if lvl is not None and 0 <= lvl <= 100 and d.fuel_level is None:
+                d.fuel_level = lvl
+            if rng is not None and d.combustion_range_km is None:
+                d.combustion_range_km = rng
+            oil = _to_float_str(props.get("currentOilLevel_pct"))
+            if oil is not None and 0 <= oil <= 100 and d.oil_level_pct is None:
+                d.oil_level_pct = int(round(oil))
+    for _engine_id, props in blocks:
+        _bump_last_seen(d, props.get("carCapturedTimestamp"))
+    return d
+
+
 def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     """Map a ``maintenance/status`` response onto ``VehicleData``.
 
@@ -469,7 +620,24 @@ class WebsiteAuthProxyConnector:
         # marker. Semantically inert (see _canaries.py). Literal embedded for
         # the canary-watch grep: website_authproxy_provenance_b6tkd2x9_2026
         self._canary = CANARY_WEBSITE_AUTHPROXY
-        self._session = session
+        # v4.10.0 (#1679, thanks @eurojojo / @fschulte2812 / @Joassens) —
+        # www.volkswagen.de/app/authproxy/* answers only over HTTP/2 as of
+        # 2026-10-03; over HTTP/1.1 EVERY authproxy path returns 502, which is
+        # what killed this whole channel. aiohttp speaks HTTP/1.1 only, so the
+        # session is wrapped in an h2 transport that keeps using this session's
+        # cookie jar — the jar is what gets persisted, so export_cookies /
+        # import_cookies and all seven call sites below stay untouched.
+        # Typed loosely on purpose: the adapter deliberately implements only
+        # the slice of ClientSession this connector uses (see _http2.py).
+        self._aiohttp_session = session
+        # Only a REAL aiohttp session is wrapped. The suite injects session
+        # doubles (SimpleNamespace / AsyncMock) to drive the connector's own
+        # logic; wrapping those would test the adapter's plumbing instead, and
+        # the adapter has its own tests. The surface the connector relies on is
+        # pinned separately by a contract test, so the two cannot drift.
+        self._session: Any = (
+            H2Session(session) if isinstance(session, ClientSession) else session
+        )
         self._email = email
         self._password = password
         self._brand = brand
@@ -559,6 +727,8 @@ class WebsiteAuthProxyConnector:
         # bare status labels only ("404", "412", "200 no-value") — no PII. Without
         # this a fail-soft probe left zero trace and the whole cohort was blind.
         self.probe_outcomes: dict[str, str] = {}
+        # #1659 — one WARNING per refused read, not one per poll.
+        self._entitlement_logged: set[str] = set()
         # Pre-flight durable-MBB eligibility per VIN, classified from the guest-
         # readable relations read (carnetIndicator / platform / role — see
         # _authproxy.mbb_eligibility). Observability only: surfaced in diagnostics
@@ -810,7 +980,12 @@ class WebsiteAuthProxyConnector:
             ) from exc
 
         if landed_status == 401:
-            raise AuthenticationError(
+            # The ONLY place this login may claim the credentials are wrong: the
+            # IDP answered 401 to the credential POST itself. Every other failure
+            # below stays a plain AuthenticationError so the config flow can tell
+            # the user what actually happened instead of blaming their password
+            # (#1679, #1313 — see InvalidCredentialsError).
+            raise InvalidCredentialsError(
                 "Website authproxy: invalid email or password"
             )
         if landed_status >= 400 and "email-challenge" not in landed:
@@ -1029,6 +1204,24 @@ class WebsiteAuthProxyConnector:
             _URL_VIN_RE.sub("<vin>", _URL_UUID_RE.sub("<uuid>", landed_path)),
             status,
         )
+        # v4.10.0 (#1679 @eurojojo, #1313 @fschulte2812) — a SERVER error says
+        # nothing about the session, so it must not be read as a dead SSO.
+        # When www.volkswagen.de started serving the authproxy over HTTP/2 only,
+        # every HTTP/1.1 request came back 502 — and a 502 is returned FOR the
+        # login path, so it lands on exactly the path the "dead resume" test
+        # below looks for. The consequences were the damaging part: it ran a
+        # credential re-login (password POST, and an OTP mail on accounts with
+        # the e-mail challenge) to recover from an outage it could not recover
+        # from, and then told people to re-add the channel while their cookies
+        # were still valid. Checked before every other verdict, and it never
+        # touches relogin_if_allowed().
+        if status >= 500:
+            raise AuthProxyUnavailableError(
+                "Website authproxy: the site answered "
+                f"{status} — this is a server-side failure, not your session; "
+                "the stored login is untouched and the next poll will retry"
+            )
+
         # #1659 (@Joassens) — second dead-resume shape, and the one that made the
         # channel need a manual re-add after EVERY Home Assistant restart. The
         # refresh GET is itself aimed at _LOGIN_PATH, so landing back on that
@@ -1413,7 +1606,10 @@ class WebsiteAuthProxyConnector:
                 allow_redirects=False,
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
-                alive = resp.status == 200
+                # bool(...) because the session is typed loosely for the
+                # h2 adapter, so resp.status is Any and mypy strict
+                # rejects returning it from a -> bool function.
+                alive = bool(resp.status == 200)
                 _LOGGER.debug(
                     "Website authproxy resume probe → status %s (host %s)",
                     resp.status,
@@ -1497,6 +1693,7 @@ class WebsiteAuthProxyConnector:
                     # the log. Structured code only (decode_bff_error never
                     # returns free text), so nothing sensitive is surfaced.
                     _detail = ""
+                    _hint: str | None = None
                     try:
                         _decoded = decode_bff_error(
                             await resp.text(errors="replace")
@@ -1505,11 +1702,42 @@ class WebsiteAuthProxyConnector:
                         _decoded = None
                     if _decoded is not None:
                         _detail = f" (BFF {_decoded[0]} {_decoded[1]})"
+                        # #1659 (@Joassens) — the decoded code was precise and
+                        # completely unactionable: he read "4007
+                        # connectivityLicenseInactive" as a market/registration
+                        # problem (so did I, in writing), spent a day on it, and
+                        # then solved it by buying the paid Car-Net "Guide &
+                        # Inform Plus" subscription — which is what the code says.
+                        # The command path already classifies these codes; the
+                        # read path recorded the raw name only.
+                        #
+                        # The WORDING differs per reason on purpose: an expired
+                        # subscription is fixed by paying, a not-entitled account
+                        # by being enrolled for the service. Telling someone to
+                        # buy a subscription for userNotEnrolled would be a
+                        # confident wrong answer.
+                        #
+                        # ``probe_outcomes`` deliberately keeps ONLY the decoded
+                        # code: it is the machine-readable surface (diagnostics,
+                        # tests, cross-report comparison). The sentence belongs in
+                        # the log and on the raised error, where a human reads it.
+                        _reason = reason_for_bff_code(_decoded[0])
+                        _hint = (
+                            _ENTITLEMENT_HINTS.get(_reason) if _reason else None
+                        )
+                        if _hint and (record_as or "") not in self._entitlement_logged:
+                            self._entitlement_logged.add(record_as or "")
+                            _LOGGER.warning(
+                                "Website authproxy: %s refused with %s — %s "
+                                "Nothing to fix in the integration.",
+                                record_as or "a read", _decoded[1], _hint,
+                            )
                     if record_as:
                         self.probe_outcomes[record_as] = f"{resp.status}{_detail}"
                     raise AuthenticationError(
                         f"Website authproxy GET {_safe_url(url)} → HTTP "
                         f"{resp.status}{_detail}"
+                        + (f" — {_hint}" if _hint else "")
                     )
                 if resp.status >= 400:
                     if (
@@ -2015,6 +2243,7 @@ class WebsiteAuthProxyConnector:
             # back to the stale portal feed — the #1357 electric-range gap.
             from .._authproxy import (  # noqa: PLC0415
                 build_charging_url,
+                build_fuel_url,
                 build_maintenance_url,
             )
 
@@ -2056,6 +2285,34 @@ class WebsiteAuthProxyConnector:
                 )
                 if isinstance(maintenance, dict):
                     map_maintenance_to_vehicle_data(maintenance, d)
+                    got_data = True
+            except (AuthenticationError, APIError) as exc:
+                _core_exc = _core_exc or exc
+                self.probe_outcomes[f"vwde_core_read:{_core_read}"] = (
+                    _http_status_from_exc(exc)
+                )
+                _LOGGER.info(
+                    "vw.de core read '%s' walled for %s (%s); continuing (#1)",
+                    _core_read, vin[-6:], exc,
+                )
+
+            # #1313 — fuel/status: the ONLY state-of-charge source on MBB plug-in
+            # hybrids. Their portal feed carries no drive-battery SoC and their
+            # charging/status is refused with 4004 missingUserConsent, so those
+            # cars had no SoC at all. Same realm / gdc / resource host as the
+            # maintenance read above, so it rides the session that already works;
+            # own guard like the other two, because a wall here must not cost the
+            # reads that already succeeded (#1 above).
+            _core_read = "fuel"
+            try:
+                fuel = await self._get_json(
+                    build_fuel_url(vin, self._gdc(vin)),
+                    accept="*/*",
+                    soft=True,
+                    record_as="vwde_fuel",
+                )
+                if fuel is not None:
+                    map_fuel_to_vehicle_data(fuel, d)
                     got_data = True
             except (AuthenticationError, APIError) as exc:
                 _core_exc = _core_exc or exc

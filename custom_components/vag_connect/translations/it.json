@@ -191,6 +191,7 @@
       "email_two_factor_required": "2FA via email richiesta. Controlla la tua casella di posta (e lo spam) per un codice a 6 cifre da VAG IDP, poi accedi manualmente all'app della marca una volta.",
       "too_many_requests": "Account sospeso temporaneamente (troppi tentativi di accesso). Attendi 15 minuti.",
       "invalid_credentials": "Indirizzo email o password errati.",
+      "website_login_failed": "La tua email e la password non sono il problema — l'accesso a volkswagen.de le ha superate e si è interrotto in un passaggio successivo (per esempio sessione scaduta, ciclo di reindirizzamenti o una pagina non riconosciuta). Il motivo è nel log di Home Assistant. Cambiare password non serve; se continua, apri una segnalazione allegando quella riga di log.",
       "upstream_unavailable": "Backend VW temporaneamente non disponibile. Si tratta di un problema lato server di VW, NON di un problema di credenziali. Attendi 5–15 minuti e riprova. NON riconfigurare l'integrazione.",
       "na_signin_attestation": "La tua email e la tua password sono corrette — Volkswagen North America ora blocca questo accesso dietro un controllo di attestazione del dispositivo di Google (Play Integrity) che solo l'app ufficiale su un telefono autentico può superare. Reinserire la password non serve a nulla; si tratta di un blocco lato server di VW, non di un problema di credenziali. (Vedi la issue #1165.)",
       "porsche_login_wall": "La tua e-mail e la tua password sono corrette — l'accesso ha superato il passaggio della password, ma è poi arrivato a una schermata captcha/consenso di Porsche (vista su alcuni account su my.porsche.com) che un accesso automatico non può superare. Reinserire la password non aiuterà; è un blocco lato Porsche, non un problema di credenziali. Prova al massimo una volta — tentativi ripetuti hanno causato il blocco di account Porsche. (Tracciato: #1337.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "Per abilitare ABRP devi inserire sia la api_key sia il token per veicolo.",
       "invalid_auth": "Accesso non riuscito. Controlla l'email e la password del tuo Volkswagen ID.",
       "cannot_connect": "Impossibile raggiungere Volkswagen. Riprova.",
+      "invalid_credentials": "Indirizzo email o password errati.",
       "vweu_mfa_unsupported": "Questo account richiede un codice via email o dall'app di autenticazione, che VW EU Two-Way non è ancora in grado di gestire. Usa invece i canali in sola lettura.",
       "vweu_no_bff_data": "Accesso riuscito, ma Volkswagen non ha ancora restituito dati in tempo reale per quest'auto sul backend moderno, quindi VW EU Two-Way non è stato attivato e il tuo canale attuale resta invariato. Riprova più tardi, oppure condividi una diagnostica così possiamo esaminarla.",
-      "terms_and_conditions": "I termini e le condizioni devono essere accettati. Accedi una volta all'app e conferma."
+      "terms_and_conditions": "I termini e le condizioni devono essere accettati. Accedi una volta all'app e conferma.",
+      "website_login_failed": "La tua email e la password non sono il problema — l'accesso a volkswagen.de le ha superate e si è interrotto in un passaggio successivo (per esempio sessione scaduta, ciclo di reindirizzamenti o una pagina non riconosciuta). Il motivo è nel log di Home Assistant. Cambiare password non serve; se continua, apri una segnalazione allegando quella riga di log."
     },
     "abort": {
       "not_volkswagen": "Questo canale è disponibile solo per Volkswagen.",
@@ -1372,6 +1375,15 @@
       },
       "battery_care_score_threshold": {
         "name": "Soglia punteggio cura batteria"
+      },
+      "cyclic_trip_distance_km": {
+        "name": "Distanza dall'ultimo rifornimento"
+      },
+      "climatisation_duration_raw": {
+        "name": "Durata climatizzazione (grezza)"
+      },
+      "battery_care_notification": {
+        "name": "Notifica cura batteria"
       },
       "cabin_temp": {
         "name": "Temperatura abitacolo"

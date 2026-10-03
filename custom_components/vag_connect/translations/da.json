@@ -191,6 +191,7 @@
       "email_two_factor_required": "E-mail-2FA er påkrævet. Tjek din indbakke (og spam) for en 6-cifret kode fra VAG IDP, og log derefter ind manuelt i mærke-appen én gang.",
       "too_many_requests": "Konto midlertidigt spærret (for mange loginforsøg). Vent venligst 15 minutter.",
       "invalid_credentials": "E-mailadresse eller adgangskode er forkert.",
+      "website_login_failed": "Din e-mail og adgangskode er ikke problemet — logind på volkswagen.de kom forbi dem og fejlede i et senere trin (for eksempel en udløbet session, en omdirigeringsløkke eller en side den ikke genkendte). Årsagen står i Home Assistant-loggen. En ny adgangskode hjælper ikke; hvis det bliver ved, så opret et issue med den loglinje.",
       "upstream_unavailable": "VW-backendet er midlertidigt utilgængeligt. Dette er et serverproblem hos VW, IKKE et problem med loginoplysninger. Vent venligst 5-15 minutter, og prøv igen. Konfigurer IKKE integrationen igen.",
       "na_signin_attestation": "Din e-mail og adgangskode er fine — Volkswagen North America blokerer nu dette login bag en Google-enhedsattesteringskontrol (Play Integrity), som kun den officielle app på en ægte telefon kan bestå. At indtaste din adgangskode igen hjælper ikke; dette er en spærring på serversiden fra VW, ikke et problem med loginoplysninger. (Spores: #1165.)",
       "porsche_login_wall": "Din e-mail og adgangskode er i orden — loginnet kom forbi adgangskodetrinnet, men endte derefter på en Porsche captcha-/samtykkeskærm (set på nogle konti på my.porsche.com), som et headless login ikke kan komme forbi. At indtaste din adgangskode igen hjælper ikke; det er en blokering på Porsches side, ikke et problem med dine loginoplysninger. Prøv højst én gang — gentagne forsøg har låst Porsche-konti. (Følges: #1337.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "For at aktivere ABRP skal du indtaste både api_key og tokenet pr. køretøj.",
       "invalid_auth": "Login mislykkedes. Tjek din Volkswagen ID-e-mail og adgangskode.",
       "cannot_connect": "Kunne ikke få forbindelse til Volkswagen. Prøv venligst igen.",
+      "invalid_credentials": "E-mailadresse eller adgangskode er forkert.",
       "vweu_mfa_unsupported": "Denne konto kræver en e-mail- eller authenticator-kode, som VW EU To-vejs endnu ikke kan håndtere. Brug de skrivebeskyttede kanaler i stedet.",
       "vweu_no_bff_data": "Logget ind, men Volkswagen returnerede endnu ingen live-data for denne bil på det moderne backend, så VW EU To-vejs blev ikke aktiveret, og din nuværende kanal er uændret. Prøv venligst igen senere, eller del en diagnostikfil, så vi kan undersøge det.",
-      "terms_and_conditions": "Vilkår og betingelser skal accepteres. Log ind i appen én gang, og bekræft."
+      "terms_and_conditions": "Vilkår og betingelser skal accepteres. Log ind i appen én gang, og bekræft.",
+      "website_login_failed": "Din e-mail og adgangskode er ikke problemet — logind på volkswagen.de kom forbi dem og fejlede i et senere trin (for eksempel en udløbet session, en omdirigeringsløkke eller en side den ikke genkendte). Årsagen står i Home Assistant-loggen. En ny adgangskode hjælper ikke; hvis det bliver ved, så opret et issue med den loglinje."
     },
     "abort": {
       "not_volkswagen": "Denne kanal er kun tilgængelig for Volkswagen.",
@@ -1372,6 +1375,15 @@
       },
       "battery_care_score_threshold": {
         "name": "Grænse for batteriskånings-score"
+      },
+      "cyclic_trip_distance_km": {
+        "name": "Afstand siden sidste optankning"
+      },
+      "climatisation_duration_raw": {
+        "name": "Klimatiseringsvarighed (rå)"
+      },
+      "battery_care_notification": {
+        "name": "Batteriplejebesked"
       },
       "cabin_temp": {
         "name": "Kabinetemperatur"

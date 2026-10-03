@@ -191,6 +191,7 @@
       "email_two_factor_required": "Vyžadováno e-mailové 2FA. Zkontrolujte schránku (i spam), pak se přihlaste ručně v aplikaci.",
       "too_many_requests": "Účet dočasně zablokován. Počkejte 15 minut.",
       "invalid_credentials": "Nesprávná e-mailová adresa nebo heslo.",
+      "website_login_failed": "Tvůj e-mail a heslo nejsou problém — přihlášení na volkswagen.de je prošlo a selhalo až v pozdějším kroku (například vypršelá session, smyčka přesměrování nebo nerozpoznaná stránka). Důvod je v logu Home Assistanta. Změna hesla nepomůže; pokud se to opakuje, založ issue a přilož tento řádek logu.",
       "portal_interaction_required": "Portál EU Data Act vyžaduje jednorázovou akci ve vašem prohlížeči nebo aplikaci značky (např. přijmout podmínky, potvrdit souhlas, dokončit onboarding/výběr regionu), než začne fungovat bezhlavý přístup. Toto NENÍ problém se špatným heslem — otevřete portál jednou v prohlížeči, dokončete výzvu a zkuste to znovu.",
       "upstream_unavailable": "Backend VW dočasně nedostupný. Toto je problém na straně serveru VW, NIKOLI chyba přihlášení. Počkejte 5–15 minut a zkuste to znovu. Integraci znovu NEKONFIGURUJTE.",
       "na_signin_attestation": "Vaše e-mailová adresa a heslo jsou v pořádku — Volkswagen Severní Amerika nyní blokuje toto přihlášení kontrolou atestace zařízení od Googlu (Play Integrity), kterou dokáže projít pouze oficiální aplikace na opravdovém telefonu. Opětovné zadání hesla nepomůže; jde o zámek na straně serveru VW, nikoli o problém s přihlašovacími údaji. (Sledováno: #1165.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "Pro povolení ABRP musíte zadat jak api_key, tak token vozidla.",
       "invalid_auth": "Přihlášení selhalo. Zkontrolujte e-mail a heslo svého Volkswagen ID.",
       "cannot_connect": "Volkswagen se nepodařilo kontaktovat. Zkuste to prosím znovu.",
+      "invalid_credentials": "Nesprávná e-mailová adresa nebo heslo.",
       "vweu_mfa_unsupported": "Tento účet vyžaduje kód z e-mailu nebo z ověřovací aplikace, který VW EU Two-Way zatím neumí zpracovat. Použijte místo toho kanály jen pro čtení.",
       "vweu_no_bff_data": "Přihlášení proběhlo, ale Volkswagen pro tento vůz na moderním backendu zatím nevrátil žádná živá data, takže VW EU Two-Way nebyl zapnut a váš stávající kanál zůstává beze změny. Zkuste to prosím později, nebo sdílejte diagnostiku, abychom se na to mohli podívat.",
-      "terms_and_conditions": "Je nutné přijmout obchodní podmínky. Přihlaste se v aplikaci."
+      "terms_and_conditions": "Je nutné přijmout obchodní podmínky. Přihlaste se v aplikaci.",
+      "website_login_failed": "Tvůj e-mail a heslo nejsou problém — přihlášení na volkswagen.de je prošlo a selhalo až v pozdějším kroku (například vypršelá session, smyčka přesměrování nebo nerozpoznaná stránka). Důvod je v logu Home Assistanta. Změna hesla nepomůže; pokud se to opakuje, založ issue a přilož tento řádek logu."
     },
     "abort": {
       "not_volkswagen": "Tento kanál je dostupný pouze pro Volkswagen.",
@@ -1372,6 +1375,15 @@
       },
       "battery_care_score_threshold": {
         "name": "Prahové skóre šetření baterie"
+      },
+      "cyclic_trip_distance_km": {
+        "name": "Vzdálenost od posledního tankování"
+      },
+      "climatisation_duration_raw": {
+        "name": "Doba klimatizace (nezpracovaná)"
+      },
+      "battery_care_notification": {
+        "name": "Upozornění péče o baterii"
       },
       "cabin_temp": {
         "name": "Teplota v kabině"

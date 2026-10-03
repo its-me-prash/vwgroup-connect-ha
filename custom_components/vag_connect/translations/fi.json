@@ -191,6 +191,7 @@
       "email_two_factor_required": "Sähköpostin 2FA vaaditaan. Tarkista postilaatikkosi (ja roskaposti) 6-numeroisen VAG IDP -koodin varalta, kirjaudu sitten manuaalisesti merkin sovellukseen kerran.",
       "too_many_requests": "Tili tilapäisesti jäädytetty (liikaa kirjautumisyrityksiä). Odota 15 minuuttia.",
       "invalid_credentials": "Sähköpostiosoite tai salasana väärin.",
+      "website_login_failed": "Sähköpostiosoitteesi ja salasanasi eivät ole ongelma — volkswagen.de-kirjautuminen pääsi niistä ohi ja kaatui vasta myöhemmässä vaiheessa (esimerkiksi vanhentunut istunto, uudelleenohjaussilmukka tai sivu jota ei tunnistettu). Syy löytyy Home Assistantin lokista. Salasanan vaihtaminen ei auta; jos tämä jatkuu, avaa issue ja liitä kyseinen lokirivi.",
       "upstream_unavailable": "VW-taustajärjestelmä tilapäisesti tavoittamattomissa. Tämä on palvelinpuolen ongelma VW:llä, EI kirjautumistieto-ongelma. Odota 5–15 minuuttia ja yritä uudelleen. ÄLÄ määritä integraatiota uudelleen.",
       "na_signin_attestation": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — Volkswagen North America estää nyt tämän kirjautumisen Googlen laitevahvistustarkistuksen (Play Integrity) taakse, jonka vain virallinen sovellus aidossa puhelimessa pystyy läpäisemään. Salasanan syöttäminen uudelleen ei auta; kyseessä on VW:n palvelinpuolen lukitus, ei kirjautumistieto-ongelma. (Seuranta: #1165.)",
       "porsche_login_wall": "Sähköpostisi ja salasanasi ovat kunnossa — kirjautuminen pääsi salasanavaiheen ohi, mutta päätyi sitten Porschen captcha-/suostumusnäyttöön (havaittu joillakin tileillä osoitteessa my.porsche.com), jota headless-kirjautuminen ei pysty ohittamaan. Salasanan syöttäminen uudelleen ei auta; kyseessä on Porschen puolen este, ei tunnistetieto-ongelma. Yritä enintään kerran — toistuvat yritykset ovat johtaneet Porsche-tilien lukitukseen. (Seuranta: #1337.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "ABRP:n käyttöönotto edellyttää sekä api_keyn että ajoneuvokohtaisen tunnisteen syöttämistä.",
       "invalid_auth": "Kirjautuminen epäonnistui. Tarkista Volkswagen ID -sähköpostisi ja -salasanasi.",
       "cannot_connect": "Volkswageniin ei saatu yhteyttä. Yritä uudelleen.",
+      "invalid_credentials": "Sähköpostiosoite tai salasana väärin.",
       "vweu_mfa_unsupported": "Tämä tili vaatii sähköposti- tai todennussovelluskoodin, jota VW EU Two-Way ei vielä osaa käsitellä. Käytä sen sijaan vain luku -kanavia.",
       "vweu_no_bff_data": "Kirjautuminen onnistui, mutta Volkswagen ei vielä palauttanut tälle autolle live-tietoja modernissa taustajärjestelmässä, joten VW EU Two-Way ei aktivoitunut ja nykyinen kanavasi säilyy ennallaan. Yritä myöhemmin uudelleen tai jaa diagnostiikkatiedosto, jotta voimme selvittää asiaa.",
-      "terms_and_conditions": "Käyttöehdot on hyväksyttävä. Kirjaudu sovellukseen kerran ja vahvista."
+      "terms_and_conditions": "Käyttöehdot on hyväksyttävä. Kirjaudu sovellukseen kerran ja vahvista.",
+      "website_login_failed": "Sähköpostiosoitteesi ja salasanasi eivät ole ongelma — volkswagen.de-kirjautuminen pääsi niistä ohi ja kaatui vasta myöhemmässä vaiheessa (esimerkiksi vanhentunut istunto, uudelleenohjaussilmukka tai sivu jota ei tunnistettu). Syy löytyy Home Assistantin lokista. Salasanan vaihtaminen ei auta; jos tämä jatkuu, avaa issue ja liitä kyseinen lokirivi."
     },
     "abort": {
       "not_volkswagen": "Tämä kanava on käytettävissä vain Volkswagenille.",
@@ -1372,6 +1375,15 @@
       },
       "battery_care_score_threshold": {
         "name": "Akun säästötilan pistemäärän raja"
+      },
+      "cyclic_trip_distance_km": {
+        "name": "Matka viime tankkauksesta"
+      },
+      "climatisation_duration_raw": {
+        "name": "Ilmastoinnin kesto (raaka)"
+      },
+      "battery_care_notification": {
+        "name": "Akunhoidon ilmoitus"
       },
       "cabin_temp": {
         "name": "Sisätilan lämpötila"

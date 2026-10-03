@@ -224,6 +224,22 @@ async def _validate_credentials(
         client = CariadClientFactory.create(
             brand, auth_session, username, password, country=country
         )
+        # Hand the client the HA instance locale, exactly as the coordinator does
+        # after it builds its own. Without this the INTERACTIVE login — the one a
+        # user actually performs, and the one that produces the wall captures the
+        # Porsche locale hints exist for — went out with no locale at all: the
+        # coordinator deliberately avoids a second interactive login (it bridges
+        # the token from here and refreshes instead), so its own locale-carrying
+        # login only runs once the refresh token has died. Fail-soft: a missing
+        # hass.config value must never break a login.
+        # setattr, not attribute assignment: the factory's return type is a union
+        # and only some members declare these, so a direct assignment fails mypy
+        # strict. Same call shape the coordinator uses.
+        try:
+            setattr(client, "_ha_language", hass.config.language or "")
+            setattr(client, "_ha_country", hass.config.country or "")
+        except Exception:  # noqa: BLE001
+            pass
         try:
             # isinstance (not brand == "porsche") so mypy narrows client to
             # PorscheClient here — its authenticate() is the only one with
@@ -378,6 +394,7 @@ def _map_error(err_code: str) -> str:
         "portal_interaction_required",  # v2.15.4 (#527) — non-credential portal stop
         "na_signin_attestation",  # #1165/#659 — VW NA Play-Integrity sign-in wall
         "porsche_login_wall",  # b23 #1337 — Porsche captcha/consent wall past password
+        "website_login_failed",  # #1679/#1313 — vw.de login failed, but NOT on the password
     } else "cannot_connect"
 
 
@@ -1031,6 +1048,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             EmailTwoFactorRequiredError,
+            InvalidCredentialsError,
         )
 
         # Close any half-open connector from a prior attempt in this flow.
@@ -1047,10 +1065,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             result = await self._wap_connector.begin_login()
         except EmailTwoFactorRequiredError:
             return True
+        except InvalidCredentialsError as err:
+            await self._wap_close_session()
+            _LOGGER.warning("Website authproxy rejected the credentials: %s", err)
+            raise ValueError("invalid_credentials") from err
         except AuthenticationError as err:
+            # NOT a credential problem — see InvalidCredentialsError. #957 added
+            # the log line below but still told the user their password was
+            # wrong; #1679 and #1313 are both people whose credentials work on
+            # volkswagen.de being sent to change them.
             await self._wap_close_session()
             _LOGGER.warning("Website authproxy login failed: %s", err)
-            raise ValueError("invalid_credentials") from err
+            raise ValueError("website_login_failed") from err
         except Exception as err:  # noqa: BLE001
             await self._wap_close_session()
             _LOGGER.error(
@@ -3977,6 +4003,7 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             EmailTwoFactorRequiredError,
+            InvalidCredentialsError,
         )
 
         await self._ovw_close_session()
@@ -3991,6 +4018,10 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             result = await self._ovw_connector.begin_login()
         except EmailTwoFactorRequiredError:
             return True
+        except InvalidCredentialsError as err:
+            await self._ovw_close_session()
+            _LOGGER.warning("Website authproxy rejected the credentials: %s", err)
+            raise ValueError("invalid_credentials") from err
         except AuthenticationError as err:
             await self._ovw_close_session()
             # v2.24.1 (#957) — this is the options-flow twin of the setup-time
@@ -3999,8 +4030,14 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             # "invalid_credentials", so a redirect loop, an expired SSO session or
             # a portal outage all told the user their password was wrong and left
             # nothing in the log to tell them apart.
+            #
+            # The log line fixed half of that; the verdict the USER sees was still
+            # "your password is wrong". #1313 (@realynot) hit exactly this site on
+            # a re-login whose credentials reach the OTP step on volkswagen.de,
+            # and #1679 (@Fishermanjb) the same symptom at setup. Only a genuine
+            # 401 keeps the credential verdict now.
             _LOGGER.warning("Website authproxy login failed: %s", err)
-            raise ValueError("invalid_credentials") from err
+            raise ValueError("website_login_failed") from err
         except Exception as err:  # noqa: BLE001
             await self._ovw_close_session()
             _LOGGER.error(

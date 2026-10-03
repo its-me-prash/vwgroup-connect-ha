@@ -191,6 +191,7 @@
       "email_two_factor_required": "Se requiere 2FA por email. Revisa tu bandeja de entrada (y spam) para un código de 6 dígitos, luego inicia sesión manualmente en la app.",
       "too_many_requests": "Cuenta suspendida temporalmente. Espera 15 minutos.",
       "invalid_credentials": "Correo electrónico o contraseña incorrectos.",
+      "website_login_failed": "Tu correo y tu contraseña no son el problema — el inicio de sesión en volkswagen.de los superó y falló en un paso posterior (por ejemplo sesión caducada, bucle de redirecciones o una página no reconocida). El motivo está en el registro de Home Assistant. Cambiar la contraseña no ayudará; si sigue ocurriendo, abre una incidencia e incluye esa línea del registro.",
       "portal_interaction_required": "El portal de la EU Data Act necesita una acción única en tu navegador o en la app de la marca (p. ej. aceptar los términos, confirmar el consentimiento, completar el onboarding/selección de región) antes de que funcione el acceso sin interfaz. Esto NO es un problema de contraseña: abre el portal una vez en un navegador, completa el aviso y vuelve a intentarlo.",
       "upstream_unavailable": "Backend de VW temporalmente no disponible. Es un problema del servidor de VW, NO un problema de credenciales. Espera 5–15 minutos e inténtalo de nuevo. NO reconfigures la integración.",
       "na_signin_attestation": "Tu correo electrónico y contraseña son correctos: Volkswagen Norteamérica ahora bloquea este inicio de sesión detrás de una comprobación de certificación de dispositivo de Google (Play Integrity) que solo la aplicación oficial en un teléfono auténtico puede superar. Volver a introducir tu contraseña no servirá de nada; se trata de un bloqueo del lado del servidor de VW, no de un problema de credenciales. (Seguimiento: #1165.)",
@@ -358,9 +359,11 @@
       "abrp_credentials_required": "Para activar ABRP debes introducir tanto la api_key como el token del vehículo.",
       "invalid_auth": "Error al iniciar sesión. Comprueba el correo electrónico y la contraseña de tu Volkswagen ID.",
       "cannot_connect": "No se pudo contactar con Volkswagen. Inténtalo de nuevo.",
+      "invalid_credentials": "Correo electrónico o contraseña incorrectos.",
       "vweu_mfa_unsupported": "Esta cuenta necesita un código por correo electrónico o de la app de autenticación, que VW EU bidireccional aún no puede gestionar. Usa los canales de solo lectura en su lugar.",
       "vweu_no_bff_data": "Sesión iniciada, pero Volkswagen aún no ha devuelto datos en vivo para este coche en el backend moderno, por lo que VW EU bidireccional no se ha activado y tu canal actual no cambia. Inténtalo de nuevo más tarde o comparte un diagnóstico para que podamos investigarlo.",
-      "terms_and_conditions": "Hay que aceptar los términos. Inicia sesión en la aplicación."
+      "terms_and_conditions": "Hay que aceptar los términos. Inicia sesión en la aplicación.",
+      "website_login_failed": "Tu correo y tu contraseña no son el problema — el inicio de sesión en volkswagen.de los superó y falló en un paso posterior (por ejemplo sesión caducada, bucle de redirecciones o una página no reconocida). El motivo está en el registro de Home Assistant. Cambiar la contraseña no ayudará; si sigue ocurriendo, abre una incidencia e incluye esa línea del registro."
     },
     "abort": {
       "not_volkswagen": "Este canal solo está disponible para Volkswagen.",
@@ -1372,6 +1375,15 @@
       },
       "battery_care_score_threshold": {
         "name": "Umbral de puntuación de cuidado de la batería"
+      },
+      "cyclic_trip_distance_km": {
+        "name": "Distancia desde el último repostaje"
+      },
+      "climatisation_duration_raw": {
+        "name": "Duración de la climatización (bruta)"
+      },
+      "battery_care_notification": {
+        "name": "Aviso de cuidado de la batería"
       },
       "cabin_temp": {
         "name": "Temperatura del habitáculo"

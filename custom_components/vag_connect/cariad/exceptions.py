@@ -332,6 +332,24 @@ class AuthenticationError(CariadError):
     """Login failed — wrong credentials or account issue."""
 
 
+class InvalidCredentialsError(AuthenticationError):
+    """The identity provider REJECTED the email/password pair itself.
+
+    Raised only where the upstream genuinely said "these credentials are wrong"
+    (the vw.de authproxy's HTTP 401 on the credential POST). Everything else a
+    login can fail with — a redirect loop, a dead SSO session, an unrecognised
+    challenge page, a portal outage, a 4xx carrying its own reason — stays a
+    plain ``AuthenticationError`` so the UI can say something true instead of
+    blaming the user's password.
+
+    #1679 (@Fishermanjb) and #1313 (@realynot) both reported "invalid
+    credentials" while the same credentials signed in fine on volkswagen.de, and
+    both config-flow sites mapped EVERY ``AuthenticationError`` to the same
+    "email or password incorrect". #957 had already noticed that and added a log
+    line, but left the user-facing verdict unchanged — this is the other half.
+    """
+
+
 class TokenRefreshRetryError(CariadError):
     """A token refresh was rejected TRANSIENTLY — not a dead refresh token.
 
@@ -603,6 +621,29 @@ class VehicleCommandError(CariadError):
             msg += f": {reason}"
         super().__init__(msg)
         self.command = command
+
+
+class AuthProxyUnavailableError(CariadError):
+    """The volkswagen.de authproxy answered with a server error, so nothing can
+    be concluded about the session.
+
+    #1679 / #1313 — when www.volkswagen.de began serving ``/app/authproxy/*``
+    over HTTP/2 only, every HTTP/1.1 request got a **502**. The silent-resume
+    path read that as "the SSO session is dead", because a 502 is returned FOR
+    the login path and therefore looks like a landing back on it. Two things
+    followed, both wrong and both reported by users:
+
+    * it then ran a credential re-login — POSTing the stored password and, for
+      accounts on the e-mail challenge, triggering an OTP mail — to recover from
+      a server outage it could not recover from;
+    * and it told people their session had expired and they had to re-add the
+      channel, while @fschulte2812's cookies from three days earlier were still
+      perfectly valid.
+
+    A 5xx says nothing about credentials or cookies, so it gets its own error:
+    the caller treats it as "this channel is unavailable right now", leaves the
+    stored session alone, and does not arm a re-authentication.
+    """
 
 
 class APIError(CariadError):

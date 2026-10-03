@@ -824,6 +824,27 @@ class VehicleData:
     # may draw from the drive battery rather than requiring the car to be
     # plugged in. Config, not telemetry.
     climatisation_without_hv_power: bool | None = None
+    # v4.10.0 (Scout #1689 +13 reports from 12 accounts — #1574 @iluebbe,
+    # #1577 @Dirk-fs, #1588 @Schraube11, #1630 @alfons61, #1503 @supersej,
+    # #1504 @StoneH74, #1518 @danilokl, #1527/#1534 @gfro84, #1529/#1645
+    # @skornehl, #1451 @JuhaKoivisto, #1483 @JanFirlus) — the RAW
+    # ``climatisation_settings.duration`` leaf. NOT in the official V6.0 field
+    # catalogue (6610 entries), so its unit and its meaning are both unknown: a
+    # run length, a configured timer length and a remaining time would each want
+    # a different sensor and a different unit. All fourteen reports read 0, and
+    # in the seven that also carried ``climatisation_state`` it was OFF — which
+    # points at a run-time rather than a stored setting. Points at, not proves:
+    # the other seven simply did not list the state (it is mapped on their
+    # version, so the Scout had no reason to report it), so their cars' state is
+    # unknown rather than different.
+    #
+    # Deliberately its OWN field rather than folded into
+    # ``climate_remaining_time_min``: the catalogue documents that one
+    # separately, and a wrong fold would clobber a known-good minute value with
+    # an unknown unit. Surfaced as a UNITLESS diagnostic sensor so the number is
+    # visible (no-suppression policy) without an invented unit, and so the Scout
+    # stops re-filing it on every poll — which is what those 14 reports are.
+    climatisation_duration_raw: float | None = None
     outside_temp: float | None = None
     # v4.10.0 (#1661) — the outside humidity sensor's other two readings, from the
     # portal's base64 UDS envelope for DID 0x27C3 ("Humidity_Sensor_Outside").
@@ -2022,6 +2043,56 @@ class VehicleData:
     lifetime_zero_emission_km: float | None = None
     # Distance driven without emission, last trip (dict 100m → km). sensor.
     last_trip_zero_emission_km: float | None = None
+    # v4.10.0 (Scout #1655 @user222008, #1578/#1592 @iansyder8, #1579
+    # @DanyZdog93, #1681/#1682/#1683 @Nicohlav, #1687 @Neurupp2, #1492
+    # @4ndy-bo, #1603 @checkner89 — 10 reports, 7 accounts) —
+    # ``cycle_data_mileage``, a trip-computer memory distance in KILOMETRES:
+    # the distance covered since the last refuelling (on a hybrid, since the
+    # last charge or refuelling).
+    #
+    # WHAT IT IS, from the manufacturer's own app rather than from a guess
+    # (com.volkswagen.weconnect 4.3.2, decoded string resources): the app ships
+    # a whole screen for this memory under the key family
+    # ``..._rts_cyclicTrips*`` — "From refuelling" on a combustion car, "From
+    # charging or refuelling" on a hybrid, spelled out as "All journeys between
+    # two fill-ups". The app's own word for the memory is "cyclic", which is
+    # exactly this field's ``cycle_`` prefix, so the name ties to the concept
+    # without inference. @DanyZdog93 (#1579) had identified it independently
+    # from his dashboard: the counter with the fuel-pump icon, resetting on
+    # refuelling rather than at trip boundaries, 141 -> 238 km after driving.
+    #
+    # NOT established: what resets it on a pure BEV. The app's hybrid wording
+    # says a charge does, but @iansyder8's Q6 e-tron (#1578/#1592) grew
+    # 26432 -> 26448 across a day without resetting, so on a BEV it may simply
+    # never reset. Asked in #1578; until it is answered the entity name follows
+    # the app's combustion wording, which is what six of the seven reporting
+    # accounts drive.
+    #
+    # The leaf itself is NOT in the official V6.0 catalogue (nor in the 7990-
+    # entry shipped dictionary, nor in any competing integration's field set),
+    # so it was held unmapped for a week. Two pieces of evidence settled the
+    # UNIT before the app confirmed the meaning:
+    #   1. @iansyder8 reported the SAME car twice on one day — 26432 at 14:25
+    #      UTC (#1578) and 26448 at 20:00 UTC (#1592). +16 in five and a half
+    #      hours: it ACCUMULATES while driving, so it is neither an index, nor a
+    #      status code, nor a countdown. (That rate does not pick the unit —
+    #      +16 miles fits equally well — point 2 does.)
+    #   2. The catalogue documents two SIBLINGS with the identical
+    #      ``*_data_mileage`` suffix — ``short_term_data_mileage`` and
+    #      ``long_term_data_mileage``, both "Overall Mileage for short/long term
+    #      trips", unit km, category "Trip Statistics" — i.e. the car's own trip
+    #      computer memories. ``cycle_data_mileage`` is the third member of that
+    #      naming scheme, which also explains the spread across the reports (43,
+    #      109, 141, 465, 784, 1830 on memories that were reset at some point vs
+    #      ~26 400 on one that was not).
+    #
+    # Deliberately NOT folded into ``odometer_km``: a trip memory and the
+    # odometer are different quantities, and filling the odometer from a
+    # resettable counter would be a confident wrong answer on every car whose
+    # memory has ever been cleared. Whether THIS memory is resettable is the one
+    # open question (asked in #1578), which is also why its sensor is
+    # MEASUREMENT rather than TOTAL_INCREASING — see sensor.py.
+    cyclic_trip_distance_km: float | None = None
     # Trigger info about the last battery-charger update (string, e.g. "other").
     # LOW — disabled-by-default. sensor, diagnostic.
     charger_update_trigger: str | None = None
@@ -2215,6 +2286,16 @@ class VehicleData:
     # LOW — disabled-by-default diagnostic sensors.
     battery_care_score: float | None = None
     battery_care_score_threshold: float | None = None
+    # v4.10.0 (#1444, @josie127-neu) — battery-care-mode notification state.
+    # The official V6.0 field catalogue documents it as an enum:
+    # BCAM_NOTIFICATION_INVALID, IMMEDIATE_CHARGING_SOC_RESET_IN_NEXT_CHARGING_
+    # PROCESS, IMMEDIATE_CHARGING_NOTIFY_BCAM_IS_OFF, EXTENDED_CHARGING_SOC_
+    # RESET_IN_NEXT_CHARGING_PROCESS, EXTENDED_CHARGING_NOTIFY_BCAM_IS_OFF,
+    # BCAM_SCORE_VALUE_WARNING, BCAM_SCORE_VALUE_REACHED — i.e. why battery care
+    # mode last spoke up. It had been left Scout-visible because its meaning was
+    # unknown; the catalogue settles it, and a held leaf is re-reported on every
+    # poll. LOW — diagnostic, disabled by default.
+    battery_care_notification: str | None = None
 
     # ── v2.16.0 — volkswagen.de authproxy live-status read-path (BETA) ────────
     # Written by auth/_website_authproxy.py only (opt-in, read-only channel).

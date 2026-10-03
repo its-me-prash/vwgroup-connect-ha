@@ -7,7 +7,11 @@ a climatise reason trigger, and an undocumented cycle mileage.
 - climatisation_state="error" surfaces as ERROR but must NOT read as active.
 - climatisation_state_error_code feeds the existing climate_error_code sensor.
 - climatisation_reason_trigger feeds the new climatisation_reason field.
-- cycle_data_mileage is HELD (undocumented unit) — stays Scout-visible.
+- cycle_data_mileage was HELD here (undocumented unit). It is MAPPED as of
+  v4.10.0 — the catalogue's ``short/long_term_data_mileage`` siblings establish
+  km and @iansyder8's two same-day samples establish that it accumulates. See
+  tests/test_1655_cycle_data_mileage.py; this file keeps the #1492 payload as a
+  regression guard that @4ndy-bo's original reading still reads back.
 """
 from __future__ import annotations
 
@@ -49,11 +53,15 @@ def test_climatisation_reason_trigger_maps() -> None:
     assert d.climatisation_reason == "IMMEDIATE"
 
 
-def test_cycle_data_mileage_is_held_visible() -> None:
-    # Undocumented unit → intentionally not mapped; stays on the Scout surface.
+def test_cycle_data_mileage_is_mapped_in_km_and_silenced() -> None:
+    # v4.10.0 — no longer held: the catalogue's *_data_mileage siblings give the
+    # unit (km) and @iansyder8's 26432→26448 pair on one car gives the
+    # behaviour. @4ndy-bo's 784 reads back unscaled, and the leaf stops being
+    # re-filed on every poll.
     d = _map({"cycle_data_mileage": "784"})
+    assert d.cyclic_trip_distance_km == 784.0
     leaves = {k.rsplit(".", 1)[-1] for k in (d.raw_unmapped_fields or {})}
-    assert "cycle_data_mileage" in leaves
+    assert "cycle_data_mileage" not in leaves
 
 
 def test_full_1492_payload() -> None:

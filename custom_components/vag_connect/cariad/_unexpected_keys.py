@@ -1268,6 +1268,33 @@ def _path_matches(path: str, expected_paths: set[str]) -> bool:
     return False
 
 
+_HEX_RUN_RE = re.compile(r"[0-9a-fA-F]{24,}")
+_ASCII_VINISH_RE = re.compile(rb"[A-HJ-NPR-Z0-9]{17}")
+
+
+def _encoded_identifier(text: str) -> str | None:
+    """#1690 — name the kind of identifier hiding inside an ENCODED run, or None.
+
+    Only hex is decoded, because that is the encoding the EU Data Act export
+    actually uses for its credential blobs. Both byte alignments are tried: a
+    VIN can start on an odd nibble. Returns a short label for the message, never
+    the decoded value — the point is to say what was removed without printing it.
+    """
+    for run in _HEX_RUN_RE.findall(text):
+        for offset in (0, 1):
+            candidate = run[offset:]
+            candidate = candidate[: len(candidate) // 2 * 2]
+            if not candidate:
+                continue
+            try:
+                raw = bytes.fromhex(candidate)
+            except ValueError:
+                continue
+            if _ASCII_VINISH_RE.search(raw):
+                return "credential"
+    return None
+
+
 def mask_value(value: Any, *, max_len: int = 80) -> str:
     """Anonymise a sample value for logging / external sharing.
 
@@ -1293,6 +1320,22 @@ def mask_value(value: Any, *, max_len: int = 80) -> str:
         return f"{value:.1f}"
     if isinstance(value, str):
         s = value
+        # #1690 (and #1510/#1549/#1585/#1591 before it) — a hex-encoded blob can
+        # CONTAIN an identifier that no plain-text pattern below will ever see.
+        # ``auth_signature_response`` embeds the car's VIN as ASCII inside its hex,
+        # so _VIN_RE did not match, the truncation at the end left the VIN inside
+        # the first 80 characters, and the Vehicle Data Scout posted it into a
+        # public issue. That happened FIVE times and was hand-redacted four times
+        # before anyone fixed the masker — truncation is not redaction.
+        #
+        # Checked before the plain-text rules so an encoded identifier cannot slip
+        # past them, and the whole blob goes rather than the matched bytes: a
+        # signature's content carries no diagnostic value for field discovery (only
+        # its presence and length do), and partial redaction of an encoding leaves
+        # the neighbouring bytes to be reassembled.
+        _decoded_hit = _encoded_identifier(s)
+        if _decoded_hit:
+            return f'"[redacted {_decoded_hit} blob, {len(s)} chars]"'
         s = _VIN_RE.sub(lambda m: mask_vin(m.group(0)), s)
         s = _EMAIL_RE.sub("***@***", s)
         s = _JWT_RE.sub("[token]", s)

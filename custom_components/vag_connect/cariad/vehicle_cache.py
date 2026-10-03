@@ -70,6 +70,13 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "lifetime_trip_start_odometer_km", "lifetime_avg_aux_consumption_kwh_100km",
     "lifetime_avg_gas_consumption_kg_100km", "lifetime_range_gain_km",
     "lifetime_zero_emission_km",
+    # v4.10.0 (Scout #1655 + 9) — the third trip-computer memory, same reasoning
+    # as its lifetime_* siblings two lines up: the portal re-sends the whole trip
+    # block when it has one, so a poll that omits the block used to blank this to
+    # "unknown" between deliveries. It is never per-poll-suppressed, and it is
+    # deliberately NOT in MONOTONIC_INCREASING_FIELDS, so if the memory turns out
+    # to be resettable a genuine reset still wins here instead of being latched.
+    "cyclic_trip_distance_km",
 })
 
 # v4.7.11 (#465, toglo) — STATIC master data that ONLY the vw.de channel supplies

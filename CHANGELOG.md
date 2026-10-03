@@ -42,6 +42,153 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **The distance since your last fill-up is now a sensor (Vehicle Data Scout, #1655 and nine more reports — thanks @user222008, @iansyder8, @DanyZdog93, @Nicohlav, @Neurupp2, @4ndy-bo and @checkner89).**
+  Ten reports from seven accounts kept naming the same unmapped value, and it is in none of the 6610 entries of
+  the manufacturer's own field catalogue, so for a week it was held rather than given a guessed meaning. Three
+  things settled it. @iansyder8 happened to report the same car twice in one day, five and a half hours apart,
+  with the value sixteen higher — so it counts up as you drive. The catalogue documents its two siblings as the
+  car's short-term and long-term trip memories, both in kilometres, which fixes the unit. And @DanyZdog93 pinned
+  the meaning from his dashboard: it is the counter with the fuel-pump icon, resetting when he refuels rather
+  than at the start or end of a trip. The manufacturer's own app agrees — it has a whole screen for this memory,
+  labelled "From refuelling" and described as "all journeys between two fill-ups" (on a hybrid, "from charging
+  or refuelling").
+  Diagnostic, off by default, and deliberately not wired to the odometer: the two are different quantities, and
+  filling the odometer from a counter that resets would be a confident wrong answer on every car that has reset
+  it. For the same reason the sensor records the value without claiming a long-term total. One thing is still
+  open and asked in #1578: on a pure electric car nothing seems to reset it, so there the name is the closest
+  honest label rather than the whole truth.
+- **The climatisation duration the portal sends is visible instead of swallowed (Vehicle Data Scout, #1689 and thirteen more reports).**
+  Twelve accounts reported this leaf, and the catalogue does not document it either. "Duration" could be how long a
+  climatisation run lasted, how long one was configured for, or how long is left — three different sensors with three
+  different units. All fourteen reports read zero, and in the seven that also carried the climatisation state it was
+  off, which hints at a run time without proving it. Rather than invent a unit, the raw number gets its own sensor with no unit at all and
+  "(raw)" in its name, off by default, and it is kept well away from the climate ETA sensor beside it, which is
+  documented in minutes. A leaf nobody maps is re-reported on every poll, which is how fourteen issues happened.
+
+### Fixed
+- **The volkswagen.de channel works again: the site now requires HTTP/2 (#1679, thanks @eurojojo; #1313, thanks @fschulte2812; #1659, thanks @Joassens).**
+  Since early October every request to volkswagen.de's app endpoints came back with a 502, which took the whole
+  volkswagen.de channel down — logins, vehicle reads, everything. The cause is not the login, the account or the car:
+  the site stopped answering those paths over HTTP/1.1 and now serves them only over HTTP/2. Browsers negotiate that
+  automatically, the library this integration uses for every request speaks only HTTP/1.1, so it hit a wall it could
+  not see. @eurojojo found it and proved it with a side-by-side of five different clients; @fschulte2812 and
+  @Joassens then confirmed independently that reads, a credential login and an e-mail code all work over HTTP/2.
+  This channel now speaks HTTP/2, and only this channel — nothing else in the integration changes. Your saved login
+  is reused as before: the cookies live where they always did, so no re-adding and no new e-mail code.
+- **A server outage no longer gets reported as an expired session (#1679, #1313).**
+  The same 502 was being read as "your session died", because the error came back for the login address itself and
+  so looked like a login page. Two things followed from that, and both were worse than the wrong message. The
+  integration replayed your stored password to recover — which on accounts that use e-mail codes sent you a code for
+  nothing — and it then told you to re-add the channel, while the saved session was in fact still perfectly valid.
+  @fschulte2812 proved that: his three-day-old cookies resumed on the first try once the transport could reach the
+  site. A server error now says so plainly, leaves the saved login untouched, never replays the password, and simply
+  retries on the next poll.
+- **A single junk number from the portal could discard a whole snapshot.**
+  JSON allows the bare literals `NaN` and `Infinity`, and the portal is parsed as JSON, so one of those really can
+  arrive in a reading. It then flowed straight through the parser's number conversion — where turning it into a whole
+  number raises an error, and that aborted the mapping of everything else delivered in the same snapshot. If it did
+  land in a sensor instead, it made the diagnostics download invalid JSON, so the dump attached to a bug report could
+  no longer be read. The same literal in a capture-time field was worse again: that value is the sort key for picking
+  the freshest of several readings, and since every comparison against it is false, "freshest" became arbitrary — and
+  if it reached the last-seen anchor, the freshness check itself raised. Non-finite values are now dropped where they
+  are converted, like any other unusable reading, and everything sent beside them survives. Found by a test written
+  for the duration sensor above.
+- **A negative reading from the car's trip computer no longer reaches a distance or duration sensor.**
+  Three of the trip-computer values already ignored a negative reading; their twenty-odd siblings did not, so a
+  negative could land on a sensor where it makes no sense — a trip distance below zero, a negative travel time, a
+  negative average speed — and from there into long-term statistics, where it stays. Sixteen of those values now
+  ignore a negative reading, and a plain zero still counts as real (a trip that was just reset genuinely reads zero).
+  Decided value by value rather than by family name, because this family is mixed in two directions. The service and
+  oil countdowns are *documented* as going negative: once you pass the interval, the manufacturer sends how far you
+  have driven since, as a negative number, and the integration already turns that into a positive "overdue by" —
+  a blanket rule would have replaced a real overdue service with no reading at all. In the other direction, the
+  average monthly distance carries the maintenance prefix but is a distance you drove, so it does get the guard.
+  Left alone on purpose: electric, auxiliary and recuperation averages, which are net-energy figures — a downhill
+  trip can recover more than it uses, so a negative there may be the truth.
+- **Cars set to miles no longer get a 1.6x service interval, oil interval, monthly average or last-trip distance.**
+  A UK or US car's portal feed says which unit the car *displays*, and the integration used to convert every distance
+  it had mapped whenever it saw "miles". But only some of the portal's distances actually follow the car's display:
+  the manufacturer's own field catalogue gives a unit companion to exactly eight data points — the odometer, a
+  generic distance, the two estimated cruising ranges, the per-engine range list, the two service-due values and tyre
+  pressures — and documents every other distance as kilometres outright, several of them spelled out as "always in
+  km". So four readings were being multiplied although they already arrived in kilometres: the distance to the next
+  service and to the next oil change, the average monthly distance, and the last trip. On cars that report their
+  ranges under the catalogue's kilometre-documented names, the range sensors were inflated the same way.
+  Whether a value needs converting is now decided from the field it came from rather than from the sensor it feeds —
+  which matters because most of these sensors can be filled from either kind of field, sometimes on the same car.
+  Nothing changes for a car reporting kilometres, the odometer still converts as before, and readings from the older
+  flat payload dialects — which is where the conversion was originally established from real cars — keep converting
+  too, since nothing documents those either way.
+
+## [4.10.0b2] - 2026-10-03 — A VIN the Scout should never have printed, two repairs that told the truth, and a charge level MBB hybrids never had
+
+### Added
+- **Plug-in hybrids on the volkswagen.de channel finally get a battery charge level (#1313, thanks @realynot and @fschulte2812).**
+  On MBB plug-in hybrids the EU Data Act feed carries no drive-battery charge at all and the charging read is refused,
+  so those cars have had no state of charge — the one number most people actually want. There is another read on the
+  same session that returns both drives, and it is now used: drive-battery charge and electric range, plus fuel level,
+  combustion range and oil level. Which drive is the electric one is taken from the data rather than from its position
+  in the response, so a car that lists its engines the other way round still maps correctly. A reading from a live
+  brand channel still wins where one exists.
+- **Battery-care mode now reports why it last spoke up (Vehicle Data Scout, #1444, thanks @josie127-neu).**
+  A new diagnostic sensor (off by default) shows the battery-care notification state — whether the charge target was
+  reset for the next charge, whether care mode is off, or whether the care score hit its warning threshold. It had
+  been left unmapped because its meaning was a guess; VW's own field catalogue documents the values, so there was
+  nothing left to guess. Two long-standing neighbours of it (the care score and its threshold) were also quietly
+  re-reporting themselves to the Scout on every poll for cars that send them nested — that's fixed in passing.
+
+### Changed
+- **A read refused for a missing subscription now says so (#1659, thanks @Joassens).**
+  His maintenance read came back as `4007 connectivityLicenseInactive`, which is precise and tells you nothing about
+  what to do — he read it as a registration problem, so did I, and he eventually solved it by buying the paid Car-Net
+  subscription, which is exactly what the code meant. Those refusals now spell out the action, once per read, in the
+  log and in the error. The two cases are worded differently on purpose: an expired subscription needs paying for, an
+  account that isn't enrolled needs enrolling — and a refusal we haven't understood still says nothing rather than
+  guessing.
+
+### Fixed
+- **A frozen timestamp from the car no longer makes fresh data look days old (#1688, thanks @Datendieb).**
+  His portal kept delivering all afternoon — odometer and charge level visibly moving — while the timestamp the car
+  reports about itself stayed five days old. The "data is stale" warning and problem sensor were built on that
+  timestamp alone, so they claimed 105 hours on data that was minutes old. A reading that has actually changed since
+  the last poll now proves the data is live and overrides the timestamp. Deliberately one-directional: unchanged
+  readings still prove nothing, because a car parked for days repeats them and a genuinely dead feed must still be
+  reported. He also spotted that "minutes since last snapshot" contradicted the snapshot time right next to it —
+  that field was measuring the car's timestamp instead of the snapshot, and now measures the snapshot.
+- **The "no vehicle data yet" warning really does name the car now (#1656, thanks @kalwados).**
+  The first attempt at this shipped in the last beta and still showed only the brand. The warning is raised from the
+  portal's own state, which is independent of any per-car flag — and the flag the first version filtered on isn't
+  reliably set, so on exactly the accounts this warning fires for, nothing matched and it fell back to the brand.
+  It now prefers the car that is actually flagged (useful when one car on the account works and another doesn't) and
+  otherwise names every car on the account, since the warning means the account's portal is delivering nothing.
+- **The volkswagen.de channel no longer tells you your password is wrong when it isn't (#1679, thanks @Fishermanjb; #1313, thanks @realynot).**
+  Both reporters had the channel refuse them with "email address or password incorrect" while the very same
+  credentials signed in fine on volkswagen.de and even reached the e-mail-code step. The login itself was careful
+  about this — it only gets a real "wrong credentials" answer from a specific refusal — but both places that show
+  you the result threw every other failure (an expired session, a redirect loop, a page it didn't recognise, the
+  portal being down) into the same message. So people were sent off to reset a password that was never the problem.
+  Only the genuine credential refusal says that now; everything else says it is *not* your password and points at
+  the log, which has carried the real reason for a while.
+- **The Porsche login now tells Auth0 which language and country you are in.**
+  The official Porsche app passes the device locale into its login call; we sent
+  nothing, so the page we land on came back in whatever language Auth0 guessed.
+  That matters less for you than for us: when a login runs into one of Porsche's
+  wall screens, the integration describes it by looking for English keywords, so
+  an unexpected language could leave a report saying nothing at all about what
+  was hit. It now sends your Home Assistant language and country, which also
+  matches what the app does. Nothing is invented — a country the integration
+  doesn't know is simply left out rather than guessed.
+
+### Security
+- **The Vehicle Data Scout can no longer post your VIN into a public issue (#1690).**
+  One portal field carries a credential blob with the car's VIN encoded inside it. The Scout masks VINs by looking
+  for them as readable text, so it never saw this one, and the length limit that follows happened to leave the VIN
+  inside the part that got posted. It had leaked five times — four of those were cleaned up by hand afterwards
+  without the masking itself being fixed. Encoded identifiers are now detected and the whole blob is replaced before
+  anything is written out; what remains says only what kind of value was removed and how long it was. Already-posted
+  issues were redacted. Nothing about ordinary readings changes.
+
 ## [4.10.0b1] - 2026-10-02 — An EV that was not recognised as one, the data the portal hid in blobs, and a channel that needed re-adding after every restart
 
 ### Added
