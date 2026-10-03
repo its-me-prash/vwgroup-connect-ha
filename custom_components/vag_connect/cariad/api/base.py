@@ -21,7 +21,12 @@ from aiohttp import (
 
 from ..auth.idk import IDKAuth
 from .graphql import VehicleImageFetcher, VehicleImageData
-from ..exceptions import APIError, AuthenticationError, TokenExpiredError
+from ..exceptions import (
+    APIError,
+    AuthenticationError,
+    AuthProxyUnavailableError,
+    TokenExpiredError,
+)
 from ..models import BrandConfig, TokenSet, VehicleData
 
 _LOGGER = logging.getLogger(__name__)
@@ -662,6 +667,19 @@ class CariadBaseClient:
             # storm on reload. (Mechanism mirrors the rafaelhutter portal client.)
             try:
                 await connector.refresh()
+            except AuthProxyUnavailableError as err:
+                # v4.10.0 (#1679/#1313) — the SITE failed, not the session. Do
+                # NOT arm _supplementary_needs_reauth and do not tell anyone to
+                # re-add the channel: the stored cookies are untouched and the
+                # next poll simply retries. People spent days re-entering
+                # credentials and OTP codes because a 502 was reported as an
+                # expired session.
+                _LOGGER.warning(
+                    "VW Group Connect: supplementary vw.de channel is"
+                    " temporarily unavailable: %s", err,
+                )
+                await session.close()
+                return False
             except AuthenticationError as err:
                 # v2.24.2 — say WHY. This used to log the exception class only,
                 # so an expired SSO, a redirect loop and a portal outage were

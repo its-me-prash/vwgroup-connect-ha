@@ -58,7 +58,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   it. For the same reason the sensor records the value without claiming a long-term total. One thing is still
   open and asked in #1578: on a pure electric car nothing seems to reset it, so there the name is the closest
   honest label rather than the whole truth.
-
 - **The climatisation duration the portal sends is visible instead of swallowed (Vehicle Data Scout, #1689 and thirteen more reports).**
   Twelve accounts reported this leaf, and the catalogue does not document it either. "Duration" could be how long a
   climatisation run lasted, how long one was configured for, or how long is left — three different sensors with three
@@ -68,6 +67,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   documented in minutes. A leaf nobody maps is re-reported on every poll, which is how fourteen issues happened.
 
 ### Fixed
+- **The volkswagen.de channel works again: the site now requires HTTP/2 (#1679, thanks @eurojojo; #1313, thanks @fschulte2812; #1659, thanks @Joassens).**
+  Since early October every request to volkswagen.de's app endpoints came back with a 502, which took the whole
+  volkswagen.de channel down — logins, vehicle reads, everything. The cause is not the login, the account or the car:
+  the site stopped answering those paths over HTTP/1.1 and now serves them only over HTTP/2. Browsers negotiate that
+  automatically, the library this integration uses for every request speaks only HTTP/1.1, so it hit a wall it could
+  not see. @eurojojo found it and proved it with a side-by-side of five different clients; @fschulte2812 and
+  @Joassens then confirmed independently that reads, a credential login and an e-mail code all work over HTTP/2.
+  This channel now speaks HTTP/2, and only this channel — nothing else in the integration changes. Your saved login
+  is reused as before: the cookies live where they always did, so no re-adding and no new e-mail code.
+- **A server outage no longer gets reported as an expired session (#1679, #1313).**
+  The same 502 was being read as "your session died", because the error came back for the login address itself and
+  so looked like a login page. Two things followed from that, and both were worse than the wrong message. The
+  integration replayed your stored password to recover — which on accounts that use e-mail codes sent you a code for
+  nothing — and it then told you to re-add the channel, while the saved session was in fact still perfectly valid.
+  @fschulte2812 proved that: his three-day-old cookies resumed on the first try once the transport could reach the
+  site. A server error now says so plainly, leaves the saved login untouched, never replays the password, and simply
+  retries on the next poll.
 - **A single junk number from the portal could discard a whole snapshot.**
   JSON allows the bare literals `NaN` and `Infinity`, and the portal is parsed as JSON, so one of those really can
   arrive in a reading. It then flowed straight through the parser's number conversion — where turning it into a whole
@@ -90,7 +106,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   average monthly distance carries the maintenance prefix but is a distance you drove, so it does get the guard.
   Left alone on purpose: electric, auxiliary and recuperation averages, which are net-energy figures — a downhill
   trip can recover more than it uses, so a negative there may be the truth.
-
 - **Cars set to miles no longer get a 1.6x service interval, oil interval, monthly average or last-trip distance.**
   A UK or US car's portal feed says which unit the car *displays*, and the integration used to convert every distance
   it had mapped whenever it saw "miles". But only some of the portal's distances actually follow the car's display:

@@ -51,10 +51,13 @@ from urllib.parse import parse_qs, urlparse
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
+from ._http2 import H2Session
+
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from .._util import drop_charge_sentinel, drop_odometer_sentinel
 from .._bff_error_codes import decode_bff_error, reason_for_bff_code
 from ..exceptions import (
+    AuthProxyUnavailableError,
     APIError,
     AuthenticationError,
     CommandFailureReason,
@@ -617,7 +620,24 @@ class WebsiteAuthProxyConnector:
         # marker. Semantically inert (see _canaries.py). Literal embedded for
         # the canary-watch grep: website_authproxy_provenance_b6tkd2x9_2026
         self._canary = CANARY_WEBSITE_AUTHPROXY
-        self._session = session
+        # v4.10.0 (#1679, thanks @eurojojo / @fschulte2812 / @Joassens) —
+        # www.volkswagen.de/app/authproxy/* answers only over HTTP/2 as of
+        # 2026-10-03; over HTTP/1.1 EVERY authproxy path returns 502, which is
+        # what killed this whole channel. aiohttp speaks HTTP/1.1 only, so the
+        # session is wrapped in an h2 transport that keeps using this session's
+        # cookie jar — the jar is what gets persisted, so export_cookies /
+        # import_cookies and all seven call sites below stay untouched.
+        # Typed loosely on purpose: the adapter deliberately implements only
+        # the slice of ClientSession this connector uses (see _http2.py).
+        self._aiohttp_session = session
+        # Only a REAL aiohttp session is wrapped. The suite injects session
+        # doubles (SimpleNamespace / AsyncMock) to drive the connector's own
+        # logic; wrapping those would test the adapter's plumbing instead, and
+        # the adapter has its own tests. The surface the connector relies on is
+        # pinned separately by a contract test, so the two cannot drift.
+        self._session: Any = (
+            H2Session(session) if isinstance(session, ClientSession) else session
+        )
         self._email = email
         self._password = password
         self._brand = brand
@@ -1184,6 +1204,24 @@ class WebsiteAuthProxyConnector:
             _URL_VIN_RE.sub("<vin>", _URL_UUID_RE.sub("<uuid>", landed_path)),
             status,
         )
+        # v4.10.0 (#1679 @eurojojo, #1313 @fschulte2812) — a SERVER error says
+        # nothing about the session, so it must not be read as a dead SSO.
+        # When www.volkswagen.de started serving the authproxy over HTTP/2 only,
+        # every HTTP/1.1 request came back 502 — and a 502 is returned FOR the
+        # login path, so it lands on exactly the path the "dead resume" test
+        # below looks for. The consequences were the damaging part: it ran a
+        # credential re-login (password POST, and an OTP mail on accounts with
+        # the e-mail challenge) to recover from an outage it could not recover
+        # from, and then told people to re-add the channel while their cookies
+        # were still valid. Checked before every other verdict, and it never
+        # touches relogin_if_allowed().
+        if status >= 500:
+            raise AuthProxyUnavailableError(
+                "Website authproxy: the site answered "
+                f"{status} — this is a server-side failure, not your session; "
+                "the stored login is untouched and the next poll will retry"
+            )
+
         # #1659 (@Joassens) — second dead-resume shape, and the one that made the
         # channel need a manual re-add after EVERY Home Assistant restart. The
         # refresh GET is itself aimed at _LOGIN_PATH, so landing back on that
@@ -1568,7 +1606,10 @@ class WebsiteAuthProxyConnector:
                 allow_redirects=False,
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
-                alive = resp.status == 200
+                # bool(...) because the session is typed loosely for the
+                # h2 adapter, so resp.status is Any and mypy strict
+                # rejects returning it from a -> bool function.
+                alive = bool(resp.status == 200)
                 _LOGGER.debug(
                     "Website authproxy resume probe → status %s (host %s)",
                     resp.status,
