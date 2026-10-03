@@ -43,6 +43,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **A negative reading from the car's trip computer no longer reaches a distance or duration sensor.**
+  Three of the trip-computer values already ignored a negative reading; their twenty-odd siblings did not, so a
+  negative could land on a sensor where it makes no sense — a trip distance below zero, a negative travel time, a
+  negative average speed — and from there into long-term statistics, where it stays. Sixteen of those values now
+  ignore a negative reading, and a plain zero still counts as real (a trip that was just reset genuinely reads zero).
+  Decided value by value rather than by family name, because this family is mixed in two directions. The service and
+  oil countdowns are *documented* as going negative: once you pass the interval, the manufacturer sends how far you
+  have driven since, as a negative number, and the integration already turns that into a positive "overdue by" —
+  a blanket rule would have replaced a real overdue service with no reading at all. In the other direction, the
+  average monthly distance carries the maintenance prefix but is a distance you drove, so it does get the guard.
+  Left alone on purpose: electric, auxiliary and recuperation averages, which are net-energy figures — a downhill
+  trip can recover more than it uses, so a negative there may be the truth.
 - **Cars set to miles no longer get a 1.6x service interval, oil interval, monthly average or last-trip distance.**
   A UK or US car's portal feed says which unit the car *displays*, and the integration used to convert every distance
   it had mapped whenever it saw "miles". But only some of the portal's distances actually follow the car's display:

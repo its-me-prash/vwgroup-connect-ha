@@ -3146,19 +3146,29 @@ def map_dataset_to_vehicle_data(
     # the dictionary: mileage km, travel_time min, speed km/h. Consumption fields
     # (l/1000km, kWh/1000km) are deferred — current values look like sentinels;
     # they stay Scout-visible for a live A/B before we trust the scale.
+    #
+    # v4.10.0 — ``>= 0`` on the members that CANNOT be negative (a driven
+    # distance, a travel time, an average speed). The three trip-odometer
+    # endpoints further down already screen negatives; these did not, so a
+    # garbage reading reached a DISTANCE/DURATION sensor and its long-term
+    # statistics. Decided per field, not per prefix: the maintenance countdowns
+    # in this same family are documented as going negative on purpose ("if this
+    # limit was exceeded, this value indicates the distance that has been driven
+    # since then") and are normalised by ``_svc`` instead — a blanket guard
+    # would have turned a legitimately-overdue service into no reading at all.
     _st_dist_val, _st_dist_src = first_src("short_term_data_mileage")
     _st_dist = _to_float(_st_dist_val)
-    if _st_dist is not None and d.last_trip_distance_km is None:
+    if _st_dist is not None and _st_dist >= 0 and d.last_trip_distance_km is None:
         d.last_trip_distance_km = _st_dist
         dist_src["last_trip_distance_km"] = _st_dist_src or ""
     _st_time = _to_int(first("short_term_data_travel_time"))
-    if _st_time is not None and d.last_trip_duration_min is None:
+    if _st_time is not None and _st_time >= 0 and d.last_trip_duration_min is None:
         d.last_trip_duration_min = _st_time
     _lt_speed = _to_float(first("long_term_data_average_speed"))
-    if _lt_speed is not None:
+    if _lt_speed is not None and _lt_speed >= 0:
         d.lifetime_avg_speed_kmh = _lt_speed
     _lt_time = _to_int(first("long_term_data_travel_time"))
-    if _lt_time is not None:
+    if _lt_time is not None and _lt_time >= 0:
         d.lifetime_travel_time_min = _lt_time
 
     # maintenance — warning flags (1 == active) + average monthly mileage
@@ -3170,7 +3180,10 @@ def map_dataset_to_vehicle_data(
         d.warning_inspection = _insw == 1
     _mm_val, _mm_src = first_src("maintenance_interval_monthly_mileage")
     _mm = _to_int(_mm_val)
-    if _mm is not None:
+    # "Indicates the distance driven monthly in kilometer" — a driven distance
+    # despite the maintenance_interval_ prefix, so it gets the non-negative
+    # guard while its countdown siblings above deliberately do not.
+    if _mm is not None and _mm >= 0:
         d.monthly_mileage_km = _mm
         dist_src["monthly_mileage_km"] = _mm_src or ""
 
@@ -3361,14 +3374,22 @@ def map_dataset_to_vehicle_data(
 
     # Trip consumption averages (l/1000km → l/100km, kWh/1000km → kWh/100km).
     # Guard is None so we don't overwrite a value the structured path set.
+    #
+    # v4.10.0 — the FUEL and GAS averages get a non-negative guard (you cannot
+    # un-burn petrol), the ELECTRIC and AUX ones deliberately do NOT: those are
+    # net-energy figures, and a trip that recuperates more than it draws is a
+    # real thing on a downhill run, so a negative reading there may be the
+    # truth. Same reasoning keeps the recuperation averages further down
+    # unguarded. If you are here to "fix the inconsistency", this is the
+    # inconsistency, on purpose.
     _stf = _to_float(first("short_term_data_average_fuel_consumption"))
-    if _stf is not None and d.last_trip_avg_fuel_consumption_l_100km is None:
+    if _stf is not None and _stf >= 0 and d.last_trip_avg_fuel_consumption_l_100km is None:
         d.last_trip_avg_fuel_consumption_l_100km = _stf / 10
     _ste = _to_float(first("short_term_data_average_electr_engine_consumption"))
     if _ste is not None and d.last_trip_avg_electric_consumption_kwh_100km is None:
         d.last_trip_avg_electric_consumption_kwh_100km = _ste / 10
     _ltf = _to_float(first("long_term_data_average_fuel_consumption"))
-    if _ltf is not None and d.lifetime_avg_fuel_consumption_l_100km is None:
+    if _ltf is not None and _ltf >= 0 and d.lifetime_avg_fuel_consumption_l_100km is None:
         d.lifetime_avg_fuel_consumption_l_100km = _ltf / 10
     _lte = _to_float(first("long_term_data_average_electr_engine_consumption"))
     if _lte is not None and d.lifetime_avg_electric_consumption_kwh_100km is None:
@@ -3383,25 +3404,25 @@ def map_dataset_to_vehicle_data(
     if _staux is not None and d.last_trip_avg_aux_consumption_kwh_100km is None:
         d.last_trip_avg_aux_consumption_kwh_100km = _staux / 10
     _ltgas = _to_float(first("long_term_data_average_gas_consumption"))
-    if _ltgas is not None and d.lifetime_avg_gas_consumption_kg_100km is None:
+    if _ltgas is not None and _ltgas >= 0 and d.lifetime_avg_gas_consumption_kg_100km is None:
         d.lifetime_avg_gas_consumption_kg_100km = _ltgas / 10
     _stgas = _to_float(first("short_term_data_average_gas_consumption"))
-    if _stgas is not None and d.last_trip_avg_gas_consumption_kg_100km is None:
+    if _stgas is not None and _stgas >= 0 and d.last_trip_avg_gas_consumption_kg_100km is None:
         d.last_trip_avg_gas_consumption_kg_100km = _stgas / 10
 
     # v2.15.3 (#517) — long-term range-gain + zero-emission distance. Dict unit
     # for both is "100m" (i.e. 0.1 km steps) → multiply by 0.1 for km.
     _ltrg = _to_float(first("long_term_data_range_gain_distance"))
-    if _ltrg is not None and d.lifetime_range_gain_km is None:
+    if _ltrg is not None and _ltrg >= 0 and d.lifetime_range_gain_km is None:
         d.lifetime_range_gain_km = _ltrg * 0.1
     _strg = _to_float(first("short_term_data_range_gain_distance"))
-    if _strg is not None and d.last_trip_range_gain_km is None:
+    if _strg is not None and _strg >= 0 and d.last_trip_range_gain_km is None:
         d.last_trip_range_gain_km = _strg * 0.1
     _ltze = _to_float(first("long_term_data_zero_emission_distance"))
-    if _ltze is not None and d.lifetime_zero_emission_km is None:
+    if _ltze is not None and _ltze >= 0 and d.lifetime_zero_emission_km is None:
         d.lifetime_zero_emission_km = _ltze * 0.1
     _stze = _to_float(first("short_term_data_zero_emission_distance"))
-    if _stze is not None and d.last_trip_zero_emission_km is None:
+    if _stze is not None and _stze >= 0 and d.last_trip_zero_emission_km is None:
         d.last_trip_zero_emission_km = _stze * 0.1
 
     # v2.15.3 (#517) — trigger info about the last battery-charger update
@@ -4023,10 +4044,20 @@ def map_dataset_to_vehicle_data(
     if _spoiler_pos is not None and d.spoiler_position_pct is None:
         d.spoiler_position_pct = _spoiler_pos
 
-    # C. Trip odometer endpoints (km). #764 — guard >= 0: a distance/odometer is
-    # never negative, and the lifetime fields use -1 as a "not set yet" sentinel
-    # (Motii08's long_term_data_start_mileage=-1 leaked -1 km onto the start
-    # odometer). Skip negatives so the sentinel never surfaces.
+    # C. Trip odometer endpoints (km). Guard >= 0: a distance/odometer is never
+    # negative, so a negative reading is garbage whatever produced it.
+    #
+    # v4.10.0 note on the provenance of this guard: it was added in v2.19.1
+    # citing #764 and a ``long_term_data_start_mileage = -1`` "not set yet"
+    # sentinel. That specific observation is NOT in #764 (whose payload is all
+    # 65535 / 1 tyre-and-charge sentinels) and could not be reproduced from any
+    # archived payload — the one real trip-family capture we have (#709,
+    # 2026-08-18) reports this family entirely positive (start_mileage 121492,
+    # long-term 5431, short-term 38) and carries negatives ONLY on the
+    # maintenance countdowns, which are documented as signed. So the guard is
+    # kept on the "never negative" reasoning rather than on a -1 marker, and
+    # the same reasoning was extended to its unguarded siblings above; the
+    # attribution is corrected here rather than repeated.
     _lt_dist = _to_int(first("long_term_data_mileage"))
     if _lt_dist is not None and _lt_dist >= 0:
         d.lifetime_trip_distance_km = _lt_dist
