@@ -59,6 +59,24 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   preferring the odometer's own capture so the "last reported" time can never run ahead of the reading it describes.
   Cars that send no per-reading times behave exactly as before.
 
+### Changed
+- **A failed login now says which page it landed on, instead of just "no form fields found" (#1712).**
+  When the login page is not the classic form, the error said nothing about what it actually was — not the address,
+  not the form it found, not the field names it saw. That one line existed only in debug logging, so every report
+  started with a round of "please switch on debug logging and try again" before anyone could tell which login variant
+  had been served. It matters because there is more than one: the integration only treats a page as the modern login
+  when the address says so, and the manufacturer demonstrably serves others — error, consent and terms pages all live
+  under a different address, and our own stored samples contain seven of them. The message now names the page, the form
+  it found, whether there was a form at all, and the field names it saw. Addresses are reported without their query
+  string and with account identifiers masked, and field **names** are reported without their values, so the message
+  stays safe to paste into a public issue.
+- **A rejected token exchange now names the reason, not just "HTTP 400" (#1712).**
+  The reason is in the reply and it distinguishes a wrong client, a spent code, an account that is not authorized and a
+  refused method. Which key carries it was counted rather than assumed: 90 of the stored samples use `errorCode`
+  against 18 for the one the standard prescribes, so reading only the standard key — as the first version of this did —
+  would have found nothing on most real replies. Only a value shaped like an error code is ever shown; free-text
+  descriptions, which echo request content back, are deliberately not read.
+
 ## [4.10.0b4] - 2026-10-04 — A channel that logged in and then said nothing
 
 ### Fixed

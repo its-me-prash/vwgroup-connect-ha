@@ -15,10 +15,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import logging
 import os
 import re
 import time
+from collections.abc import Iterable
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
@@ -72,6 +74,79 @@ def _safe_url(url: str) -> str:
         return _UUID_RE.sub("<uuid>", f"{p.netloc}{p.path}") or "<empty-url>"
     except Exception:  # noqa: BLE001
         return "<unparseable-url>"
+
+
+def _field_names_digest(names: Iterable[str], *, limit: int = 8, width: int = 32) -> str:
+    """Field NAMES only, capped — never values (#1712).
+
+    The names identify which login variant was served (``sessionDataKey`` is not
+    ``_csrf``); the values are the CSRF token and the hmac. This goes into an
+    exception message that reporters paste into public issues verbatim, so it is
+    bounded on purpose: a JS-rendered page can carry hundreds of inputs with long
+    generated names, and an unbounded list would push the useful part of the line
+    out of view.
+    """
+    ordered = sorted(set(names))
+    if not ordered:
+        return "(none)"
+    shown = [n[:width] for n in ordered[:limit]]
+    rest = len(ordered) - len(shown)
+    return ", ".join(shown) + (f" (+{rest} more)" if rest > 0 else "")
+
+
+# Which key carries the diagnosis, counted across the archived captures rather
+# than assumed from RFC 6749: ``errorCode`` 90 occurrences (INVALID_REQUEST 50,
+# USER_NOT_AUTHORIZED 20, METHOD_NOT_ALLOWED 15, RS.security.9007, …) against 18
+# for the spec's own ``error``. Reading only ``error`` would have returned
+# nothing on the majority of real bodies.
+_OAUTH_ERR_KEYS = ("error", "errorCode")
+
+# Shape of an error code as these backends actually write it: SCREAMING_SNAKE,
+# dotted (``RS.security.9007``) and — once — spaced (``invalid assertion
+# headers``). Space is allowed, but see the per-token cap below: this field is
+# NOT trusted, and anything that does not look like error words is dropped
+# rather than guessed at.
+_OAUTH_ERR_RE = re.compile(r"^[A-Za-z0-9_.\- ]{1,40}$")
+
+# No real error word is this long; a JWT segment, a hex blob or a base64 run
+# always is. This is what keeps a free-text field from carrying a secret out.
+_OAUTH_ERR_MAX_TOKEN = 24
+
+
+def _oauth_error_code(body: str) -> str:
+    """The upstream error code from an error body, or ``""`` (#1712).
+
+    A bare "HTTP 400" does not say whether the client id is wrong, the code was
+    already spent, the account lacks authorization or the method is refused —
+    the error code does, and it is an enum rather than a secret.
+    ``error_description`` is deliberately NOT read: it is free text and echoes
+    request content back.
+    """
+    try:
+        parsed = json.loads(body)
+    except (ValueError, TypeError):
+        return ""
+    if not isinstance(parsed, dict):
+        return ""
+    for key in _OAUTH_ERR_KEYS:
+        code = parsed.get(key)
+        if not isinstance(code, str) or not _OAUTH_ERR_RE.match(code):
+            continue
+        if any(len(tok) > _OAUTH_ERR_MAX_TOKEN for tok in code.split()):
+            continue
+        # Observed as "0" and "1" on some bodies — a number carries no
+        # diagnosis, so it is noise rather than signal.
+        if code.strip(".-").isdigit():
+            continue
+        return code
+    return ""
+
+
+def _token_exchange_detail(status: int, body: str) -> str:
+    """Token-exchange failure text, with the OAuth error code when it has one."""
+    code = _oauth_error_code(body)
+    base = f"Token exchange failed HTTP {status} (body {len(body)} chars)"
+    return f"{base} — {code}" if code else base
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
 # v2.12.4 (#438) — token-endpoint statuses that mean "VW backend is having a
@@ -640,6 +715,8 @@ class IDKAuth:
         # Legacy signin-service flow (kept as fallback)
         return await self._authenticate_legacy(
             html, email, password, verifier, mbb_mode=mbb_mode,
+            # #1712 — pass the page we landed on so a parse failure can name it.
+            login_url=login_url,
         )
 
     async def _warm_sso_callback_tokens(
@@ -1188,8 +1265,12 @@ class IDKAuth:
         password: str,
         verifier: str,
         mbb_mode: bool = False,
+        login_url: str = "",
     ) -> TokenSet:
         """Legacy signin-service flow — ported 1:1 from upstream (arjenvrh, MIT).
+
+        ``login_url`` is the page we actually landed on, carried in only so the
+        parse failure can name it (#1712). It is never requested from here.
 
         upstream approach (confirmed working):
           1. Parse hidden form fields + form action from authorize page
@@ -1209,8 +1290,23 @@ class IDKAuth:
         )
         if not csrf1.fields.get("_csrf") and not csrf1.fields.get("hmac") \
                 and not csrf1.fields.get("relayState"):
+            # #1712 — this fires whenever the served page is not the classic
+            # signin-service form, and the old message said nothing about which
+            # page that was. The line that identifies it existed only at DEBUG,
+            # so every report cost a round of "please enable debug logging
+            # first". It matters because the dispatch upstream treats a page as
+            # the Auth0 universal login ONLY when the landing URL contains
+            # /u/login, while /v2/login/ui/* is live in the wild — a universal
+            # login served under that path arrives here and dies exactly so.
+            # Names, paths and the <form> presence identify the variant; values
+            # and the query string stay out, see _safe_url and
+            # _field_names_digest.
             raise AuthenticationError(
-                "Could not parse IDK login page (legacy flow) — no form fields found."
+                "Could not parse IDK login page (legacy flow) — no form fields "
+                f"found. Landed on: {_safe_url(login_url) if login_url else '(unknown)'}"
+                f"; form action: {_safe_url(csrf1.form_action) if csrf1.form_action else '(none)'}"
+                f"; <form> present: {'yes' if '<form' in html.lower() else 'no'}"
+                f"; hidden fields: {_field_names_digest(csrf1.fields)}"
             )
 
         email_url = _absolute_url(
@@ -1988,13 +2084,11 @@ class IDKAuth:
                             resp.status,
                         )
                         last_error = AuthenticationError(
-                            f"Token exchange failed HTTP {resp.status} "
-                            f"(body {len(body)} chars)"
+                            _token_exchange_detail(resp.status, body)
                         )
                         continue
                     raise AuthenticationError(
-                        f"Token exchange failed HTTP {resp.status} "
-                        f"(body {len(body)} chars)"
+                        _token_exchange_detail(resp.status, body)
                     )
             except (AuthenticationError, UpstreamUnavailableError):
                 raise
