@@ -594,6 +594,158 @@ def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData
     return d
 
 
+# ── tripdata ────────────────────────────────────────────────────────────────
+# #1313 — which family each surface feeds. The split follows the convention the
+# portal mapper already uses, so a car on both channels writes the same datum to
+# the same place: short term is "the last trip", long term is the cumulative
+# one, and cyclic is the refuel-cycle memory (surfaced as "Distance since
+# refuelling" in 4.10.0).
+#
+# Keys per family: (distance, duration, speed, start-odometer, fuel, electric,
+# gas, aux). ``None`` means this family has no field for that reading.
+_TRIP_FAMILIES: dict[str, tuple[str | None, ...]] = {
+    "shortterm": (
+        "last_trip_distance_km", "last_trip_duration_min",
+        "last_trip_avg_speed_kmh", "last_trip_start_odometer_km",
+        "last_trip_avg_fuel_consumption_l_100km",
+        "last_trip_avg_electric_consumption_kwh_100km",
+        "last_trip_avg_gas_consumption_kg_100km",
+        "last_trip_avg_aux_consumption_kwh_100km",
+    ),
+    "longterm": (
+        "lifetime_trip_distance_km", "lifetime_travel_time_min",
+        "lifetime_avg_speed_kmh", "lifetime_trip_start_odometer_km",
+        "lifetime_avg_fuel_consumption_l_100km",
+        "lifetime_avg_electric_consumption_kwh_100km",
+        "lifetime_avg_gas_consumption_kg_100km",
+        "lifetime_avg_aux_consumption_kwh_100km",
+    ),
+    # The refuel cycle has only a distance in the model; its averages describe
+    # the whole tank rather than a trip and have no established home yet.
+    "cyclic": ("cyclic_trip_distance_km", None, None, None,
+               None, None, None, None),
+}
+
+# Each reading declares its own unit, so a backend that switches to mpg or
+# miles cannot land a wrong number in a field named for the metric one.
+_TRIP_UNITS: dict[str, str] = {
+    "averageFuelConsumption": "l_per_100km",
+    "averageElectricConsumption": "kWh_per_100km",
+    "averageGasConsumption": "kg_per_100km",
+    "averageAuxConsumption": "kWh_per_100km",
+}
+
+
+def _trip_node(payload: Any) -> dict[str, Any] | None:
+    """The one trip object to map, out of either shape (#1313).
+
+    The endpoint answers ``{"data": {...}}`` for ``/last`` and
+    ``{"data": [...]}`` for a window. @realynot's capture of the window form is
+    explicit that it is **unsorted** — "timestamps arrive out of order" — so the
+    newest is selected by ``tripEndTimestamp`` rather than by position. Taking
+    element zero would surface an arbitrary trip out of his 17.
+    """
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if isinstance(data, dict):
+        return data
+    if isinstance(data, list):
+        trips = [t for t in data if isinstance(t, dict)]
+        if not trips:
+            return None
+        # Sort by the timestamp as a string: these are ISO-8601 UTC with a
+        # fixed shape, so lexical order is chronological. A trip without one
+        # sorts oldest rather than winning by accident.
+        return max(trips, key=lambda t: str(t.get("tripEndTimestamp") or ""))
+    return None
+
+
+def map_tripdata_to_vehicle_data(
+    payload: Any, d: VehicleData, *, trip_type: str | None = None
+) -> VehicleData:
+    """Map a ``tripdata/{cyclic,shortterm,longterm}`` response onto ``VehicleData``.
+
+    Owed to @realynot since 2026-09-17 (#1313), who captured all three surfaces
+    from one session on a 2023 Tiguan eHybrid and flagged the edge cases himself.
+
+    This is its own dialect, different from both the portal and the CARIAD BFF
+    ``tripstatistics`` the integration already parses: keys are ``mileage_km`` /
+    ``travelTime`` / ``averageSpeed_kmph``, consumption is a real float (``2.6``)
+    rather than an integer to divide by ten, and every value has an imperial
+    twin that is null on a metric car.
+
+    ``travelTime`` is MINUTES. Not taken from the field name — checked against
+    his own numbers, since distance ÷ time has to reproduce the reported average
+    speed: 1454/2088 → 41.8 against 42 reported, 939/1406 → 40.1 against 40,
+    28/48 → 35.0 against 36. Three for three.
+
+    Two of his edge cases shape the code rather than just the tests:
+
+    * **negative electric consumption is real.** A downhill leg ships
+      ``-2.2``, which the website itself displays — net recuperation. So no
+      non-negative guard here, unlike the portal's trip family where the same
+      sign means a sentinel.
+    * **nullable fuel fields on a hybrid** (a pure-electric leg): one reading
+      being absent must not stop the rest of the trip mapping.
+
+    Every value is fill-if-empty, because the portal and this channel can both
+    be active on one car and whichever resolved first is as good.
+    """
+    node = _trip_node(payload)
+    if not node:
+        return d
+
+    kind = str(node.get("tripType") or trip_type or "").strip().lower()
+    # The body is the authority: it is what the car said, whereas the caller's
+    # hint is only which URL was fetched.
+    family = _TRIP_FAMILIES.get(kind)
+    if family is None:
+        return d
+    (f_dist, f_time, f_speed, f_start,
+     f_fuel, f_elec, f_gas, f_aux) = family
+
+    def _fill(attr: str | None, value: Any) -> None:
+        if attr is None or value is None:
+            return
+        if getattr(d, attr, None) is None:
+            setattr(d, attr, value)
+
+    def _consumption(key: str) -> float | None:
+        """A consumption reading, only if it declares the unit we expect."""
+        unit = node.get(f"{key}Unit")
+        if unit is not None and str(unit) != _TRIP_UNITS[key]:
+            return None
+        # Sign preserved on purpose — see the docstring.
+        return _to_float(node.get(key))
+
+    # Distances and speed: the metric keys only. A miles car populates the
+    # ``_mi`` / ``_mph`` twins instead, and writing those into a field named for
+    # kilometres would be a silent wrong number rather than a missing one.
+    _fill(f_dist, _to_float(node.get("mileage_km")))
+    _fill(f_start, _to_int(node.get("startMileage_km")))
+    _fill(f_speed, _to_float(node.get("averageSpeed_kmph")))
+    _fill(f_time, _to_int(node.get("travelTime")))
+
+    _fill(f_fuel, _consumption("averageFuelConsumption"))
+    _fill(f_elec, _consumption("averageElectricConsumption"))
+    _fill(f_gas, _consumption("averageGasConsumption"))
+    _fill(f_aux, _consumption("averageAuxConsumption"))
+
+    # Every surface carries the car's real total, screened by the shared
+    # odometer sentinel guard like every other odometer source.
+    odo = _to_int(node.get("overallMileage_km"))
+    if odo is not None and d.odometer_km is None:
+        d.odometer_km = drop_odometer_sentinel(odo)
+
+    # Only the last trip has a meaningful "when did it end"; on the cumulative
+    # and refuel-cycle surfaces the same timestamp is just "now".
+    if kind == "shortterm":
+        ts = node.get("tripEndTimestamp")
+        if ts and d.last_trip_timestamp is None:
+            d.last_trip_timestamp = str(ts)
+        _bump_last_seen(d, ts)
+    return d
+
+
 class WebsiteAuthProxyConnector:
     """OPT-IN, read-only volkswagen.de website-authproxy client.
 
@@ -2273,6 +2425,7 @@ class WebsiteAuthProxyConnector:
                 build_charging_url,
                 build_fuel_url,
                 build_maintenance_url,
+                build_tripdata_url,
             )
 
             # #1 — charging (realm vwag-weconnect) and maintenance (realm vw-de)
@@ -2351,6 +2504,36 @@ class WebsiteAuthProxyConnector:
                     "vw.de core read '%s' walled for %s (%s); continuing (#1)",
                     _core_read, vin[-6:], exc,
                 )
+
+            # #1313 — tripdata: the consumption and trip figures the portal feed
+            # withholds on MBB cars. @realynot captured all three memories in one
+            # session; they answer 200 on the same realm / gdc / resource host as
+            # the fuel and maintenance reads above, so they ride the session that
+            # already works. Each memory gets its own guard for the same reason
+            # the three reads above do: a wall on one must not cost the others.
+            # The URL spelling is lowercase and unseparated, which is NOT the
+            # ``tripType`` spelling inside the body.
+            for _trip_type in ("shortterm", "longterm", "cyclic"):
+                _core_read = f"tripdata_{_trip_type}"
+                try:
+                    trip = await self._get_json(
+                        build_tripdata_url(vin, _trip_type, self._gdc(vin)),
+                        accept="*/*",
+                        soft=True,
+                        record_as=f"vwde_tripdata_{_trip_type}",
+                    )
+                    if trip is not None:
+                        map_tripdata_to_vehicle_data(trip, d)
+                        got_data = True
+                except (AuthenticationError, APIError) as exc:
+                    _core_exc = _core_exc or exc
+                    self.probe_outcomes[f"vwde_core_read:{_core_read}"] = (
+                        _http_status_from_exc(exc)
+                    )
+                    _LOGGER.info(
+                        "vw.de core read '%s' walled for %s (%s); continuing (#1)",
+                        _core_read, vin[-6:], exc,
+                    )
 
             # v2.16.0 — active dashboard warning-lights count (BETA, fail-soft).
             try:

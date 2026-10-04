@@ -324,6 +324,10 @@ class _OkLoginSession:
             # #1313 — the third core read. Soft-404 here so this test keeps
             # asserting what the charging + maintenance bodies produce.
             return _FakeResp(url, status=404)
+        if "tripdata/" in url:
+            # #1313 — the trip memories, same reasoning. Their own end-to-end
+            # coverage lives in tests/test_1313_mbb_tripdata_parser.py.
+            return _FakeResp(url, status=404)
         raise AssertionError(f"unmatched GET {url}")
 
     def post(self, url: str, **kw: Any) -> _FakeResp:
@@ -468,6 +472,8 @@ async def test_get_vehicle_data_soft_404_is_graceful() -> None:
             if "maintenance/status" in url:
                 return _FakeResp(url, status=404)
             if "fuel/status" in url:  # #1313 — third core read, also soft
+                return _FakeResp(url, status=404)
+            if "tripdata/" in url:  # #1313 — trip memories, also soft
                 return _FakeResp(url, status=404)
             raise AssertionError(f"unmatched GET {url}")
 
