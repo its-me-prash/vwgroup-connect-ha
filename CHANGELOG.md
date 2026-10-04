@@ -42,6 +42,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A Porsche login error could print part of the server's reply into a message you are asked to share.**
+  When a Porsche sign-in or token refresh is rejected, the error shown in Home Assistant names the reason the
+  server gave. That reason was taken from the reply and passed through **unchecked**, so if the server put
+  something long in that field — an echoed request, or a token — it ended up verbatim in a message people paste
+  into bug reports. The helper doing this was written to prevent exactly that and dropped the rest of the reply,
+  but nothing bounded the one field it kept. It is now shared with the other login paths and only ever shows a
+  value that actually looks like an error code; anything else reports as "no usable error code".
+  Two things improve as a side effect: Porsche errors now also read the second field manufacturers use for the
+  reason, which is the one carrying it in most real replies, so previously blank reasons will now be named — and
+  there is one implementation of this for every brand instead of two that disagreed.
+
 ## [4.10.0b5] - 2026-10-04 — The timestamps that were in the file all along, and an error that finally names the page
 
 ### Fixed

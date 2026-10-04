@@ -15,7 +15,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-import json
 import logging
 import os
 import re
@@ -47,6 +46,7 @@ from ..exceptions import (
     UpstreamUnavailableError,
 )
 from ..models import BrandConfig, TokenSet
+from .._util import oauth_error_code
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,59 +94,17 @@ def _field_names_digest(names: Iterable[str], *, limit: int = 8, width: int = 32
     return ", ".join(shown) + (f" (+{rest} more)" if rest > 0 else "")
 
 
-# Which key carries the diagnosis, counted across the archived captures rather
-# than assumed from RFC 6749: ``errorCode`` 90 occurrences (INVALID_REQUEST 50,
-# USER_NOT_AUTHORIZED 20, METHOD_NOT_ALLOWED 15, RS.security.9007, …) against 18
-# for the spec's own ``error``. Reading only ``error`` would have returned
-# nothing on the majority of real bodies.
-_OAUTH_ERR_KEYS = ("error", "errorCode")
-
-# Shape of an error code as these backends actually write it: SCREAMING_SNAKE,
-# dotted (``RS.security.9007``) and — once — spaced (``invalid assertion
-# headers``). Space is allowed, but see the per-token cap below: this field is
-# NOT trusted, and anything that does not look like error words is dropped
-# rather than guessed at.
-_OAUTH_ERR_RE = re.compile(r"^[A-Za-z0-9_.\- ]{1,40}$")
-
-# No real error word is this long; a JWT segment, a hex blob or a base64 run
-# always is. This is what keeps a free-text field from carrying a secret out.
-_OAUTH_ERR_MAX_TOKEN = 24
-
-
-def _oauth_error_code(body: str) -> str:
-    """The upstream error code from an error body, or ``""`` (#1712).
+def _token_exchange_detail(status: int, body: str) -> str:
+    """Token-exchange failure text, with the OAuth error code when it has one.
 
     A bare "HTTP 400" does not say whether the client id is wrong, the code was
-    already spent, the account lacks authorization or the method is refused —
-    the error code does, and it is an enum rather than a secret.
-    ``error_description`` is deliberately NOT read: it is free text and echoes
-    request content back.
+    already spent, the account lacks authorization or the method is refused; the
+    code does (#1712). The reader is shared — see ``oauth_error_code``.
     """
-    try:
-        parsed = json.loads(body)
-    except (ValueError, TypeError):
-        return ""
-    if not isinstance(parsed, dict):
-        return ""
-    for key in _OAUTH_ERR_KEYS:
-        code = parsed.get(key)
-        if not isinstance(code, str) or not _OAUTH_ERR_RE.match(code):
-            continue
-        if any(len(tok) > _OAUTH_ERR_MAX_TOKEN for tok in code.split()):
-            continue
-        # Observed as "0" and "1" on some bodies — a number carries no
-        # diagnosis, so it is noise rather than signal.
-        if code.strip(".-").isdigit():
-            continue
-        return code
-    return ""
-
-
-def _token_exchange_detail(status: int, body: str) -> str:
-    """Token-exchange failure text, with the OAuth error code when it has one."""
-    code = _oauth_error_code(body)
+    code = oauth_error_code(body)
     base = f"Token exchange failed HTTP {status} (body {len(body)} chars)"
     return f"{base} — {code}" if code else base
+
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
 # v2.12.4 (#438) — token-endpoint statuses that mean "VW backend is having a

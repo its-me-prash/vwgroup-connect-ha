@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -365,6 +367,77 @@ def mask_email(value: str | None) -> str:
         return f"{value[:1]}***"
     tld = domain.rpartition(".")[2] if "." in domain else "***"
     return f"{local[:1]}***@***.{tld}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OAuth / token-endpoint error codes — one guarded reader for every auth module.
+#
+# Two separate copies of this used to exist, with different safety properties.
+# The older one read only ``error`` and returned its value unbounded, while
+# three call sites interpolate the result straight into an AuthenticationError
+# message — which Home Assistant shows and testers paste into public issues. A
+# redaction helper that drops the body but passes one of its fields through
+# verbatim only looks safe.
+#
+# Which key actually carries the code was counted across the archived captures
+# rather than taken from RFC 6749: ``errorCode`` 90 occurrences
+# (INVALID_REQUEST 50, USER_NOT_AUTHORIZED 20, METHOD_NOT_ALLOWED 15,
+# RS.security.9007, …) against 18 for the spec's own ``error``. Reading only the
+# spec key returns nothing on most real bodies.
+_OAUTH_ERR_KEYS = ("error", "errorCode")
+
+# The shapes these backends actually write: SCREAMING_SNAKE, dotted
+# (``RS.security.9007``) and — once — spaced (``invalid assertion headers``).
+# Space is allowed, bounded by the per-token cap below.
+_OAUTH_ERR_RE = re.compile(r"^[A-Za-z0-9_.\- ]{1,40}$")
+
+# No real error word is this long; a JWT segment, a hex blob or a base64 run
+# always is. This is what stops a free-text field carrying a secret out.
+_OAUTH_ERR_MAX_TOKEN = 24
+
+
+def oauth_error_code(body: str) -> str:
+    """The upstream error code from a token-endpoint error body, or ``""``.
+
+    Returns only a value shaped like an error code, so the result is always safe
+    to put in a message a user can see and copy. ``error_description`` is never
+    read: it is free text and echoes request content back.
+    """
+    try:
+        parsed = json.loads(body)
+    except (ValueError, TypeError):
+        return ""
+    if not isinstance(parsed, dict):
+        return ""
+    for key in _OAUTH_ERR_KEYS:
+        code = parsed.get(key)
+        if not isinstance(code, str) or not _OAUTH_ERR_RE.match(code):
+            continue
+        if any(len(tok) > _OAUTH_ERR_MAX_TOKEN for tok in code.split()):
+            continue
+        # Observed as "0"/"1" on some bodies — a number carries no diagnosis.
+        if code.strip(".-").isdigit():
+            continue
+        return code
+    return ""
+
+
+def oauth_error_label(body: str) -> str:
+    """``oauth_error_code`` for message interpolation — always printable.
+
+    Keeps the distinction the Porsche messages already drew: a body that is not
+    JSON at all means the gateway answered instead of the backend (an HTML error
+    page), which is a different diagnosis from JSON that simply carries no
+    usable code.
+    """
+    code = oauth_error_code(body)
+    if code:
+        return code
+    try:
+        json.loads(body)
+    except (ValueError, TypeError):
+        return "non-JSON body"
+    return "no usable error code"
 
 
 def compute_connection_state(

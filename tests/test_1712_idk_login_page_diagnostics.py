@@ -204,53 +204,13 @@ def test_a_parseable_legacy_page_does_not_raise_here() -> None:
         )
 
 
+
 # ---------------------------------------------------------------------------
-# The same reporter's SECOND failure: strategy #1 dies at the token exchange
-# with a bare "HTTP 400 (body N chars)". RFC 6749 §5.2 puts a short machine
-# token in that body ("invalid_grant", "invalid_client", "unauthorized_client"),
-# which separates a wrong client id from a spent code from a redirect mismatch.
-# It is a code, not a secret — but the body around it is NOT trusted, so only a
-# value shaped like an OAuth error code is ever emitted.
+# The token-exchange MESSAGE is #1712's own behaviour and stays here. The
+# error-code READER it calls is shared across the auth modules and is covered
+# in tests/test_oauth_error_code_unified.py, including every value shape seen
+# in the archived captures.
 # ---------------------------------------------------------------------------
-
-def _err_code(body: str) -> str:
-    from custom_components.vag_connect.cariad.auth.idk import _oauth_error_code
-
-    return _oauth_error_code(body)
-
-
-def test_the_oauth_error_code_is_extracted() -> None:
-    assert _err_code('{"error":"invalid_grant","error_description":"code used"}') \
-        == "invalid_grant"
-    assert _err_code('{"error": "unauthorized_client"}') == "unauthorized_client"
-
-
-def test_the_error_description_is_never_extracted() -> None:
-    """``error_description`` echoes request content back and is free text."""
-    body = '{"error":"invalid_request","error_description":"redirect_uri=myaudi://x?t=SECRET"}'
-    out = _err_code(body)
-    assert out == "invalid_request"
-    assert "SECRET" not in out
-    assert "redirect_uri" not in out
-
-
-def test_anything_not_shaped_like_an_error_code_is_dropped() -> None:
-    """A JWT, a sentence, HTML or a long opaque value must never pass through,
-    whatever the upstream decides to put in that field."""
-    for hostile in (
-        '{"error":"eyJhbGciOiJSUzI1NiJ9.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.sig"}',
-        '{"error":"the access token 12345 is not valid for this user account"}',
-        '{"error":"<script>alert(1)</script>"}',
-        '{"error":""}',
-        '{"error":12345}',
-        "<html>502 Bad Gateway</html>",
-        "",
-        "not json at all",
-        '{"nested":{"error":"invalid_grant"}}',
-    ):
-        assert _err_code(hostile) == "", f"leaked for {hostile[:40]!r}"
-
-
 def test_the_token_exchange_message_carries_the_code_when_present() -> None:
     from custom_components.vag_connect.cariad.auth.idk import _token_exchange_detail
 
@@ -260,58 +220,3 @@ def test_the_token_exchange_message_carries_the_code_when_present() -> None:
     body = "<html>oops</html>"
     assert _token_exchange_detail(400, body) == \
         f"Token exchange failed HTTP 400 (body {len(body)} chars)"
-
-
-# ---------------------------------------------------------------------------
-# Grounded against the archived captures rather than against the spec. Counted
-# there: ``errorCode`` carries the diagnosis 90 times (INVALID_REQUEST 50,
-# USER_NOT_AUTHORIZED 20, METHOD_NOT_ALLOWED 15, RS.security.9007, …) against 18
-# for RFC 6749's own ``error`` — so reading only ``error``, as the first version
-# of this did, returns nothing on most real bodies. The observed values are also
-# SCREAMING_SNAKE, dotted and in one case spaced, none of which the spec's
-# lowercase-token assumption covers.
-# ---------------------------------------------------------------------------
-
-def test_the_errorcode_key_is_read_not_just_error() -> None:
-    """The majority case in real captures."""
-    assert _err_code('{"errorCode":"USER_NOT_AUTHORIZED"}') == "USER_NOT_AUTHORIZED"
-    assert _err_code('{"errorCode":"METHOD_NOT_ALLOWED"}') == "METHOD_NOT_ALLOWED"
-
-
-def test_the_observed_value_shapes_all_pass() -> None:
-    """Every distinct shape actually seen in the captures."""
-    for observed in (
-        "INVALID_REQUEST",          # 50 — uppercase, not the spec's lowercase
-        "USER_NOT_AUTHORIZED",      # 20
-        "METHOD_NOT_ALLOWED",       # 15
-        "RS.security.9007",         # dotted
-        "RLU.security.9007",
-        "REQUEST_DATA_INVALID",
-        "IllegalStateException",
-        "invalid assertion headers",  # the one spaced value
-        "invalid_grant",            # and the spec shape still works
-    ):
-        assert _err_code('{"error":"%s"}' % observed) == observed, observed
-        assert _err_code('{"errorCode":"%s"}' % observed) == observed, observed
-
-
-def test_a_numeric_code_is_treated_as_noise() -> None:
-    """Seen as "0" and "1" — a number is not a diagnosis."""
-    assert _err_code('{"errorCode":"0"}') == ""
-    assert _err_code('{"errorCode":"1"}') == ""
-    assert _err_code('{"errorCode":"9007"}') == ""
-
-
-def test_a_long_token_is_still_dropped_even_though_spaces_are_allowed() -> None:
-    """Allowing spaces must not open a door for a secret: the per-token cap is
-    what closes it, so a sentence containing an opaque value is refused while
-    "invalid assertion headers" is not."""
-    assert _err_code('{"error":"token eyJhbGciOiJSUzI1NiJ9aaaaaaaaaaaaaaaa bad"}') == ""
-    assert _err_code('{"error":"user 0123456789abcdef0123456789 denied"}') == ""
-    assert _err_code('{"error":"invalid assertion headers"}') == "invalid assertion headers"
-
-
-def test_error_wins_over_errorcode_when_both_are_present() -> None:
-    """Deterministic order, so the message does not depend on dict ordering."""
-    assert _err_code('{"error":"invalid_client","errorCode":"INVALID_REQUEST"}') \
-        == "invalid_client"

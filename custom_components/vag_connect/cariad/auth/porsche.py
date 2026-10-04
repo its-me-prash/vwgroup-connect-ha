@@ -132,6 +132,7 @@ from ..exceptions import (
     TokenExpiredError,
 )
 from ..models import TokenSet
+from .._util import oauth_error_code, oauth_error_label
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
 _MAX_AUTH_REDIRECTS = 10  # bound the Auth0 resume-hop chain so it cannot loop
@@ -231,21 +232,22 @@ def _pkce() -> tuple[str, str]:
     return verifier, challenge
 
 
-def _oauth_error_code(body: str) -> str:
-    """Best-effort OAuth ``error`` code from a token-endpoint body.
+def _oauth_error_label(body: str) -> str:
+    """Printable OAuth error code for a message a tester will copy-paste.
 
-    Redaction helper (#1355): the raw Auth0 token-endpoint body can echo
-    request context / secrets, so it must never reach an exception message a
-    tester copy-pastes. Return only the standardized short ``error`` code
-    (e.g. ``invalid_grant``) — never the raw body or ``error_description``.
+    Redaction helper (#1355), now backed by the shared guarded reader. The
+    version that lived here read only ``error`` and returned its value
+    **unbounded** — so a body whose ``error`` field held a JWT or echoed
+    request content put that straight into an ``AuthenticationError``, which is
+    exactly what the docstring promised could not happen. Dropping the body is
+    not enough if one of its fields rides along verbatim.
+
+    Two behaviour changes come with the shared reader, both deliberate:
+    ``errorCode`` is read as well (the archived captures carry the code there 90
+    times against 18 for ``error``), and a value that is not shaped like an
+    error code now reports as "no usable error code" instead of being printed.
     """
-    try:
-        parsed = json.loads(body)
-    except (ValueError, TypeError):
-        return "non-JSON body"
-    if isinstance(parsed, dict) and parsed.get("error"):
-        return str(parsed["error"])
-    return "no error field"
+    return oauth_error_label(body)
 
 
 class PorscheAuth:
@@ -898,7 +900,7 @@ class PorscheAuth:
                 raise TokenExpiredError("Porsche refresh token expired")
             if resp.status != 200:
                 body = await resp.text()
-                code = _oauth_error_code(body)
+                code = oauth_error_code(body)
                 if resp.status == 400 and code == "invalid_grant":
                     # OAuth's own "refresh token invalid/revoked" answer.
                     raise TokenExpiredError("Porsche refresh token expired")
@@ -934,7 +936,7 @@ class PorscheAuth:
                 body = await resp.text()
                 raise AuthenticationError(
                     f"Porsche token exchange failed {resp.status}: "
-                    f"{_oauth_error_code(body)}"
+                    f"{_oauth_error_label(body)}"
                 )
             data = await resp.json()
 
@@ -1063,7 +1065,7 @@ class PorscheOneDeviceAuth:
                 body = await resp.text()
                 raise AuthenticationError(
                     f"Porsche One device authorization failed "
-                    f"({resp.status}): {_oauth_error_code(body)}"
+                    f"({resp.status}): {_oauth_error_label(body)}"
                 )
             data = await resp.json()
         if "device_code" not in data or "user_code" not in data:
@@ -1135,7 +1137,7 @@ class PorscheOneDeviceAuth:
                 body = await resp.text()
                 raise AuthenticationError(
                     f"Porsche One refresh failed ({resp.status}): "
-                    f"{_oauth_error_code(body)}"
+                    f"{_oauth_error_label(body)}"
                 )
             data = await resp.json()
         return TokenSet(
