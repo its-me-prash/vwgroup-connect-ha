@@ -102,15 +102,62 @@ def test_the_anchor_does_not_run_ahead_of_the_odometer() -> None:
     assert "16:59:46" in str(d.last_seen_at), str(d.last_seen_at)
 
 
-def test_a_fresh_vehicle_stamp_still_wins_as_before() -> None:
-    """Unchanged behaviour: when the car's own field is the newest thing in the
-    file, it stays the anchor."""
+def test_a_fresh_vehicle_stamp_is_capped_to_the_odometers_own_capture() -> None:
+    """With the car's own field NEWER than every point, the per-point branch
+    does not fire — and the #529 coherence cap, which previously had no
+    timestamps to work with, now caps the anchor to the odometer's own capture.
+
+    This test used to assert ``"18:00" in x or "16:59" in x``, which no outcome
+    could fail, under a docstring claiming the car's field "stays the anchor".
+    Both were wrong: the car's field is 18:00, the odometer was captured at
+    16:59, and 16:59 is what freshness must report — otherwise Home Assistant
+    sees the mileage change while the anchor runs past it and infers a drive
+    that never happened. The capping is the intended consequence of reading the
+    per-point stamps at all, not an unchanged path.
+    """
     newest = "2026-10-03T18:00:00Z"
     d = _map({"data": [
         _point("car_captured_utc_timestamp", newest, newest),
         _point("mileage", "19002", FRESH_ODO),
     ]})
-    assert "18:00:00" in str(d.last_seen_at) or "16:59:46" in str(d.last_seen_at)
+    assert "16:59:46" in str(d.last_seen_at), str(d.last_seen_at)
+    assert "18:00:00" not in str(d.last_seen_at)
+
+
+def test_the_anchor_is_skipped_when_the_odometers_own_stamp_is_unidentifiable() -> None:
+    """The branch must not fall back to "newest point" while a surfaced
+    odometer exists whose own capture time it cannot locate.
+
+    The odometer here arrives under an opaque portal key, so its capture time is
+    not among the names the anchor recognises, while a different point is
+    newer. Anchoring on that newer point would put freshness ahead of the
+    mileage it describes — the exact #529 failure. The conservative answer is to
+    leave the anchor to the existing path.
+
+    The UUID below is one of the two the mapper really accepts for the odometer
+    (openWB vweuda catalogue), not an invented one — an invented key leaves
+    ``odometer_km`` unset and the assertion would prove nothing.
+    """
+    d = _map({"data": [
+        _point("41c0805c-43e5-313e-9dfb-356cb8d20f7c", "19002", FRESH_ODO),
+        _point("state_of_charge", "82", FRESH_SOC),
+    ]})
+    assert d.odometer_km == 19002, "the UUID alias no longer maps — test is vacuous"
+    assert "17:00:10" not in str(d.last_seen_at), (
+        f"anchored at {d.last_seen_at}, ahead of the odometer's own capture"
+    )
+    # And the right answer is reachable: the odometer's own capture, found via
+    # the recorded source leaf rather than a name list.
+    assert d.last_seen_at is None or "16:59:46" in str(d.last_seen_at), str(d.last_seen_at)
+
+
+def test_without_a_surfaced_odometer_the_newest_point_may_anchor() -> None:
+    """No odometer in the snapshot means no reading the anchor can run ahead of,
+    so the newest point is a legitimate anchor."""
+    d = _map({"data": [_point("state_of_charge", "82", FRESH_SOC)]})
+    assert d.odometer_km is None
+    assert d.last_seen_at is not None
+    assert "17:00:10" in str(d.last_seen_at), str(d.last_seen_at)
 
 
 def test_without_any_point_stamps_nothing_changes() -> None:

@@ -43,6 +43,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **"Vehicle last reported" could run ahead of the mileage it describes, on cars whose odometer arrives under an opaque key (#1688, #529).**
+  The freshness work in 4.10.0b5 anchors the reported time on the odometer's own capture, so the time can never be newer
+  than the reading it belongs to — otherwise Home Assistant sees the mileage change, sees the time move past it, and can
+  conclude the car was driven when it was not. Finding the odometer's capture time used a list of four field names, but
+  some cars deliver the odometer under one of two opaque identifiers instead. On those cars the list found nothing and
+  the code fell back to the newest timestamp in the file, which is exactly the thing it was written to avoid. It now
+  asks which field the odometer was actually read from, so the two cannot drift apart, and when the answer is unavailable
+  it leaves the time alone instead of guessing. The same four-name list was also used by the older safeguard twenty lines
+  below, which had been silently inactive on those same cars; it is now wired to the same answer.
 - **A Porsche login error could print part of the server's reply into a message you are asked to share.**
   When a Porsche sign-in or token refresh is rejected, the error shown in Home Assistant names the reason the
   server gave. That reason was taken from the reply and passed through **unchecked**, so if the server put

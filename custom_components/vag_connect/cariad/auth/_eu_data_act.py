@@ -3793,19 +3793,32 @@ def map_dataset_to_vehicle_data(
     # instead, preferring the odometer's own point (so #529 still holds — the
     # anchor never runs ahead of the reading it describes).
     _newest_point = max(field_ts.values()) if field_ts else None
-    _odo_point = (
-        next((field_ts[k] for k in ("mileage.value", "mileage", "odometer",
-                                    "totalMileage") if k in field_ts), None)
-        if field_ts else None
-    )
+    # The odometer's own capture time, resolved through the leaf the odometer
+    # was ACTUALLY read from rather than through a guessed name list. The first
+    # version of this branch (and the #529 cap below, which it borrowed the list
+    # from) matched four hardcoded names — but the odometer also resolves from
+    # two opaque UUID leaves, and on such a car the list finds nothing. That
+    # mattered: falling back to the newest point would put the anchor ahead of
+    # the mileage it describes, the exact #529 failure this branch claims to
+    # avoid. ``dist_src`` already records the matched leaf, so use it.
+    _odo_leaf = dist_src.get("odometer_km") or ""
+    _odo_point = (field_ts or {}).get(_odo_leaf) if _odo_leaf else None
     _cap_ts_for_staleness = _parse_ts(_cap) if _cap is not None else None
+    # With a surfaced odometer, ONLY its own capture may anchor: if we cannot
+    # identify it, leave the anchor to the existing path rather than advance
+    # past the reading. With no odometer in this snapshot there is no reading to
+    # run ahead of, so the newest point is a legitimate anchor. (This is why the
+    # gate differs from the #529 cap's flat ``d.odometer_km is not None``: that
+    # block caps TO the odometer and is pointless without one, while this one
+    # must avoid overtaking it.)
+    _anchor = _odo_point if d.odometer_km is not None else _newest_point
     if (
         d.last_seen_at is None
+        and _anchor is not None
         and _newest_point is not None
         and (_cap_ts_for_staleness is None
              or _newest_point > _cap_ts_for_staleness)
     ):
-        _anchor = _odo_point if _odo_point is not None else _newest_point
         _anchor_iso = _epoch_or_iso(str(_anchor))
         if _anchor_iso is not None:
             d.last_seen_at = _anchor_iso
@@ -3826,11 +3839,11 @@ def map_dataset_to_vehicle_data(
         # only know the odometer's ts from field_ts (the _walk_fields out-param);
         # without it we fall back to the raw capture (pre-#529 behaviour).
         if field_ts and d.odometer_km is not None:
-            odo_ts = next(
-                (field_ts[k] for k in ("mileage.value", "mileage", "odometer",
-                                       "totalMileage") if k in field_ts),
-                None,
-            )
+            # Resolved through the leaf the odometer was actually read from, not
+            # a name list: it also resolves from two opaque UUID leaves, and on
+            # such a car a four-name list finds nothing and the cap silently
+            # stopped applying — the one thing it exists to prevent.
+            odo_ts = field_ts.get(dist_src.get("odometer_km") or "")
             cap_ts = _parse_ts(_cap)
             if odo_ts is not None and cap_ts is not None and odo_ts < cap_ts:
                 capped = _epoch_or_iso(str(odo_ts))
