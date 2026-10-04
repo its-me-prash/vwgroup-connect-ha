@@ -11,7 +11,7 @@ legacy MBB path mints a durable refreshable token past the Play-Integrity wall.
 
 NEVER prints tokens — only lengths, booleans and HTTP status codes.
 
-Usage:  py scripts/mbb_dag_test.py <brand> [client_id] [vin]
+Usage:  python scripts/mbb_dag_test.py <brand> [client_id] [vin]
         Device-grant-faehig: audi, audi_na, seat, cupra. 'skoda' hat KEINE
         Route und bricht mit Code 2 ab.
         Fuer die MBB-Proben das client_id-Argument SETZEN: es schaltet den
