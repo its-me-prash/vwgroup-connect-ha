@@ -82,6 +82,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   wants it and only you have it.
 
 ### Fixed
+- **Companion: a car that refuses more requests is now recognised (#968, field test by @gszigethy).** After a day of
+  testing, the car's daily request budget ran out and the Volkswagen app answered with "Too many requests sent to the
+  vehicle" instead of opening a screen; Home Assistant only reported that it could not open it, and would have kept
+  trying. Now the alert (and the app's "Request limit reached") pauses commands with a reason that says to start the
+  car, which resets the budget; Reset companion connection clears the pause. Any other unexpected screen is reported
+  with its own text.
 - **Companion: the charging switch follows the parsed charging flag** instead of a list of raw state words, the same
   rule the climatisation switch already uses, so "Currently charging" reads on and "Target charge level reached"
   reads off.
