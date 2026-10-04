@@ -2209,8 +2209,16 @@
       "description": "Ditt Volkswagen-konto loggade in och ditt garage lästes, men databegärandena per fordon (status, laddning, klimat) avvisas med HTTP 403 Forbidden, och svaret bär en **enhetsattesterings**-markering.\n\nDet här är en **serversidig låsning från VW**, inte ett abonnemangsproblem och inget som en ny inloggning kan lösa — att förnya Car-Net hjälper alltså inte. VW kräver nu en Google-signerad enhetsattesteringstoken (Firebase App Check / Play Integrity) som den officiella appen skapar från ett härdat bygge, vilket en öppen källkodsklient inte kan återskapa.\n\nIntegrationen fortsätter visa den senast cachade datan. Den här varningen försvinner av sig själv om VW öppnar dataplanet igen."
     },
     "supplementary_reauth": {
-      "title": "Volkswagen.de-läskanalen behöver loggas in igen",
-      "description": "Den kompletterande volkswagen.de-läskanalen kunde inte återuppta sin session (Volkswagen vill ha engångskoden via e-post igen). Fordonets huvuddata påverkas inte. Öppna integrationens alternativ och kör \"Lägg till en Volkswagen.de-läskanal\" igen för att återställa de extra vw.de-data."
+      "title": "Volkswagen.de-läskanalen behöver logga in igen",
+      "description": "Den kompletterande volkswagen.de-läskanalen kunde inte återuppta sin session (Volkswagen vill ha engångskoden via e-post igen). Bilens huvuddata påverkas inte. Välj **Reparera** för att gå direkt till inloggningen.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Anslut Volkswagen.de-kanalen igen",
+            "description": "Volkswagen vill ha engångskoden via e-post igen innan den här kanalen kan läsa din bil. Fortsätt, och du kommer direkt till inloggningen — du behöver inte leta upp integrationens inställningar själv."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",

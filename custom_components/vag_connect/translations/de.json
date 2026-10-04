@@ -2209,8 +2209,16 @@
       "description": "Dein Volkswagen-Konto hat sich angemeldet und deine Garage wurde gelesen, aber die fahrzeugbezogenen Datenanfragen (Status, Laden, Klima) werden mit HTTP 403 Forbidden abgewiesen, und die Antwort trägt eine **Geräte-Attestierungs**-Markierung.\n\nDies ist eine **serverseitige Sperre durch VW**, kein Abonnement-Problem und nichts, was eine erneute Anmeldung beheben kann — eine Erneuerung von Car-Net hilft also nicht. VW verlangt jetzt ein Google-signiertes Geräte-Attestierungs-Token (Firebase App Check / Play Integrity), das die offizielle App aus einem gehärteten Build erzeugt und das ein Open-Source-Client nicht nachbilden kann.\n\nDie Integration zeigt weiterhin die zuletzt zwischengespeicherten Daten an. Diese Warnung verschwindet von selbst, falls VW die Datenebene wieder öffnet."
     },
     "supplementary_reauth": {
-      "title": "Volkswagen.de-Lesekanal: erneuter Login nötig",
-      "description": "Der zusätzliche volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen (Volkswagen verlangt erneut den Einmalcode per E-Mail). Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Öffne die Optionen dieser Integration und führe \"Volkswagen.de-Lesekanal hinzufügen\" erneut aus, um die zusätzlichen vw.de-Daten wiederherzustellen."
+      "title": "Volkswagen.de-Lesekanal braucht erneute Anmeldung",
+      "description": "Der zusätzliche volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen (Volkswagen verlangt wieder den Einmalcode per E-Mail). Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Wähle **Reparieren**, um direkt zum Login zu kommen.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Volkswagen.de-Kanal neu verbinden",
+            "description": "Volkswagen verlangt wieder den Einmalcode per E-Mail, bevor dieser Kanal dein Auto lesen kann. Weiter, und du landest direkt im Login — die Einstellungen der Integration musst du nicht selbst suchen."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "Fernbefehle sind für dieses Auto nicht verfügbar ({brand})",

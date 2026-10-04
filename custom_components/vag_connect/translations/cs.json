@@ -2209,8 +2209,16 @@
       "description": "Vaše konto Volkswagen se přihlásilo a vaše garáž byla načtena, ale požadavky na data jednotlivých vozidel (stav, nabíjení, klimatizace) jsou odmítány s chybou HTTP 403 Forbidden a odpověď nese značku **atestace zařízení**.\n\nJde o **uzamčení na straně serveru ze strany VW**, nikoli o problém s předplatným ani o něco, co by vyřešilo opětovné přihlášení — obnovení Car-Net tedy nepomůže. VW nyní vyžaduje token atestace zařízení podepsaný Googlem (Firebase App Check / Play Integrity), který oficiální aplikace vytváří ze zpevněného sestavení a který open-source klient nedokáže napodobit.\n\nIntegrace dál zobrazuje poslední data uložená v mezipaměti. Toto upozornění zmizí samo, pokud VW datovou vrstvu opět zpřístupní."
     },
     "supplementary_reauth": {
-      "title": "Čtecí kanál Volkswagen.de vyžaduje opětovné přihlášení",
-      "description": "Doplňkový čtecí kanál volkswagen.de nemohl obnovit relaci (Volkswagen znovu žádá o jednorázový kód e-mailem). Hlavní data vozidla nejsou ovlivněna. Otevři možnosti této integrace a znovu spusť „Přidat čtecí kanál Volkswagen.de“ pro obnovení doplňkových dat vw.de."
+      "title": "Čtecí kanál Volkswagen.de vyžaduje nové přihlášení",
+      "description": "Doplňkový čtecí kanál volkswagen.de nemohl obnovit sezení (Volkswagen znovu vyžaduje jednorázový kód z e-mailu). Hlavní data vozidla to neovlivní. Zvolte **Opravit** a půjdete přímo na přihlášení.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Znovu připojit kanál Volkswagen.de",
+            "description": "Volkswagen znovu vyžaduje jednorázový kód z e-mailu, než tento kanál může číst vaše vozidlo. Pokračujte a dostanete se přímo k přihlášení — nastavení integrace nemusíte hledat sami."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "Vzdálené příkazy nejsou pro toto auto k dispozici ({brand})",

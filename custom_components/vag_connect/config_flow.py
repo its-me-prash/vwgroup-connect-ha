@@ -2771,6 +2771,16 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Options: scan interval, S-PIN, reverse geocoding opt-in."""
+        # #1717 (@Ra72xx) — when the "needs re-login" repair starts this flow it
+        # passes a marker, and we open the volkswagen.de login step directly
+        # instead of the full settings form. Without this the Fix button would
+        # only save the Settings navigation and still leave the user hunting for
+        # the tick box. Guarded on BOTH no user_input (so an in-progress form
+        # submit is never hijacked) and the exact marker value (so an unrelated
+        # payload cannot reroute the flow); a normal options open has no
+        # init_data at all and is completely unaffected.
+        if user_input is None and (self.init_data or {}).get("goto") == "add_vwde":
+            return await self.async_step_add_vwde()
         from .const import (  # noqa: PLC0415
             CONF_VWEU_DEVICE_GRANT,
             CONF_VWEU_TWOWAY_COOKIES,

@@ -2210,7 +2210,15 @@
     },
     "supplementary_reauth": {
       "title": "Kanał odczytu Volkswagen.de wymaga ponownego logowania",
-      "description": "Dodatkowy kanał odczytu volkswagen.de nie mógł wznowić sesji (Volkswagen ponownie prosi o jednorazowy kod e-mail). Główne dane pojazdu pozostają nienaruszone. Otwórz opcje tej integracji i ponownie uruchom „Dodaj kanał odczytu Volkswagen.de”, aby przywrócić dodatkowe dane vw.de."
+      "description": "Dodatkowy kanał odczytu volkswagen.de nie mógł wznowić sesji (Volkswagen ponownie wymaga jednorazowego kodu z e-maila). Główne dane pojazdu pozostają bez zmian. Wybierz **Napraw**, aby przejść prosto do logowania.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Połącz ponownie kanał Volkswagen.de",
+            "description": "Volkswagen ponownie wymaga jednorazowego kodu z e-maila, zanim ten kanał będzie mógł odczytać Twój samochód. Kontynuuj, a przejdziesz prosto do logowania — nie musisz sam szukać opcji integracji."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "Polecenia zdalne nie są dostępne dla tego samochodu ({brand})",

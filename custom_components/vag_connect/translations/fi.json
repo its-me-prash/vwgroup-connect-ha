@@ -2209,8 +2209,16 @@
       "description": "Volkswagen-tilisi kirjautui sisään ja autotallisi luettiin, mutta ajoneuvokohtaiset datapyynnöt (tila, lataus, ilmastointi) hylätään HTTP 403 Forbidden -virheellä, ja vastaus sisältää **laitetodennus**merkinnän.\n\nTämä on **VW:n palvelinpuolen lukitus**, ei tilausongelma eikä mitään mitä uudelleenkirjautuminen voisi korjata — joten Car-Netin uusiminen ei auta. VW vaatii nyt Googlen allekirjoittaman laitetodennustunnisteen (Firebase App Check / Play Integrity), jonka virallinen sovellus luo koventeetusta koontiversiosta ja jota avoimen lähdekoodin asiakas ei voi jäljitellä.\n\nIntegraatio näyttää edelleen viimeksi välimuistiin tallentamansa tiedot. Tämä varoitus poistuu itsestään, jos VW avaa datatason uudelleen."
     },
     "supplementary_reauth": {
-      "title": "Volkswagen.de-lukukanava vaatii uudelleenkirjautumisen",
-      "description": "Täydentävä volkswagen.de-lukukanava ei voinut jatkaa istuntoaan (Volkswagen haluaa sähköpostin kertakäyttökoodin uudelleen). Ajoneuvosi päätiedot eivät ole vaikutuksen alaisia. Palauttaaksesi ylimääräiset vw.de-tiedot avaa tämän integraation asetukset ja suorita uudelleen \"Lisää Volkswagen.de-lukukanava\"."
+      "title": "Volkswagen.de-lukukanava vaatii uuden kirjautumisen",
+      "description": "Täydentävä volkswagen.de-lukukanava ei voinut jatkaa istuntoaan (Volkswagen pyytää jälleen sähköpostin kertakoodia). Auton päätiedot eivät muutu. Valitse **Korjaa** siirtyäksesi suoraan kirjautumiseen.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Yhdistä Volkswagen.de-kanava uudelleen",
+            "description": "Volkswagen pyytää jälleen sähköpostin kertakoodia, ennen kuin tämä kanava voi lukea autoasi. Jatka, niin pääset suoraan kirjautumiseen — integraation asetuksia ei tarvitse etsiä itse."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "Etäkomennot eivät ole käytettävissä tälle autolle ({brand})",

@@ -171,18 +171,33 @@ def clear_auth_issues(hass: HomeAssistant, entry_id: str) -> None:
 
 def raise_issue_supplementary_reauth(hass: HomeAssistant, entry_id: str) -> None:
     """v2.15.0b5 (C1) — the supplementary vw.de read channel can't silently
-    resume (login=otp_required); prompt the user to re-add it. Not auto-fixable
-    (re-login needs the email-OTP via the OptionsFlow), WARNING severity — the
-    primary channel keeps working regardless. Idempotent."""
+    resume (login=otp_required); prompt the user to re-add it. WARNING severity:
+    the primary channel keeps working regardless. Idempotent.
+
+    #1717 (@Ra72xx, split out of #1679) — now FIXABLE. It was not, and the
+    reason recorded here was that "re-login needs the email-OTP via the
+    OptionsFlow". The one-time code was never the obstacle: ``_AuthRepairFlow``
+    does not perform a login, it hands the user into a flow step, and the code
+    is then collected by that step exactly as before. The real obstacle was
+    narrower — that launcher starts a CONFIG flow, while the vw.de login step
+    lives on the OPTIONS flow, so wiring this reason into ``_FIXABLE_REASONS``
+    would have pointed at a step it could never reach. Hence its own flow below,
+    which starts the options flow instead. What the button saves is the six
+    steps between seeing this notice and reaching the login form, including
+    having to guess WHICH entry it refers to when several are configured.
+    """
     ir.async_create_issue(
         hass,
         DOMAIN,
         f"{entry_id}_supplementary_reauth",
-        is_fixable=False,
+        is_fixable=True,
         is_persistent=False,
         severity=ir.IssueSeverity.WARNING,
         translation_key="supplementary_reauth",
         learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md",
+        # The factory routes on these; without them the click cannot find its
+        # entry, which is the whole point of the button.
+        data={"entry_id": entry_id, "reason": "supplementary_reauth"},
     )
     _LOGGER.info(
         "VW Group Connect: supplementary vw.de channel needs re-login — Repair issue"
@@ -689,6 +704,40 @@ class _AuthRepairFlow(RepairsFlow):
         return self.async_create_entry(title="", data={})
 
 
+class _SupplementaryReauthRepairFlow(RepairsFlow):
+    """#1717 — take the user straight to the volkswagen.de login step.
+
+    The sibling ``_AuthRepairFlow`` cannot be reused: it starts a CONFIG flow,
+    and this login lives on the OPTIONS flow. Starting a config flow here would
+    land on reauth for the PRIMARY account, which is not what is broken — the
+    primary channel keeps working while this notice is up, so that would ask the
+    user to fix something that is fine.
+
+    The one-time code is unavoidable and untouched; Volkswagen wants it and only
+    the user has it. What this removes is the navigation in front of it.
+    """
+
+    def __init__(self, entry_id: str) -> None:
+        self._entry_id = entry_id
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        if user_input is None:
+            return self.async_show_form(step_id="confirm")
+        # The marker is read by the options flow's first step, which jumps to
+        # the vw.de login instead of showing the full settings form.
+        await self.hass.config_entries.options.async_init(
+            self._entry_id, data={"goto": "add_vwde"}
+        )
+        return self.async_create_entry(title="", data={})
+
+
 def raise_issue_skoda_official_manual_key(
     hass: HomeAssistant, entry_id: str, vins: list[str]
 ) -> None:
@@ -784,4 +833,7 @@ async def async_create_fix_flow(
     if reason == "skoda_official_manual_key":
         vins = [v for v in str((data or {}).get("vins") or "").split(",") if v]
         return _SkodaOfficialKeyRepairFlow(entry_id, vins)
+    # #1717 — needs the OPTIONS flow, which _AuthRepairFlow cannot start.
+    if reason == "supplementary_reauth":
+        return _SupplementaryReauthRepairFlow(entry_id)
     return _AuthRepairFlow(entry_id, reason)

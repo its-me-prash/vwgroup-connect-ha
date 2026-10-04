@@ -2209,8 +2209,16 @@
       "description": "Il tuo account Volkswagen ha effettuato l'accesso e il tuo garage è stato letto, ma le richieste di dati per singolo veicolo (stato, ricarica, clima) vengono rifiutate con HTTP 403 Forbidden, e la risposta reca un marcatore di **attestazione del dispositivo**.\n\nSi tratta di un **blocco lato server da parte di VW**, non di un problema di abbonamento e non di qualcosa che un nuovo login possa risolvere — quindi rinnovare Car-Net non aiuterà. VW ora richiede un token di attestazione del dispositivo firmato da Google (Firebase App Check / Play Integrity) che l'app ufficiale genera da una build irrigidita e che un client open source non può riprodurre.\n\nL'integrazione continua a mostrare gli ultimi dati che ha memorizzato. Questo avviso si cancella da solo se VW riapre il piano dati."
     },
     "supplementary_reauth": {
-      "title": "Il canale di lettura Volkswagen.de necessita di un nuovo login",
-      "description": "Il canale di lettura supplementare volkswagen.de non è riuscito a riprendere la sua sessione (Volkswagen richiede di nuovo il codice monouso via email). I dati principali del tuo veicolo non sono interessati. Per ripristinare i dati vw.de aggiuntivi, apri le opzioni di questa integrazione e riesegui \"Aggiungi un canale di lettura Volkswagen.de\"."
+      "title": "Il canale di lettura Volkswagen.de richiede un nuovo accesso",
+      "description": "Il canale di lettura supplementare volkswagen.de non ha potuto riprendere la sessione (Volkswagen richiede di nuovo il codice monouso via e-mail). I dati principali del veicolo non sono interessati. Scegli **Ripara** per andare direttamente al login.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Riconnetti il canale Volkswagen.de",
+            "description": "Volkswagen richiede di nuovo il codice monouso via e-mail prima che questo canale possa leggere l'auto. Continua e arriverai direttamente al login — non devi cercare tu le opzioni dell'integrazione."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "I comandi remoti non sono disponibili per questa auto ({brand})",

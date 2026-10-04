@@ -2209,8 +2209,16 @@
       "description": "Je Volkswagen-account is ingelogd en je garage is gelezen, maar de gegevensverzoeken per voertuig (status, laden, klimaat) worden geweigerd met HTTP 403 Forbidden, en het antwoord bevat een **apparaatattestatie**-markering.\n\nDit is een **serverzijdige vergrendeling door VW**, geen abonnementsprobleem en niets wat opnieuw inloggen kan oplossen — Car-Net verlengen helpt dus niet. VW vereist nu een door Google ondertekend apparaatattestatie-token (Firebase App Check / Play Integrity) dat de officiële app vanuit een geharde build aanmaakt en dat een opensource-client niet kan nabootsen.\n\nDe integratie blijft de laatst opgeslagen gegevens tonen. Deze waarschuwing verdwijnt vanzelf als VW het gegevensvlak weer openstelt."
     },
     "supplementary_reauth": {
-      "title": "Volkswagen.de-leeskanaal moet opnieuw inloggen",
-      "description": "Het aanvullende volkswagen.de-leeskanaal kon zijn sessie niet hervatten (Volkswagen vraagt opnieuw om de eenmalige code per e-mail). De hoofdgegevens van je voertuig zijn niet getroffen. Open de opties van deze integratie en voer \"Volkswagen.de-leeskanaal toevoegen\" opnieuw uit om de extra vw.de-gegevens te herstellen."
+      "title": "Volkswagen.de-leeskanaal vereist opnieuw inloggen",
+      "description": "Het aanvullende volkswagen.de-leeskanaal kon de sessie niet hervatten (Volkswagen vraagt opnieuw de eenmalige code per e-mail). De hoofdgegevens van je auto blijven ongewijzigd. Kies **Herstellen** om direct naar de login te gaan.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Volkswagen.de-kanaal opnieuw verbinden",
+            "description": "Volkswagen vraagt opnieuw de eenmalige code per e-mail voordat dit kanaal je auto kan uitlezen. Ga verder en je komt direct bij de login — je hoeft de instellingen van de integratie niet zelf te zoeken."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "Opdrachten op afstand zijn niet beschikbaar voor deze auto ({brand})",

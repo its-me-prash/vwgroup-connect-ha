@@ -42,6 +42,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **The "Volkswagen.de channel needs re-login" notice now has a Fix button that takes you straight to the login (#1717, thanks @Ra72xx).**
+  Volkswagen asks for the e-mail one-time code again every few weeks, and until now the notice about it only told you
+  what to do: open the integration's options and re-run "Add a Volkswagen.de read channel". Following that meant
+  Settings, then Devices & Services, then finding the integration, then finding the **right** entry — anyone with two
+  accounts or two cars set up separately has several, and the notice never said which — then Configure, then hunting
+  for the tick box in the full options form. Six steps before you reached the login. Selecting **Fix** now does all of
+  that for you and opens the login for the car the notice is about. The one-time code itself is unchanged: Volkswagen
+  wants it and only you have it.
+
 ## [4.10.0] - 2026-10-04 — Full release / Voll-Release
 
 The stable release that gathers the whole 4.10.0 beta line (b1–b5). The headline is that the

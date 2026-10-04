@@ -2209,8 +2209,16 @@
       "description": "Din Volkswagen-konto loggede ind, og din garage blev læst, men de køretøjsspecifikke dataanmodninger (status, opladning, klima) afvises med HTTP 403 Forbidden, og svaret bærer en **enhedsattesterings**-markør.\n\nDette er en **spærring på serversiden fra VW**, ikke et abonnementsproblem og ikke noget, et nyt login kan rette — så en fornyelse af Car-Net hjælper ikke. VW kræver nu et Google-signeret enhedsattesterings-token (Firebase App Check / Play Integrity), som den officielle app udsteder fra en hærdet build, og som en open source-klient ikke kan genskabe.\n\nIntegrationen bliver ved med at vise de senest cachede data. Denne advarsel forsvinder af sig selv, hvis VW genåbner dataplanet."
     },
     "supplementary_reauth": {
-      "title": "Volkswagen.de-læsekanal kræver nyt login",
-      "description": "Den supplerende volkswagen.de-læsekanal kunne ikke genoptage sin session (Volkswagen vil have e-mail-engangskoden igen). Dit køretøjs hoveddata er upåvirket. For at genoprette de ekstra vw.de-data skal du åbne denne integrations indstillinger og køre \"Tilføj en Volkswagen.de-læsekanal\" igen."
+      "title": "Volkswagen.de-læsekanalen skal logge ind igen",
+      "description": "Den supplerende volkswagen.de-læsekanal kunne ikke genoptage sin session (Volkswagen beder igen om engangskoden på e-mail). Bilens primære data er upåvirkede. Vælg **Reparér** for at gå direkte til login.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Forbind Volkswagen.de-kanalen igen",
+            "description": "Volkswagen beder igen om engangskoden på e-mail, før denne kanal kan læse din bil. Fortsæt, og du kommer direkte til login — du behøver ikke selv finde integrationens indstillinger."
+          }
+        }
+      }
     },
     "meb_commands_unavailable": {
       "title": "Fjernkommandoer er ikke tilgængelige for denne bil ({brand})",
