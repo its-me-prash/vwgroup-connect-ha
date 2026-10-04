@@ -42,6 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Docs
+- Internal note only, no user-visible change: the device-grant source file still claimed Audi's app
+  client returned `200` from Volkswagen's device-code endpoint. That stopped being true when VW walled
+  the Audi app login (#1364), and a stale comment saying a dead login works is how someone later sends
+  a user down it. Corrected, together with why Audi deliberately stays in the brand list anyway: it is
+  what lets an Audi user reach the honest "this login was switched off" message instead of finding the
+  brand quietly missing from the picker.
+
 ## [4.11.0] - 2026-10-04 — Trip figures and a Fix button / Fahrtdaten und ein Fix-Knopf
 
 ### Added
