@@ -43,6 +43,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **A volkswagen.de login that ends on an error page is no longer treated as a successful login.**
+  The channel considered itself connected as soon as the final page came from volkswagen.de. But the manufacturer
+  serves its own error pages from that same address, and the check above it only rejects outright HTTP failures —
+  so an error page delivered as a normal page passed both. Reconfiguring then looked like it had worked while
+  nothing usable was stored, and the car silently ran without its volkswagen.de data. The rule that the silent
+  background refresh has always applied — an address carrying an error marker is not a login — now applies to the
+  interactive login too. The error marker itself is checked for plausibility before being shown, so an
+  upstream-supplied value cannot ride into a log or a bug report.
 - **A portal outage no longer looks like an expired session, and no longer replays your password (#465).**
   Listing the cars on your account is the one portal call that has to fail loudly — an empty list would read as
   "this account has no cars" and end the setup. It did fail loudly, but as an authentication error, and the code

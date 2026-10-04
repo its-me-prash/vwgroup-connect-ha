@@ -56,6 +56,7 @@ from ._http2 import H2Session
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from .._util import drop_charge_sentinel, drop_odometer_sentinel
 from .._bff_error_codes import decode_bff_error, reason_for_bff_code
+from .._util import safe_error_token
 from ..exceptions import (
     AuthProxyUnavailableError,
     APIError,
@@ -1255,8 +1256,13 @@ class WebsiteAuthProxyConnector:
             raise AuthenticationError(
                 "Website authproxy: SSO session expired — full re-login required"
             )
-        sso_error = parse_qs(landed_parts.query).get("error", [None])[0]
-        if sso_error:
+        # Bounded through the shared gate: this parameter is upstream-supplied
+        # free text and the message gets pasted into public issues. A value that
+        # is not shaped like an error code still fails the refresh, it just does
+        # not get quoted.
+        sso_error_raw = parse_qs(landed_parts.query).get("error", [None])[0]
+        if sso_error_raw:
+            sso_error = safe_error_token(sso_error_raw) or "unrecognised"
             raise AuthenticationError(
                 f"Website authproxy: silent refresh failed (error={sso_error})"
             )
@@ -1324,8 +1330,30 @@ class WebsiteAuthProxyConnector:
             )
 
     def _finalise_login(self, landed_url: str) -> None:
-        """Mark logged-in iff we ended back on the volkswagen.de host."""
+        """Mark logged-in iff we ended back on the volkswagen.de host, and the
+        page we landed on is not an error page.
+
+        The host check alone was not enough. VW serves its own error pages FROM
+        volkswagen.de, and the status guard upstream only rejects ``>= 400``, so
+        an error page returned with 200 satisfied both and the channel was
+        marked live while storing nothing usable — reconfigure looked like it
+        worked and the car quietly had no vw.de data. The silent-resume path
+        seventy lines above has always refused to do that when the landing URL
+        carries an ``error`` parameter; this is the same rule, applied to the
+        interactive path that was missing it. (A competing integration shipped
+        the same fix after the 2026-10-02 HTTP/2 outage, with the same symptom:
+        "Reconfigure looked fine but stored nothing".)
+        """
         host = urlparse(_SITE_BASE).netloc
+        # PRESENCE disqualifies the login; the shape gate only decides whether
+        # the value is quotable. Tying the rejection to quotability would have
+        # let an unrecognised — i.e. exactly the suspicious — value through.
+        landed_error_raw = parse_qs(urlparse(landed_url).query).get("error", [""])[0]
+        if landed_error_raw:
+            raise AuthenticationError(
+                "Website authproxy: login ended on an error page "
+                f"(error={safe_error_token(landed_error_raw) or 'unrecognised'})"
+            )
         if urlparse(landed_url).netloc == host:
             self.logged_in = True
             # v4.7.10 (#465) — a full re-login clears the per-cycle "SSO dead"

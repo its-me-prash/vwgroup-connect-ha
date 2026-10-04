@@ -396,6 +396,24 @@ _OAUTH_ERR_RE = re.compile(r"^[A-Za-z0-9_.\- ]{1,40}$")
 _OAUTH_ERR_MAX_TOKEN = 24
 
 
+def safe_error_token(value: object) -> str:
+    """*value* if it is shaped like an error code, else ``""``.
+
+    The single shape gate for every upstream-supplied error label that reaches a
+    message a user can see and paste: a token-endpoint ``error``/``errorCode``,
+    and an ``error`` query parameter on a login redirect. Those are
+    upstream-controlled free text, so the gate is deliberately narrow — a JWT
+    segment, a hex blob or a sentence carrying an identifier all fail it, while
+    the shapes these backends really use (SCREAMING_SNAKE, dotted, and the one
+    spaced value in the archive) pass.
+    """
+    if not isinstance(value, str) or not _OAUTH_ERR_RE.match(value):
+        return ""
+    if any(len(tok) > _OAUTH_ERR_MAX_TOKEN for tok in value.split()):
+        return ""
+    return value
+
+
 def oauth_error_code(body: str) -> str:
     """The upstream error code from a token-endpoint error body, or ``""``.
 
@@ -410,10 +428,8 @@ def oauth_error_code(body: str) -> str:
     if not isinstance(parsed, dict):
         return ""
     for key in _OAUTH_ERR_KEYS:
-        code = parsed.get(key)
-        if not isinstance(code, str) or not _OAUTH_ERR_RE.match(code):
-            continue
-        if any(len(tok) > _OAUTH_ERR_MAX_TOKEN for tok in code.split()):
+        code = safe_error_token(parsed.get(key))
+        if not code:
             continue
         # Observed as "0"/"1" on some bodies — a number carries no diagnosis.
         if code.strip(".-").isdigit():
