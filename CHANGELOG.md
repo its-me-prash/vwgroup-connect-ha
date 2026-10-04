@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.11.0] - 2026-10-04 — Trip figures and a Fix button / Fahrtdaten und ein Fix-Knopf
+
 ### Added
 - **Trip and consumption figures for Car-Net cars on the volkswagen.de channel (#1313, thanks @realynot).**
   Older Volkswagens whose data comes through the volkswagen.de channel now get their three trip-computer memories:
