@@ -144,7 +144,7 @@ class FakePhone:
     """
 
     def __init__(self, *, layout="pick", version="4.3.2", temp=22.0, running=None,
-                 mode="ac", off_grid=False, dial_locked=False):
+                 mode="ac", off_grid=False, dial_locked=False, budget_used=False):
         self.layout = layout
         self._version = version
         self.temp = temp
@@ -153,6 +153,7 @@ class FakePhone:
         self.ac_toggle, self.wh_toggle = True, False
         self.off_grid = off_grid
         self.dial_locked = dial_locked
+        self.budget_used = budget_used
         self.screen = "overview"
         self.connected = True
         self.taps: list[str] = []
@@ -258,6 +259,15 @@ class FakePhone:
         out += _node(text="Window heating", bounds="[222,1785][532,1836]")
         return out
 
+    def _render_budget(self) -> str:
+        # The 4.3.2 app's alert (CapabilityStatusAlertDelegateImpl) when the
+        # car's daily power budget is used up.
+        return (
+            _node(text="Too many requests sent to the vehicle", bounds="[53,1300][1027,1400]")
+            + _node(text="Please restart the engine and try again.", bounds="[53,1420][1027,1500]")
+            + self._t("ok", 53, 1800, 1027, 1900, text="OK", clickable=True)
+        )
+
     def _render_dialog(self) -> str:
         return (
             _node(text="Activate air conditioning using battery?", bounds="[53,1300][1027,1400]")
@@ -267,7 +277,7 @@ class FakePhone:
 
     # reactions
     def _on_tile(self, _):
-        self.screen = "sheet"
+        self.screen = "budget" if self.budget_used else "sheet"
 
     def _on_up(self, _):
         self.screen = "sheet" if self.screen == "picker" else "overview"
@@ -400,9 +410,25 @@ async def test_window_heating_stop_refuses_to_end_running_air_conditioning():
 async def test_off_grid_confirmation_is_never_accepted():
     phone = FakePhone(layout="pick", off_grid=True)
     _ch, ctrl = _controller(phone)
-    with pytest.raises(CompanionWriteBlocked, match="another screen"):
+    with pytest.raises(CompanionWriteBlocked, match="Activate air conditioning using battery"):
         await ctrl.start()
     assert "activate" not in phone.taps
+
+
+@pytest.mark.asyncio
+async def test_used_up_request_budget_pauses_commands_with_a_clear_reason():
+    # Field test 2026-10-04 (@gszigethy): after a day of testing, tapping the
+    # tile showed the app's "Too many requests sent to the vehicle" alert, and
+    # the command failed only with "could not open the sheet".
+    phone = FakePhone(layout="pick", budget_used=True)
+    ch, ctrl = _controller(phone)
+    with pytest.raises(CompanionWriteBlocked, match="daily request budget.*Start the car"):
+        await ctrl.start()
+    assert phone.taps[0] == "tile" and "start" not in phone.taps
+    assert phone.screen == "overview"  # the alert was closed on the way back
+    with pytest.raises(CompanionWriteBlocked, match="rate limit"):
+        await ctrl.start()
+    assert phone.taps.count("tile") == 1
 
 
 @pytest.mark.asyncio

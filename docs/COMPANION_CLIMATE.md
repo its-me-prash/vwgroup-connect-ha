@@ -59,6 +59,11 @@ by default.
 - Start when running, stop when idle, and setting the current temperature send
   nothing. Stopping window heating while air conditioning also runs is refused,
   because the app's single Stop ends both.
+- When the app shows something else instead of the sheet, or after Start, the
+  command fails with that screen's own text. If it is the app's request-limit
+  alert ("Too many requests sent to the vehicle": the car's daily power budget
+  is used up), the channel's backoff is tripped and the reason says to start
+  the car; Reset companion connection clears the pause.
 - The channel's read-only option, rate-limit backoff and 60 s minimum interval
   all apply. Climate walks hold the same lock as polls, and the charge channel's
   lock where one exists.

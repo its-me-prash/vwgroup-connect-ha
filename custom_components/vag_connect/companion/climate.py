@@ -29,7 +29,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
 
-from .screen import UiNode, _rid_matches, find_node_for, has_anchor
+from .screen import UiNode, _rid_matches, find_node_for, find_rate_limit_banner, has_anchor
 from .transport import CompanionTransportError
 
 if TYPE_CHECKING:
@@ -75,6 +75,13 @@ class ClimaSheet:
     @property
     def running(self) -> bool:
         return self.stop is not None
+
+
+_LIMIT_REASON = (
+    "the car refused the request: its daily request budget is used up (the app "
+    "says too many requests were sent to the vehicle). Start the car to reset it; "
+    "commands are paused until then, or until you press Reset companion connection"
+)
 
 
 def _find(nodes: list[UiNode], rid: str, *, checkable: bool = False) -> UiNode | None:
@@ -279,7 +286,7 @@ class ClimateController:
                 walked = 1
                 nodes = await self._screen(lambda n: read_sheet(n).present)
                 if not read_sheet(nodes).present:
-                    raise self._blocked("could not open the Air Conditioning sheet")
+                    raise self._refused(nodes, "the Air Conditioning sheet")
             yield nodes
         except CompanionTransportError as err:
             raise self._blocked(str(err)) from err
@@ -454,12 +461,31 @@ class ClimateController:
             # Neither yet: the sheet is still animating closed, or the request
             # is in flight. Dump again; a dump itself takes about a second.
         if not read_sheet(nodes).present:
-            raise self._blocked(
-                "the app showed another screen after the tap (for example "
-                "'air conditioning using battery?'); it is not confirmed "
-                "automatically — answer it in the app"
-            )
+            raise self._refused(nodes, "a confirmation; it is not answered automatically")
         raise self._blocked("the app did not confirm the request")
+
+    def _refused(self, nodes: list[UiNode], instead_of: str) -> Exception:
+        """Say what the app showed instead; pause commands on a request limit.
+
+        When the car's daily request budget is used up, the app answers a tap
+        with an alert ("Too many requests sent to the vehicle") instead of the
+        screen. Repeating the tap cannot help until the car is started.
+        """
+        ch = self._ch
+        on_screen = getattr(ch, "_limit_on_screen", None)
+        limited = (
+            on_screen(nodes) if callable(on_screen)
+            else find_rate_limit_banner(nodes, ch.preset) is not None
+        )
+        if limited:
+            ch._trip_rate_limit()
+            return self._blocked(_LIMIT_REASON)
+        shown = " — ".join(
+            n.text.strip() for n in nodes if n.text.strip() and len(n.text) <= 120
+        )[:200]
+        if shown:
+            return self._blocked(f"the app showed \"{shown}\" instead of {instead_of}")
+        return self._blocked(f"the app did not show {instead_of}")
 
     def _mark_write(self) -> None:
         self._ch._last_write_at = self._ch._now()
