@@ -470,6 +470,154 @@ async def _systemid_experiment(session: Any, id_token: str, vin: str) -> None:
             await _vsr_probe(session, mbb.access_token, cid, vin, country)
 
 
+# ── #1313/Audi-Watch: der requestAuthCode/authorize-Schritt ──────────────────
+# myAudi 5.8.1 (androguard, 2026-10-04) trägt den Pfad
+# ``mobile/oauth2/v1/requestAuthCode/authorize`` auf GENAU dem Host, den
+# ``_mbboauth.py`` schon nutzt, mit demselben Scope ``sc2:fal``. Unsere Probe
+# von 2026-06 bekam auf direktem ``/mobile/oauth2/v1/token`` ein 403 —
+# HYPOTHESE: weil wir diesen Code-Schritt überspringen. Die App fährt
+# IdentityKit-Token -> loadMBBStatusData -> MBBConnectorExtensions.authorizationCode
+# -> requestAuthCode/authorize -> erst DANN /token.
+#
+# Die exakte Request-Form steht nicht in der APK, nur das Parameter-Vokabular
+# (response_type/client_id/redirect_uri/scope/state/nonce/code_challenge/
+# grant_type/code/id_token/audience/brand/platform/appId/deviceId). Deshalb eine
+# KLEINE, begründete Matrix statt Raten: vier Formen, die sich in genau einer
+# Dimension unterscheiden, damit die Antwort interpretierbar bleibt.
+_MBB_AUTHCODE_URL = (
+    "https://mbboauth-1d.prd.ece.vwg-connect.com/mbbcoauth"
+    "/mobile/oauth2/v1/requestAuthCode/authorize"
+)
+
+
+def _code_from(text: str) -> tuple[str, int]:
+    """(Name des Code-Felds, Länge) aus einer Antwort — NIE der Wert selbst."""
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return ("", 0)
+    if not isinstance(data, dict):
+        return ("", 0)
+    for key in ("code", "authorizationCode", "authCode", "auth_code"):
+        val = data.get(key)
+        if isinstance(val, str) and val:
+            return (key, len(val))
+    return ("", 0)
+
+
+def _err_code_of(text: str) -> str:
+    """Kurzer Fehlercode aus der Antwort, formgeprüft (nie Freitext/Secrets)."""
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    for key in ("error", "errorCode"):
+        val = data.get(key)
+        if isinstance(val, str) and 0 < len(val) <= 40 and " " not in val.strip():
+            return val
+        if isinstance(val, dict):
+            inner = val.get("errorCode") or val.get("code")
+            if inner is not None:
+                return str(inner)[:40]
+    return ""
+
+
+async def _request_auth_code_probe(
+    session: Any, id_token: str, *, client_id: str, brand: str
+) -> None:
+    """Probe ``requestAuthCode/authorize`` — vier begründete Formen.
+
+    Druckt NUR Status, Fehlercode und Code-LÄNGE. Niemals Token oder Code.
+    Jede Form hat ihren eigenen Guard: eine Wand darf die anderen nicht kosten.
+    """
+    print("\n" + "=" * 64)
+    print("  PROBE: requestAuthCode/authorize  (Audi-Watch 2026-10-04)")
+    print("  Frage: liefert dieser Schritt einen Auth-Code, den /token nimmt?")
+    print("=" * 64)
+
+    base_hdr = {
+        "Accept": "application/json",
+        "User-Agent": _MBB_UA,
+        "X-Client-Id": client_id,
+    }
+    variants: list[tuple[str, str, dict[str, str], dict[str, str] | None]] = [
+        # 1) Wie der klassische Tausch, nur mit response_type=code: prüft, ob der
+        #    Endpunkt dieselbe id_token-Grant-Form akzeptiert.
+        ("POST form grant_type=id_token + response_type=code", "POST",
+         dict(base_hdr),
+         {"grant_type": "id_token", "token": id_token, "scope": "sc2:fal",
+          "response_type": "code"}),
+        # 2) Gleiche Form, aber das Token im Feld ``id_token`` — die APK kennt
+        #    beide Feldnamen, und welcher gilt, entscheidet der Server.
+        ("POST form id_token-Feld statt token", "POST",
+         dict(base_hdr),
+         {"grant_type": "id_token", "id_token": id_token, "scope": "sc2:fal",
+          "response_type": "code"}),
+        # 3) OIDC-artig als Query, wie ein /authorize es normalerweise erwartet.
+        ("GET query response_type=code", "GET",
+         dict(base_hdr),
+         {"response_type": "code", "client_id": client_id, "scope": "sc2:fal",
+          "token": id_token, "brand": brand, "platform": "Android"}),
+        # 4) Ohne X-Client-Id: trennt "Client nicht berechtigt" von
+        #    "Form falsch" — unser Client hat laut früheren Proben nur
+        #    Directory-Rechte.
+        ("POST form OHNE X-Client-Id", "POST",
+         {k: v for k, v in base_hdr.items() if k != "X-Client-Id"},
+         {"grant_type": "id_token", "token": id_token, "scope": "sc2:fal",
+          "response_type": "code"}),
+    ]
+
+    got_code: tuple[str, int] | None = None
+    for label, method, headers, payload in variants:
+        try:
+            if method == "GET":
+                ctx = session.get(_MBB_AUTHCODE_URL, headers=headers,
+                                  params=payload)
+            else:
+                ctx = session.post(_MBB_AUTHCODE_URL, headers=headers,
+                                   data=payload)
+            async with ctx as resp:
+                text = await resp.text()
+                key, length = _code_from(text)
+                err = _err_code_of(text)
+                extra = f"  code-Feld={key!r} len={length}" if key else ""
+                if err:
+                    extra += f"  error={err}"
+                print(f"    [{label}] HTTP {resp.status}{extra}")
+                if not key and not err:
+                    # Antwortform unbekannt: nur Länge + Schlüsselnamen zeigen.
+                    try:
+                        keys = sorted(json.loads(text).keys())[:8]
+                    except Exception:  # noqa: BLE001
+                        keys = []
+                    print(f"        body: {len(text)} B  keys={keys}")
+                if key and got_code is None:
+                    got_code = (key, length)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    [{label}] connect-error: {str(exc)[:120]}")
+
+    print("\n  ── Verdikt ──")
+    if got_code:
+        print(f"  TREFFER: ein Auth-Code kam zurueck (Feld {got_code[0]!r}, "
+              f"len={got_code[1]}).")
+        print("  -> Das ist der fehlende Schritt. Naechstes: diesen Code mit")
+        print("     grant_type=authorization_code an /mobile/oauth2/v1/token")
+        print("     tauschen (hier NICHT automatisch, damit der Code nicht")
+        print("     verbraucht wird, bevor Prash die Form festlegt).")
+    else:
+        print("  KEIN Code. Lies die Statuszeilen:")
+        print("   * 404 ueberall  -> Pfad existiert fuer UNSEREN Realm nicht;")
+        print("                      die Hypothese ist widerlegt.")
+        print("   * 400 + error   -> Endpunkt lebt, Form falsch: der Fehlercode")
+        print("                      sagt welches Feld fehlt.")
+        print("   * 403 ueberall  -> Endpunkt lebt, unser Client darf nicht;")
+        print("                      Variante 4 (ohne X-Client-Id) trennt das.")
+        print("   * 401           -> id_token-aud passt nicht (siehe claims oben).")
+    print("=" * 64)
+
+
 async def main(brand: str) -> int:
     from aiohttp import ClientSession
 
@@ -543,6 +691,12 @@ async def main(brand: str) -> int:
         claims = _jwt_claims(tokens.id_token)
         print(f"[*] id_token claims:  iss={claims.get('iss')}  "
               f"aud={claims.get('aud')}  azp={claims.get('azp')}")
+
+        # ── #1313/Audi-Watch: laeuft AUTOMATISCH, damit ein Tester nichts
+        #    Neues lernen muss. Vier begruendete Formen, fail-soft, druckt nur
+        #    Status/Fehlercode/Laenge. Siehe _request_auth_code_probe. ──
+        await _request_auth_code_probe(
+            session, tokens.id_token, client_id=client_id, brand=brand)
 
         # ── DECISIVE EXPERIMENT (when a VIN is passed as argv[3]): does the
         #    durable token actually READ data, and does the XID_APP_VW
