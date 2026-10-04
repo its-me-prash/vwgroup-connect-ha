@@ -29,7 +29,10 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
     _PORTAL_RETRY_DELAYS,
     EUDataActConnector,
 )
-from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+from custom_components.vag_connect.cariad.exceptions import (
+    AuthenticationError,
+    UpstreamUnavailableError,
+)
 
 _SLEEP = "custom_components.vag_connect.cariad.auth._eu_data_act.asyncio.sleep"
 
@@ -103,6 +106,14 @@ class TestPortalTimeoutRetry:
         because the retry was nested in the soft branch, which made the two
         transient-failure kinds behave differently on the same call. The end
         state is unchanged: after the retries a hard call still raises.
+
+        #465 completes the symmetry this test is named for. The timeout case
+        directly above already insists the failure "must NOT become
+        AuthenticationError (no re-login churn)" — and a 5xx is the same kind of
+        transient failure, so it no longer becomes one either. It raises
+        ``UpstreamUnavailableError``, which the coordinator already treats as
+        self-healing and which the enumeration caller's re-login branch does not
+        catch.
         """
         def _r() -> AsyncMock:
             r = AsyncMock()
@@ -114,6 +125,7 @@ class TestPortalTimeoutRetry:
         sess = _session_seq([_r() for _ in range(_ATTEMPTS)])
         conn = _conn(sess)
         with patch(_SLEEP, new=AsyncMock()):
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(UpstreamUnavailableError) as excinfo:
                 asyncio.run(conn._get_json("https://x/y", soft=False))
+        assert not isinstance(excinfo.value, AuthenticationError)
         assert sess.get.call_count == _ATTEMPTS

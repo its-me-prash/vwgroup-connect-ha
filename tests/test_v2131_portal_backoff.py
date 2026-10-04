@@ -17,7 +17,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.vag_connect.cariad.auth._eu_data_act import EUDataActConnector
-from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+from custom_components.vag_connect.cariad.exceptions import (
+    AuthenticationError,
+    UpstreamUnavailableError,
+)
 
 _SLEEP = "custom_components.vag_connect.cariad.auth._eu_data_act.asyncio.sleep"
 
@@ -77,12 +80,21 @@ class TestPortalBackoff:
         read as "this account has no cars", so failing fast there costs a
         working setup. What must NOT change is the ending: a hard call still
         raises rather than returning an empty result.
+
+        #465 — that ending is unchanged; the CLASS is now accurate. A portal
+        outage raises ``UpstreamUnavailableError`` instead of
+        ``AuthenticationError``, because the enumeration caller catches the
+        latter bare and answered a 503 by replaying the password and then
+        showing a "session expired" Repair. This assertion is kept as a
+        non-``AuthenticationError`` check so the contract this test defends —
+        raise, never return empty — stays pinned.
         """
         sess = _session_seq([_resp(500), _resp(500), _resp(500)])
         conn = _conn(sess)
         with patch(_SLEEP, new=AsyncMock()):
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(UpstreamUnavailableError) as excinfo:
                 asyncio.run(conn._get_json("https://x/y", soft=False))
+        assert not isinstance(excinfo.value, AuthenticationError)
         assert sess.get.call_count == 3  # 1 try + 2 retries, same as soft
 
     def test_non_soft_recovers_when_a_retry_succeeds(self):

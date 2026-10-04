@@ -43,6 +43,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **A portal outage no longer looks like an expired session, and no longer replays your password (#465).**
+  Listing the cars on your account is the one portal call that has to fail loudly — an empty list would read as
+  "this account has no cars" and end the setup. It did fail loudly, but as an authentication error, and the code
+  that handles that has exactly one move: refresh the token or send the password again, retry, and then raise a
+  "session expired" repair notice. So a portal hiccup lasting seconds sent your credentials back over the wire
+  and then told you your login had gone stale. A server error now reports itself as what it is — the manufacturer's
+  portal being unavailable — which skips the re-login entirely, keeps the message off the "check your password"
+  track, and lets the next poll recover on its own. This is the same misdiagnosis fixed for the volkswagen.de
+  channel in 4.10.0b4, one channel over, and this one sits in the **primary** read path for Volkswagen EU.
+  A genuine 401 or 403 still means your session, and a 404 still means the data request is not provisioned yet;
+  both behave exactly as before.
 - **"Vehicle last reported" could run ahead of the mileage it describes, on cars whose odometer arrives under an opaque key (#1688, #529).**
   The freshness work in 4.10.0b5 anchors the reported time on the odometer's own capture, so the time can never be newer
   than the reading it belongs to — otherwise Home Assistant sees the mileage change, sees the time move past it, and can

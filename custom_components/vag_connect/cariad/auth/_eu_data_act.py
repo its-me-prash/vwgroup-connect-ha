@@ -174,6 +174,12 @@ _TRANSIENT_STATUSES = (400, 404, 410, 429, 500, 502, 503, 504)
 # stable state and return "no data" immediately, so we don't add latency to
 # the common not-set-up case.
 _RETRIABLE_STATUSES = frozenset({500, 502, 503, 504})
+# #465 — statuses that mean the PORTAL is down or throttling us, as opposed to
+# 400/404/410 ("your data request isn't provisioned") and 401/403 ("your session
+# is the problem"). On a hard call these raise UpstreamUnavailableError, so the
+# enumeration caller's re-login branch is bypassed. 429 is included even though
+# it is not retried: being throttled is still not a credentials failure.
+_PORTAL_OUTAGE_STATUSES = frozenset(_RETRIABLE_STATUSES | {429})
 # #465 observability — of the soft-transient statuses, these mean the PORTAL is
 # erroring/throttling (a VW-side outage → portal_health "portal_error"), as opposed
 # to 400/404/410 which mean "the data request isn't provisioned / no delivery yet"
@@ -5733,6 +5739,25 @@ class EUDataActConnector:
                             # portal outage (portal_error).
                             self._last_soft_status = resp.status
                             return None
+                        # #465 — a HARD call that ends on a portal-side outage
+                        # status is an outage, not a dead session. It used to
+                        # raise AuthenticationError with the status only in the
+                        # message text, and the VIN-enumeration caller catches
+                        # that bare, so a 503 lasting seconds made us refresh
+                        # the token or REPLAY THE PASSWORD, retry, and then
+                        # surface a "session expired" Repair blaming the user's
+                        # login. Same misdiagnosis as the volkswagen.de 502
+                        # (#1709) one channel over. UpstreamUnavailableError
+                        # exists for exactly this — its docstring records people
+                        # reconfiguring their integrations during the 502-storms
+                        # because it "looked like wrong credentials" — and the
+                        # coordinator already treats it as self-healing.
+                        # 401/403 (real session problem) and 404/410 (not
+                        # provisioned) are deliberately untouched.
+                        if not soft and resp.status in _PORTAL_OUTAGE_STATUSES:
+                            raise UpstreamUnavailableError(
+                                resp.status, brand=self._state
+                            )
                         if resp.status == 401:
                             self._debug_dump_auth_state_on_401(
                                 url, eff_headers, resp
