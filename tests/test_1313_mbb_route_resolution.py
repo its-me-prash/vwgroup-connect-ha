@@ -105,14 +105,20 @@ def test_mbb_backup_route_uses_the_failover_client_and_same_scope() -> None:
     assert scope == MBB_DAG_SCOPE
 
 
-def test_app_route_uses_the_brands_own_registered_scope() -> None:
+@pytest.mark.parametrize("brand", sorted(DAG_ENABLED_BRANDS))
+def test_app_route_uses_the_brands_own_registered_scope(brand: str) -> None:
     """Not a hardcoded "openid profile", which silently dropped claims the
-    client is entitled to — Audi's registered scope already carries ``mbb``."""
-    client_id, scope, route = H.resolve_route("audi", "app")
+    client is entitled to — Audi's registered scope already carries ``mbb``.
+
+    Parametrized over DAG_ENABLED_BRANDS rather than naming audi, so the
+    invariant keeps holding when that set gains or loses a brand. Pinning one
+    brand here would turn a membership change into an unrelated test failure.
+    """
+    client_id, scope, route = H.resolve_route(brand, "app")
     assert route == "app"
-    assert client_id == BRANDS["audi"].client_id
-    assert scope == BRANDS["audi"].scope
-    assert scope != "openid profile"
+    assert client_id == BRANDS[brand].client_id
+    assert scope == BRANDS[brand].scope
+    assert scope != "openid profile", "the hardcoded scope is back"
 
 
 def test_portal_route_is_reachable_by_name() -> None:
@@ -154,20 +160,35 @@ def test_a_brand_with_no_route_at_all_is_refused() -> None:
 
 
 def test_app_route_is_refused_for_a_brand_without_one() -> None:
-    assert "volkswagen" not in DAG_ENABLED_BRANDS, "precondition"
-    res = H.resolve_route("volkswagen", "app")
-    assert isinstance(res, str)
+    """Pick a brand that is genuinely outside the set, rather than assuming one
+    — the set is edited as VW revokes clients."""
+    outside = next(
+        (b for b in ("volkswagen", "skoda", "porsche") if b not in DAG_ENABLED_BRANDS),
+        None,
+    )
+    assert outside is not None, (
+        f"precondition: no known brand is outside DAG_ENABLED_BRANDS "
+        f"({sorted(DAG_ENABLED_BRANDS)})"
+    )
+    res = H.resolve_route(outside, "app")
+    assert isinstance(res, str), f"{outside} must be refused, not routed"
     assert "app device-grant" in res
 
 
-def test_non_car_net_dag_brands_default_to_the_app_route() -> None:
+@pytest.mark.parametrize("brand", ["seat", "cupra"])
+def test_non_car_net_dag_brands_default_to_the_app_route(brand: str) -> None:
     """seat/cupra have no MBB route, so the default must fall through to the
     route they DO have rather than refusing."""
-    for brand in ("seat", "cupra"):
-        client_id, scope, route = H.resolve_route(brand, None)
-        assert route == "app", brand
-        assert client_id == BRANDS[brand].client_id
-        assert scope == BRANDS[brand].scope
+    from custom_components.vag_connect.cariad.auth._device_grant import (
+        mbb_dag_config,
+    )
+
+    assert mbb_dag_config(brand) is None, f"precondition: {brand} has no MBB route"
+    assert brand in DAG_ENABLED_BRANDS, f"precondition: {brand} has an app route"
+    client_id, scope, route = H.resolve_route(brand, None)
+    assert route == "app"
+    assert client_id == BRANDS[brand].client_id
+    assert scope == BRANDS[brand].scope
 
 
 # ── counter-check: the test would notice if resolution were gutted ────────

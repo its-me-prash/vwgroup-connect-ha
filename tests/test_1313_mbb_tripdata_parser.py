@@ -130,15 +130,55 @@ def test_the_odometer_comes_from_overall_mileage() -> None:
         assert _map(payload).odometer_km == 41944
 
 
-def test_travel_time_is_minutes_checked_against_his_own_speeds() -> None:
-    """If travelTime were seconds, every average speed would be 60x off. Checked
-    against the reported speed rather than assumed from the field name."""
-    for payload, dist, mins, speed in (
-        (CYCLIC, 1454, 2088, 42), (LONGTERM, 939, 1406, 40), (SHORTTERM, 28, 48, 36),
-    ):
-        d = _map(payload)
-        derived = dist / (mins / 60)
-        assert abs(derived - speed) < 1.5, f"{derived:.1f} vs reported {speed}"
+@pytest.mark.parametrize(
+    ("payload", "dist_attr", "dur_attr", "speed_attr", "reported_speed"),
+    [
+        (SHORTTERM, "last_trip_distance_km", "last_trip_duration_min",
+         "last_trip_avg_speed_kmh", 36),
+        (LONGTERM, "lifetime_trip_distance_km", "lifetime_travel_time_min",
+         "lifetime_avg_speed_kmh", 40),
+    ],
+)
+def test_travel_time_is_minutes_checked_against_his_own_speeds(
+    payload: object, dist_attr: str, dur_attr: str, speed_attr: str,
+    reported_speed: float,
+) -> None:
+    """If travelTime were seconds, or got scaled on the way through, every
+    average speed would be 60x off. So distance / duration must reproduce the
+    speed the car itself reported.
+
+    Read every value OFF THE PARSED OBJECT. The first version of this test
+    computed the quotient from its own literal tuple and never touched the
+    mapper's output at all — pure arithmetic on constants, unable to fail no
+    matter what the parser did. That is the whole invariant this test exists
+    for, so it has to come out of the parser.
+    """
+    d = _map(payload)
+    distance = getattr(d, dist_attr)
+    duration = getattr(d, dur_attr)
+    speed = getattr(d, speed_attr)
+    assert distance is not None, f"{dist_attr} was not mapped"
+    assert duration, f"{dur_attr} was not mapped (or is zero)"
+    assert speed is not None, f"{speed_attr} was not mapped"
+    assert speed == pytest.approx(reported_speed), (
+        f"the car reported {reported_speed} km/h; parser surfaced {speed}"
+    )
+    derived = distance / (duration / 60)
+    assert abs(derived - speed) < 1.5, (
+        f"{dist_attr}/{dur_attr} gives {derived:.1f} km/h but {speed_attr} "
+        f"says {speed} — the duration is not in minutes"
+    )
+
+
+def test_the_cyclic_surface_maps_its_distance_only() -> None:
+    """The refuel cycle has no duration or speed field in the model: its
+    averages describe the tank, not a trip. So the minutes check above cannot
+    cover it — this pins what cyclic DOES map, so a future home for the rest
+    does not slip in unnoticed."""
+    d = _map(CYCLIC)
+    assert d.cyclic_trip_distance_km == 1454
+    assert d.last_trip_duration_min is None
+    assert d.lifetime_travel_time_min is None
 
 
 # ── The three edge cases he flagged ─────────────────────────────────────────

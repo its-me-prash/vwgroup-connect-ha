@@ -185,16 +185,94 @@ def test_neither_the_token_nor_the_code_is_ever_printed(
     assert "code-Feld" in out
 
 
-def test_the_verdict_explains_each_status(
+def test_the_verdict_states_the_conclusion_for_what_happened(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A tester who is not the maintainer has to read the result unaided."""
+    """A tester who is not the maintainer has to read the result unaided — so
+    the verdict names the conclusion for the case that occurred, instead of
+    printing a legend of four cases and leaving the reader to apply it."""
     s = _Session([_Resp(404, {}) for _ in range(4)])
     _run(s)
     out = capsys.readouterr().out
     assert "KEIN Code" in out
-    for status in ("404", "400", "403", "401"):
-        assert status in out, f"the verdict does not explain {status}"
+    assert "widerlegt" in out, "the 404-everywhere conclusion is missing"
+    # The other cases must NOT be asserted at the reader; this is the
+    # regression the rewrite fixes.
+    assert "400=Form falsch" not in out, "the legend is being printed again"
+
+
+def test_a_uniform_non_json_403_is_not_called_a_client_decision(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The 2026-10-04 Audi run: four identical non-JSON 403s, including the
+    variant without X-Client-Id. The old verdict declared "endpoint lives, our
+    client may not" — an overclaim. An OAuth endpoint refusing a client answers
+    with a JSON error object; a non-JSON body means nothing reached the OAuth
+    layer, so the honest reading is a gateway refusal with the reason unknown."""
+    s = _Session([_Resp(403, "<html>Forbidden</html>") for _ in range(4)])
+    _run(s)
+    out = capsys.readouterr().out
+    assert "Gateway" in out
+    assert "NICHT bestaetigt" in out
+    assert "kein JSON" in out, "the body shape is not reported"
+    assert "Client-Entscheidung" in out, "the distinction is not drawn"
+
+
+def test_a_json_403_is_read_as_a_real_refusal(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """With a JSON error object the endpoint DID answer, and then the old
+    reading is the right one."""
+    s = _Session([_Resp(403, {"error": "unauthorized_client"}) for _ in range(4)])
+    _run(s)
+    out = capsys.readouterr().out
+    assert "lehnt ab" in out
+    assert "Gateway" not in out, "a real refusal must not be called a gateway block"
+
+
+def test_a_400_is_read_as_a_form_problem(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    s = _Session([_Resp(400, {"error": "invalid_request"}) for _ in range(4)])
+    _run(s)
+    out = capsys.readouterr().out
+    assert "Form" in out
+    assert "lebt" in out, "a 400 proves the endpoint is alive — say so"
+
+
+def test_a_401_everywhere_is_read_as_an_audience_problem(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    s = _Session([_Resp(401, {"error": "invalid_token"}) for _ in range(4)])
+    _run(s)
+    out = capsys.readouterr().out
+    assert "Audience" in out
+    assert "KEINE Aussage" in out, "must say it says nothing about requestAuthCode"
+
+
+def test_mixed_statuses_fall_back_to_the_legend(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Only when the answers disagree is the reader handed the legend."""
+    s = _Session([_Resp(404, {}), _Resp(403, {}), _Resp(401, {}), _Resp(404, {})])
+    _run(s)
+    out = capsys.readouterr().out
+    assert "Gemischte Antworten" in out
+    assert "404=Pfad fehlt" in out
+
+
+def test_all_variants_failing_to_connect_is_not_a_finding(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """This machine has flaky DNS to the vwg-connect hosts. Four connect errors
+    must not be dressed up as evidence about the endpoint — that is how a
+    TimeoutError gets mistaken for a refuted hypothesis."""
+    s = _Session([RuntimeError("getaddrinfo failed") for _ in range(4)])
+    _run(s)
+    out = capsys.readouterr().out
+    assert "KEIN Befund" in out
+    assert "wiederholen" in out
+    assert "widerlegt" not in out, "a connection failure was called a refutation"
 
 
 def test_a_hit_is_not_auto_exchanged(

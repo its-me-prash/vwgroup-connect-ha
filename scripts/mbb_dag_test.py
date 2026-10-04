@@ -65,6 +65,29 @@ def _jwt_claims(token: str) -> dict[str, Any]:
         return {}
 
 
+def _mbb_aud(id_token: str) -> str | None:
+    """The audience to pin the MBB register/exchange to.
+
+    Delegates to the production selector rather than taking ``aud[0]``, which
+    is what this harness used to do at three separate places. The mbb-scoped
+    id_token is multi-audience, and #464 established that ``aud[0]`` is the
+    OAuth client id on SEAT/CUPRA — pinning it there makes the MBB backend
+    answer ``400 invalid_grant`` ("unknown audience"). ``jwt_aud`` picks the
+    MBB *delivery* audience instead.
+
+    Taking ``aud[0]`` meant the harness pinned something production never
+    pins, so its "aud-as-clientid" line reported a rejection that said nothing
+    about the shipped path — found on the 2026-10-04 Audi run, where that line
+    printed 403 for the OAuth client id while production would have pinned
+    ``VWGMBB01DELIV1``.
+    """
+    from custom_components.vag_connect.cariad.auth._mbboauth import (  # noqa: PLC0415
+        jwt_aud,
+    )
+
+    return jwt_aud(id_token)
+
+
 # App-identity candidates for register/v1. The DATA endpoints (VSR /status,
 # usermanagement) gate on the SERVER-side systemId 'XID_APP_VW', which is
 # (hypothesis) derived from the registered app identity — so the e-Remote
@@ -195,8 +218,7 @@ async def _host_discovery(
         ["https://msg.volkswagen.de", "https://fal-3a.prd.eu.dp.vwg-connect.com"]
     )
 
-    aud = _jwt_claims(id_token).get("aud")
-    aud_str = aud[0] if isinstance(aud, list) else aud
+    aud_str = _mbb_aud(id_token)
     # Mint with retries — this sandbox has flaky DNS to the vwg-connect hosts;
     # a transient timeout must not abort the whole (browser-confirmed) run.
     mbb = None
@@ -456,8 +478,7 @@ async def _systemid_experiment(session: Any, id_token: str, vin: str) -> None:
     us whether the XID_APP_VW data-permission follows the register appId."""
     from custom_components.vag_connect.cariad.auth import _mbboauth  # noqa: PLC0415
 
-    aud = _jwt_claims(id_token).get("aud")
-    aud_str = aud[0] if isinstance(aud, list) else aud
+    aud_str = _mbb_aud(id_token)
     for label, app in (("e-Remote", _APP_EREMOTE), ("We Connect", _APP_WECONNECT)):
         print(f"\n[EXPERIMENT] register as {label} (appId={app[0]}) -> exchange -> VSR read")
         reg_cid, _sec = await _mbb_register(
@@ -604,6 +625,9 @@ async def _request_auth_code_probe(
     ]
 
     got_code: tuple[str, int] | None = None
+    # (status, body_was_json) per variant that actually answered — the verdict
+    # is derived from these rather than left to the reader as a legend.
+    seen: list[tuple[int, bool]] = []
     for label, method, headers, payload in variants:
         try:
             if method == "GET":
@@ -616,17 +640,24 @@ async def _request_auth_code_probe(
                 text = await resp.text()
                 key, length = _code_from(text)
                 err = _err_code_of(text)
+                # Whether the body is JSON is load-bearing for the verdict: an
+                # OAuth endpoint that refuses a client answers with a JSON
+                # error object. A non-JSON body means nothing reached the OAuth
+                # layer, so the status says little about our client.
+                try:
+                    parsed = json.loads(text)
+                    body_is_json = isinstance(parsed, dict)
+                    keys = sorted(parsed.keys())[:8] if body_is_json else []
+                except (ValueError, TypeError):
+                    body_is_json, keys = False, []
                 extra = f"  code-Feld={key!r} len={length}" if key else ""
                 if err:
                     extra += f"  error={err}"
                 print(f"    [{label}] HTTP {resp.status}{extra}")
                 if not key and not err:
-                    # Antwortform unbekannt: nur Länge + Schlüsselnamen zeigen.
-                    try:
-                        keys = sorted(json.loads(text).keys())[:8]
-                    except Exception:  # noqa: BLE001
-                        keys = []
-                    print(f"        body: {len(text)} B  keys={keys}")
+                    shape = "JSON" if body_is_json else "kein JSON"
+                    print(f"        body: {len(text)} B  {shape}  keys={keys}")
+                seen.append((resp.status, body_is_json))
                 if key and got_code is None:
                     got_code = (key, length)
         except Exception as exc:  # noqa: BLE001
@@ -640,15 +671,48 @@ async def _request_auth_code_probe(
         print("     grant_type=authorization_code an /mobile/oauth2/v1/token")
         print("     tauschen (hier NICHT automatisch, damit der Code nicht")
         print("     verbraucht wird, bevor Prash die Form festlegt).")
+        print("=" * 64)
+        return
+
+    if not seen:
+        print("  KEINE Antwort erhalten (alle Varianten Verbindungsfehler) —")
+        print("  das ist KEIN Befund ueber den Endpunkt. Lauf wiederholen.")
+        print("=" * 64)
+        return
+
+    statuses = {s for s, _ in seen}
+    any_json = any(j for _, j in seen)
+    only = next(iter(statuses)) if len(statuses) == 1 else None
+    print(f"  KEIN Code. {len(seen)} Antworten, Status {sorted(statuses)}, "
+          f"JSON-Body: {'ja' if any_json else 'nein'}")
+
+    if only == 404:
+        print("  -> Der Pfad existiert fuer UNSEREN Realm nicht. Hypothese")
+        print("     widerlegt.")
+    elif only == 401:
+        print("  -> Audience-Problem, KEINE Aussage ueber requestAuthCode.")
+        print("     Auf der mbb-Route wiederholen (siehe aud-Zeile oben).")
+    elif only == 403 and not any_json:
+        # The 2026-10-04 Audi run: four identical non-JSON 403s, including the
+        # variant without X-Client-Id. Uniform refusal with no OAuth error
+        # object is an edge/gateway rejection, not a client decision — so the
+        # earlier wording "endpoint lives, our client may not" overclaimed.
+        print("  -> Einheitlich 403 OHNE JSON-Fehlerobjekt, auch ohne")
+        print("     X-Client-Id. Nichts hat die OAuth-Schicht erreicht, das")
+        print("     sieht nach Abweisung am Gateway aus, NICHT nach einer")
+        print("     Client-Entscheidung. Der Pfad ist fuer uns nicht")
+        print("     bedienbar; WARUM bleibt offen. Hypothese NICHT bestaetigt.")
+    elif only == 403 and any_json:
+        print("  -> 403 MIT JSON-Fehlerobjekt: der Endpunkt hat geantwortet")
+        print("     und lehnt ab. Fehlercode oben lesen; Variante 4 (ohne")
+        print("     X-Client-Id) trennt Client-Recht von Form.")
+    elif 400 in statuses:
+        print("  -> Ein 400 kam zurueck: der Endpunkt lebt und liest die Form.")
+        print("     Der Fehlercode oben sagt, welches Feld fehlt.")
     else:
-        print("  KEIN Code. Lies die Statuszeilen:")
-        print("   * 404 ueberall  -> Pfad existiert fuer UNSEREN Realm nicht;")
-        print("                      die Hypothese ist widerlegt.")
-        print("   * 400 + error   -> Endpunkt lebt, Form falsch: der Fehlercode")
-        print("                      sagt welches Feld fehlt.")
-        print("   * 403 ueberall  -> Endpunkt lebt, unser Client darf nicht;")
-        print("                      Variante 4 (ohne X-Client-Id) trennt das.")
-        print("   * 401           -> id_token-aud passt nicht (siehe claims oben).")
+        print("  -> Gemischte Antworten. Die Status-Zeilen oben einzeln lesen:")
+        print("     404=Pfad fehlt, 400=Form falsch, 403=abgelehnt,")
+        print("     401=Audience passt nicht.")
     print("=" * 64)
 
 
@@ -818,10 +882,10 @@ async def main(brand: str) -> int:
         # ── Step 1: MBB register (the missing step). Classic Car-Net flow
         #    POSTs the id_token + app metadata to /mobile/register/v1 and gets
         #    back the X-Client-Id to use for the token exchange. ──
-        # Pin the register to the id_token's own aud so registered == aud.
-        aud = claims.get("aud")
-        aud_str = aud[0] if isinstance(aud, list) else aud
-        print(f"\n[*] MBB register/v1 (pinned client_id = aud {str(aud_str)[:8]}…) …",
+        # Pin the register to the MBB audience the production selector picks,
+        # so this harness exercises the shipped choice (see _mbb_aud).
+        aud_str = _mbb_aud(tokens.id_token)
+        print(f"\n[*] MBB register/v1 (pinned client_id = aud {str(aud_str)[:16]}…) …",
               flush=True)
         reg_client_id, reg_secret = await _mbb_register(
             session, tokens.id_token, desired_client_id=aud_str)
@@ -862,7 +926,9 @@ async def main(brand: str) -> int:
         #    'Audiences' error (now untruncated). ──
         candidates: dict[str, str] = {}
         if aud_str:
-            candidates["aud-as-clientid " + str(aud_str)[:8]] = str(aud_str)
+            # 16 chars, not 8: VWGMBB01DELIV1 and VWGMBB01CNAPP1 share their
+            # first eight, so a shorter label cannot say which one was tried.
+            candidates["aud-as-clientid " + str(aud_str)[:16]] = str(aud_str)
         if reg_client_id and reg_client_id != aud_str:
             candidates["REGISTERED " + reg_client_id[:8]] = reg_client_id
         candidates["shared mod2/eRemote 9523ee15"] = _mbboauth.MBB_SHARED_CLIENT_ID
