@@ -40,13 +40,29 @@ This module implements the standard headless-device OAuth flow:
 
 ## Brand coverage
 
-- ✅ Audi (client_id ``09b6cbec-…`` + ``f4d0934f-…`` both whitelisted)
+- ❌ Audi (client_id ``09b6cbec-…``) — RETIRED 2026-09 (#1364). VW moved the
+  Audi app login to Auth0 with on-device Play-Integrity attestation, and the
+  app client this module uses (``BRANDS["audi"].client_id``,
+  ``09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com``) now returns
+  ``403 unauthorized_client`` ("client is not allowed to use the device_code
+  grant") from ``/device_authorization``. Client-level, not a scope problem:
+  refused across three scopes and six header shapes (2026-09-04), and a
+  2026-09-07 third-party wire capture shows the same refusal while sending
+  both ``mbb`` and ``cars``. Re-probed 2026-10-04 — still 403. Audi is
+  read-only via the EU Data Act Portal; the durable MBB device grant
+  (``MBB_DAG_BRANDS``) is a SEPARATE, live route and is unaffected. "audi"
+  deliberately STAYS in ``DAG_ENABLED_BRANDS`` — see the rationale there.
+  (``f4d0934f-…`` is the evcc-derived ALTERNATE in
+  ``_ALTERNATE_CLIENT_IDS["audi"]``, consumed by the OAuth/IDK fallback
+  chains — assembled in ``_auth_config_resolver.py`` and re-ordered in
+  ``idk.py``. This module never tries it, so its mid-2026 200 says
+  nothing about the device grant either way.)
 - ❌ Skoda (client_id ``7f045eee-…``) — REVOKED 2026-08. VW pulled the
   device_code grant for the Skoda client: ``/device_authorization`` now
   returns ``403 unauthorized_client`` ("client is not allowed to use the
   device_code grant"), and the alternate ``4fffed6b-…`` returns ``400``.
-  Live-confirmed against identity.vwgroup.io (Audi still 200). Skoda now
-  signs in via email + password (IDK authorization-code) instead.
+  Live-confirmed against identity.vwgroup.io. Skoda now signs in via
+  email + password (IDK authorization-code) instead.
 - ✅ SEAT (client_id ``99a5b77d-…``)
 - ✅ CUPRA (client_id ``3c756d46-…``)
 - ❌ Volkswagen EU (client_id ``a24fba63-…`` returns ``unauthorized_client``
@@ -473,10 +489,12 @@ class DeviceAuthorizationGrant:
 
 # ── Brand → DAG eligibility map ───────────────────────────────────────────
 #
-# Source: live HTTP probe on 2026-05-30 + re-probe 2026-05-31 of
-# ``identity.vwgroup.io/oidc/v1/device_authorization`` with each known
-# brand client_id. The brands listed here received a 200 + valid
-# device_code response.
+# What this set means: these are the brands whose *app* client the browser-login
+# (QR / RFC-8628) step OFFERS. It is an entry-point list, not a liveness claim —
+# see the Audi note below. Original source: live HTTP probe on 2026-05-30 +
+# re-probe 2026-05-31 of ``identity.vwgroup.io/oidc/v1/device_authorization``
+# with each known brand client_id; the brands listed here returned a 200 + valid
+# device_code AT THAT TIME.
 #
 # VW EU client_ids tested 2026-05-31 (none DAG-eligible):
 #   - a24fba63-…@apps_vw-dilab_com  (canonical) → HTTP 400 empty body
@@ -490,10 +508,50 @@ class DeviceAuthorizationGrant:
 #
 # v3.0.1 — "skoda" REMOVED. VW revoked the Skoda client's device_code grant
 # (2026-08): /device_authorization returns 403 unauthorized_client for
-# 7f045eee, 400 "legal entity" for the alternate 4fffed6b, while Audi still
-# returns 200 (live-probed). Offering the QR path for Skoda produced a silent
-# form reload for users. Skoda signs in via email + password (IDK
-# authorization-code) — a separate, unaffected path (base.py strategy chain).
+# 7f045eee, 400 "legal entity" for the alternate 4fffed6b. Offering the QR path
+# for Skoda produced a silent form reload for users. Skoda signs in via email +
+# password (IDK authorization-code) — a separate, unaffected path (``idk.py``).
+#
+# #1364 — AUDI'S APP DEVICE GRANT IS ALSO DEAD, but "audi" deliberately STAYS.
+# The v3.0.1 note above used to add "while Audi still returns 200 (live-probed)";
+# that has been false since #1364 and is corrected here, because the stale line
+# made a dead client look like a viable route. What is actually known:
+#   - VW moved the Audi app login to Auth0 with on-device Play-Integrity
+#     attestation on the token exchange. The app client
+#     ``09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com``
+#     (``BRANDS["audi"].client_id``) now gets 403 unauthorized_client — "client
+#     is not allowed to use the device_code grant" — from
+#     /oidc/v1/device_authorization. Live-confirmed for #1364 and re-probed
+#     2026-10-04; earlier probing recorded the rejection as scope-independent.
+#   - Even a fully completed interactive browser login cannot pass the
+#     attestation-gated token step. See tests/test_1364_device_grant_retired.py
+#     and the #1364 CHANGELOG entry.
+#
+# WHY KEEP IT (and why that differs from Skoda): membership here has exactly two
+# production effects, both in ``config_flow.async_step_browser_login`` — it
+# builds the picker's brand options, and it backs the ``brand_not_dag_eligible``
+# defence-in-depth check. So keeping "audi" is what lets an Audi user reach the
+# honest ``device_grant_retired`` message (Phase 1's unauthorized_client
+# rejection sets ``_dag_grant_disabled``) instead of finding the brand silently
+# absent from the list. Skoda could be hidden precisely because its replacement
+# lives in the SAME wizard (email + password), so hiding the QR door just steers
+# users to the other one; Audi's replacement is a different product with a real
+# caveat — read-only EU Data Act Portal — which the user has to be TOLD about.
+# Hiding "audi" would recreate the silent dead end #1364 exists to fix.
+#
+# Keeping it is also operationally free: no live path gates on this set. Audi's
+# working device-grant-shaped route is the durable MBB one (``MBB_DAG_BRANDS``,
+# client 9496332b + ``mbb`` scope, live-validated b15), reached via the
+# VW-pinned ``async_step_mbb_login`` and the hardcoded
+# ``async_step_audi_mbb_fallback`` — neither consults DAG_ENABLED_BRANDS.
+# ``scripts/mbb_dag_test.py`` likewise already defaults Audi to its "mbb" route
+# and only treats "app" as a dead end. And if VW ever re-whitelists the app
+# client, the route returns with no code change.
+#
+# If you do remove "audi": the picker must still say WHY (add an Audi analogue
+# of ``skoda_qr_retired``, do not just drop it), and
+# tests/test_v2130_portal_device_grant.py pins this set by exact equality, so
+# the change is a deliberate, test-visible one.
 DAG_ENABLED_BRANDS = frozenset({"audi", "seat", "cupra", "audi_na"})
 
 # v2.19.0 — Audi US/CA (audi_na) drives the SAME RFC-8628 flow against the NA IDP
