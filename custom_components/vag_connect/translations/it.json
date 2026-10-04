@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Il canale di lettura Volkswagen.de richiede un nuovo accesso",
-      "description": "Il canale di lettura supplementare volkswagen.de non ha potuto riprendere la sessione (Volkswagen richiede di nuovo il codice monouso via e-mail). I dati principali del veicolo non sono interessati. Scegli **Ripara** per andare direttamente al login.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Riconnetti il canale Volkswagen.de",
-            "description": "Volkswagen richiede di nuovo il codice monouso via e-mail prima che questo canale possa leggere l'auto. Continua e arriverai direttamente al login — non devi cercare tu le opzioni dell'integrazione."
+            "description": "Il canale di lettura volkswagen.de non ha potuto riprendere la sessione — Volkswagen richiede di nuovo il codice monouso via e-mail. I dati principali del veicolo non sono interessati. Continua e arriverai direttamente al login per questa auto; non devi cercare tu le opzioni dell'integrazione."
           }
         }
       }

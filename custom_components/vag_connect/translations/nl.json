@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de-leeskanaal vereist opnieuw inloggen",
-      "description": "Het aanvullende volkswagen.de-leeskanaal kon de sessie niet hervatten (Volkswagen vraagt opnieuw de eenmalige code per e-mail). De hoofdgegevens van je auto blijven ongewijzigd. Kies **Herstellen** om direct naar de login te gaan.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Volkswagen.de-kanaal opnieuw verbinden",
-            "description": "Volkswagen vraagt opnieuw de eenmalige code per e-mail voordat dit kanaal je auto kan uitlezen. Ga verder en je komt direct bij de login — je hoeft de instellingen van de integratie niet zelf te zoeken."
+            "description": "Het volkswagen.de-leeskanaal kon de sessie niet hervatten — Volkswagen vraagt opnieuw de eenmalige code per e-mail. De hoofdgegevens van je auto blijven ongewijzigd. Ga verder en je komt direct bij de login voor deze auto; je hoeft de instellingen van de integratie niet zelf te zoeken."
           }
         }
       }

@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de-läskanalen behöver logga in igen",
-      "description": "Den kompletterande volkswagen.de-läskanalen kunde inte återuppta sin session (Volkswagen vill ha engångskoden via e-post igen). Bilens huvuddata påverkas inte. Välj **Reparera** för att gå direkt till inloggningen.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Anslut Volkswagen.de-kanalen igen",
-            "description": "Volkswagen vill ha engångskoden via e-post igen innan den här kanalen kan läsa din bil. Fortsätt, och du kommer direkt till inloggningen — du behöver inte leta upp integrationens inställningar själv."
+            "description": "Volkswagen.de-läskanalen kunde inte återuppta sin session — Volkswagen vill ha engångskoden via e-post igen. Bilens huvuddata påverkas inte. Fortsätt, och du kommer direkt till inloggningen för den här bilen; du behöver inte leta upp integrationens inställningar själv."
           }
         }
       }

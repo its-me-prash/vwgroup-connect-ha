@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de-lukukanava vaatii uuden kirjautumisen",
-      "description": "Täydentävä volkswagen.de-lukukanava ei voinut jatkaa istuntoaan (Volkswagen pyytää jälleen sähköpostin kertakoodia). Auton päätiedot eivät muutu. Valitse **Korjaa** siirtyäksesi suoraan kirjautumiseen.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Yhdistä Volkswagen.de-kanava uudelleen",
-            "description": "Volkswagen pyytää jälleen sähköpostin kertakoodia, ennen kuin tämä kanava voi lukea autoasi. Jatka, niin pääset suoraan kirjautumiseen — integraation asetuksia ei tarvitse etsiä itse."
+            "description": "Volkswagen.de-lukukanava ei voinut jatkaa istuntoaan — Volkswagen pyytää jälleen sähköpostin kertakoodia. Auton päätiedot eivät muutu. Jatka, niin pääset suoraan tämän auton kirjautumiseen; integraation asetuksia ei tarvitse etsiä itse."
           }
         }
       }

@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de-læsekanalen skal logge ind igen",
-      "description": "Den supplerende volkswagen.de-læsekanal kunne ikke genoptage sin session (Volkswagen beder igen om engangskoden på e-mail). Bilens primære data er upåvirkede. Vælg **Reparér** for at gå direkte til login.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Forbind Volkswagen.de-kanalen igen",
-            "description": "Volkswagen beder igen om engangskoden på e-mail, før denne kanal kan læse din bil. Fortsæt, og du kommer direkte til login — du behøver ikke selv finde integrationens indstillinger."
+            "description": "Volkswagen.de-læsekanalen kunne ikke genoptage sin session — Volkswagen beder igen om engangskoden på e-mail. Bilens primære data er upåvirkede. Fortsæt, og du kommer direkte til login for denne bil; du behøver ikke selv finde integrationens indstillinger."
           }
         }
       }

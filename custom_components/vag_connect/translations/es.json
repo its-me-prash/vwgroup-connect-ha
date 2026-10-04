@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "El canal de lectura Volkswagen.de necesita iniciar sesión de nuevo",
-      "description": "El canal de lectura complementario volkswagen.de no pudo reanudar su sesión (Volkswagen vuelve a pedir el código de un solo uso por correo). Los datos principales de tu vehículo no se ven afectados. Elige **Reparar** para ir directamente al inicio de sesión.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Volver a conectar el canal Volkswagen.de",
-            "description": "Volkswagen vuelve a pedir el código de un solo uso por correo antes de que este canal pueda leer tu coche. Continúa y llegarás directamente al inicio de sesión — no tienes que buscar las opciones de la integración."
+            "description": "El canal de lectura volkswagen.de no pudo reanudar su sesión: Volkswagen vuelve a pedir el código de un solo uso por correo. Los datos principales de tu vehículo no se ven afectados. Continúa y llegarás directamente al inicio de sesión de este coche; no tienes que buscar las opciones de la integración."
           }
         }
       }

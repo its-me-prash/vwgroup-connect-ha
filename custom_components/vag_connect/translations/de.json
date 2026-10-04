@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de-Lesekanal braucht erneute Anmeldung",
-      "description": "Der zusätzliche volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen (Volkswagen verlangt wieder den Einmalcode per E-Mail). Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Wähle **Reparieren**, um direkt zum Login zu kommen.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Volkswagen.de-Kanal neu verbinden",
-            "description": "Volkswagen verlangt wieder den Einmalcode per E-Mail, bevor dieser Kanal dein Auto lesen kann. Weiter, und du landest direkt im Login — die Einstellungen der Integration musst du nicht selbst suchen."
+            "description": "Der volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen — Volkswagen verlangt wieder den Einmalcode per E-Mail. Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Weiter, und du landest direkt im Login für dieses Auto; die Einstellungen der Integration musst du nicht selbst suchen."
           }
         }
       }

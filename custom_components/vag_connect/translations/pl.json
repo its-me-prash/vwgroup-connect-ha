@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Kanał odczytu Volkswagen.de wymaga ponownego logowania",
-      "description": "Dodatkowy kanał odczytu volkswagen.de nie mógł wznowić sesji (Volkswagen ponownie wymaga jednorazowego kodu z e-maila). Główne dane pojazdu pozostają bez zmian. Wybierz **Napraw**, aby przejść prosto do logowania.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Połącz ponownie kanał Volkswagen.de",
-            "description": "Volkswagen ponownie wymaga jednorazowego kodu z e-maila, zanim ten kanał będzie mógł odczytać Twój samochód. Kontynuuj, a przejdziesz prosto do logowania — nie musisz sam szukać opcji integracji."
+            "description": "Kanał odczytu volkswagen.de nie mógł wznowić sesji — Volkswagen ponownie wymaga jednorazowego kodu z e-maila. Główne dane pojazdu pozostają bez zmian. Kontynuuj, a przejdziesz prosto do logowania dla tego samochodu; nie musisz sam szukać opcji integracji."
           }
         }
       }

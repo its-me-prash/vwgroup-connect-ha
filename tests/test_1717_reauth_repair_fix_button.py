@@ -220,6 +220,37 @@ def test_only_the_exact_marker_triggers_the_jump(marker: Any) -> None:
 
 # ── The text must stop telling people to navigate ───────────────────────────
 
+def test_a_fixable_issue_carries_no_description_anywhere() -> None:
+    """Home Assistant's translation schema treats ``description`` and
+    ``fix_flow`` as MUTUALLY EXCLUSIVE — an issue is either fixable, and its text
+    lives in the flow steps, or it is not, and its text lives in the
+    description. Setting both fails hassfest with "two or more values in the
+    same group of exclusion 'fixable'", which is how this was caught: in CI,
+    after the local suite, ruff, mypy and the JSON validator had all passed.
+
+    So the rule is asserted here for EVERY issue in EVERY locale file, not just
+    the one this change touched.
+    """
+    import json
+    import pathlib as _p
+
+    files = [_p.Path("custom_components/vag_connect/strings.json")] + sorted(
+        _p.Path("custom_components/vag_connect/translations").glob("*.json")
+    )
+    assert len(files) >= 13, "locale files missing — the check would be vacuous"
+    offenders = [
+        f"{f.name}:{key}"
+        for f in files
+        for key, val in (
+            json.loads(f.read_text(encoding="utf-8")).get("issues") or {}
+        ).items()
+        if isinstance(val, dict) and "fix_flow" in val and "description" in val
+    ]
+    assert not offenders, (
+        "description alongside fix_flow — hassfest rejects this: " + str(offenders)
+    )
+
+
 def test_the_notice_no_longer_instructs_a_navigation() -> None:
     """With a button present, "open this integration's options and re-run ..."
     is wrong advice, not just redundant."""
@@ -232,8 +263,10 @@ def test_the_notice_no_longer_instructs_a_navigation() -> None:
         ).read_text(encoding="utf-8")
     )
     issue = s["issues"]["supplementary_reauth"]
-    desc = issue.get("description", "")
-    assert "open this integration's options" not in desc.lower()
+    # The navigation advice is gone because the whole description is gone: a
+    # fixable issue puts its text in the flow step instead.
+    assert "description" not in issue
+    assert set(issue) == {"title", "fix_flow"}
     # And the fix flow needs its own confirm strings, or the dialog renders blank.
     confirm = issue["fix_flow"]["step"]["confirm"]
     assert confirm["title"].strip()

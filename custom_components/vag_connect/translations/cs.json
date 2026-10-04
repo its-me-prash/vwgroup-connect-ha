@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Čtecí kanál Volkswagen.de vyžaduje nové přihlášení",
-      "description": "Doplňkový čtecí kanál volkswagen.de nemohl obnovit sezení (Volkswagen znovu vyžaduje jednorázový kód z e-mailu). Hlavní data vozidla to neovlivní. Zvolte **Opravit** a půjdete přímo na přihlášení.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Znovu připojit kanál Volkswagen.de",
-            "description": "Volkswagen znovu vyžaduje jednorázový kód z e-mailu, než tento kanál může číst vaše vozidlo. Pokračujte a dostanete se přímo k přihlášení — nastavení integrace nemusíte hledat sami."
+            "description": "Čtecí kanál volkswagen.de nemohl obnovit sezení — Volkswagen znovu vyžaduje jednorázový kód z e-mailu. Hlavní data vozidla to neovlivní. Pokračujte a dostanete se přímo k přihlášení pro toto vozidlo; nastavení integrace nemusíte hledat sami."
           }
         }
       }

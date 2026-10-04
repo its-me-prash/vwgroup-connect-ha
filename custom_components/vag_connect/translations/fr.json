@@ -2210,12 +2210,11 @@
     },
     "supplementary_reauth": {
       "title": "Le canal de lecture Volkswagen.de doit être reconnecté",
-      "description": "Le canal de lecture complémentaire volkswagen.de n'a pas pu reprendre sa session (Volkswagen redemande le code à usage unique par e-mail). Les données principales de votre véhicule ne sont pas affectées. Choisissez **Réparer** pour aller directement à la connexion.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Reconnecter le canal Volkswagen.de",
-            "description": "Volkswagen redemande le code à usage unique par e-mail avant que ce canal puisse lire votre véhicule. Continuez et vous arriverez directement à la connexion — inutile de chercher vous-même les options de l'intégration."
+            "description": "Le canal de lecture volkswagen.de n'a pas pu reprendre sa session — Volkswagen redemande le code à usage unique par e-mail. Les données principales de votre véhicule ne sont pas affectées. Continuez et vous arriverez directement à la connexion pour ce véhicule ; inutile de chercher vous-même les options de l'intégration."
           }
         }
       }
