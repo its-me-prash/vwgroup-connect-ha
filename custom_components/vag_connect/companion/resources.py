@@ -17,7 +17,16 @@ from .screen import UiNode
 StringResources = dict[str, set[str]]
 
 # Single labels read besides the range tile and charge sheet families.
-_SINGLE_KEYS = frozenset({"acc_common_hint_details", "acc_vehicle_tab_label_settings"})
+# The app's alert titles when the car refuses more requests: its daily power
+# budget is used up (backend error 4295) or the backend answered HTTP 429.
+_LIMIT_KEYS = (
+    "alert_daily_power_budget_title",
+    "dialog_maxrequests_headline",
+    "dialog_maxrequest_bff_error_headline",
+)
+_SINGLE_KEYS = frozenset({
+    "acc_common_hint_details", "acc_vehicle_tab_label_settings", *_LIMIT_KEYS,
+})
 
 
 def _pool(data: bytes, offset: int) -> list[str]:
@@ -225,3 +234,14 @@ def find_settings_entry(nodes: list[UiNode], resources: StringResources) -> UiNo
         and any(node.content_desc.startswith(label + ".") for label in labels)
         and any(node.content_desc.rstrip(".").endswith(hint) for hint in hints)
     ), None)
+
+
+def find_request_limit(nodes: list[UiNode], resources: StringResources) -> bool:
+    """The app's "too many requests" alert, by its translated title."""
+    titles = {
+        label.casefold() for key in _LIMIT_KEYS for label in resources.get(key, ())
+    }
+    return bool(titles) and any(
+        text.strip().casefold() in titles
+        for node in nodes for text in (node.text, node.content_desc) if text
+    )

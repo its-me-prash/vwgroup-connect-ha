@@ -51,6 +51,7 @@ from .transport import CompanionTransportError, NetworkAdbTransport
 from .resources import (
     find_battery_control,
     find_battery_tile,
+    find_request_limit,
     find_settings_entry,
     read_battery_resources,
 )
@@ -89,6 +90,13 @@ _NAV_READ_INTERVAL_S = 900.0       # C9: a forward-nav READ (into charge detail)
 _SLIDER_TRIES = 3                  # charge-limit taps, each read back, before
                                    # giving up without saving
 _SAVE_POLLS = 15                   # dumps to wait for the app to confirm a save
+
+
+_LIMIT_REASON = (
+    "the car refused the request: its daily request budget is used up (the app "
+    "says too many requests were sent to the vehicle). Start the car to reset it; "
+    "commands are paused until then, or until you press Reset companion connection"
+)
 
 
 class CompanionWriteBlocked(RuntimeError):
@@ -322,7 +330,7 @@ class CompanionChannel:
         # dismiss; it means stop. Trip the long persisted backoff and return
         # no-data (last-known-good stays visible) rather than reading the
         # lockout screen.
-        if find_rate_limit_banner(nodes, self._preset) is not None:
+        if self._limit_on_screen(nodes):
             self._trip_rate_limit()
             return None
         if not cleared:
@@ -418,7 +426,7 @@ class CompanionChannel:
             pending = None
             if not cleared:
                 return None, taps
-            if find_rate_limit_banner(nodes, self._preset) is not None:
+            if self._limit_on_screen(nodes):
                 self._trip_rate_limit()
                 return None, taps
             if step.scroll_first and find_node_for(nodes, step) is None:
@@ -569,6 +577,13 @@ class CompanionChannel:
             return nodes, False
         return nodes, True
 
+    def _limit_on_screen(self, nodes: list[UiNode]) -> bool:
+        """The app's request-limit alert or banner, in any installed language."""
+        return (
+            find_rate_limit_banner(nodes, self._preset) is not None
+            or find_request_limit(nodes, self._battery_strings)
+        )
+
     async def _refresh_version_gate(self) -> None:
         """Read the live app version and (re)decide whether the app matches the
         version this preset was verified against.
@@ -656,9 +671,9 @@ class CompanionChannel:
                     if detail is None:
                         raise CompanionWriteBlocked("could not open the charge detail")
                     nodes = detail
-            if find_rate_limit_banner(nodes, self._preset) is not None:
+            if self._limit_on_screen(nodes):
                 self._trip_rate_limit()
-                raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
+                raise CompanionWriteBlocked(_LIMIT_REASON)
             if self._battery_strings and action in ("start_charging", "stop_charging"):
                 node = find_battery_control(nodes, self._battery_strings, action)
             else:
@@ -709,6 +724,9 @@ class CompanionChannel:
             row = find_charge_target_row(nodes)
             if row is None:
                 detail, _walked = await self._walk_to_detail(nav.path)
+                if detail is not None and self._limit_on_screen(detail):
+                    self._trip_rate_limit()
+                    raise CompanionWriteBlocked(_LIMIT_REASON)
                 row = find_charge_target_row(detail) if detail is not None else None
             if row is None:
                 raise CompanionWriteBlocked(
@@ -775,9 +793,9 @@ class CompanionChannel:
         """Wait for the app to finish sending; fail unless it confirms."""
         for _ in range(_SAVE_POLLS):
             nodes, _cleared = await self._dump_and_clear_overlays()
-            if find_rate_limit_banner(nodes, self._preset) is not None:
+            if self._limit_on_screen(nodes):
                 self._trip_rate_limit()
-                raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
+                raise CompanionWriteBlocked(_LIMIT_REASON)
             if is_syncing(nodes):
                 continue
             if self._preset.screen_anchor is not None and has_anchor(nodes, self._preset):
@@ -868,7 +886,7 @@ class CompanionChannel:
             raise CompanionWriteBlocked(
                 "a nag screen is up and did not clear; not tapping blind"
             )
-        if find_rate_limit_banner(nodes, self._preset) is not None:
+        if self._limit_on_screen(nodes):
             self._trip_rate_limit()
-            raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
+            raise CompanionWriteBlocked(_LIMIT_REASON)
         return spec, nodes

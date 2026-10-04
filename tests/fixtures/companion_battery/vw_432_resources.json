@@ -97,5 +97,14 @@
   ],
   "acc_vehicle_tab_label_settings": [
     "Settings"
+  ],
+  "alert_daily_power_budget_title": [
+    "Too many requests sent to the vehicle"
+  ],
+  "dialog_maxrequests_headline": [
+    "Too many requests sent to the vehicle"
+  ],
+  "dialog_maxrequest_bff_error_headline": [
+    "Request limit reached"
   ]
 }

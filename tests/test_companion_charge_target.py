@@ -115,7 +115,8 @@ class SettingsPhone:
     connected = True
 
     def __init__(self, *, saved=80, settings="tiguan_settings", version="4.3.2",
-                 care_note=False, sync_dumps=1, drift_px=0.0, strings=STRINGS):
+                 care_note=False, sync_dumps=1, drift_px=0.0, strings=STRINGS,
+                 limit_alert=None):
         self.version = version
         self.settings_xml = dump(settings)
         self.track = TRUE_TRACK[settings]
@@ -128,6 +129,7 @@ class SettingsPhone:
         self.sync_dumps = sync_dumps
         self.drift_px = drift_px  # a layout the derivation did not foresee
         self.strings = strings
+        self.limit_alert = limit_alert  # the app's alert instead of Settings
         self.taps: list[tuple[str, int, int]] = []
         self.backs = 0
 
@@ -148,6 +150,8 @@ class SettingsPhone:
             return dump("tiguan_overview_settings")
         if self.where == "note":
             return _NOTE
+        if self.where == "alert":
+            return _NOTE.replace("The optimal value of the Battery Care Mode is 80%.", self.limit_alert)
         xml = self.settings_xml.replace('text="80%"', f'text="{self.shown}%"')
         extra = ""
         if self.sync_left:
@@ -172,7 +176,7 @@ class SettingsPhone:
         self.last = self._render(consume=False)
         if self.where == "overview" and self._hit("Settings. Open details", x, y):
             self.taps.append(("settings", x, y))
-            self.where = "settings"
+            self.where = "alert" if self.limit_alert else "settings"
         elif self.where == "settings" and self._hit("vwd_save_button", x, y):
             self.taps.append(("save", x, y))
             self.sync_left = self.sync_dumps
@@ -334,3 +338,31 @@ def test_fixtures_are_credited():
         assert name + ".xml" in sources
     for name in TRUE_TRACK:
         assert not re.search(r"inputText|info", dump(name))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("alert", ["Too many requests sent to the vehicle", "Request limit reached"])
+async def test_used_up_request_budget_pauses_with_a_clear_reason(alert):
+    # Field test 2026-10-04 (@gszigethy): the car's daily request budget ran
+    # out; the app answers with an alert (APK 4.3.2 ErrorMapper /
+    # CapabilityStatusAlertDelegateImpl) instead of the screen.
+    phone = SettingsPhone(limit_alert=alert)
+    channel = channel_for(phone)
+    with pytest.raises(CompanionWriteBlocked, match="daily request budget.*Start the car"):
+        await channel.set_charge_target(60)
+    assert kinds(phone) == ["settings"] and phone.backs == 1 and phone.where == "overview"
+    assert channel._is_rate_limited()
+    with pytest.raises(CompanionWriteBlocked, match="backed off"):
+        await channel.set_charge_target(60)
+
+
+def test_request_limit_alert_is_recognised_in_any_installed_language():
+    from custom_components.vag_connect.companion.resources import find_request_limit
+
+    nodes = parse_ui_dump(_NOTE.replace(
+        "The optimal value of the Battery Care Mode is 80%.", "Trop de demandes envoyées au véhicule"))
+    assert not find_request_limit(nodes, STRINGS)
+    assert find_request_limit(nodes, {"alert_daily_power_budget_title": {"Trop de demandes envoyées au véhicule"}})
+    channel = channel_for(SettingsPhone())
+    channel._battery_strings = {"dialog_maxrequests_headline": {"Trop de demandes envoyées au véhicule"}}
+    assert channel._limit_on_screen(nodes)

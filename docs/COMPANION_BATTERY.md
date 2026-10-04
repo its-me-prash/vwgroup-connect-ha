@@ -81,6 +81,22 @@ step (75 → 80).
 - **Already set.** Asking for the value the slider already shows sends
   nothing.
 
+## When the car refuses more requests
+
+Each remote request wakes the car and spends part of a daily power budget that
+protects its 12 V battery. When it is used up, the 4.3.2 app answers a tap
+with an alert instead of the screen: "Too many requests sent to the vehicle"
+(daily power budget, backend error 4295) or "Request limit reached" (HTTP
+429). Both say starting the car makes everything available again.
+
+The alert titles are read from the installed app's translation tables
+(`alert_daily_power_budget_title`, `dialog_maxrequests_headline`,
+`dialog_maxrequest_bff_error_headline`), so they are recognised in any app
+language; "Request limit reached" is also added to the existing English
+fallback. Seeing one trips the channel's existing 12 h backoff, closes the
+alert, and the command fails with a reason that says to start the car. The
+integration's Reset companion connection button clears the pause.
+
 ## Language independent matching
 
 On direct ADB and the ADB Bridge's existing `/shell` transport, HA reads the
