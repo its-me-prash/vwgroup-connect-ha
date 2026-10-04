@@ -210,3 +210,64 @@ def test_a_hit_is_not_auto_exchanged(
         "a second endpoint was called — the code may already be spent"
     )
     assert "NICHT automatisch" in out
+
+
+# ── the precondition that decides whether a run is even readable ────────────
+
+def _tok(aud: object) -> str:
+    """A JWT whose public payload carries the given aud (unsigned, test-only)."""
+    import base64
+    payload = json.dumps({"iss": "https://identity.vwgroup.io", "aud": aud})
+    b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    return f"header.{b64}.signature"
+
+
+def _run_with(session: _Session, token: str) -> None:
+    asyncio.new_event_loop().run_until_complete(
+        H._request_auth_code_probe(
+            session, token, client_id="cid-1", brand="audi"
+        )
+    )
+
+
+def test_a_token_without_the_mbb_audience_is_called_out(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Without the ``mbb`` scope the id_token has no VWGMBB audience, so a 401
+    is an audience problem and says nothing about requestAuthCode. A run like
+    that must not be mistaken for the hypothesis being refuted."""
+    s = _Session([_Resp(401, {"error": "invalid_token"})])
+    _run_with(s, _tok(["09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com"]))
+    out = capsys.readouterr().out
+    assert "WARNUNG" in out
+    assert "VWGMBB" in out
+    assert "client_id" in out, "the fix is not spelled out"
+
+
+def test_a_token_with_the_mbb_audience_is_confirmed(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    s = _Session([_Resp(400, {"error": "invalid_request"})])
+    _run_with(s, _tok(["VWGMBBOIDCAPP1", "VWGMBB01DELIV1"]))
+    out = capsys.readouterr().out
+    assert "[ok] id_token.aud" in out
+    assert "WARNUNG" not in out
+
+
+def test_a_single_string_audience_is_handled() -> None:
+    """``aud`` is a string on some issuers and a list on others; neither may
+    crash the guard."""
+    for aud in ("VWGMBB01DELIV1", ["VWGMBB01DELIV1"], None, 123):
+        _run_with(_Session([_Resp(404, {})]), _tok(aud))
+
+
+def test_the_guard_never_prints_the_token(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The guard decodes the token to read aud — it must print the claim, not
+    the token."""
+    token = _tok(["VWGMBB01DELIV1"])
+    _run_with(_Session([_Resp(404, {})]), token)
+    out = capsys.readouterr().out
+    assert token not in out
+    assert token.split(".")[1] not in out, "the payload segment was printed"

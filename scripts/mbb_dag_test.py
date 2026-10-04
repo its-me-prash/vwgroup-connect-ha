@@ -11,7 +11,12 @@ legacy MBB path mints a durable refreshable token past the Play-Integrity wall.
 
 NEVER prints tokens — only lengths, booleans and HTTP status codes.
 
-Usage:  py scripts/mbb_dag_test.py [skoda|audi|seat|cupra]   (default: skoda)
+Usage:  py scripts/mbb_dag_test.py <brand> [client_id] [vin]
+        Device-grant-faehig: audi, audi_na, seat, cupra. 'skoda' hat KEINE
+        Route und bricht mit Code 2 ab.
+        Fuer die MBB-Proben das client_id-Argument SETZEN: es schaltet den
+        Scope auf 'openid profile mbb', und nur der legt die von MBB
+        verlangte Audience VWGMBB01DELIV1 in den id_token.
 """
 
 from __future__ import annotations
@@ -536,6 +541,21 @@ async def _request_auth_code_probe(
     print("  PROBE: requestAuthCode/authorize  (Audi-Watch 2026-10-04)")
     print("  Frage: liefert dieser Schritt einen Auth-Code, den /token nimmt?")
     print("=" * 64)
+
+    # Vorbedingung, sonst ist das Ergebnis nicht interpretierbar: MBB bindet
+    # an die Audience VWGMBB01DELIV1, die erst der Scope ``mbb`` in den
+    # id_token legt. Ohne sie ist ein 401 ein Audience-Fehler und sagt NICHTS
+    # ueber requestAuthCode. Lieber laut warnen als ein Ergebnis fehldeuten.
+    _aud = _jwt_claims(id_token).get("aud")
+    _aud_list = _aud if isinstance(_aud, list) else [_aud]
+    if not any("VWGMBB" in str(a) for a in _aud_list if a):
+        print("  [!] WARNUNG: id_token.aud enthaelt KEINE VWGMBB-Audience")
+        print(f"      aud = {_aud}")
+        print("      -> Ein 401 unten ist dann ein Audience-Problem, KEINE")
+        print("         Aussage ueber requestAuthCode. Lauf mit Scope mbb")
+        print("         wiederholen: zweites Argument = client_id.")
+    else:
+        print(f"  [ok] id_token.aud traegt eine VWGMBB-Audience: {_aud_list}")
 
     base_hdr = {
         "Accept": "application/json",
