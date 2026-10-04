@@ -266,6 +266,7 @@
           "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)",
           "companion_read_vehicle_health": "Companion: læs kilometerstand og service fra køretøjstjek (navigerer i appen)",
           "companion_read_climate_detail": "Companion: læs måltemperatur og udetemperatur (navigerer i appen)",
+          "companion_read_climate_settings": "Companion: læs klimaindstillinger – klima ved oplåsning, automatisk rudevarme, zoner (navigerer i appen)",
           "companion_read_parking_position": "Companion: læs parkeringsposition fra appens delingslink (navigerer i appen)",
           "skoda_official_api_key": "Officiel Škoda API-nøgle — tilføjer den officielle producent-API som live datakilde (og failover)",
           "clear_skoda_official_key": "Ryd den gemte officielle Škoda API-nøgle (en ny oprettes automatisk, hvis dit login understøtter det)",

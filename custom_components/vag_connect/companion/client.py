@@ -15,11 +15,13 @@ this channel reads one phone showing one account's car.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 from ..cariad.models import VehicleData
 from .channel import CompanionChannel, CompanionWriteBlocked
+from .climate import ClimateController
 from .presets import ACTION_TO_COMMAND, PRESETS
 from .transport import NetworkAdbTransport
 
@@ -123,7 +125,8 @@ class CompanionClient:
         than raising, so the coordinator's own no-data failsafe (keep
         last-known-good visible) applies exactly as it does for a portal outage.
         """
-        fields = await self._channel.read()
+        async with self._screen():
+            fields = await self._channel.read()
         # None = the channel is in its post-failure cooldown. Return the last
         # snapshot we actually took so the coordinator sees unchanged-but-valid
         # data, not a no_data its poll loop would count as a failure (which
@@ -155,6 +158,13 @@ class CompanionClient:
 
     # -- the command surface --------------------------------------------------
 
+    def supports_command(self, command_name: str) -> bool:
+        """Expose only commands with an actual control in this brand preset."""
+        return any(
+            ACTION_TO_COMMAND.get(a.action) == command_name
+            for a in PRESETS[self._brand].actions
+        )
+
     async def _dispatch(self, command_name: str) -> None:
         action = next(
             (a for a, cmd in ACTION_TO_COMMAND.items() if cmd == command_name), None
@@ -173,14 +183,80 @@ class CompanionClient:
 
             raise VehicleCommandError(command_name, str(err)) from err
 
+    def _screen(self) -> asyncio.Lock:
+        """Climate commands walk the app's screens; polls must not interleave."""
+        lock = self.__dict__.get("_screen_lock")
+        if lock is None:
+            lock = self.__dict__["_screen_lock"] = asyncio.Lock()
+        return lock
+
+    @property
+    def _climate(self) -> ClimateController:
+        ctrl = self.__dict__.get("_climate_ctrl")
+        if ctrl is None:
+            ctrl = self.__dict__["_climate_ctrl"] = ClimateController(self._channel)
+        return ctrl
+
+    async def _climate_command(
+        self, command_name: str, run: Callable[[], Awaitable[Any]]
+    ) -> None:
+        """Run one Air Conditioning sheet command, serialised with polling."""
+        from ..cariad.exceptions import VehicleCommandError  # noqa: PLC0415
+
+        if not self.supports_command(command_name):
+            raise VehicleCommandError(
+                command_name,
+                "this command is not available on the companion (ADB) channel",
+            )
+        # Charge commands hold the channel's own lock where it has one; share it
+        # so a climate walk and a charge walk can never overlap either.
+        channel_lock = getattr(self._channel, "_screen_lock", None)
+        try:
+            async with self._screen():
+                if isinstance(channel_lock, asyncio.Lock):
+                    async with channel_lock:
+                        await run()
+                else:
+                    await run()
+        except CompanionWriteBlocked as err:
+            raise VehicleCommandError(command_name, str(err)) from err
+
     async def command_start_climate(self, vin: str, *_a: Any, **_k: Any) -> None:
-        await self._dispatch("command_start_climate")
+        await self._climate_command("command_start_climate", self._climate.start)
 
     async def command_start_climate_control(self, vin: str, *_a: Any, **_k: Any) -> None:
-        await self._dispatch("command_start_climate")
+        # The rich payload (seats, zones, mode) has no sheet control; start
+        # with whatever the car's own settings say.
+        await self._climate_command("command_start_climate", self._climate.start)
 
     async def command_stop_climate(self, vin: str, *_a: Any, **_k: Any) -> None:
-        await self._dispatch("command_stop_climate")
+        await self._climate_command("command_stop_climate", self._climate.stop)
+
+    async def command_start_window_heating(self, vin: str, *_a: Any, **_k: Any) -> None:
+        await self._climate_command(
+            "command_start_window_heating",
+            lambda: self._climate.start(window_heating_only=True),
+        )
+
+    async def command_stop_window_heating(self, vin: str, *_a: Any, **_k: Any) -> None:
+        await self._climate_command(
+            "command_stop_window_heating",
+            lambda: self._climate.stop(window_heating_only=True),
+        )
+
+    async def command_set_climate_temperature(
+        self, vin: str, *_a: Any, temp_c: float | None = None, **_k: Any
+    ) -> None:
+        if temp_c is None:
+            from ..cariad.exceptions import VehicleCommandError  # noqa: PLC0415
+
+            raise VehicleCommandError(
+                "command_set_climate_temperature", "no target temperature given"
+            )
+        await self._climate_command(
+            "command_set_climate_temperature",
+            lambda: self._climate.set_temperature(float(temp_c)),
+        )
 
     async def command_start_charging(self, vin: str, *_a: Any, **_k: Any) -> None:
         await self._dispatch("command_start_charging")

@@ -3450,12 +3450,14 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             # toggle and each defaults to OFF.
             from .const import (  # noqa: PLC0415
                 CONF_COMPANION_READ_CLIMATE_DETAIL,
+                CONF_COMPANION_READ_CLIMATE_SETTINGS,
                 CONF_COMPANION_READ_PARKING_POSITION,
                 CONF_COMPANION_READ_VEHICLE_HEALTH,
             )
             for _key in (
                 CONF_COMPANION_READ_VEHICLE_HEALTH,
                 CONF_COMPANION_READ_CLIMATE_DETAIL,
+                CONF_COMPANION_READ_CLIMATE_SETTINGS,
                 CONF_COMPANION_READ_PARKING_POSITION,
             ):
                 schema[vol.Optional(

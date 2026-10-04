@@ -31,7 +31,13 @@ async def async_setup_entry(
 
     def _supported(vin: str, command_id: str) -> bool:
         cap_supported = coordinator.command_capability_supported(vin, command_id) is not False
-        client_has_method = client is not None and hasattr(client, command_id)
+        # Same guard as the other command platforms: a companion client maps
+        # only the controls its brand preset confirms.
+        client_has_method = (
+            client is not None
+            and hasattr(client, command_id)
+            and coordinator.command_method_available(command_id)
+        )
         return cap_supported and client_has_method
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:

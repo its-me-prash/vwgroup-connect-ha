@@ -55,6 +55,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   that too, and the sign is kept), a leg driven purely on electricity where the fuel figure is simply absent, and a
   month of individual trips that arrive in no particular order, so the newest is picked by its timestamp rather than
   by position.
+- **The Volkswagen app's Air Conditioning tile on the Companion (ADB) channel: state, settings, start/stop, window heating and target temperature (#968, thanks @plainmad, @kgroshert and @gszigethy).**
+  The climate sheet behind the overview's climate tile now feeds the climate entities you already have. That covers
+  whether climatisation is running, window heating running on its own, the remaining time, and the target and outside
+  temperature. A new opt-in, *read climate settings*, goes one tap deeper for climate at unlock, automatic window
+  heating and air conditioning using battery. On app 4.3.2, climate start/stop, window-heating-only start/stop and the
+  target temperature can be commanded. Each step is read back from the screen: the target is set by stepping the
+  app's own dial and checking where it stopped. The app's "air conditioning using battery?" question is never answered
+  for you. Mapped from @plainmad's Mk8 Golf GTE captures (idle, running, overview with climate on, 4.2.1 and 4.3.2),
+  @kgroshert's German ID.4 and e-up! captures, and @gszigethy's Tiguan eHybrid on 4.3.2.
 
 ### Changed
 - **The "Volkswagen.de channel needs re-login" notice now has a Fix button that takes you straight to the login (#1717, thanks @Ra72xx).**
@@ -65,6 +74,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   for the tick box in the full options form. Six steps before you reached the login. Selecting **Fix** now does all of
   that for you and opens the login for the car the notice is about. The one-time code itself is unchanged: Volkswagen
   wants it and only you have it.
+
+### Fixed
+- **Companion: an idle car no longer reads as "climate on" (#968).** On the Mk8 sheet the air conditioning switch is
+  ticked while the car is off. It only chooses what Start will start, but it was read as the running state, and the
+  climate entity showed on. The running state now comes from the sheet's Start/Stop button. The window heating switch
+  had the same mix-up: it no longer stands in for the automatic window heating *setting*.
+- **Companion: the return walk recognises the 4.3.2 overview.** Its anchor tile has no text of its own, so the check
+  never matched, and the walk back could press Android BACK past the overview and out of the app.
 
 ## [4.10.0] - 2026-10-04 — Full release / Voll-Release
 

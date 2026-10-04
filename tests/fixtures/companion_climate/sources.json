@@ -1,0 +1,89 @@
+[
+  {
+    "fixture": "tiguan_climate_idle.xml",
+    "contributor": "gszigethy",
+    "original_file": "live ADB capture 2026-10-04",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10. Recaptured read-only for this PR; same layout as the ZIP file. Sheet nodes only; town redacted.",
+    "equivalent_in_attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip (07-climate.xml)"
+  },
+  {
+    "fixture": "tiguan_mode_picker.xml",
+    "contributor": "gszigethy",
+    "original_file": "live ADB capture 2026-10-04",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.3.2. 'Select mode' opened read-only for this PR (closed without choosing); not in the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_climate_settings.xml",
+    "contributor": "gszigethy",
+    "original_file": "live ADB capture 2026-10-04",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.3.2. Climate Settings sheet, nothing changed or saved.",
+    "equivalent_in_attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip (47-climate-settings.xml)"
+  },
+  {
+    "fixture": "tiguan_overview.xml",
+    "contributor": "gszigethy",
+    "original_file": "live ADB capture 2026-10-04",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.3.2. Range and climate tile nodes only.",
+    "equivalent_in_attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip (01-vehicle-main.xml)"
+  },
+  {
+    "fixture": "gte_climate_idle.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Climate.Screen.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5386248711",
+    "attachment": "https://github.com/user-attachments/files/31348901/Golf.GTE.Mk8.App.4.3.2.Climate.Screen.xml",
+    "note": "Mk8 Golf GTE, VW 4.3.2, idle sheet. Sheet nodes only; town redacted."
+  },
+  {
+    "fixture": "gte_climate_active.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Climate.screen.whilst.active.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5441678954",
+    "attachment": "https://github.com/user-attachments/files/31522524/Golf.GTE.Mk8.App.4.3.2.Climate.screen.whilst.active.xml",
+    "note": "Mk8 Golf GTE, VW 4.3.2, climate running. Sheet nodes only; town redacted."
+  },
+  {
+    "fixture": "gte_overview_climate_on.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk.8.App.4.3.2.Overview.Climate.On.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5449476597",
+    "attachment": "https://github.com/user-attachments/files/31544607/Golf.GTE.Mk.8.App.4.3.2.Overview.Climate.On.xml",
+    "note": "Mk8 Golf GTE, VW 4.3.2, overview while climate on. Range and climate tile nodes only."
+  },
+  {
+    "fixture": "id4_climate.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_climatisationscreen_id4_while_charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5200485856",
+    "attachment": "https://github.com/user-attachments/files/30771966/vag_connect_ui_climatisationscreen_id4_while_charging.xml",
+    "note": "ID.4, We Connect 4.2.1, German. Sheet nodes only; town redacted."
+  },
+  {
+    "fixture": "eup_climate.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_climatisationscreen_eup_while_charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5189757805",
+    "attachment": "https://github.com/user-attachments/files/30736766/vag_connect_ui_climatisationscreen_eup_while_charging.xml",
+    "note": "e-up!, We Connect 4.2.1, German, picker disabled ('Aus'). Sheet nodes only; town redacted."
+  },
+  {
+    "fixture": "gte_421_climate_idle.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.UI.Climate.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5306430728",
+    "attachment": "https://github.com/user-attachments/files/31114004/Golf.GTE.Mk8.UI.Climate.xml",
+    "note": "Mk8 Golf GTE, We Connect 4.2.1, idle sheet. Sheet nodes only; town redacted."
+  },
+  {
+    "fixture": "id4_overview_de.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_main_id4.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5183597867",
+    "attachment": "https://github.com/user-attachments/files/30718062/vag_connect_ui_main_id4.xml",
+    "note": "ID.4, We Connect 4.2.1, German overview. Range and climate tile nodes only."
+  }
+]

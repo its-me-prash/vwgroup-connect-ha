@@ -154,6 +154,11 @@ def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
                 yield "true" if n.checked else "false"
                 break
 
+    # 0a') a control whose id is its state (e.g. ``cta_start`` / ``cta_stop``).
+    if sel.present_rid:
+        if any(_rid_matches(n.resource_id, sel.present_rid) for n in nodes):
+            yield sel.present_value
+
     # 0b) geometric — a value with no label of any kind (v4.4.0).
     if sel.centre_of_rid:
         found = centre_number(nodes, sel.centre_of_rid)
@@ -321,6 +326,14 @@ def has_anchor(nodes: list[UiNode], preset: BrandPreset) -> bool:
     (best-effort, VW until a dump confirms an anchor).
     """
     if preset.screen_anchor is None:
+        return True
+    # An anchor is about WHICH screen this is, not a value: the node's id is
+    # enough. On live 4.3.2 overviews (@gszigethy Tiguan, @plainmad Mk8) the
+    # ``rangeTile`` container has neither text nor description of its own, so
+    # requiring a value never recognised the overview, and the return walk
+    # could press BACK past it and out of the app.
+    anchor_rid = preset.screen_anchor.resource_id
+    if anchor_rid and any(_rid_matches(n.resource_id, anchor_rid) for n in nodes):
         return True
     return _match_field_raw(nodes, preset.screen_anchor) is not None
 

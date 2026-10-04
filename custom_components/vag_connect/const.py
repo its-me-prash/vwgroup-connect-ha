@@ -76,6 +76,9 @@ COMPANION_MIN_TOKEN_LEN          = 32
 # which is read from the coordinates in the app's own share link.
 CONF_COMPANION_READ_VEHICLE_HEALTH   = "companion_read_vehicle_health"
 CONF_COMPANION_READ_CLIMATE_DETAIL   = "companion_read_climate_detail"
+# Climate Settings sheet (climate at unlock, automatic window heating, zones):
+# one tap deeper than the climate detail, so it has its own opt-in.
+CONF_COMPANION_READ_CLIMATE_SETTINGS = "companion_read_climate_settings"
 CONF_COMPANION_READ_PARKING_POSITION = "companion_read_parking_position"
 # v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
 # vehicle has no entry here the shared CONF_SPIN is used, so existing

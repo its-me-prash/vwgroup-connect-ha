@@ -266,6 +266,7 @@
           "remove_vweu_twoway": "Odebrat VW EU Two-Way (návrat k předchozímu kanálu)",
           "companion_read_vehicle_health": "Companion: číst stav tachometru a servis ze stavu vozidla (naviguje v aplikaci)",
           "companion_read_climate_detail": "Companion: číst cílovou a venkovní teplotu (naviguje v aplikaci)",
+          "companion_read_climate_settings": "Companion: číst nastavení klimatizace – klimatizace při odemknutí, automatické vyhřívání oken, zóny (prochází aplikací)",
           "companion_read_parking_position": "Companion: číst pozici parkování z odkazu pro sdílení v aplikaci (naviguje v aplikaci)",
           "skoda_official_api_key": "Oficiální klíč API Škoda — přidá oficiální API výrobce jako živý zdroj dat (a zálohu)",
           "clear_skoda_official_key": "Vymazat uložený oficiální klíč API Škoda (nový se vytvoří automaticky, pokud to vaše přihlášení podporuje)",

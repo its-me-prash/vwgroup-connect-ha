@@ -23,7 +23,7 @@ enforces that; see ``BrandPreset.writable``.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -58,6 +58,13 @@ class FieldSelector:
     # switch's resource-id; the value resolves to the literal "true"/"false",
     # which ``bool_switch`` turns into a real boolean.
     checked_of_rid: str | None = None
+    # A control whose resource-id IS its state. The climate sheet's call to
+    # action is ``cta_start`` while idle and ``cta_stop`` while climatisation
+    # runs (#968, @plainmad idle/active Mk8 dumps; @gszigethy Tiguan), so the
+    # id's presence is the most language-independent state signal on the
+    # screen. Resolves to ``present_value`` when a node with this id exists.
+    present_rid: str | None = None
+    present_value: str = "true"
     # When matched via ``label_re``, where the value text comes from:
     #   "self"    → the label node's own text (e.g. "Ladung 74 %")
     #   "sibling" → the next sibling node's text (label and value are separate)
@@ -599,39 +606,149 @@ _VW = BrandPreset(
                     value_from="self",
                     parse="temp_c",
                 ),
-                # #968 — the switch state is read from two possible shapes, most
-                # reliable last (read_selectors keeps the last non-None). Older /
-                # other layouts expose a checkable ``*_toggle`` whose ``checked``
-                # is the state; but plainmad's live 4.3.2 "climate active" dump
-                # shows the toggle row is ``clima_``-prefixed, NOT checkable, and
-                # carries ``checked="false"`` even while air conditioning is on —
-                # there the real state is the sibling ``*_description`` text
-                # ("Active" / "Off"). Try ``checked`` first, then let the
-                # description win (bool_climate maps Active/On→True, Off→False), so
-                # both layouts read correctly.
+                # ── State. Every selector below reads what the sheet SHOWS, never
+                # what a toggle would start. From the installed 4.3.2 APK:
+                # ``air_conditioning_toggle`` / ``window_heating_toggle`` and the
+                # mode picker are local "what Start will start" choices; they are
+                # checked on an idle sheet (@plainmad's idle Mk8 dump: AC toggle
+                # checked, CTA ``Start``, overview tile "Off"). Reading them as
+                # state reported climate ON for a car that was off.
+                # read_selectors keeps the LAST selector that resolves.
+                #
+                # 1. The CTA's id is the language-independent baseline:
+                #    ``cta_start`` = nothing running, ``cta_stop`` = air
+                #    conditioning or window heating running (@plainmad Mk8
+                #    idle/active, @kgroshert ID.4/e-up!, @gszigethy Tiguan).
                 FieldSelector(
-                    target="window_heating_enabled",
-                    checked_of_rid="window_heating_toggle",
+                    target="climatisation_active",
+                    present_rid="cta_start",
+                    present_value="false",
                     parse="bool_switch",
-                ),
-                FieldSelector(
-                    target="window_heating_enabled",
-                    resource_id="window_heating_description",
-                    parse="bool_climate",
                 ),
                 FieldSelector(
                     target="climatisation_active",
-                    checked_of_rid="air_conditioning_toggle",
+                    present_rid="cta_stop",
+                    present_value="true",
                     parse="bool_switch",
                 ),
+                # 2. ``cta_stop`` is also shown for window heating alone. The Mk8
+                #    row says which: "Active" (+ " • N min") or "Off" (disabled
+                #    while window heating runs alone). The picker layout names the
+                #    running mode in the row title instead (@gszigethy Tiguan,
+                #    "Select mode": Air Conditioning / Window heating).
                 FieldSelector(
                     target="climatisation_active",
                     resource_id="air_conditioning_description",
-                    parse="bool_climate",
+                    parse="clima_function_state",
+                ),
+                FieldSelector(
+                    target="climatisation_active",
+                    resource_id="title",
+                    parse="clima_ac_mode",
+                ),
+                # Window heating switched on directly (the existing
+                # ``window_heating_front`` state the window heating switch shows).
+                # Running in the air conditioning mode means it is not on by
+                # itself; the window-heating mode title or the Mk8 row override.
+                FieldSelector(
+                    target="window_heating_front",
+                    present_rid="cta_stop",
+                    present_value="false",
+                    parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="window_heating_front",
+                    resource_id="title",
+                    parse="clima_mode_window_heating",
+                ),
+                FieldSelector(
+                    target="window_heating_front",
+                    present_rid="cta_start",
+                    present_value="false",
+                    parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="window_heating_front",
+                    resource_id="window_heating_description",
+                    parse="clima_function_state",
+                ),
+                # The automatic window heating SETTING (what the model's
+                # ``window_heating_enabled`` means): the row reads "Autom." when
+                # it is on and window heating is not running directly (@gszigethy
+                # Tiguan). The Settings sheet reads it definitively.
+                FieldSelector(
+                    target="window_heating_enabled",
+                    resource_id="window_heating_description",
+                    parse="clima_autom",
+                ),
+                # Remaining time: the APK appends " • N min" to the running
+                # function's description ("Active • 10 min"); the fallback layout
+                # uses ``clima_time_remaining``. Zero when nothing runs, so a
+                # stopped car does not keep the last countdown.
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    present_rid="cta_start",
+                    present_value="0",
+                    parse="clima_remaining_min",
+                ),
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    resource_id="air_conditioning_description",
+                    parse="clima_remaining_min",
+                ),
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    resource_id="description",
+                    parse="clima_remaining_min",
+                ),
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    resource_id="clima_time_remaining",
+                    parse="clima_remaining_min",
                 ),
             ),
             back_presses=1,
             opt_in="climate_detail",
+        ),
+        NavReadSelector(
+            name="climate_settings",
+            # One tap past the Air Conditioning sheet: its "Settings" row opens
+            # a Compose sheet whose switches carry their setting as test tags
+            # (@gszigethy Tiguan, live 4.3.2). Reads only — the app applies
+            # changes on an explicit Save, which this integration never taps.
+            steps=(
+                ActionSelector(
+                    action="open_climate_detail",
+                    resource_id="climateTile",
+                    content_desc_re=(
+                        r"(?:Climate|Air\s*conditioning|Klima(?:tisierung)?)"
+                    ),
+                ),
+                ActionSelector(
+                    action="open_climate_settings",
+                    resource_id="clima_settings_compose_view",
+                ),
+            ),
+            values=(
+                FieldSelector(
+                    target="climate_at_unlock",
+                    checked_of_rid="ClimatisationAtUnlockEnabled",
+                    parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="window_heating_enabled",
+                    checked_of_rid="WindowHeatingEnabled",
+                    parse="bool_switch",
+                ),
+                # Shown only on cars that have the setting (APK ToggleItemType).
+                FieldSelector(
+                    target="climate_without_external_power",
+                    checked_of_rid="ClimatisationWithoutExternalPowerEnabled",
+                    parse="bool_switch",
+                ),
+            ),
+            back_presses=2,
+            opt_in="climate_settings",
         ),
         NavReadSelector(
             name="parking_position",
@@ -722,6 +839,20 @@ _VW = BrandPreset(
     # the wording exists); seeded German + English, number + unit.
     sync_age_re=_SYNC_AGE_RE,
 )
+
+# Climate commands on the Air Conditioning sheet, grounded in the 4.3.2 APK and
+# the #968 captures. Appended rather than written into the literal above so the
+# climate and charging command maps stay independent of each other. They are
+# executed by ``companion.climate.ClimateController``, which walks the sheet
+# and reads every step back; ``climate.CLIMATE_APP_VERSIONS`` arms them.
+_VW_CLIMATE_ACTIONS = (
+    ActionSelector(action="start_climate", resource_id="cta_start"),
+    ActionSelector(action="stop_climate", resource_id="cta_stop"),
+    ActionSelector(action="start_window_heating", resource_id="cta_start"),
+    ActionSelector(action="stop_window_heating", resource_id="cta_stop"),
+    ActionSelector(action="set_climate_temperature", resource_id="clima_compose_view"),
+)
+_VW = replace(_VW, actions=_VW.actions + _VW_CLIMATE_ACTIONS)
 
 # ── The four unverified brands — structure present, selectors best-effort ────
 #
@@ -988,6 +1119,28 @@ def coerce(parse: str, raw: str | None) -> object | None:
         if re.search(r"(?:\bon\b|running|active|\bein\b|läuft|aktiv)", raw, re.I):
             return True
         return None
+    if parse == "clima_function_state":
+        # A function row on the climate sheet: "Active", "Active • 10 min",
+        # "Activated" (request pending) are on; "Off" is off. "Autom." is the
+        # automatic setting, not a state, so it stays unknown here.
+        if re.match(r"\s*(?:Off|Aus)\b", raw, re.I):
+            return False
+        if re.match(r"\s*(?:Activ|Aktiv)", raw, re.I):
+            return True
+        return None
+    if parse == "clima_autom":
+        return True if re.match(r"\s*Auto(?:m\b|m\.|matic|matisch)", raw, re.I) else None
+    if parse in ("clima_mode_window_heating", "clima_ac_mode"):
+        # The picker row's title names the selected mode. Only the window
+        # heating mode is decisive: AC is then off and window heating on.
+        if re.fullmatch(r"\s*(?:Window\s*heating|(?:Front)?[Ss]cheibenheizung)\s*", raw, re.I):
+            return parse == "clima_mode_window_heating"
+        return None
+    if parse == "clima_remaining_min":
+        if raw.strip() == "0":
+            return 0
+        m = re.search(r"(\d{1,3})\s*min", raw, re.I)
+        return int(m.group(1)) if m else None
     if parse == "temp_c":
         # A temperature reading off a climate screen: "22°C", "21,5 °C", "70°F".
         m = re.search(r"(-?\d+(?:[.,]\d+)?)\s*°?\s*([CF])?", raw)
@@ -1055,4 +1208,7 @@ ACTION_TO_COMMAND: dict[str, str] = {
     "stop_climate": "command_stop_climate",
     "start_charging": "command_start_charging",
     "stop_charging": "command_stop_charging",
+    "start_window_heating": "command_start_window_heating",
+    "stop_window_heating": "command_stop_window_heating",
+    "set_climate_temperature": "command_set_climate_temperature",
 }

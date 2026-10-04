@@ -266,6 +266,7 @@
           "remove_vweu_twoway": "Poista VW EU Two-Way (palaa edelliseen kanavaan)",
           "companion_read_vehicle_health": "Companion: lue mittarilukema ja huolto ajoneuvon kunnosta (navigoi sovelluksessa)",
           "companion_read_climate_detail": "Companion: lue tavoite- ja ulkolämpötila (navigoi sovelluksessa)",
+          "companion_read_climate_settings": "Companion: lue ilmastointiasetukset – ilmastointi avattaessa, automaattinen ikkunalämmitys, vyöhykkeet (selaa sovellusta)",
           "companion_read_parking_position": "Companion: lue pysäköintipaikka sovelluksen jakolinkistä (navigoi sovelluksessa)",
           "skoda_official_api_key": "Virallinen Škoda-API-avain — lisää valmistajan virallisen API:n live-tietolähteeksi (ja vikasietona)",
           "clear_skoda_official_key": "Tyhjennä tallennettu virallinen Škoda-API-avain (uusi luodaan automaattisesti, jos kirjautumisesi tukee sitä)",

@@ -531,8 +531,14 @@ class TestPresetShape:
                 assert nav.opt_in, f"{preset.brand}/{nav.name} has no opt-in"
                 assert nav.back_presses >= len(nav.path) or nav.back_presses >= 1
 
-    def test_no_write_action_was_inferred_from_the_unconfirmed_4_3_2_tree(self) -> None:
+    def test_only_grounded_climate_commands_are_mapped(self) -> None:
         # Reads seeded from a reported dump are recoverable if wrong; a tap is
-        # not. VW stays read-only until a real device confirms the tap map.
-        assert _VW.actions == ()
-        assert _VW.writable is False
+        # not. The climate sheet's controls are grounded in the #968 captures
+        # and the installed 4.3.2 APK; nothing else is mapped by this change.
+        from custom_components.vag_connect.companion.climate import CLIMATE_APP_VERSIONS
+
+        assert {a.action for a in _VW.actions} >= {
+            "start_climate", "stop_climate", "start_window_heating",
+            "stop_window_heating", "set_climate_temperature",
+        }
+        assert CLIMATE_APP_VERSIONS == ("4.3.2",)

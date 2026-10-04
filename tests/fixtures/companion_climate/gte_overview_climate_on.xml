@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<hierarchy rotation="0">
+  <node index="2" text="" resource-id="rangeTile" class="android.view.View" package="com.volkswagen.weconnect" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[43,549][334,842]" />
+  <node index="0" text="" resource-id="" class="android.view.View" package="com.volkswagen.weconnect" content-desc="Range overview. Battery range: 39 miles. Fuel range: 415 miles. Open details" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[43,549][334,842]" />
+  <node index="3" text="" resource-id="climateTile" class="android.view.View" package="com.volkswagen.weconnect" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[386,549][677,842]" />
+  <node index="0" text="" resource-id="" class="android.view.View" package="com.volkswagen.weconnect" content-desc="Climate control. On. Open details" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[386,549][677,842]" />
+</hierarchy>
