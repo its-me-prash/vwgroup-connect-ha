@@ -55,6 +55,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   that too, and the sign is kept), a leg driven purely on electricity where the fuel figure is simply absent, and a
   month of individual trips that arrive in no particular order, so the newest is picked by its timestamp rather than
   by position.
+- **The Volkswagen app's battery tile on the Companion (ADB) channel: SoC, ranges, charge state, target, and start/stop charging (#968, #1684, thanks @plainmad, @kgroshert and @gszigethy).**
+  The overview and the charge sheet behind the range tile now fill the battery entities you already have: battery
+  level separately from the upper charge limit, electric range and, on plug-in hybrids, petrol range (which also
+  unlocks the combustion sensors), charging state, power, speed and remaining time. "Currently charging", "Target
+  charge level reached" and spoken units such as "2 hours and. 15 minutes" are understood. Labels are read from the
+  translation tables of the app installed on the phone, so the reading does not depend on the app's language when the
+  phone is connected over ADB or the ADB Bridge add-on. On app 4.3.2 the charge sheet's Start and Stop can be
+  commanded; a greyed-out Start ("check charging status") is never pressed. Mapped from @plainmad's Mk8 Golf GTE,
+  @kgroshert's ID.4 and e-up!, and @gszigethy's Tiguan eHybrid captures.
 
 ### Changed
 - **The "Volkswagen.de channel needs re-login" notice now has a Fix button that takes you straight to the login (#1717, thanks @Ra72xx).**
@@ -65,6 +74,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   for the tick box in the full options form. Six steps before you reached the login. Selecting **Fix** now does all of
   that for you and opens the login for the car the notice is about. The one-time code itself is unchanged: Volkswagen
   wants it and only you have it.
+
+### Fixed
+- **Companion: the charging switch follows the parsed charging flag** instead of a list of raw state words, the same
+  rule the climatisation switch already uses, so "Currently charging" reads on and "Target charge level reached"
+  reads off.
+- **A charging session is no longer cancelled by an unknown plug state.** The safeguard that forces "not charging"
+  when the cable is unplugged also fired when a channel cannot see the plug at all (the companion never can), so a
+  live "Currently charging" reading was reset to off. It now acts only on a known disconnect.
+- **Companion: the return walk recognises the 4.3.2 overview.** Its anchor tile has no text of its own, so the check
+  never matched, and the walk back could press Android BACK past the overview and out of the app.
 
 ## [4.10.0] - 2026-10-04 — Full release / Voll-Release
 

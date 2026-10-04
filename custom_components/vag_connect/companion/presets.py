@@ -88,6 +88,11 @@ class ActionSelector:
     # all, so the only way to open it is to tap where the app draws it inside
     # the map view. A fraction is device-independent; a pixel is not.
     tap_fraction: tuple[float, float] | None = None
+    # A command may be behind a detail sheet. Reuse the nav-read group so
+    # commands and reads share the confirmed path and return depth.
+    nav_read: str | None = None
+    # Read compatibility does not establish command compatibility.
+    app_versions: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -288,6 +293,16 @@ _VW = BrandPreset(
             parse="range_km",
         ),
         FieldSelector(
+            # @gszigethy Tiguan and @plainmad Golf GTE, #968: the same
+            # narration contains BOTH ranges. Bind petrol to its own label.
+            target="combustion_range_km",
+            content_desc_re=(
+                r"(?:Fuel range|Kraftstoffreichweite)\D*"
+                r"(\d{1,4}\s*(?:km\b|[Kk]ilomet\w*|miles?\b|mi\b|[Mm]eilen?))"
+            ),
+            parse="range_km",
+        ),
+        FieldSelector(
             target="charging_state",
             content_desc_re=(
                 r"(?:Wird geladen|Lädt|Charging|Nicht verbunden|Not connected"
@@ -347,10 +362,16 @@ _VW = BrandPreset(
             content_desc_re=(
                 r"Charging\s*status\b.*?\.\s*"
                 r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
-                r"|Currently\s*charging"
+                r"|Currently\s*charging|Target\s*charge\s*level\s*reached"
                 r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
             ),
             parse="str",
+        ),
+        # @kgroshert ID.4/e-up! and @plainmad Golf GTE active overviews.
+        FieldSelector(
+            target="is_charging",
+            content_desc_re=r"(?:Range overview|Übersicht Reichweite)\.\s*(Currently charging|Lädt gerade)\b",
+            parse="bool_charging",
         ),
         # Lock state. #968 (plainmad, live 4.3.2 dump) — the tile narrates it as
         # "Vehicle. Locked. Open details", i.e. sentence fragments, NOT "Vehicle
@@ -388,25 +409,26 @@ _VW = BrandPreset(
             parse="bool_climate",
         ),
     ),
-    # v2.26.0 — WRITES QUARANTINED. The previous single-tap actions were wrong:
-    # ckomma proves We Connect needs a TWO-STEP nav (overview tile → detail
-    # screen → action button) that our do_action never did, so climate/charge
-    # commands could only ever fail with "control not found". Rather than ship
-    # command entities that never work, this preset carries NO actions (so
-    # ``writable`` is False and no command entities spawn) until the 2-step nav
-    # is confirmed on a real device. Reads are unaffected.
-    #
-    # #968 (plainmad, 4.3.2 "while charging" + "climate active" dumps) — the two
-    # write controls are now LOCATED (not yet wired, because a wrong tap is a
-    # physical action on the car — they move into ``actions`` only once confirmed
-    # on-device and the preset is marked ``verified``):
-    #   • charge stop/start = the detail-sheet control whose content-desc flips
-    #     "Start charging" ⇄ "Stop charging" (bounds [85,1278][635,1380]).
-    #   • climate stop/start = the CTA whose resource-id itself flips
-    #     ``cta_start`` (text "Start") ⇄ ``cta_stop`` (text "Stop").
-    # Both are reached via the existing open_charge_detail / open_climate_detail
-    # nav. NOT on the sheet at all on 4.3.2: charge target-% and live kW power.
-    actions=(),
+    # #968: @plainmad's idle/active Mk8 dumps and @gszigethy's Tiguan
+    # captures locate charge Start/Stop behind the range tile. The channel now
+    # walks that two-step path. Vehicle execution remains pending validation.
+    # Runtime APK resources supply localized labels; these are the legacy
+    # English fallback. Climate commands remain unmapped. Read compatibility
+    # with older builds does not arm their charge controls.
+    actions=(
+        ActionSelector(
+            action="start_charging",
+            content_desc_re=r"^Start charging(?:\.|$)",
+            nav_read="charge_detail",
+            app_versions=("4.3.2",),
+        ),
+        ActionSelector(
+            action="stop_charging",
+            content_desc_re=r"^Stop charging(?:\.|$)",
+            nav_read="charge_detail",
+            app_versions=("4.3.2",),
+        ),
+    ),
     # v2.26.0 (C9) — charge target / power / remaining-time live behind the
     # range tile (ckomma's set_charging taps range_tile_center to reach the
     # charge detail, then reads exactly these). Gated like a write (verified +
@@ -455,16 +477,17 @@ _VW = BrandPreset(
                 FieldSelector(
                     target="charging_state",
                     content_desc_re=(
-                        r"Charging\s*status\b.*?\.\s*"
+                        r"(?:Charging\s*status|Ladestatus)\b.*?\.\s*"
                         r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
-                r"|Currently\s*charging"
+                        r"|Currently\s*charging|Target\s*charge\s*level\s*reached"
+                        r"|Lädt\s*gerade"
                         r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
                     ),
                     parse="str",
                 ),
                 FieldSelector(
                     target="is_charging",
-                    content_desc_re=r"(Charging\s*status\b.*)",
+                    content_desc_re=r"((?:Charging\s*status|Ladestatus)\b.*)",
                     parse="bool_charging",
                 ),
                 FieldSelector(
@@ -480,7 +503,7 @@ _VW = BrandPreset(
                     target="charging_power_kw",
                     content_desc_re=(
                         r"(?:Ladeleistung|Charging power|Charging capacity|Charge power)"
-                        r"\D*([\d.,]+)\s*kW"
+                        r"\D*([\d.,]+)\s*(?:kW\b|kilowatts?\b)"
                     ),
                     parse="kw",
                 ),
@@ -488,9 +511,17 @@ _VW = BrandPreset(
                     target="remaining_charge_time_min",
                     content_desc_re=(
                         r"(?:\d{1,2}\s*(?:Stunden?|hours?)|\d{1,2}:\d{2}\s*h"
-                        r"|(?:noch|remaining)\s*\d)"
+                        r"|(?:noch|remaining)\s*\d|\d{1,4}\s*(?:minutes?|Minuten?)\b)"
                     ),
                     parse="hm_minutes",
+                ),
+                FieldSelector(
+                    target="electric_range_km",
+                    content_desc_re=(
+                        r"(?:Batteriereichweite|Battery range|Electric range)\D*"
+                        r"(\d{1,4}\s*(?:km\b|[Kk]ilomet\w*|miles?\b|mi\b|[Mm]eilen?))"
+                    ),
+                    parse="range_km",
                 ),
             ),
         ),
@@ -953,11 +984,14 @@ def coerce(parse: str, raw: str | None) -> object | None:
         if re.search(
             r"(?:Charging\s*(?:stopped|paused|complete[d]?)|Ladevorgang\s*"
             r"(?:beendet|gestoppt|pausiert)|Nicht\s*(?:geladen|verbunden)"
-            r"|Not\s*(?:charging|connected))",
+            r"|Not\s*(?:charging|connected)|Target\s*charge\s*level\s*reached"
+            r"|Zielladestand\s*erreicht|Fully\s*charged|Vollständig\s*geladen)",
             raw, re.I,
         ):
             return False
-        return bool(re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I))
+        if re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I):
+            return True
+        return None
     if parse == "days":
         # #968 (plainmad, live 4.3.2 dump) — the Vehicle Health report writes
         # the service countdown as "71 days / 12,100 mi": a day count AND a
@@ -1016,7 +1050,7 @@ def coerce(parse: str, raw: str | None) -> object | None:
         # "2 hours and 15 minutes" / "2 Stunden und 15 Minuten" / "1:45 h" /
         # "noch 90 min". Return whole minutes.
         m = re.search(
-            r"(\d{1,2})\s*(?:Stunden?|hours?)\s*(?:und\s*|and\s*)?(\d{1,2})?\s*"
+            r"(\d{1,2})\s*(?:Stunden?|hours?)\s*(?:und[.\s]*|and[.\s]*)?(\d{1,2})?\s*"
             r"(?:Minuten?|minutes?)?",
             raw, re.I,
         )

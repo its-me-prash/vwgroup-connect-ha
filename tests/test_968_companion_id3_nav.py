@@ -531,8 +531,9 @@ class TestPresetShape:
                 assert nav.opt_in, f"{preset.brand}/{nav.name} has no opt-in"
                 assert nav.back_presses >= len(nav.path) or nav.back_presses >= 1
 
-    def test_no_write_action_was_inferred_from_the_unconfirmed_4_3_2_tree(self) -> None:
-        # Reads seeded from a reported dump are recoverable if wrong; a tap is
-        # not. VW stays read-only until a real device confirms the tap map.
-        assert _VW.actions == ()
-        assert _VW.writable is False
+    def test_only_grounded_battery_commands_are_mapped(self) -> None:
+        # #968 idle/active Golf GTE and Tiguan captures ground these controls.
+        # Other command families stay quarantined and older versions read only.
+        assert {a.action for a in _VW.actions} == {"start_charging", "stop_charging"}
+        assert all(a.nav_read == "charge_detail" for a in _VW.actions)
+        assert all(a.app_versions == ("4.3.2",) for a in _VW.actions)

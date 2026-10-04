@@ -357,9 +357,24 @@ class TestSwitch:
         from custom_components.vag_connect.switch import VagChargingSwitch
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
+        # A channel that leaves the parsed boolean unset falls back to the state.
+        coord.data[vin]["is_charging"] = None
         coord.data[vin]["charging_state"] = "CHARGING"
         s = VagChargingSwitch(coord, vin)
         assert s.is_on is True
+
+    def test_charging_switch_prefers_the_parsed_boolean(self):
+        # Companion 4.3.2 narrates "Currently charging" / "Target charge level
+        # reached": the parser's is_charging is right where a state list is not.
+        from custom_components.vag_connect.switch import VagChargingSwitch
+        coord = _make_coordinator()
+        vin = list(coord.data.keys())[0]
+        coord.data[vin]["charging_state"] = "Currently charging"
+        coord.data[vin]["is_charging"] = True
+        assert VagChargingSwitch(coord, vin).is_on is True
+        coord.data[vin]["charging_state"] = "CHARGING"
+        coord.data[vin]["is_charging"] = False
+        assert VagChargingSwitch(coord, vin).is_on is False
 
     def test_charging_switch_is_off_when_not_charging(self):
         from custom_components.vag_connect.switch import VagChargingSwitch
@@ -1148,6 +1163,7 @@ class TestSwitchRemaining:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         coord.data[vin]["charging_state"] = None
+        coord.data[vin]["is_charging"] = None
         s = VagChargingSwitch(coord, vin)
         assert s.is_on is None
 

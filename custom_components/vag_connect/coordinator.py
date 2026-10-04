@@ -5709,6 +5709,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         client = getattr(self, "_cariad_client", None)
         if client is None:
             return True
+        supports = getattr(client, "supports_command", None)
+        if callable(supports):
+            return bool(supports(command_id))
         return hasattr(client, command_id)
 
     def command_capability_supported(
@@ -7088,7 +7091,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Fix #32: Defensive is_charging reset.
         # When plug is disconnected, charging MUST be False regardless of API state.
         # Prevents is_charging staying stuck on "True" after charging ends.
-        if not data.get("plug_connected") and data.get("is_charging"):
+        # Only a KNOWN disconnect counts: a channel that cannot see the plug
+        # (the companion app screens never show it) leaves it None, and a None
+        # here used to force a live charging session to "not charging".
+        if data.get("plug_connected") is False and data.get("is_charging"):
             data["is_charging"] = False
             _LOGGER.debug(
                 "is_charging reset to False — plug not connected (defensive fix #32)"
@@ -9124,4 +9130,3 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             pass
         await self._cariad_cmd(vin, "command_wake")
-

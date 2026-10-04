@@ -322,6 +322,14 @@ def has_anchor(nodes: list[UiNode], preset: BrandPreset) -> bool:
     """
     if preset.screen_anchor is None:
         return True
+    # An anchor is about WHICH screen this is, not a value: the node's id is
+    # enough. On live 4.3.2 overviews (@gszigethy Tiguan, @plainmad Mk8) the
+    # ``rangeTile`` container has neither text nor description of its own, so
+    # requiring a value never recognised the overview, and the return walk
+    # could press BACK past it and out of the app.
+    anchor_rid = preset.screen_anchor.resource_id
+    if anchor_rid and any(_rid_matches(n.resource_id, anchor_rid) for n in nodes):
+        return True
     return _match_field_raw(nodes, preset.screen_anchor) is not None
 
 

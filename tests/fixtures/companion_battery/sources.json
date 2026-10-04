@@ -1,0 +1,73 @@
+[
+  {
+    "fixture": "tiguan_overview.xml",
+    "contributor": "gszigethy",
+    "original_file": "01-vehicle-main.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "tiguan_charging.xml",
+    "contributor": "gszigethy",
+    "original_file": "04-range.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "tiguan_target_reached.xml",
+    "contributor": "gszigethy",
+    "original_file": "02-charge-detail.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/1684",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy; battery nodes only. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "gte_overview.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Overview.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5386248711",
+    "attachment": "https://github.com/user-attachments/files/31348900/Golf.GTE.Mk8.App.4.3.2.Overview.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "gte_charging.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Charging.screen.Whilst.charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5441678954",
+    "attachment": "https://github.com/user-attachments/files/31522525/Golf.GTE.Mk8.App.4.3.2.Charging.screen.Whilst.charging.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "gte_stopped.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Charging.Screen.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5386248711",
+    "attachment": "https://github.com/user-attachments/files/31348902/Golf.GTE.Mk8.App.4.3.2.Charging.Screen.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "id4_overview.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_main_id4.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5183597867",
+    "attachment": "https://github.com/user-attachments/files/30718062/vag_connect_ui_main_id4.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "id4_charging.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_chargingscreen_id4_while_charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5200485856",
+    "attachment": "https://github.com/user-attachments/files/30771967/vag_connect_ui_chargingscreen_id4_while_charging.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "eup_charging.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_chargingscreen_eup_while_charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5189757805",
+    "attachment": "https://github.com/user-attachments/files/30736768/vag_connect_ui_chargingscreen_eup_while_charging.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  }
+]

@@ -1,0 +1,98 @@
+{
+  "acc_common_hint_details": [
+    "Open details"
+  ],
+  "acc_range_modal_label_cta_start": [
+    "Start charging"
+  ],
+  "acc_range_modal_label_cta_stop": [
+    "Stop charging"
+  ],
+  "acc_range_modal_hint_cta_start_disabled": [
+    "Check charging status"
+  ],
+  "acc_range_modal_hint_cta_stop_disabled": [
+    "Target charge level reached. Currently not charging."
+  ],
+  "acc_range_modal_value_charging_capacity": [
+    "Charging capacity: %s kilowatt"
+  ],
+  "acc_range_modal_value_charging_target_charge_level": [
+    "Target charge level: %s per cent"
+  ],
+  "acc_range_modal_value_charging_speed_kilometres": [
+    "Charging speed: %s kilometres per hour"
+  ],
+  "acc_range_modal_value_charging_speed_miles": [
+    "Charging speed: %s miles per hour"
+  ],
+  "acc_range_modal_value_charge_level_reached": [
+    "Target charge level reached"
+  ],
+  "acc_range_modal_value_charge_stopped": [
+    "Charging stopped"
+  ],
+  "acc_range_modal_value_connect_charging_cable": [
+    "Connect charging cable"
+  ],
+  "acc_range_modal_value_waiting": [
+    "Waiting"
+  ],
+  "acc_range_modal_value_waiting_for_charging_time": [
+    "Waiting for charging time"
+  ],
+  "acc_range_modal_value_waiting_for_departure_time": [
+    "Waiting for departure time"
+  ],
+  "acc_range_modal_value_currently_charging": [
+    "Currently charging"
+  ],
+  "acc_range_modal_value_conservation_charging": [
+    "Conservation charging"
+  ],
+  "acc_vehicle_tab_range_tile_label": [
+    "Range overview"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_hours_pluralised_one": [
+    "One hour and"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_hours_pluralised_other": [
+    "%s hours and"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_hours_pluralised_zero": [
+    "Zero hours and"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_minutes_pluralised_one": [
+    "One minute of charging time left"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_minutes_pluralised_other": [
+    "%s minutes of charging time left"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_minutes_pluralised_zero": [
+    "Zero minutes of charging time left"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_currently_charging": [
+    "Currently charging"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_level": [
+    "Battery charge level: %s per cent"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_range_km": [
+    "Battery range: %s kilometres"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_range_miles": [
+    "Battery range: %s miles"
+  ],
+  "acc_vehicle_tab_range_tile_value_fuel_range_km": [
+    "Fuel range: %s kilometres"
+  ],
+  "acc_vehicle_tab_range_tile_value_fuel_range_miles": [
+    "Fuel range: %s miles"
+  ],
+  "acc_vehicle_tab_range_tile_value_petrol_level": [
+    "Fuel level: %s per cent"
+  ],
+  "acc_vehicle_tab_range_tile_value_zero": [
+    "Range unavailable"
+  ]
+}

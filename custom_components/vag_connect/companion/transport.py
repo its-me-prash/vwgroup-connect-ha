@@ -170,6 +170,45 @@ class NetworkAdbTransport:
                 return line.split("=", 1)[1].strip() or None
         return None
 
+    async def battery_strings(self, package: str) -> dict[str, set[str]]:
+        """Read installed VW translation tables, including language splits.
+
+        Shared by direct ADB and the Bridge add-on's existing shell endpoint.
+        The relay has no arbitrary shell and overrides this optional method.
+        Nothing is installed or executed inside the manufacturer's app.
+        """
+        import base64  # noqa: PLC0415
+        import gzip  # noqa: PLC0415
+        import io  # noqa: PLC0415
+        import re  # noqa: PLC0415
+        import shlex  # noqa: PLC0415
+
+        from .resources import extract_battery_strings  # noqa: PLC0415
+
+        out: dict[str, set[str]] = {}
+        paths = await self.shell(f"pm path {shlex.quote(package)}")
+        for line in paths.splitlines():
+            if not line.startswith("package:/data/app/"):
+                continue
+            path = line.removeprefix("package:").strip()
+            if not (path.endswith("/base.apk") or re.search(r"/split_config\.[a-z]{2,3}\.apk$", path)):
+                continue
+            encoded = await self.shell(
+                f"unzip -p {shlex.quote(path)} resources.arsc | gzip | base64", 30.0
+            )
+            try:
+                compressed = base64.b64decode("".join(encoded.split()), validate=True)
+                with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as table:
+                    data = table.read(16 * 1024 * 1024 + 1)
+                if len(data) > 16 * 1024 * 1024:
+                    continue
+                strings = await asyncio.to_thread(extract_battery_strings, data)
+                for key, values in strings.items():
+                    out.setdefault(key, set()).update(values)
+            except (ValueError, OSError, EOFError):
+                continue
+        return out
+
     async def tap(self, x: int, y: int, timeout_s: float = 10.0) -> None:
         await self.shell(f"input tap {int(x)} {int(y)}", timeout_s)
         await asyncio.sleep(0.6)

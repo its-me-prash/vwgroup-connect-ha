@@ -146,6 +146,11 @@ class CompanionClient:
         # it the electric entities stay hidden behind their has_battery gate.
         if data.battery_soc is not None or data.electric_range_km is not None:
             data.has_battery = True
+        # A PHEV's petrol range must unlock the existing combustion sensors;
+        # fuel percentage is optional and must never be inferred from range.
+        if data.fuel_level is not None or data.combustion_range_km is not None:
+            data.has_combustion = True
+        data.is_hybrid = data.has_battery and data.has_combustion
         # A companion read is a two-way-capable source only when writes are on;
         # expose that so the entity layer can reflect it.
         data.companion_writes_enabled = self._channel.writes_enabled
@@ -154,6 +159,13 @@ class CompanionClient:
         return data
 
     # -- the command surface --------------------------------------------------
+
+    def supports_command(self, command_name: str) -> bool:
+        """Expose only commands with an actual control in this brand preset."""
+        return any(
+            ACTION_TO_COMMAND.get(a.action) == command_name
+            for a in PRESETS[self._brand].actions
+        )
 
     async def _dispatch(self, command_name: str) -> None:
         action = next(

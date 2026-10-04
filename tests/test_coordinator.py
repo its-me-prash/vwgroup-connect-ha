@@ -178,6 +178,19 @@ class TestEnrich:
         result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "CHARGING"
 
+    def test_unknown_plug_does_not_cancel_a_charging_session(self):
+        """Fix #32 resets is_charging only on a KNOWN disconnect. The companion
+        (ADB) channel never sees the plug, so plug_connected stays None; that
+        must not turn its "Currently charging" reading into not charging."""
+        import asyncio
+        coord = self._make_coord()
+        data = {"is_online": True, "is_driving": False, "is_charging": True,
+                "latitude": None, "longitude": None}
+        assert asyncio.run(coord._enrich(data))["is_charging"] is True
+        data = {"is_online": True, "is_driving": False, "is_charging": True,
+                "plug_connected": False, "latitude": None, "longitude": None}
+        assert asyncio.run(coord._enrich(data))["is_charging"] is False
+
     def test_vehicle_state_unknown_online_is_not_offline(self):
         """#923: is_online=None means UNKNOWN, not offline. The vw.de authproxy
         and EU-Data-Act channels never set is_online, and to_dict()/asdict keeps

@@ -22,6 +22,7 @@ without sleeping or touching a device.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Callable
@@ -47,6 +48,7 @@ from .screen import (
     tap_point_for,
 )
 from .transport import CompanionTransportError, NetworkAdbTransport
+from .resources import find_battery_control, find_battery_tile, read_battery_resources
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,6 +129,13 @@ class CompanionChannel:
         # and the values persist in between so the sensors don't flap.
         self._nav_cache: dict[str, object] = {}
         self._last_nav_at: float | None = None
+        # After a command, only the detail path that command used is re-read on
+        # the next poll; the other opted-in paths keep their own cadence.
+        self._nav_only: set[str] = set()
+        self._screen_lock = asyncio.Lock()
+        self._battery_strings: dict[str, set[str]] = {}
+        self._strings_version: str | None = None
+        self._strings_at: float | None = None
 
     @property
     def preset(self) -> BrandPreset:
@@ -138,6 +147,10 @@ class CompanionChannel:
         return (
             bool(self._version_ok)
             and self._preset.writable
+            and any(
+                a.app_versions is None or self._live_app_version in a.app_versions
+                for a in self._preset.actions
+            )
             and not self._is_rate_limited()
         )
 
@@ -227,6 +240,11 @@ class CompanionChannel:
         return self._now() < self._cooldown_until
 
     async def read(self) -> dict[str, object] | None:
+        """Serialize the entire screen read with command navigation."""
+        async with self._screen_lock:
+            return await self._read_serialized()
+
+    async def _read_serialized(self) -> dict[str, object] | None:
         """Bring the app forward, dump the screen, resolve the preset fields.
 
         Returns:
@@ -302,6 +320,8 @@ class CompanionChannel:
         self._consecutive_failures = 0
         self._source_data_age_s = find_sync_age(nodes, self._preset)
         fields = read_fields(nodes, self._preset)
+        if self._preset.brand == "volkswagen":
+            fields.update(read_battery_resources(nodes, self._battery_strings))
         # v2.26.0 (C9) — values behind a detail screen (charge target/power/time
         # on VW) are read by tapping a tile, reading, and coming BACK. Only tap
         # when it is opted in, the version gate holds, and the cadence window has
@@ -313,7 +333,7 @@ class CompanionChannel:
         # read, so the detail sensors froze. Refresh first (against the true
         # overview state), then let the cache only backfill gaps on non-due polls.
         if self._preset.nav_reads:
-            if self.nav_reads_enabled and self._nav_due():
+            if self.nav_reads_enabled and (self._nav_due() or self._nav_only):
                 await self._augment_via_nav(fields)
             for key, val in self._nav_cache.items():
                 fields.setdefault(key, val)
@@ -327,17 +347,25 @@ class CompanionChannel:
         the overview afterwards so the next plain read sees the main screen.
         Successful values are cached and re-applied on later polls.
         """
-        self._last_nav_at = self._now()
+        only, self._nav_only = self._nav_only, set()
+        if not only or self._nav_due():
+            only = set()
+            self._last_nav_at = self._now()
         for nav in self._preset.nav_reads:
             if not self._nav_allowed(nav):
                 continue  # this path's own opt-in is off
+            if only and nav.name not in only:
+                continue  # a command's readback re-reads its own path only
             if all(fields.get(v.target) is not None for v in nav.values):
                 continue  # nothing to fetch from this detail
             walked = 0
             try:
                 detail, walked = await self._walk_to_detail(nav.path)
                 if detail is not None:
-                    for key, val in read_selectors(detail, nav.values).items():
+                    values = read_selectors(detail, nav.values)
+                    if self._preset.brand == "volkswagen" and nav.name == "charge_detail":
+                        values.update(read_battery_resources(detail, self._battery_strings))
+                    for key, val in values.items():
                         # #1552 — a fresh detail-screen value wins over a stale
                         # overview value for the same key (direct assign, not
                         # setdefault); the overview reading is what goes stale.
@@ -375,12 +403,17 @@ class CompanionChannel:
             pending = None
             if not cleared:
                 return None, taps
+            if find_rate_limit_banner(nodes, self._preset) is not None:
+                self._trip_rate_limit()
+                return None, taps
             if step.scroll_first and find_node_for(nodes, step) is None:
                 # The MEB overview keeps Vehicle Health and Settings below the
                 # fold. Scroll once, then look again; a control that is still
                 # absent stops the walk as usual.
                 nodes = await self._scroll_up(nodes)
             node = find_node_for(nodes, step)
+            if step.action == "open_charge_detail" and node is None:
+                node = find_battery_tile(nodes, self._battery_strings)
             point = tap_point_for(node, step.tap_fraction) if node is not None else None
             if point is None:
                 _LOGGER.debug(
@@ -523,14 +556,24 @@ class CompanionChannel:
         """Read the live app version and (re)decide whether the app matches the
         version this preset was verified against.
 
-        Called on every read, and lazily by ``do_action`` when a command is
-        issued before the first scheduled poll — otherwise ``_version_ok`` would
-        still be ``None`` and a perfectly valid command on the verified VW at the
-        right version would be rejected as a version mismatch until the first
-        poll (up to a full scan interval, and again after every restart).
+        Called on every read and command, including before the first poll.
+        Resource labels refresh on a version change or once an hour so newly
+        installed language splits can be picked up without restarting HA.
         """
         self._live_app_version = await self._t.current_app_version(self._preset.package)
         self._version_ok = self._decide_version_ok(self._live_app_version)
+        getter = getattr(self._t, "battery_strings", None)
+        if self._preset.brand == "volkswagen" and getter is not None and (
+            self._strings_at is None or self._strings_version != self._live_app_version
+            or self._now() - self._strings_at >= 3600
+        ):
+            self._strings_at = self._now()
+            self._strings_version = self._live_app_version
+            self._battery_strings = {}
+            try:
+                self._battery_strings = await getter(self._preset.package)
+            except CompanionTransportError:
+                _LOGGER.debug("companion: app translation resources unavailable")
 
     def _decide_version_ok(self, live_version: str | None) -> bool:
         """True when this is a verified preset AND the live app version matches.
@@ -566,6 +609,11 @@ class CompanionChannel:
     # -- write ----------------------------------------------------------------
 
     async def do_action(self, action: str) -> None:
+        """Keep polling from moving the screen during a command."""
+        async with self._screen_lock:
+            await self._do_action_serialized(action)
+
+    async def _do_action_serialized(self, action: str) -> None:
         """Tap the control for a logical action, subject to the quarantine.
 
         Raises ``CompanionWriteBlocked`` with a clear reason rather than tapping
@@ -579,18 +627,15 @@ class CompanionChannel:
                 "read-only; writing would risk tapping the wrong control. It "
                 "needs a confirmed screen map from a real device first."
             )
-        # v3.0.0a1 — if no poll has decided the version gate yet (e.g. a command
-        # issued right after startup, before the first scheduled read), decide
-        # it now from the live app version rather than rejecting on the initial
-        # ``None``. Needs the connection up first.
-        if self._version_ok is None:
-            try:
-                if not self._t.connected:
-                    await self._t.connect()
-                await self._t.foreground_app(self._preset.package)
-                await self._refresh_version_gate()
-            except CompanionTransportError as err:
-                raise CompanionWriteBlocked(str(err)) from err
+        # Refresh before EVERY command: an app update between polls must not
+        # inherit the previous version's permission to tap.
+        try:
+            if not self._t.connected:
+                await self._t.connect()
+            await self._t.foreground_app(self._preset.package)
+            await self._refresh_version_gate()
+        except CompanionTransportError as err:
+            raise CompanionWriteBlocked(str(err)) from err
         if not self._version_ok:
             _want = self._preset.verified_app_version
             _want_str = _want if isinstance(_want, str) else " / ".join(_want or ())
@@ -599,6 +644,13 @@ class CompanionChannel:
                 f"on the phone ({self._live_app_version or 'unknown'}) does not "
                 f"match the one this preset was verified against "
                 f"({_want_str}). Reads still work."
+            )
+        spec = next((a for a in self._preset.actions if a.action == action), None)
+        if spec is None:
+            raise CompanionWriteBlocked(f"no confirmed control for '{action}'")
+        if spec.app_versions and self._live_app_version not in spec.app_versions:
+            raise CompanionWriteBlocked(
+                f"'{action}' is not mapped for app version {self._live_app_version}"
             )
         # v2.26.0 (ckomma #21) — if a rate-limit backoff is active, do not send.
         if self._is_rate_limited():
@@ -631,12 +683,54 @@ class CompanionChannel:
             raise CompanionWriteBlocked(
                 "a nag screen is up and did not clear; not tapping blind"
             )
-        node = find_action_node(nodes, self._preset, action)
-        if node is None or node.tap_point is None:
-            raise CompanionWriteBlocked(
-                f"could not find the '{action}' control on the current screen; "
-                "the app may be on a different view than expected"
-            )
-        x, y = node.tap_point
-        await self._t.tap(x, y)
-        self._last_write_at = self._now()
+        if find_rate_limit_banner(nodes, self._preset) is not None:
+            self._trip_rate_limit()
+            raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
+        walked = 0
+        nav = next((n for n in self._preset.nav_reads if n.name == spec.nav_read), None)
+        try:
+            if spec.nav_read:
+                if nav is None:
+                    raise CompanionWriteBlocked("command detail path is not mapped")
+                # A detail already open needs no forward tap. The SoC node
+                # proves this is the charge sheet, not an overview label.
+                on_detail = any(
+                    n.resource_id == "rangeArcBatterySoc"
+                    or n.resource_id.endswith("/rangeArcBatterySoc") for n in nodes
+                )
+                if not on_detail:
+                    detail, walked = await self._walk_to_detail(nav.path)
+                    if detail is None:
+                        raise CompanionWriteBlocked("could not open the charge detail")
+                    nodes = detail
+            if find_rate_limit_banner(nodes, self._preset) is not None:
+                self._trip_rate_limit()
+                raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
+            if self._battery_strings and action in ("start_charging", "stop_charging"):
+                node = find_battery_control(nodes, self._battery_strings, action)
+            else:
+                node = find_action_node(nodes, self._preset, action)
+                # The Compose enabled flag stays true even for a disabled CTA
+                # (@gszigethy, target reached). Its hint is the actual gate.
+                if node is not None and "Check charging status" in node.content_desc:
+                    node = None
+            if node is None or node.tap_point is None:
+                raise CompanionWriteBlocked(
+                    f"could not find the '{action}' control on the current screen"
+                )
+            # Prevent repeated taps even if a transport fails after delivery.
+            self._last_write_at = self._now()
+            # Re-read this command's own detail path on the next poll: a
+            # delivered tap is not proof that the vehicle accepted it, and the
+            # cached pre-command values are not readback. Other paths keep
+            # their cadence, so a command never triggers a walk of every screen.
+            if nav is not None:
+                for value in nav.values:
+                    self._nav_cache.pop(value.target, None)
+                self._nav_only.add(nav.name)
+            await self._t.tap(*node.tap_point)
+        except CompanionTransportError as err:
+            raise CompanionWriteBlocked(str(err)) from err
+        finally:
+            if nav is not None:
+                await self._return_to_overview(min(walked, nav.back_presses))

@@ -453,12 +453,14 @@ class TestCoordinatorGuards:
         assert c.command_method_available("command_set_target_soc") is False
         assert c.command_method_available("command_set_climate_temperature") is False
 
-    def test_b1_present_command_method_reported_available(self) -> None:
-        # climate + charge ARE implemented by the companion adapter.
+    def test_b1_only_mapped_command_methods_reported_available(self) -> None:
+        # Adapter methods alone are insufficient: this battery PR maps charge
+        # commands and leaves climate quarantined for its own confirmed map.
         c = self._coord(brand="volkswagen", client=self._companion_client("volkswagen"))
-        assert c.command_method_available("command_start_climate") is True
-        assert c.command_method_available("command_stop_climate") is True
+        assert c.command_method_available("command_start_climate") is False
+        assert c.command_method_available("command_stop_climate") is False
         assert c.command_method_available("command_start_charging") is True
+        assert c.command_method_available("command_stop_charging") is True
 
     def test_b1_no_client_defers_to_capability(self) -> None:
         # Before the client is built, the method-availability guard must not
@@ -471,12 +473,11 @@ class TestCoordinatorGuards:
         c = self._coord(brand="audi", client=self._companion_client("audi"))
         assert c.is_read_only() is True
 
-    def test_s1_verified_vw_writes_quarantined_is_read_only(self) -> None:
-        # v2.26.0 — VW reads are verified but WRITES are quarantined (no actions
-        # until the 2-step nav is confirmed on a device), so the companion entry
-        # is read-only for now: no command entities spawn.
+    def test_s1_vw_charge_map_can_expose_commands_unless_user_read_only(self) -> None:
+        # Charging is mapped; the channel still applies the command version
+        # gate and the user's read-only option remains authoritative.
         c = self._coord(brand="volkswagen", client=self._companion_client("volkswagen"))
-        assert c.is_read_only() is True
+        assert c.is_read_only() is False
 
 
 # ── preset integrity ────────────────────────────────────────────────────────

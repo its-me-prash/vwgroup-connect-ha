@@ -51,6 +51,10 @@ class AgentRelayTransport(NetworkAdbTransport):
 
     # -- the shell is deliberately absent -------------------------------------
 
+    async def battery_strings(self, package: str) -> dict[str, set[str]]:
+        """The current phone agent cannot expose compiled app resources."""
+        return {}
+
     async def shell(self, cmd: str, timeout_s: float = 10.0) -> str:
         raise CompanionTransportError(
             "the companion agent speaks a fixed set of screen verbs, not a "

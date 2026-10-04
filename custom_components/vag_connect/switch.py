@@ -163,6 +163,13 @@ class VagChargingSwitch(VagConnectEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
+        # Same rule as the climatisation switch: the parser-computed boolean is
+        # the source of truth; the raw state list is only a fallback for a
+        # channel that leaves it unset ("Currently charging" or "Target charge
+        # level reached" on the companion would otherwise read wrongly).
+        active = self._vehicle.get("is_charging")
+        if active is not None:
+            return bool(active)
         state = self._vehicle.get("charging_state")
         if state is None:
             return None
