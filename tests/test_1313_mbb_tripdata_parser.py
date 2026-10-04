@@ -362,3 +362,90 @@ def test_the_channel_fetches_and_merges_the_trip_memories() -> None:
         f"the channel requested {asked} — the trip reads are not wired"
     )
     del d
+
+
+# ── A SECOND car, reported 2026-10-04 ──────────────────────────────────────
+#
+# Everything above was built from one car's captures. A second MBB plug-in
+# hybrid (MY2026) then sent its own bodies "for comparison", and they differ in
+# one way that matters: on a pure-electric leg this car sends
+# ``averageFuelConsumption: 0`` where the first car sent ``null`` — on 31 of its
+# 54 short-term trips. Both mean "no fuel used", and a zero is a real reading,
+# so it has to survive the mapper. If it were dropped as falsy the sensor would
+# read unknown instead of zero, which is a different claim about the car.
+
+MY26_SHORTTERM = json.loads(
+    '{"data":{"tripEndTimestamp":"2026-10-04T14:39:15Z","id":"7367***",'
+    '"tripType":"shortTerm","vehicleType":"hybrid","mileage_km":26,'
+    '"mileage_mi":null,"startMileage_km":27207,"startMileage_mi":null,'
+    '"overallMileage_km":27234,"overallMileage_mi":null,"travelTime":24,'
+    '"averageFuelConsumption":2.6,"averageFuelConsumptionUnit":"l_per_100km",'
+    '"averageElectricConsumption":11,'
+    '"averageElectricConsumptionUnit":"kWh_per_100km",'
+    '"averageGasConsumption":null,"averageAuxConsumption":null,'
+    '"averageRecuperation":null,"averageSpeed_kmph":65,"averageSpeed_mph":null}}'
+)
+MY26_LONGTERM = json.loads(
+    '{"data":{"tripEndTimestamp":"2026-10-04T14:39:15Z","id":"3671***",'
+    '"tripType":"longTerm","vehicleType":"hybrid","mileage_km":2438,'
+    '"mileage_mi":null,"startMileage_km":24795,"startMileage_mi":null,'
+    '"overallMileage_km":27234,"overallMileage_mi":null,"travelTime":2344,'
+    '"averageFuelConsumption":3.1,"averageFuelConsumptionUnit":"l_per_100km",'
+    '"averageElectricConsumption":8.9,'
+    '"averageElectricConsumptionUnit":"kWh_per_100km",'
+    '"averageGasConsumption":null,"averageAuxConsumption":null,'
+    '"averageRecuperation":null,"averageSpeed_kmph":62,"averageSpeed_mph":null}}'
+)
+
+
+@pytest.mark.parametrize("unit", ["l_per_100km", None])
+def test_a_zero_fuel_consumption_is_kept_not_dropped(unit: str | None) -> None:
+    """The second car's electric-only legs. Checked with the unit present AND
+    absent, because the two cars disagree about whether a null value still
+    declares its unit."""
+    body = json.loads(json.dumps(MY26_SHORTTERM))
+    body["data"]["averageFuelConsumption"] = 0
+    body["data"]["averageFuelConsumptionUnit"] = unit
+    d = _map(body)
+    assert d.last_trip_avg_fuel_consumption_l_100km == 0.0, (
+        "a zero was dropped — the sensor would read unknown instead of zero"
+    )
+
+
+@pytest.mark.parametrize(
+    ("payload", "dist_attr", "dur_attr", "speed_attr", "reported_speed"),
+    [
+        (MY26_SHORTTERM, "last_trip_distance_km", "last_trip_duration_min",
+         "last_trip_avg_speed_kmh", 65),
+        (MY26_LONGTERM, "lifetime_trip_distance_km", "lifetime_travel_time_min",
+         "lifetime_avg_speed_kmh", 62),
+    ],
+)
+def test_minutes_hold_on_the_second_car_too(
+    payload: object, dist_attr: str, dur_attr: str, speed_attr: str,
+    reported_speed: float,
+) -> None:
+    """The minutes reading was inferred from one car's three surfaces. A second
+    car, different model year, reproduces it: 26 km in 24 min is 65 km/h and the
+    car says 65; 2438 km in 2344 min is 62.4 and the car says 62."""
+    d = _map(payload)
+    distance, duration = getattr(d, dist_attr), getattr(d, dur_attr)
+    assert distance is not None and duration, "the fixture did not map"
+    assert getattr(d, speed_attr) == pytest.approx(reported_speed)
+    derived = distance / (duration / 60)
+    assert abs(derived - reported_speed) < 2, (
+        f"{derived:.1f} km/h derived vs {reported_speed} reported"
+    )
+
+
+def test_the_newest_trip_wins_in_the_second_cars_unsorted_list() -> None:
+    """Both reporters independently say the list form is unsorted — 54 and 56
+    entries, in no order. Position zero is therefore an arbitrary trip."""
+    newest = {"tripEndTimestamp": "2026-10-04T14:39:15Z", "tripType": "shortTerm",
+              "mileage_km": 26, "travelTime": 24, "averageSpeed_kmph": 65}
+    older = {"tripEndTimestamp": "2026-02-17T09:36:55Z", "tripType": "shortTerm",
+             "mileage_km": 1, "travelTime": 2, "averageSpeed_kmph": 25}
+    d = _map({"data": [older, newest, older]})
+    assert d.last_trip_distance_km == 26.0, (
+        "position zero was taken instead of the newest timestamp"
+    )
