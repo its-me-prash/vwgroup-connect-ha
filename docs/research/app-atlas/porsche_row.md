@@ -1,7 +1,7 @@
 # App Atlas — Porsche (My Porsche, rest-of-world)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-02
+> Last refreshed: 2026-10-04
 
 ## Identity
 

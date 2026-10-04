@@ -1,7 +1,7 @@
 # App Atlas — Volkswagen US/CA (myVW)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-02
+> Last refreshed: 2026-10-04
 
 ## Identity
 
@@ -24,8 +24,8 @@
 |---|---|
 | Latest version-name | `2026.9.29-9674` |
 | Source that responded | `google_play` |
-| Previously cached version | `2026.7.28-9380` |
-| Changed since last run? | **YES** |
+| Previously cached version | `2026.9.29-9674` |
+| Changed since last run? | No |
 
 
 ## Discovered via APK extraction (Phase A.2)
