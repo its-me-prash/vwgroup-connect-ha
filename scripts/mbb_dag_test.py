@@ -11,7 +11,26 @@ legacy MBB path mints a durable refreshable token past the Play-Integrity wall.
 
 NEVER prints tokens — only lengths, booleans and HTTP status codes.
 
-Usage:  py scripts/mbb_dag_test.py [skoda|audi|seat|cupra]   (default: skoda)
+Usage:  python scripts/mbb_dag_test.py <brand> [route] [vin]
+
+        <brand>  volkswagen, audi, audi_na, seat, cupra. 'skoda' has no route
+                 at all and exits with code 2.
+        [route]  WHICH client+scope pair to use. Omit it: 'mbb' is chosen for
+                 the Car-Net brands (volkswagen, audi), otherwise 'app'.
+                   mbb         the e-Remote client + the 'mbb' scope -- the only
+                               pair that puts MBB's own audience
+                               (VWGMBB01DELIV1) in the id_token, which the
+                               exchange requires. The default, and the one the
+                               MBB probes need.
+                   mbb-backup  the failover client for the same scope.
+                   app         the brand's own app client. For Audi this is a
+                               dead end: VW took that client's device grant
+                               down with the Auth0 migration (#1364), so
+                               /device_authorization answers 403.
+                   portal      the EU-Data-Act portal client (read-only).
+                 A raw client_id is still accepted for ad-hoc probing and is
+                 then paired with the MBB scope.
+        [vin]    optional, adds the host/VSR hunt.
 """
 
 from __future__ import annotations
@@ -44,6 +63,29 @@ def _jwt_claims(token: str) -> dict[str, Any]:
         return {k: data.get(k) for k in ("iss", "aud", "azp", "exp", "scope")}
     except Exception:  # noqa: BLE001
         return {}
+
+
+def _mbb_aud(id_token: str) -> str | None:
+    """The audience to pin the MBB register/exchange to.
+
+    Delegates to the production selector rather than taking ``aud[0]``, which
+    is what this harness used to do at three separate places. The mbb-scoped
+    id_token is multi-audience, and #464 established that ``aud[0]`` is the
+    OAuth client id on SEAT/CUPRA — pinning it there makes the MBB backend
+    answer ``400 invalid_grant`` ("unknown audience"). ``jwt_aud`` picks the
+    MBB *delivery* audience instead.
+
+    Taking ``aud[0]`` meant the harness pinned something production never
+    pins, so its "aud-as-clientid" line reported a rejection that said nothing
+    about the shipped path — found on the 2026-10-04 Audi run, where that line
+    printed 403 for the OAuth client id while production would have pinned
+    ``VWGMBB01DELIV1``.
+    """
+    from custom_components.vag_connect.cariad.auth._mbboauth import (  # noqa: PLC0415
+        jwt_aud,
+    )
+
+    return jwt_aud(id_token)
 
 
 # App-identity candidates for register/v1. The DATA endpoints (VSR /status,
@@ -176,8 +218,7 @@ async def _host_discovery(
         ["https://msg.volkswagen.de", "https://fal-3a.prd.eu.dp.vwg-connect.com"]
     )
 
-    aud = _jwt_claims(id_token).get("aud")
-    aud_str = aud[0] if isinstance(aud, list) else aud
+    aud_str = _mbb_aud(id_token)
     # Mint with retries — this sandbox has flaky DNS to the vwg-connect hosts;
     # a transient timeout must not abort the whole (browser-confirmed) run.
     mbb = None
@@ -437,8 +478,7 @@ async def _systemid_experiment(session: Any, id_token: str, vin: str) -> None:
     us whether the XID_APP_VW data-permission follows the register appId."""
     from custom_components.vag_connect.cariad.auth import _mbboauth  # noqa: PLC0415
 
-    aud = _jwt_claims(id_token).get("aud")
-    aud_str = aud[0] if isinstance(aud, list) else aud
+    aud_str = _mbb_aud(id_token)
     for label, app in (("e-Remote", _APP_EREMOTE), ("We Connect", _APP_WECONNECT)):
         print(f"\n[EXPERIMENT] register as {label} (appId={app[0]}) -> exchange -> VSR read")
         reg_cid, _sec = await _mbb_register(
@@ -470,52 +510,325 @@ async def _systemid_experiment(session: Any, id_token: str, vin: str) -> None:
             await _vsr_probe(session, mbb.access_token, cid, vin, country)
 
 
+# ── #1313/Audi-Watch: der requestAuthCode/authorize-Schritt ──────────────────
+# myAudi 5.8.1 (androguard, 2026-10-04) trägt den Pfad
+# ``mobile/oauth2/v1/requestAuthCode/authorize`` auf GENAU dem Host, den
+# ``_mbboauth.py`` schon nutzt, mit demselben Scope ``sc2:fal``. Unsere Probe
+# von 2026-06 bekam auf direktem ``/mobile/oauth2/v1/token`` ein 403 —
+# HYPOTHESE: weil wir diesen Code-Schritt überspringen. Die App fährt
+# IdentityKit-Token -> loadMBBStatusData -> MBBConnectorExtensions.authorizationCode
+# -> requestAuthCode/authorize -> erst DANN /token.
+#
+# Die exakte Request-Form steht nicht in der APK, nur das Parameter-Vokabular
+# (response_type/client_id/redirect_uri/scope/state/nonce/code_challenge/
+# grant_type/code/id_token/audience/brand/platform/appId/deviceId). Deshalb eine
+# KLEINE, begründete Matrix statt Raten: vier Formen, die sich in genau einer
+# Dimension unterscheiden, damit die Antwort interpretierbar bleibt.
+_MBB_AUTHCODE_URL = (
+    "https://mbboauth-1d.prd.ece.vwg-connect.com/mbbcoauth"
+    "/mobile/oauth2/v1/requestAuthCode/authorize"
+)
+
+
+def _code_from(text: str) -> tuple[str, int]:
+    """(Name des Code-Felds, Länge) aus einer Antwort — NIE der Wert selbst."""
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return ("", 0)
+    if not isinstance(data, dict):
+        return ("", 0)
+    for key in ("code", "authorizationCode", "authCode", "auth_code"):
+        val = data.get(key)
+        if isinstance(val, str) and val:
+            return (key, len(val))
+    return ("", 0)
+
+
+def _err_code_of(text: str) -> str:
+    """Kurzer Fehlercode aus der Antwort, formgeprüft (nie Freitext/Secrets)."""
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    for key in ("error", "errorCode"):
+        val = data.get(key)
+        if isinstance(val, str) and 0 < len(val) <= 40 and " " not in val.strip():
+            return val
+        if isinstance(val, dict):
+            inner = val.get("errorCode") or val.get("code")
+            if inner is not None:
+                return str(inner)[:40]
+    return ""
+
+
+async def _request_auth_code_probe(
+    session: Any, id_token: str, *, client_id: str, brand: str
+) -> None:
+    """Probe ``requestAuthCode/authorize`` — vier begründete Formen.
+
+    Druckt NUR Status, Fehlercode und Code-LÄNGE. Niemals Token oder Code.
+    Jede Form hat ihren eigenen Guard: eine Wand darf die anderen nicht kosten.
+    """
+    print("\n" + "=" * 64)
+    print("  PROBE: requestAuthCode/authorize  (Audi-Watch 2026-10-04)")
+    print("  Frage: liefert dieser Schritt einen Auth-Code, den /token nimmt?")
+    print("=" * 64)
+
+    # Vorbedingung, sonst ist das Ergebnis nicht interpretierbar: MBB bindet
+    # an die Audience VWGMBB01DELIV1, die erst der Scope ``mbb`` in den
+    # id_token legt. Ohne sie ist ein 401 ein Audience-Fehler und sagt NICHTS
+    # ueber requestAuthCode. Lieber laut warnen als ein Ergebnis fehldeuten.
+    _aud = _jwt_claims(id_token).get("aud")
+    _aud_list = _aud if isinstance(_aud, list) else [_aud]
+    if not any("VWGMBB" in str(a) for a in _aud_list if a):
+        print("  [!] WARNUNG: id_token.aud enthaelt KEINE VWGMBB-Audience")
+        print(f"      aud = {_aud}")
+        print("      -> Ein 401 unten ist dann ein Audience-Problem, KEINE")
+        print("         Aussage ueber requestAuthCode. Lauf auf der mbb-Route")
+        print("         wiederholen: zweites Argument = mbb.")
+    else:
+        print(f"  [ok] id_token.aud traegt eine VWGMBB-Audience: {_aud_list}")
+
+    base_hdr = {
+        "Accept": "application/json",
+        "User-Agent": _MBB_UA,
+        "X-Client-Id": client_id,
+    }
+    variants: list[tuple[str, str, dict[str, str], dict[str, str] | None]] = [
+        # 1) Wie der klassische Tausch, nur mit response_type=code: prüft, ob der
+        #    Endpunkt dieselbe id_token-Grant-Form akzeptiert.
+        ("POST form grant_type=id_token + response_type=code", "POST",
+         dict(base_hdr),
+         {"grant_type": "id_token", "token": id_token, "scope": "sc2:fal",
+          "response_type": "code"}),
+        # 2) Gleiche Form, aber das Token im Feld ``id_token`` — die APK kennt
+        #    beide Feldnamen, und welcher gilt, entscheidet der Server.
+        ("POST form id_token-Feld statt token", "POST",
+         dict(base_hdr),
+         {"grant_type": "id_token", "id_token": id_token, "scope": "sc2:fal",
+          "response_type": "code"}),
+        # 3) OIDC-artig als Query, wie ein /authorize es normalerweise erwartet.
+        ("GET query response_type=code", "GET",
+         dict(base_hdr),
+         {"response_type": "code", "client_id": client_id, "scope": "sc2:fal",
+          "token": id_token, "brand": brand, "platform": "Android"}),
+        # 4) Ohne X-Client-Id: trennt "Client nicht berechtigt" von
+        #    "Form falsch" — unser Client hat laut früheren Proben nur
+        #    Directory-Rechte.
+        ("POST form OHNE X-Client-Id", "POST",
+         {k: v for k, v in base_hdr.items() if k != "X-Client-Id"},
+         {"grant_type": "id_token", "token": id_token, "scope": "sc2:fal",
+          "response_type": "code"}),
+    ]
+
+    got_code: tuple[str, int] | None = None
+    # (status, body_was_json) per variant that actually answered — the verdict
+    # is derived from these rather than left to the reader as a legend.
+    seen: list[tuple[int, bool]] = []
+    for label, method, headers, payload in variants:
+        try:
+            if method == "GET":
+                ctx = session.get(_MBB_AUTHCODE_URL, headers=headers,
+                                  params=payload)
+            else:
+                ctx = session.post(_MBB_AUTHCODE_URL, headers=headers,
+                                   data=payload)
+            async with ctx as resp:
+                text = await resp.text()
+                key, length = _code_from(text)
+                err = _err_code_of(text)
+                # Whether the body is JSON is load-bearing for the verdict: an
+                # OAuth endpoint that refuses a client answers with a JSON
+                # error object. A non-JSON body means nothing reached the OAuth
+                # layer, so the status says little about our client.
+                try:
+                    parsed = json.loads(text)
+                    body_is_json = isinstance(parsed, dict)
+                    keys = sorted(parsed.keys())[:8] if body_is_json else []
+                except (ValueError, TypeError):
+                    body_is_json, keys = False, []
+                extra = f"  code-Feld={key!r} len={length}" if key else ""
+                if err:
+                    extra += f"  error={err}"
+                print(f"    [{label}] HTTP {resp.status}{extra}")
+                if not key and not err:
+                    shape = "JSON" if body_is_json else "kein JSON"
+                    print(f"        body: {len(text)} B  {shape}  keys={keys}")
+                seen.append((resp.status, body_is_json))
+                if key and got_code is None:
+                    got_code = (key, length)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    [{label}] connect-error: {str(exc)[:120]}")
+
+    print("\n  ── Verdikt ──")
+    if got_code:
+        print(f"  TREFFER: ein Auth-Code kam zurueck (Feld {got_code[0]!r}, "
+              f"len={got_code[1]}).")
+        print("  -> Das ist der fehlende Schritt. Naechstes: diesen Code mit")
+        print("     grant_type=authorization_code an /mobile/oauth2/v1/token")
+        print("     tauschen (hier NICHT automatisch, damit der Code nicht")
+        print("     verbraucht wird, bevor Prash die Form festlegt).")
+        print("=" * 64)
+        return
+
+    if not seen:
+        print("  KEINE Antwort erhalten (alle Varianten Verbindungsfehler) —")
+        print("  das ist KEIN Befund ueber den Endpunkt. Lauf wiederholen.")
+        print("=" * 64)
+        return
+
+    statuses = {s for s, _ in seen}
+    any_json = any(j for _, j in seen)
+    only = next(iter(statuses)) if len(statuses) == 1 else None
+    print(f"  KEIN Code. {len(seen)} Antworten, Status {sorted(statuses)}, "
+          f"JSON-Body: {'ja' if any_json else 'nein'}")
+
+    if only == 404:
+        print("  -> Der Pfad existiert fuer UNSEREN Realm nicht. Hypothese")
+        print("     widerlegt.")
+    elif only == 401:
+        print("  -> Audience-Problem, KEINE Aussage ueber requestAuthCode.")
+        print("     Auf der mbb-Route wiederholen (siehe aud-Zeile oben).")
+    elif only == 403 and not any_json:
+        # The 2026-10-04 Audi run: four identical non-JSON 403s, including the
+        # variant without X-Client-Id. Uniform refusal with no OAuth error
+        # object is an edge/gateway rejection, not a client decision — so the
+        # earlier wording "endpoint lives, our client may not" overclaimed.
+        print("  -> Einheitlich 403 OHNE JSON-Fehlerobjekt, auch ohne")
+        print("     X-Client-Id. Nichts hat die OAuth-Schicht erreicht, das")
+        print("     sieht nach Abweisung am Gateway aus, NICHT nach einer")
+        print("     Client-Entscheidung. Der Pfad ist fuer uns nicht")
+        print("     bedienbar; WARUM bleibt offen. Hypothese NICHT bestaetigt.")
+    elif only == 403 and any_json:
+        print("  -> 403 MIT JSON-Fehlerobjekt: der Endpunkt hat geantwortet")
+        print("     und lehnt ab. Fehlercode oben lesen; Variante 4 (ohne")
+        print("     X-Client-Id) trennt Client-Recht von Form.")
+    elif 400 in statuses:
+        print("  -> Ein 400 kam zurueck: der Endpunkt lebt und liest die Form.")
+        print("     Der Fehlercode oben sagt, welches Feld fehlt.")
+    else:
+        print("  -> Gemischte Antworten. Die Status-Zeilen oben einzeln lesen:")
+        print("     404=Pfad fehlt, 400=Form falsch, 403=abgelehnt,")
+        print("     401=Audience passt nicht.")
+    print("=" * 64)
+
+
+# The route names the 2nd CLI argument accepts. Anything else is treated as a
+# raw client_id for ad-hoc probing.
+_ROUTE_NAMES = ("mbb", "mbb-backup", "app", "portal")
+
+
+def resolve_route(brand: str, arg2: str | None) -> tuple[str, str, str] | str:
+    """Pick the ``(client_id, scope, route)`` to mint with, or return an error.
+
+    The 2nd CLI arg names the ROUTE; it is NOT a client_id to paste. It used to
+    be one, and that invited pasting the WRONG client: the Audi *app* client,
+    whose device grant VW retired (#1364), answers
+    ``403 unauthorized_client — client is not allowed to use the device_code
+    grant``. That reads exactly like the probe refuting its own hypothesis,
+    when in truth nothing was probed at all.
+
+    The rejection is about the client, not the scope. A wire capture kept in
+    our local research archive (2026-09-07) shows that client refused while
+    sending ``openid mbb profile badge cars dealers vin`` — a scope carrying
+    both ``mbb`` and ``cars`` — and our own 2026-09-04 probe found it refused
+    across three scopes and six header shapes. So no scope rescues a retired
+    client, and a run on the app route cannot answer anything about
+    requestAuthCode.
+
+    The named routes read the same single sources of truth the config flow
+    reads, so each one is a client VW actually registered, together with the
+    scope registered for it.
+
+    Returns the triple on success, or an error message string to print.
+    """
+    from custom_components.vag_connect.cariad.auth._device_grant import (
+        DAG_ENABLED_BRANDS,
+        MBB_DAG_SCOPE,
+        mbb_dag_backup_config,
+        mbb_dag_config,
+        portal_dag_config,
+    )
+    from custom_components.vag_connect.cariad.models import BRANDS
+
+    # VW EU's *app* client is DAG-dead (unauthorized_client), but its
+    # EU-Data-Act *portal* client works at the same
+    # /oidc/v1/device_authorization endpoint (live-verified 2026-06-12) — so
+    # "volkswagen" falls through to the portal client here.
+    portal = portal_dag_config(brand)
+    mbb = mbb_dag_config(brand)
+
+    if arg2 is None:
+        # Default to the MBB route where the brand has one: this harness exists
+        # to test the MBB path, and for Audi the *app* route is a dead end —
+        # VW took that client's device grant down with the Auth0 migration
+        # (#1364, shipped as "Audi app login: attestation wall", and asserted
+        # in tests/test_1364_device_grant_retired.py).
+        route = ("mbb" if mbb is not None
+                 else "app" if brand in DAG_ENABLED_BRANDS
+                 else "portal")
+    else:
+        route = arg2 if arg2 in _ROUTE_NAMES else "override"
+
+    if route in ("mbb", "mbb-backup"):
+        # The e-Remote client + the load-bearing ``mbb`` scope: that scope is
+        # what makes identity.vwgroup.io put the MBB backend audience
+        # (VWGMBB01DELIV1) in the id_token instead of the OIDC client, which is
+        # what the exchange demands. Live-validated on a real Audi account
+        # 2026-08-30 (register 200 + durable refresh_token), so it covers Audi
+        # and not only VW.
+        cfg = mbb if route == "mbb" else mbb_dag_backup_config(brand)
+        if cfg is None:
+            return (f"[!] '{brand}' has no MBB device-grant route — the durable "
+                    f"MBB login is Car-Net only (Volkswagen, Audi). Try 'app' "
+                    f"or 'portal' as the 2nd argument.")
+        return cfg[0], cfg[1], route
+    if route == "app":
+        if brand not in DAG_ENABLED_BRANDS:
+            return (f"[!] '{brand}' has no app device-grant route. App-DAG: "
+                    f"{sorted(DAG_ENABLED_BRANDS)}.")
+        # Mirror the config flow exactly: the brand's OWN registered scope, not
+        # a hardcoded "openid profile" that drops claims the client is entitled
+        # to (Audi's registered scope already carries ``mbb``).
+        return BRANDS[brand].client_id, BRANDS[brand].scope, route
+    if route == "portal":
+        if portal is None:
+            return (f"[!] '{brand}' has no portal device-grant route "
+                    f"(portal-DAG: volkswagen/seat/cupra).")
+        return portal[0], portal[1], route
+    # Ad-hoc probing of a client this script does not know about. It gets the
+    # MBB scope, because that is the only reason to hand-probe here.
+    assert arg2 is not None  # noqa: S101 — narrowing; route == "override"
+    return arg2, MBB_DAG_SCOPE, route
+
+
 async def main(brand: str) -> int:
     from aiohttp import ClientSession
 
     from custom_components.vag_connect.cariad.auth import _mbboauth
     from custom_components.vag_connect.cariad.auth._device_grant import (
-        DAG_ENABLED_BRANDS,
         DeviceAuthorizationGrant,
-        portal_dag_config,
     )
-    from custom_components.vag_connect.cariad.models import BRANDS
 
-    # Optional 2nd CLI arg = an explicit client_id override (to test whether a
-    # specific client — e.g. the e-Remote 9496332b — is device-grant-able, so
-    # its id_token's aud matches what MBB wants).
-    override = sys.argv[2] if len(sys.argv) > 2 else None
-
-    # Resolve the device-grant client. VW EU's *app* client is DAG-dead
-    # (unauthorized_client), but its EU-Data-Act *portal* client works at the
-    # same /oidc/v1/device_authorization endpoint (live-verified 2026-06-12) —
-    # so "volkswagen" routes through the portal client here.
-    portal = portal_dag_config(brand)
-    if override:
-        # ``mbb`` scope is the key: it makes identity.vwgroup.io issue an
-        # id_token targeted at the MBB backend audience (VWGMBB01DELIV1) rather
-        # than the OIDC client — exactly what the e-Remote app requests and
-        # what the MBB token exchange demands (id_token.aud == VWGMBB01DELIV1).
-        # Audi's client doesn't allow the "cars" scope (myAudi scope set);
-        # "mbb" is the load-bearing one (adds VWGMBB01DELIV1 to the aud).
-        _ov_scope = ("openid profile mbb" if brand.lower() == "audi"
-                     else "openid profile mbb cars")
-        client_id, scope, route = override, _ov_scope, "override"
-    elif brand in DAG_ENABLED_BRANDS:
-        client_id, scope, route = BRANDS[brand].client_id, "openid profile", "app"
-    elif portal is not None:
-        client_id, scope, route = portal[0], portal[1], "portal"
-    else:
-        print(f"[!] '{brand}' has no device-grant route. App-DAG: "
-              f"{sorted(DAG_ENABLED_BRANDS)}; portal-DAG: volkswagen/seat/cupra.")
+    resolved = resolve_route(brand, sys.argv[2] if len(sys.argv) > 2 else None)
+    if isinstance(resolved, str):
+        print(resolved)
         return 2
+    client_id, scope, route = resolved
     print(f"[*] Brand: {brand}  route: {route}-device-grant  "
           f"client_id: {client_id[:8]}…  scope: {scope}")
 
+    # Same strategy tags the config flow stamps, so the TokenSet this harness
+    # mints is indistinguishable from a real one.
+    _strategy = {"portal": "device_grant_portal",
+                 "mbb": "mbb",
+                 "mbb-backup": "mbb"}.get(route, "device_grant")
     async with ClientSession() as session:
         dag = DeviceAuthorizationGrant(
-            session, client_id, scope=scope,
-            strategy="device_grant_portal" if route == "portal" else "device_grant",
+            session, client_id, scope=scope, strategy=_strategy,
         )
         print("[*] Requesting device code …", flush=True)
         dc = await dag.request_device_code()
@@ -544,6 +857,12 @@ async def main(brand: str) -> int:
         print(f"[*] id_token claims:  iss={claims.get('iss')}  "
               f"aud={claims.get('aud')}  azp={claims.get('azp')}")
 
+        # ── #1313/Audi-Watch: laeuft AUTOMATISCH, damit ein Tester nichts
+        #    Neues lernen muss. Vier begruendete Formen, fail-soft, druckt nur
+        #    Status/Fehlercode/Laenge. Siehe _request_auth_code_probe. ──
+        await _request_auth_code_probe(
+            session, tokens.id_token, client_id=client_id, brand=brand)
+
         # ── DECISIVE EXPERIMENT (when a VIN is passed as argv[3]): does the
         #    durable token actually READ data, and does the XID_APP_VW
         #    permission follow the register appId (e-Remote vs We Connect)? ──
@@ -563,10 +882,10 @@ async def main(brand: str) -> int:
         # ── Step 1: MBB register (the missing step). Classic Car-Net flow
         #    POSTs the id_token + app metadata to /mobile/register/v1 and gets
         #    back the X-Client-Id to use for the token exchange. ──
-        # Pin the register to the id_token's own aud so registered == aud.
-        aud = claims.get("aud")
-        aud_str = aud[0] if isinstance(aud, list) else aud
-        print(f"\n[*] MBB register/v1 (pinned client_id = aud {str(aud_str)[:8]}…) …",
+        # Pin the register to the MBB audience the production selector picks,
+        # so this harness exercises the shipped choice (see _mbb_aud).
+        aud_str = _mbb_aud(tokens.id_token)
+        print(f"\n[*] MBB register/v1 (pinned client_id = aud {str(aud_str)[:16]}…) …",
               flush=True)
         reg_client_id, reg_secret = await _mbb_register(
             session, tokens.id_token, desired_client_id=aud_str)
@@ -607,7 +926,9 @@ async def main(brand: str) -> int:
         #    'Audiences' error (now untruncated). ──
         candidates: dict[str, str] = {}
         if aud_str:
-            candidates["aud-as-clientid " + str(aud_str)[:8]] = str(aud_str)
+            # 16 chars, not 8: VWGMBB01DELIV1 and VWGMBB01CNAPP1 share their
+            # first eight, so a shorter label cannot say which one was tried.
+            candidates["aud-as-clientid " + str(aud_str)[:16]] = str(aud_str)
         if reg_client_id and reg_client_id != aud_str:
             candidates["REGISTERED " + reg_client_id[:8]] = reg_client_id
         candidates["shared mod2/eRemote 9523ee15"] = _mbboauth.MBB_SHARED_CLIENT_ID
@@ -641,5 +962,10 @@ if __name__ == "__main__":
             _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
         except Exception:  # noqa: BLE001
             pass
-    brand_arg = sys.argv[1].lower() if len(sys.argv) > 1 else "skoda"
-    raise SystemExit(asyncio.run(main(brand_arg)))
+    # No brand = print the usage. It used to default to "skoda", which has no
+    # device-grant route at all, so a bare run reported a dead brand the caller
+    # never asked for instead of saying what to pass.
+    if len(sys.argv) < 2:
+        print(__doc__)
+        raise SystemExit(2)
+    raise SystemExit(asyncio.run(main(sys.argv[1].lower())))
