@@ -3,13 +3,17 @@
 """Route resolution in the MBB DAG harness (2026-10-04).
 
 Why this file exists: the harness's 2nd CLI argument used to be a raw
-client_id, which the script then paired with a scope it guessed from the BRAND.
-Those two have to match — VW registers a client WITH a scope set — and when
-they don't, ``/device_authorization`` answers ``403 unauthorized_client``. That
-is indistinguishable, to a reader, from the probe having refuted its own
-hypothesis. It actually cost a real run: the Audi *app* client was pasted in,
-whose device grant VW retired with the Auth0 migration (#1364, asserted in
-``test_1364_device_grant_retired.py``), so nothing was probed at all.
+client_id, and that invited pasting the wrong one. It cost a real run — the
+Audi *app* client went in, whose device grant VW retired with the Auth0
+migration (#1364, asserted in ``test_1364_device_grant_retired.py``), so
+``/device_authorization`` answered ``403 unauthorized_client`` and nothing was
+probed at all. To a reader that is indistinguishable from the probe having
+refuted its own hypothesis.
+
+No scope rescues a retired client: a wire capture kept in our local research
+archive (2026-09-07) shows that same client refused while sending a scope
+carrying both ``mbb`` and ``cars``. So the route has to carry the right CLIENT;
+the scope rides along with it.
 
 So the argument now names a ROUTE, and each route reads the same single source
 of truth the config flow reads. These tests pin that the names map to the pairs

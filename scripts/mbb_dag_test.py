@@ -661,13 +661,23 @@ def resolve_route(brand: str, arg2: str | None) -> tuple[str, str, str] | str:
     """Pick the ``(client_id, scope, route)`` to mint with, or return an error.
 
     The 2nd CLI arg names the ROUTE; it is NOT a client_id to paste. It used to
-    be one, and that is a trap: a hand-typed client_id silently pairs with a
-    scope the script guessed from the BRAND, and the client and the scope have
-    to match. Get it wrong and ``/device_authorization`` answers
-    ``403 unauthorized_client`` — which reads exactly like the probe refuting
-    its own hypothesis, when in truth nothing was probed at all. The named
-    routes read the same single sources of truth the config flow reads, so the
-    pair is always one VW actually registered together.
+    be one, and that invited pasting the WRONG client: the Audi *app* client,
+    whose device grant VW retired (#1364), answers
+    ``403 unauthorized_client — client is not allowed to use the device_code
+    grant``. That reads exactly like the probe refuting its own hypothesis,
+    when in truth nothing was probed at all.
+
+    The rejection is about the client, not the scope. A wire capture kept in
+    our local research archive (2026-09-07) shows that client refused while
+    sending ``openid mbb profile badge cars dealers vin`` — a scope carrying
+    both ``mbb`` and ``cars`` — and our own 2026-09-04 probe found it refused
+    across three scopes and six header shapes. So no scope rescues a retired
+    client, and a run on the app route cannot answer anything about
+    requestAuthCode.
+
+    The named routes read the same single sources of truth the config flow
+    reads, so each one is a client VW actually registered, together with the
+    scope registered for it.
 
     Returns the triple on success, or an error message string to print.
     """
