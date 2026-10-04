@@ -42,6 +42,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Trip and consumption figures for Car-Net cars on the volkswagen.de channel (#1313, thanks @realynot).**
+  Older Volkswagens whose data comes through the volkswagen.de channel now get their three trip-computer memories:
+  the last trip, the cumulative long-term one, and the distance since refuelling — each with distance, duration,
+  average speed and average consumption, fuel and electric separately. These are the figures the car shows on its
+  own display and the website shows online, and on these cars the EU Data Act portal does not deliver them at all.
+  @realynot captured all three from his Tiguan in one session a month ago, including the awkward cases: a downhill
+  trip where the electric consumption is **negative** because the car recovered more than it used (the website shows
+  that too, and the sign is kept), a leg driven purely on electricity where the fuel figure is simply absent, and a
+  month of individual trips that arrive in no particular order, so the newest is picked by its timestamp rather than
+  by position.
+
 ### Changed
 - **The "Volkswagen.de channel needs re-login" notice now has a Fix button that takes you straight to the login (#1717, thanks @Ra72xx).**
   Volkswagen asks for the e-mail one-time code again every few weeks, and until now the notice about it only told you

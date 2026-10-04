@@ -161,6 +161,35 @@ def build_fuel_url(vin: str, gdc: str | None = None) -> str:
     )
 
 
+def build_tripdata_url(
+    vin: str, trip_type: str, gdc: str | None = None, *, last: bool = True
+) -> str:
+    """Trip-computer memories (``tripdata/{type}``) — the MBB consumption source.
+
+    #1313: @realynot captured all three surfaces in one session on a 2023 Tiguan
+    eHybrid, with the CSRF double-submit this channel already sends. They answer
+    200 on the same realm / gdc / resource host as the fuel and maintenance
+    reads, so they ride the session that already works.
+
+    ``trip_type`` is ``cyclic`` (refuel cycle), ``shortterm`` (the last trip) or
+    ``longterm`` (cumulative) — the spelling the URL uses, lowercase and
+    unseparated, which is NOT the ``tripType`` spelling inside the body
+    (``shortTerm`` / ``longTerm``).
+
+    ``last=True`` asks for the single newest memory, which is all the sensors
+    need. Without it the endpoint answers a window of individual trips — 17 on
+    his month — which the parser also accepts, but polling a month of history
+    every cycle would be wasteful for a reading that is one object.
+    """
+    tail = f"vehicles/{vin}/tripdata/{trip_type}"
+    return build_authproxy_url(
+        f"{tail}/last" if last else tail,
+        realm=_REALM_VWDE,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=gdc or _GDC_WCAR,
+    )
+
+
 def build_parkingposition_url(vin: str, gdc: str | None = None) -> str:
     """Last-parked GPS position (``parkingposition``) — EXPERIMENTAL / UNCONFIRMED.
 

@@ -53,6 +53,11 @@ def test_charging_wall_does_not_skip_maintenance() -> None:
         # keeps testing what it is about (a charging wall not costing the
         # maintenance read) rather than the new read's own behaviour.
         AuthenticationError("fuel 403"),
+        # #1313 — likewise the three trip memories: walled so this test stays
+        # about the charging wall, not about the new reads.
+        AuthenticationError("tripdata shortterm 403"),
+        AuthenticationError("tripdata longterm 403"),
+        AuthenticationError("tripdata cyclic 403"),
     ])
     seen = {}
 
@@ -74,6 +79,10 @@ def test_both_core_walls_and_empty_tail_reraises() -> None:
         AuthenticationError("charging 401"),
         AuthenticationError("maintenance 401"),
         AuthenticationError("fuel 401"),  # #1313 — the third core read
+        # #1313 — and the three trip memories, each with its own guard.
+        AuthenticationError("tripdata shortterm 401"),
+        AuthenticationError("tripdata longterm 401"),
+        AuthenticationError("tripdata cyclic 401"),
     ])
     with pytest.raises(AuthenticationError):
         asyncio.run(c.get_vehicle_data(VIN))
