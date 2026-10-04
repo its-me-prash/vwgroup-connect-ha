@@ -11,12 +11,26 @@ legacy MBB path mints a durable refreshable token past the Play-Integrity wall.
 
 NEVER prints tokens — only lengths, booleans and HTTP status codes.
 
-Usage:  python scripts/mbb_dag_test.py <brand> [client_id] [vin]
-        Device-grant-faehig: audi, audi_na, seat, cupra. 'skoda' hat KEINE
-        Route und bricht mit Code 2 ab.
-        Fuer die MBB-Proben das client_id-Argument SETZEN: es schaltet den
-        Scope auf 'openid profile mbb', und nur der legt die von MBB
-        verlangte Audience VWGMBB01DELIV1 in den id_token.
+Usage:  python scripts/mbb_dag_test.py <brand> [route] [vin]
+
+        <brand>  volkswagen, audi, audi_na, seat, cupra. 'skoda' has no route
+                 at all and exits with code 2.
+        [route]  WHICH client+scope pair to use. Omit it: 'mbb' is chosen for
+                 the Car-Net brands (volkswagen, audi), otherwise 'app'.
+                   mbb         the e-Remote client + the 'mbb' scope -- the only
+                               pair that puts MBB's own audience
+                               (VWGMBB01DELIV1) in the id_token, which the
+                               exchange requires. The default, and the one the
+                               MBB probes need.
+                   mbb-backup  the failover client for the same scope.
+                   app         the brand's own app client. For Audi this is a
+                               dead end: VW took that client's device grant
+                               down with the Auth0 migration (#1364), so
+                               /device_authorization answers 403.
+                   portal      the EU-Data-Act portal client (read-only).
+                 A raw client_id is still accepted for ad-hoc probing and is
+                 then paired with the MBB scope.
+        [vin]    optional, adds the host/VSR hunt.
 """
 
 from __future__ import annotations
@@ -552,8 +566,8 @@ async def _request_auth_code_probe(
         print("  [!] WARNUNG: id_token.aud enthaelt KEINE VWGMBB-Audience")
         print(f"      aud = {_aud}")
         print("      -> Ein 401 unten ist dann ein Audience-Problem, KEINE")
-        print("         Aussage ueber requestAuthCode. Lauf mit Scope mbb")
-        print("         wiederholen: zweites Argument = client_id.")
+        print("         Aussage ueber requestAuthCode. Lauf auf der mbb-Route")
+        print("         wiederholen: zweites Argument = mbb.")
     else:
         print(f"  [ok] id_token.aud traegt eine VWGMBB-Audience: {_aud_list}")
 
@@ -638,52 +652,109 @@ async def _request_auth_code_probe(
     print("=" * 64)
 
 
+# The route names the 2nd CLI argument accepts. Anything else is treated as a
+# raw client_id for ad-hoc probing.
+_ROUTE_NAMES = ("mbb", "mbb-backup", "app", "portal")
+
+
+def resolve_route(brand: str, arg2: str | None) -> tuple[str, str, str] | str:
+    """Pick the ``(client_id, scope, route)`` to mint with, or return an error.
+
+    The 2nd CLI arg names the ROUTE; it is NOT a client_id to paste. It used to
+    be one, and that is a trap: a hand-typed client_id silently pairs with a
+    scope the script guessed from the BRAND, and the client and the scope have
+    to match. Get it wrong and ``/device_authorization`` answers
+    ``403 unauthorized_client`` — which reads exactly like the probe refuting
+    its own hypothesis, when in truth nothing was probed at all. The named
+    routes read the same single sources of truth the config flow reads, so the
+    pair is always one VW actually registered together.
+
+    Returns the triple on success, or an error message string to print.
+    """
+    from custom_components.vag_connect.cariad.auth._device_grant import (
+        DAG_ENABLED_BRANDS,
+        MBB_DAG_SCOPE,
+        mbb_dag_backup_config,
+        mbb_dag_config,
+        portal_dag_config,
+    )
+    from custom_components.vag_connect.cariad.models import BRANDS
+
+    # VW EU's *app* client is DAG-dead (unauthorized_client), but its
+    # EU-Data-Act *portal* client works at the same
+    # /oidc/v1/device_authorization endpoint (live-verified 2026-06-12) — so
+    # "volkswagen" falls through to the portal client here.
+    portal = portal_dag_config(brand)
+    mbb = mbb_dag_config(brand)
+
+    if arg2 is None:
+        # Default to the MBB route where the brand has one: this harness exists
+        # to test the MBB path, and for Audi the *app* route is a dead end —
+        # VW took that client's device grant down with the Auth0 migration
+        # (#1364, shipped as "Audi app login: attestation wall", and asserted
+        # in tests/test_1364_device_grant_retired.py).
+        route = ("mbb" if mbb is not None
+                 else "app" if brand in DAG_ENABLED_BRANDS
+                 else "portal")
+    else:
+        route = arg2 if arg2 in _ROUTE_NAMES else "override"
+
+    if route in ("mbb", "mbb-backup"):
+        # The e-Remote client + the load-bearing ``mbb`` scope: that scope is
+        # what makes identity.vwgroup.io put the MBB backend audience
+        # (VWGMBB01DELIV1) in the id_token instead of the OIDC client, which is
+        # what the exchange demands. Live-validated on a real Audi account
+        # 2026-08-30 (register 200 + durable refresh_token), so it covers Audi
+        # and not only VW.
+        cfg = mbb if route == "mbb" else mbb_dag_backup_config(brand)
+        if cfg is None:
+            return (f"[!] '{brand}' has no MBB device-grant route — the durable "
+                    f"MBB login is Car-Net only (Volkswagen, Audi). Try 'app' "
+                    f"or 'portal' as the 2nd argument.")
+        return cfg[0], cfg[1], route
+    if route == "app":
+        if brand not in DAG_ENABLED_BRANDS:
+            return (f"[!] '{brand}' has no app device-grant route. App-DAG: "
+                    f"{sorted(DAG_ENABLED_BRANDS)}.")
+        # Mirror the config flow exactly: the brand's OWN registered scope, not
+        # a hardcoded "openid profile" that drops claims the client is entitled
+        # to (Audi's registered scope already carries ``mbb``).
+        return BRANDS[brand].client_id, BRANDS[brand].scope, route
+    if route == "portal":
+        if portal is None:
+            return (f"[!] '{brand}' has no portal device-grant route "
+                    f"(portal-DAG: volkswagen/seat/cupra).")
+        return portal[0], portal[1], route
+    # Ad-hoc probing of a client this script does not know about. It gets the
+    # MBB scope, because that is the only reason to hand-probe here.
+    assert arg2 is not None  # noqa: S101 — narrowing; route == "override"
+    return arg2, MBB_DAG_SCOPE, route
+
+
 async def main(brand: str) -> int:
     from aiohttp import ClientSession
 
     from custom_components.vag_connect.cariad.auth import _mbboauth
     from custom_components.vag_connect.cariad.auth._device_grant import (
-        DAG_ENABLED_BRANDS,
         DeviceAuthorizationGrant,
-        portal_dag_config,
     )
-    from custom_components.vag_connect.cariad.models import BRANDS
 
-    # Optional 2nd CLI arg = an explicit client_id override (to test whether a
-    # specific client — e.g. the e-Remote 9496332b — is device-grant-able, so
-    # its id_token's aud matches what MBB wants).
-    override = sys.argv[2] if len(sys.argv) > 2 else None
-
-    # Resolve the device-grant client. VW EU's *app* client is DAG-dead
-    # (unauthorized_client), but its EU-Data-Act *portal* client works at the
-    # same /oidc/v1/device_authorization endpoint (live-verified 2026-06-12) —
-    # so "volkswagen" routes through the portal client here.
-    portal = portal_dag_config(brand)
-    if override:
-        # ``mbb`` scope is the key: it makes identity.vwgroup.io issue an
-        # id_token targeted at the MBB backend audience (VWGMBB01DELIV1) rather
-        # than the OIDC client — exactly what the e-Remote app requests and
-        # what the MBB token exchange demands (id_token.aud == VWGMBB01DELIV1).
-        # Audi's client doesn't allow the "cars" scope (myAudi scope set);
-        # "mbb" is the load-bearing one (adds VWGMBB01DELIV1 to the aud).
-        _ov_scope = ("openid profile mbb" if brand.lower() == "audi"
-                     else "openid profile mbb cars")
-        client_id, scope, route = override, _ov_scope, "override"
-    elif brand in DAG_ENABLED_BRANDS:
-        client_id, scope, route = BRANDS[brand].client_id, "openid profile", "app"
-    elif portal is not None:
-        client_id, scope, route = portal[0], portal[1], "portal"
-    else:
-        print(f"[!] '{brand}' has no device-grant route. App-DAG: "
-              f"{sorted(DAG_ENABLED_BRANDS)}; portal-DAG: volkswagen/seat/cupra.")
+    resolved = resolve_route(brand, sys.argv[2] if len(sys.argv) > 2 else None)
+    if isinstance(resolved, str):
+        print(resolved)
         return 2
+    client_id, scope, route = resolved
     print(f"[*] Brand: {brand}  route: {route}-device-grant  "
           f"client_id: {client_id[:8]}…  scope: {scope}")
 
+    # Same strategy tags the config flow stamps, so the TokenSet this harness
+    # mints is indistinguishable from a real one.
+    _strategy = {"portal": "device_grant_portal",
+                 "mbb": "mbb",
+                 "mbb-backup": "mbb"}.get(route, "device_grant")
     async with ClientSession() as session:
         dag = DeviceAuthorizationGrant(
-            session, client_id, scope=scope,
-            strategy="device_grant_portal" if route == "portal" else "device_grant",
+            session, client_id, scope=scope, strategy=_strategy,
         )
         print("[*] Requesting device code …", flush=True)
         dc = await dag.request_device_code()
@@ -815,5 +886,10 @@ if __name__ == "__main__":
             _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
         except Exception:  # noqa: BLE001
             pass
-    brand_arg = sys.argv[1].lower() if len(sys.argv) > 1 else "skoda"
-    raise SystemExit(asyncio.run(main(brand_arg)))
+    # No brand = print the usage. It used to default to "skoda", which has no
+    # device-grant route at all, so a bare run reported a dead brand the caller
+    # never asked for instead of saying what to pass.
+    if len(sys.argv) < 2:
+        print(__doc__)
+        raise SystemExit(2)
+    raise SystemExit(asyncio.run(main(sys.argv[1].lower())))

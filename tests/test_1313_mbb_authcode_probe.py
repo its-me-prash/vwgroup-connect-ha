@@ -241,7 +241,12 @@ def test_a_token_without_the_mbb_audience_is_called_out(
     out = capsys.readouterr().out
     assert "WARNUNG" in out
     assert "VWGMBB" in out
-    assert "client_id" in out, "the fix is not spelled out"
+    # The fix has to be spelled out, and spelled out CORRECTLY: naming the
+    # "mbb" route, not "pass a client_id". Pasting the Audi app client is what
+    # this warning used to advise, and that client's device grant is retired
+    # (#1364) — the advice sent the reader into a 403 instead of a result.
+    assert "mbb" in out, "the fix is not spelled out"
+    assert "client_id" not in out, "still advises pasting a client_id"
 
 
 def test_a_token_with_the_mbb_audience_is_confirmed(
