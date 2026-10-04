@@ -48,7 +48,19 @@ from .screen import (
     tap_point_for,
 )
 from .transport import CompanionTransportError, NetworkAdbTransport
-from .resources import find_battery_control, find_battery_tile, read_battery_resources
+from .resources import (
+    find_battery_control,
+    find_battery_tile,
+    find_settings_entry,
+    read_battery_resources,
+)
+from .charge_target import (
+    ChargeTargetRow,
+    find_charge_target_row,
+    find_save_button,
+    is_syncing,
+    snap_target,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +86,9 @@ _NAV_READ_INTERVAL_S = 900.0       # C9: a forward-nav READ (into charge detail)
                                    # runs at most every 15 min, NOT every poll —
                                    # it taps the app, so it stays infrequent and
                                    # the value is cached in between
+_SLIDER_TRIES = 3                  # charge-limit taps, each read back, before
+                                   # giving up without saving
+_SAVE_POLLS = 15                   # dumps to wait for the app to confirm a save
 
 
 class CompanionWriteBlocked(RuntimeError):
@@ -414,6 +429,8 @@ class CompanionChannel:
             node = find_node_for(nodes, step)
             if step.action == "open_charge_detail" and node is None:
                 node = find_battery_tile(nodes, self._battery_strings)
+            if step.action == "open_vehicle_settings" and node is None:
+                node = find_settings_entry(nodes, self._battery_strings)
             point = tap_point_for(node, step.tap_fraction) if node is not None else None
             if point is None:
                 _LOGGER.debug(
@@ -619,6 +636,174 @@ class CompanionChannel:
         Raises ``CompanionWriteBlocked`` with a clear reason rather than tapping
         into the dark. That reason is what the coordinator surfaces to the user.
         """
+        if action == "set_charge_target":
+            raise CompanionWriteBlocked("the charge limit needs a target value")
+        spec, nodes = await self._command_gate(action)
+        walked = 0
+        nav = next((n for n in self._preset.nav_reads if n.name == spec.nav_read), None)
+        try:
+            if spec.nav_read:
+                if nav is None:
+                    raise CompanionWriteBlocked("command detail path is not mapped")
+                # A detail already open needs no forward tap. The SoC node
+                # proves this is the charge sheet, not an overview label.
+                on_detail = any(
+                    n.resource_id == "rangeArcBatterySoc"
+                    or n.resource_id.endswith("/rangeArcBatterySoc") for n in nodes
+                )
+                if not on_detail:
+                    detail, walked = await self._walk_to_detail(nav.path)
+                    if detail is None:
+                        raise CompanionWriteBlocked("could not open the charge detail")
+                    nodes = detail
+            if find_rate_limit_banner(nodes, self._preset) is not None:
+                self._trip_rate_limit()
+                raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
+            if self._battery_strings and action in ("start_charging", "stop_charging"):
+                node = find_battery_control(nodes, self._battery_strings, action)
+            else:
+                node = find_action_node(nodes, self._preset, action)
+                # The Compose enabled flag stays true even for a disabled CTA
+                # (@gszigethy, target reached). Its hint is the actual gate.
+                if node is not None and "Check charging status" in node.content_desc:
+                    node = None
+            if node is None or node.tap_point is None:
+                raise CompanionWriteBlocked(
+                    f"could not find the '{action}' control on the current screen"
+                )
+            # Prevent repeated taps even if a transport fails after delivery.
+            self._last_write_at = self._now()
+            # Re-read this command's own detail path on the next poll: a
+            # delivered tap is not proof that the vehicle accepted it, and the
+            # cached pre-command values are not readback. Other paths keep
+            # their cadence, so a command never triggers a walk of every screen.
+            if nav is not None:
+                for value in nav.values:
+                    self._nav_cache.pop(value.target, None)
+                self._nav_only.add(nav.name)
+            await self._t.tap(*node.tap_point)
+        except CompanionTransportError as err:
+            raise CompanionWriteBlocked(str(err)) from err
+        finally:
+            if nav is not None:
+                await self._return_to_overview(min(walked, nav.back_presses))
+
+    async def set_charge_target(self, target: float) -> int:
+        """Set the vehicle Settings charge limit; returns the value saved.
+
+        The slider snaps to 50 … 100 % in 10 % steps, so the request is snapped
+        the same way. Moving the slider sends nothing; Save does. Every slider
+        tap is read back from the row's own percentage before Save is pressed,
+        and the change counts only once the app leaves edit mode with the new
+        value on screen.
+        """
+        async with self._screen_lock:
+            return await self._set_charge_target_serialized(snap_target(target))
+
+    async def _set_charge_target_serialized(self, target: int) -> int:
+        spec, nodes = await self._command_gate("set_charge_target")
+        nav = next((n for n in self._preset.nav_reads if n.name == spec.nav_read), None)
+        if nav is None:
+            raise CompanionWriteBlocked("the vehicle Settings path is not mapped")
+        try:
+            row = find_charge_target_row(nodes)
+            if row is None:
+                detail, _walked = await self._walk_to_detail(nav.path)
+                row = find_charge_target_row(detail) if detail is not None else None
+            if row is None:
+                raise CompanionWriteBlocked(
+                    "could not find the charge limit on the vehicle Settings screen"
+                )
+            if row.current == target:
+                return target  # nothing to change, nothing sent
+            await self._move_charge_slider(row, target)
+            # Save is the one tap that sends. Stamp first, so a transport that
+            # fails after delivery still blocks an immediate repeat.
+            nodes, _cleared = await self._dump_and_clear_overlays()
+            save = find_save_button(nodes)
+            if save is None or save.tap_point is None:
+                raise CompanionWriteBlocked("the app did not offer Save for the new limit")
+            self._last_write_at = self._now()
+            self._nav_cache.pop("target_soc", None)
+            await self._t.tap(*save.tap_point)
+            await self._await_charge_target_saved(target)
+            self._nav_cache["target_soc"] = target
+            return target
+        except CompanionTransportError as err:
+            raise CompanionWriteBlocked(str(err)) from err
+        finally:
+            # The app's own toolbar button: Back after a save, and Cancel (which
+            # discards the unsaved position) if anything stopped us before it.
+            await self._return_to_overview(2)
+
+    async def _move_charge_slider(self, row: ChargeTargetRow, target: int) -> None:
+        """Tap the track until the row reads ``target``; a tap sends nothing."""
+        aim = target
+        for _ in range(_SLIDER_TRIES):
+            await self._t.tap(*row.tap_point(aim))
+            nodes, cleared = await self._dump_and_clear_overlays()
+            seen = find_charge_target_row(nodes)
+            if seen is None and not cleared:
+                raise CompanionWriteBlocked("a dialog covered the charge limit")
+            if seen is None:
+                # A Compose screen can be caught half-drawn; look once more
+                # before deciding something is in the way.
+                settled = await self._settle()
+                seen = find_charge_target_row(parse_ui_dump(settled or ""))
+            if seen is None:
+                # The Battery Care note can open over the row once, after the
+                # value is already set. It is information, not a question; the
+                # one BACK closes only it, and the row must then be there again.
+                await self._t.key_back()
+                nodes, _cleared = await self._dump_and_clear_overlays()
+                seen = find_charge_target_row(nodes)
+                if seen is None:
+                    raise CompanionWriteBlocked(
+                        "the app showed a note over the charge limit that did not close"
+                    )
+            if seen.current == target:
+                return
+            # Correct by what the slider actually did; the steps are wide, so
+            # this only matters if the layout drifted.
+            aim = snap_target(aim + (target - seen.current))
+            row = seen
+        raise CompanionWriteBlocked(
+            f"the charge limit slider did not reach {target} %; nothing was saved"
+        )
+
+    async def _await_charge_target_saved(self, target: int) -> None:
+        """Wait for the app to finish sending; fail unless it confirms."""
+        for _ in range(_SAVE_POLLS):
+            nodes, _cleared = await self._dump_and_clear_overlays()
+            if find_rate_limit_banner(nodes, self._preset) is not None:
+                self._trip_rate_limit()
+                raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
+            if is_syncing(nodes):
+                continue
+            if self._preset.screen_anchor is not None and has_anchor(nodes, self._preset):
+                return  # the app closed Settings after saving
+            row = find_charge_target_row(nodes)
+            if row is not None and find_save_button(nodes) is None:
+                if row.current == target:
+                    return
+                raise CompanionWriteBlocked(
+                    f"the app shows {row.current} % after saving, not {target} %"
+                )
+            if row is None:
+                # Neither Settings nor the overview: the app's error screen.
+                raise CompanionWriteBlocked(
+                    "the app reported a problem saving the charge limit"
+                )
+        raise CompanionWriteBlocked(
+            "the app did not confirm saving the charge limit; check it in the app"
+        )
+
+    async def _command_gate(self, action: str) -> tuple[ActionSelector, list[UiNode]]:
+        """Every guard a command passes before its first tap.
+
+        Returns the action's selector and the current screen with any nag
+        screen cleared.
+        """
         if action not in ACTION_TO_COMMAND:
             raise CompanionWriteBlocked(f"unknown companion action: {action}")
         if not self._preset.writable:
@@ -686,51 +871,4 @@ class CompanionChannel:
         if find_rate_limit_banner(nodes, self._preset) is not None:
             self._trip_rate_limit()
             raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
-        walked = 0
-        nav = next((n for n in self._preset.nav_reads if n.name == spec.nav_read), None)
-        try:
-            if spec.nav_read:
-                if nav is None:
-                    raise CompanionWriteBlocked("command detail path is not mapped")
-                # A detail already open needs no forward tap. The SoC node
-                # proves this is the charge sheet, not an overview label.
-                on_detail = any(
-                    n.resource_id == "rangeArcBatterySoc"
-                    or n.resource_id.endswith("/rangeArcBatterySoc") for n in nodes
-                )
-                if not on_detail:
-                    detail, walked = await self._walk_to_detail(nav.path)
-                    if detail is None:
-                        raise CompanionWriteBlocked("could not open the charge detail")
-                    nodes = detail
-            if find_rate_limit_banner(nodes, self._preset) is not None:
-                self._trip_rate_limit()
-                raise CompanionWriteBlocked("a rate-limit banner is up; commands paused")
-            if self._battery_strings and action in ("start_charging", "stop_charging"):
-                node = find_battery_control(nodes, self._battery_strings, action)
-            else:
-                node = find_action_node(nodes, self._preset, action)
-                # The Compose enabled flag stays true even for a disabled CTA
-                # (@gszigethy, target reached). Its hint is the actual gate.
-                if node is not None and "Check charging status" in node.content_desc:
-                    node = None
-            if node is None or node.tap_point is None:
-                raise CompanionWriteBlocked(
-                    f"could not find the '{action}' control on the current screen"
-                )
-            # Prevent repeated taps even if a transport fails after delivery.
-            self._last_write_at = self._now()
-            # Re-read this command's own detail path on the next poll: a
-            # delivered tap is not proof that the vehicle accepted it, and the
-            # cached pre-command values are not readback. Other paths keep
-            # their cadence, so a command never triggers a walk of every screen.
-            if nav is not None:
-                for value in nav.values:
-                    self._nav_cache.pop(value.target, None)
-                self._nav_only.add(nav.name)
-            await self._t.tap(*node.tap_point)
-        except CompanionTransportError as err:
-            raise CompanionWriteBlocked(str(err)) from err
-        finally:
-            if nav is not None:
-                await self._return_to_overview(min(walked, nav.back_presses))
+        return spec, nodes

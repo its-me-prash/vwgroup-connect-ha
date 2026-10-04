@@ -534,6 +534,12 @@ class TestPresetShape:
     def test_only_grounded_battery_commands_are_mapped(self) -> None:
         # #968 idle/active Golf GTE and Tiguan captures ground these controls.
         # Other command families stay quarantined and older versions read only.
-        assert {a.action for a in _VW.actions} == {"start_charging", "stop_charging"}
-        assert all(a.nav_read == "charge_detail" for a in _VW.actions)
+        assert {a.action for a in _VW.actions} == {
+            "start_charging", "stop_charging", "set_charge_target",
+        }
+        assert {a.action: a.nav_read for a in _VW.actions} == {
+            "start_charging": "charge_detail",
+            "stop_charging": "charge_detail",
+            "set_charge_target": "vehicle_settings",
+        }
         assert all(a.app_versions == ("4.3.2",) for a in _VW.actions)

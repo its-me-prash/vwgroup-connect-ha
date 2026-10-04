@@ -428,6 +428,15 @@ _VW = BrandPreset(
             nav_read="charge_detail",
             app_versions=("4.3.2",),
         ),
+        # @gszigethy Tiguan, 4.3.2: the "Charging up to" slider on vehicle
+        # Settings. The slider has no node; companion/charge_target.py places
+        # the tap from its neighbours and sends with the toolbar's Save.
+        ActionSelector(
+            action="set_charge_target",
+            resource_id="vwd_save_button",
+            nav_read="vehicle_settings",
+            app_versions=("4.3.2",),
+        ),
     ),
     # v2.26.0 (C9) — charge target / power / remaining-time live behind the
     # range tile (ckomma's set_charging taps range_tile_center to reach the
@@ -1085,6 +1094,7 @@ def coerce(parse: str, raw: str | None) -> object | None:
 # The logical write actions the channel understands, mapped to the coordinator
 # command names. Only actions listed here can ever be dispatched.
 ACTION_TO_COMMAND: dict[str, str] = {
+    "set_charge_target": "command_set_target_soc",
     "start_climate": "command_start_climate",
     "stop_climate": "command_stop_climate",
     "start_charging": "command_start_charging",

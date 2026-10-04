@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Read battery labels from the installed app's compiled translation tables.
+"""Read battery and Settings labels from the installed app's compiled translation tables.
 
 Resource names are stable across locales; their values come from the phone,
 not a translated word list. Only simple string entries are read. No APK code,
@@ -15,6 +15,9 @@ from .presets import coerce
 from .screen import UiNode
 
 StringResources = dict[str, set[str]]
+
+# Single labels read besides the range tile and charge sheet families.
+_SINGLE_KEYS = frozenset({"acc_common_hint_details", "acc_vehicle_tab_label_settings"})
 
 
 def _pool(data: bytes, offset: int) -> list[str]:
@@ -98,7 +101,7 @@ def extract_battery_strings(data: bytes) -> StringResources:
                             if ef & 9 or es < 8:  # complex/compact entry
                                 continue
                             name = keys[key]
-                            if name != "acc_common_hint_details" and not name.startswith(("acc_vehicle_tab_range_tile_", "acc_range_modal_")):
+                            if name not in _SINGLE_KEYS and not name.startswith(("acc_vehicle_tab_range_tile_", "acc_range_modal_")):
                                 continue
                             value = entry + es
                             if value + 8 > child + cs:
@@ -205,6 +208,17 @@ def find_battery_control(nodes: list[UiNode], resources: StringResources, action
 def find_battery_tile(nodes: list[UiNode], resources: StringResources) -> UiNode | None:
     """The translated range overview plus Open details proves a tile, not an arc."""
     labels = resources.get("acc_vehicle_tab_range_tile_label", set())
+    hints = resources.get("acc_common_hint_details", set())
+    return next((
+        node for node in nodes if node.enabled and node.tap_point
+        and any(node.content_desc.startswith(label + ".") for label in labels)
+        and any(node.content_desc.rstrip(".").endswith(hint) for hint in hints)
+    ), None)
+
+
+def find_settings_entry(nodes: list[UiNode], resources: StringResources) -> UiNode | None:
+    """The overview's vehicle Settings row, by its translated label and hint."""
+    labels = resources.get("acc_vehicle_tab_label_settings", set())
     hints = resources.get("acc_common_hint_details", set())
     return next((
         node for node in nodes if node.enabled and node.tap_point

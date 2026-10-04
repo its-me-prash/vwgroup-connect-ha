@@ -255,6 +255,30 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
         "auxheat_target_temp": 21.0,
     }
 
+    def _client_bounds(self) -> tuple[float, float, float] | None:
+        """(min, max, step) when the client's control is narrower than the
+        description's, e.g. the companion's 50 … 100 % slider in 10 % steps."""
+        if self.entity_description.key != "target_soc":
+            return None
+        client = getattr(self.coordinator, "_cariad_client", None)
+        bounds = getattr(client, "target_soc_bounds", None)
+        return bounds if isinstance(bounds, tuple) and len(bounds) == 3 else None
+
+    @property
+    def native_min_value(self) -> float:
+        bounds = self._client_bounds()
+        return bounds[0] if bounds else super().native_min_value
+
+    @property
+    def native_max_value(self) -> float:
+        bounds = self._client_bounds()
+        return bounds[1] if bounds else super().native_max_value
+
+    @property
+    def native_step(self) -> float | None:
+        bounds = self._client_bounds()
+        return bounds[2] if bounds else super().native_step
+
     @property
     def native_value(self) -> float | None:
         key = self.entity_description.key

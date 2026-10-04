@@ -13,7 +13,8 @@ an add-on update, an APK decoder installed in HA, or a new Python dependency.
 | Battery % | `battery_soc` sensor | Actual battery percentage, separate from the charge target. Enable the existing charge-detail read option when the overview omits it. |
 | Petrol range | `combustion_range_km` sensor | Read separately from electric range. Evidence of petrol range unlocks the existing PHEV/combustion entities. |
 | Charging state | `charging_state` sensor and `is_charging` binary sensor | Target reached is not active charging; translated resource states map to consistent values. |
-| Upper charge limit | `target_soc` sensor | Optional: shown on the Tiguan and ID.4 captures, absent on the Mk8 Golf GTE. This PR reads the limit; changing its slider belongs to the settings feature. |
+| Upper charge limit | `target_soc` sensor | Optional: shown on the Tiguan and ID.4 captures, absent on the Mk8 Golf GTE. |
+| Set the charge limit | Existing `target_soc` number, `command_set_target_soc` | The "Charging up to (50-100%)" slider on vehicle Settings: 50 … 100 % in 10 % steps, then Save. See below. Only app 4.3.2 is armed. |
 | Start/Stop charging | Existing charging switch and charging services | Open battery detail, match the requested CTA, tap once, and return. Only app 4.3.2 is armed. No climate command is enabled. |
 | Power, speed, remaining time | Existing charging sensors | Filled only where the app exposes them. Spoken units, zero/one plural forms, and the period in “hours and. …” are handled. |
 
@@ -45,6 +46,40 @@ provide the real state. Real vehicle command testing is still pending.
   cached values are dropped, and only that path is re-read on the next poll.
   The other opted-in paths (Vehicle Health, map, …) keep their cadence, so a
   command never triggers a walk through every screen.
+
+## Charge limit (vehicle Settings)
+
+The existing charge-limit number entity is offered with the slider's own
+range, 50 … 100 % in 10 % steps; a value in between is rounded to the nearest
+step (75 → 80).
+
+- **Path.** Overview → the Settings row → the slider → Save → the app's back
+  arrow. The Settings row is matched by the installed translation of
+  `acc_vehicle_tab_label_settings` plus the "Open details" hint, with the
+  existing English/German pattern as the fallback.
+- **No pixels from one phone.** The slider (`GradientSlider`, a Material
+  `Slider`) has no node in the UIAutomator tree. Its neighbours do, and the
+  installed 4.3.2 layout fixes the track between them: `subtitle` sits 40 dp
+  from the screen edge, which gives the scale on the phone itself; the track
+  starts 6 dp after `subtitle` and ends 26 dp before `value`; `value` is
+  centred on it. This was checked against the slider's real bounds
+  (`dumpsys activity top`) at display densities 320, 420 and 560 on the
+  Tiguan phone: the prediction is within 1 px every time, for track widths of
+  776, 680 and 550 px.
+- **Read back before sending.** Moving the slider sends nothing; the app keeps
+  the value on screen and shows Save (`vwd_save_button`). Each slider tap is
+  read back from the row's own "NN%" and corrected if the slider landed on
+  another step. If it does not reach the target in three taps, the app's X
+  cancels the change and nothing is sent.
+- **Save is the command.** The 60 s interval, the rate-limit backoff, the
+  read-only option and the version gate apply to it. The change counts only
+  when the app finishes "Synchronising ..." and leaves edit mode showing the
+  new value; otherwise the command fails and says so.
+- **Battery Care note.** Above the Battery Care target the app may show a
+  one-time note over the row. It asks nothing; one BACK closes it and the row
+  must be back before Save is pressed.
+- **Already set.** Asking for the value the slider already shows sends
+  nothing.
 
 ## Language independent matching
 
@@ -104,6 +139,7 @@ and comment URL are recorded in
 | Active 40%, Stop CTA, 2 hours and. 15 minutes | @plainmad, Mk8 Golf GTE, VW 4.3.2; Charging screen (Whilst charging) | [#968 active captures](https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5441678954) |
 | German spoken kilometre range on a BEV | @kgroshert, ID.4, We Connect 4.2.1; main ID.4 attachment | [#968 overview captures](https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5183597867) |
 | German active 34%, 90% target, 10 Kilowatt, 4 hours and. 30 minutes | @kgroshert, ID.4, We Connect 4.2.1; charging-screen ID.4 attachment | [#968 charging captures](https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5200485856) |
+| Charge limit slider row, Settings entry, geometry at densities 320/420/560 | @gszigethy, Tiguan, VW 4.3.2, Android 10; local supplemental captures 2026-10-04 (`tiguan_overview_settings.xml`, `tiguan_settings*.xml`; same screen as `27-settings.xml` in the ZIP) and `dumpsys` slider bounds | [#968 capture ZIP](https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566) |
 | German active 13%, 4 hours and. 5 minutes; target/power absent | @kgroshert, e-up!, We Connect 4.2.1; charging-screen e-up! attachment | [#968 e-up! captures](https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5189757805) |
 
 @WEZANGO's CUPRA captures and @Philip-Wiege's version reports were also
@@ -111,7 +147,10 @@ considered in the issue inventory. This PR changes Volkswagen battery
 mapping only; it does not claim validation or command support for those cars.
 
 The small resource-label fixture was extracted from @gszigethy's installed
-Volkswagen 4.3.2 APK on 2026-10-04. APK SHA-256:
+Volkswagen 4.3.2 APK on 2026-10-04. The slider's range and step, the track
+inset, Save-only sending, the Battery Care note and the Save outcome were read
+from the same APK (`item_vehicle_settings_slider`, `GradientSlider`,
+`BaseSlider`, `VwToolbar`, `VehicleSettingsViewModel`). APK SHA-256:
 `81a3719746dfc7c3ac035afb1cac23b08a24155d7dd910a87432a6d60bdaa7b1`.
 English split SHA-256:
 `fce8359cc63d03b83926fee6ab4138e9a44912a9ba22aa38fa4272027fb18f21`.
@@ -129,5 +168,11 @@ validate a running HA entity update. The CLI adapter does not verify the
 Fixture tests cover parsing and HA model/switch behaviour; fake-phone tests
 cover Start/Stop navigation, version changes, disabled controls, command
 serialization, transport failure, repeat protection, and resource-table
-formats. No charging command was issued to the real vehicle. The PR stays
+formats. The charge-limit walk was run live, read-only: it opened Settings
+with one tap, found the row at 80 % and the track at 122–802 px (the slider's
+real track is 121–803), and returned with the app's back arrow. Fake-phone
+tests cover every step at all three densities, a drifted layout corrected by
+the read-back, an unreachable target cancelled unsaved, the Battery Care note,
+an unconfirmed save, a foreign-language Settings row, and the version gate.
+No charging command or charge-limit Save was issued to the real vehicle. The PR stays
 draft until the owner can test with the car ready for charging.

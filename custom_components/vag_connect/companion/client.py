@@ -200,6 +200,23 @@ class CompanionClient:
     async def command_stop_charging(self, vin: str, *_a: Any, **_k: Any) -> None:
         await self._dispatch("command_stop_charging")
 
+    # The app's slider takes 50 … 100 % in 10 % steps; the number entity reads
+    # these bounds so it offers exactly what the slider can save.
+    target_soc_bounds = (50, 100, 10)
+
+    async def command_set_target_soc(self, vin: str, target: int) -> None:
+        from ..cariad.exceptions import VehicleCommandError  # noqa: PLC0415
+
+        if not self.supports_command("command_set_target_soc"):
+            raise VehicleCommandError(
+                "command_set_target_soc",
+                "this command is not available on the companion (ADB) channel",
+            )
+        try:
+            await self._channel.set_charge_target(target)
+        except CompanionWriteBlocked as err:
+            raise VehicleCommandError("command_set_target_soc", str(err)) from err
+
     # -- rate-limit persistence + manual reset (delegated to the channel) ------
 
     @property

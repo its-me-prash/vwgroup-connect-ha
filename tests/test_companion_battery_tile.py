@@ -256,7 +256,8 @@ async def test_client_exposes_existing_phev_entities_and_charge_commands():
     assert client.supports_command("command_stop_charging")
     # Unmapped controls stay hidden. (Climate is mapped by its own change.)
     assert not client.supports_command("command_lock")
-    assert not client.supports_command("command_set_target_soc")
+    # The charge limit is mapped on vehicle Settings (test_companion_charge_target).
+    assert client.supports_command("command_set_target_soc")
 
 
 @pytest.mark.parametrize("name", ["tiguan_overview", "gte_overview", "id4_overview"])

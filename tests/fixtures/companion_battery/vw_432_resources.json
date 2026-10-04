@@ -94,5 +94,8 @@
   ],
   "acc_vehicle_tab_range_tile_value_zero": [
     "Range unavailable"
+  ],
+  "acc_vehicle_tab_label_settings": [
+    "Settings"
   ]
 }

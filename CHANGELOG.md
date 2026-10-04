@@ -64,6 +64,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   phone is connected over ADB or the ADB Bridge add-on. On app 4.3.2 the charge sheet's Start and Stop can be
   commanded; a greyed-out Start ("check charging status") is never pressed. Mapped from @plainmad's Mk8 Golf GTE,
   @kgroshert's ID.4 and e-up!, and @gszigethy's Tiguan eHybrid captures.
+- **Companion: set the charge limit from the Volkswagen app's vehicle Settings (#968, thanks @gszigethy).** The
+  existing charge-limit slider in Home Assistant now works on the Companion channel, with the app's own range: 50 to
+  100 % in 10 % steps. HA opens Settings, moves the "Charging up to" slider, checks the app shows the new value, and
+  presses Save; it reports success only when the app has finished saving. The slider's position is worked out from the
+  screen itself, so it does not depend on the phone's resolution or display size, and the Settings entry is found in
+  any app language. App 4.3.2 only.
 
 ### Changed
 - **The "Volkswagen.de channel needs re-login" notice now has a Fix button that takes you straight to the login (#1717, thanks @Ra72xx).**

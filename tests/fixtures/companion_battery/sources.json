@@ -69,5 +69,33 @@
     "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5189757805",
     "attachment": "https://github.com/user-attachments/files/30736768/vag_connect_ui_chargingscreen_eup_while_charging.xml",
     "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "tiguan_overview_settings.xml",
+    "contributor": "gszigethy",
+    "original_file": "ct-ov2.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); overview scrolled to the Settings row; anchor, tiles and Settings row only. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_settings.xml",
+    "contributor": "gszigethy",
+    "original_file": "ct-settings.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); vehicle Settings at the phone's own density 420; toolbar, category, charge limit row only. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_settings_dpi320.xml",
+    "contributor": "gszigethy",
+    "original_file": "geo-d320.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); the same screen with the display density set to 320 for the capture (wm density), to prove the slider geometry scales; same nodes. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_settings_dpi560.xml",
+    "contributor": "gszigethy",
+    "original_file": "geo-d560.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); the same screen at density 560; same nodes. Not from the earlier ZIP."
   }
 ]
