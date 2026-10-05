@@ -23,9 +23,15 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    COMPANION_APP_SYNC_STEP,
+    CONF_BRAND,
+    CONF_COMPANION_APP_SYNC_INTERVAL,
     CONF_SCAN_INTERVAL,
+    DEFAULT_COMPANION_APP_SYNC_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MAX_COMPANION_APP_SYNC_INTERVAL,
+    MIN_COMPANION_APP_SYNC_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
 from .coordinator import VagConnectCoordinator
@@ -183,6 +189,11 @@ async def async_setup_entry(
     # v1.12.0 (#63) — Read-only Mode: number sliders send commands, skip.
     if coordinator.is_read_only():
         return
+    # #968 — a companion entry whose preset maps "Synchronise now" also gets a
+    # vehicle-sync slider on the same settings device. It sits after the
+    # read-only gate because a sync wakes the car.
+    if _companion_can_sync(coordinator, entry):
+        async_add_entities([VagConnectAppSyncIntervalNumber(coordinator, entry)])
 
     _CMD_ID = {
         "target_soc": "command_set_target_soc",
@@ -412,6 +423,93 @@ class VagConnectScanIntervalNumber(NumberEntity):
         clamped = max(MIN_SCAN_INTERVAL, min(int(value), int(self._attr_native_max_value)))
         current = dict(self._entry.options or {})
         current[CONF_SCAN_INTERVAL] = clamped
+        self._coordinator.hass.config_entries.async_update_entry(
+            self._entry, options=current,
+        )
+        self.async_write_ha_state()
+
+
+def _settings_device(entry: ConfigEntry) -> DeviceInfo:
+    """The account-level settings device both interval sliders live on."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_settings")},
+        name="VW Group Connect Settings",
+        manufacturer="VW Group",
+        entry_type=DeviceEntryType.SERVICE,
+    )
+
+
+def _companion_can_sync(coordinator: VagConnectCoordinator, entry: ConfigEntry) -> bool:
+    """True for a companion entry whose brand preset maps "Synchronise now"."""
+    if not coordinator.is_companion():
+        return False
+    from .companion.presets import PRESETS  # noqa: PLC0415
+
+    preset = PRESETS.get(str(entry.data.get(CONF_BRAND, "")).lower())
+    return preset is not None and any(a.action == "sync_vehicle" for a in preset.actions)
+
+
+# Shown on the slider's more-info dialog; the app's own warning is not on screen.
+APP_SYNC_NOTE = (
+    "Each sync wakes the car. Syncing too often can make the car's battery "
+    "protection kick in, and the app then stays in failsafe mode until the car "
+    "is next started."
+)
+
+
+class VagConnectAppSyncIntervalNumber(NumberEntity):
+    """How often the companion taps the app's "Synchronise now", in minutes.
+
+    #968 — separate from the poll interval, which only re-reads the app screen.
+    This one makes the car send fresh data (vehicle Settings → Synchronise now),
+    so it runs on its own, slower clock; the coordinator's sync loop re-reads it
+    at least once a minute, so a change applies without a reload.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "app_sync_interval"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_native_min_value = MIN_COMPANION_APP_SYNC_INTERVAL
+    _attr_native_max_value = MAX_COMPANION_APP_SYNC_INTERVAL
+    _attr_native_step = COMPANION_APP_SYNC_STEP
+    _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:car-clock"
+
+    def __init__(
+        self, coordinator: VagConnectCoordinator, entry: ConfigEntry
+    ) -> None:
+        self._coordinator = coordinator
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_app_sync_interval"
+        self._attr_device_info = _settings_device(entry)
+        self._attr_extra_state_attributes = {"note": APP_SYNC_NOTE}
+
+    @property
+    def native_value(self) -> float:
+        # Options THEN data, as for the poll interval: the update-listener folds
+        # options into data.
+        options = dict(getattr(self._entry, "options", None) or {})
+        data = dict(getattr(self._entry, "data", None) or {})
+        val = options.get(CONF_COMPANION_APP_SYNC_INTERVAL)
+        if val is None:
+            val = data.get(CONF_COMPANION_APP_SYNC_INTERVAL)
+        try:
+            return float(val) if val is not None else float(DEFAULT_COMPANION_APP_SYNC_INTERVAL)
+        except (TypeError, ValueError):
+            return float(DEFAULT_COMPANION_APP_SYNC_INTERVAL)
+
+    async def async_set_native_value(self, value: float) -> None:
+        # Clamp and snap: a raw number.set_value call can bypass the slider, and
+        # a too-short interval is exactly what trips the battery protection.
+        step = COMPANION_APP_SYNC_STEP
+        snapped = int(round(float(value) / step)) * step
+        clamped = max(
+            MIN_COMPANION_APP_SYNC_INTERVAL,
+            min(snapped, MAX_COMPANION_APP_SYNC_INTERVAL),
+        )
+        current = dict(self._entry.options or {})
+        current[CONF_COMPANION_APP_SYNC_INTERVAL] = clamped
         self._coordinator.hass.config_entries.async_update_entry(
             self._entry, options=current,
         )

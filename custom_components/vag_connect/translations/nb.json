@@ -1982,6 +1982,9 @@
       },
       "scan_interval": {
         "name": "Spørreintervall"
+      },
+      "app_sync_interval": {
+        "name": "Intervall for synkronisering av bil"
       }
     },
     "button": {

@@ -1982,6 +1982,9 @@
       },
       "scan_interval": {
         "name": "Intervallo di polling"
+      },
+      "app_sync_interval": {
+        "name": "Intervallo di sincronizzazione del veicolo"
       }
     },
     "button": {

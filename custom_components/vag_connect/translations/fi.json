@@ -1982,6 +1982,9 @@
       },
       "scan_interval": {
         "name": "Kyselyväli"
+      },
+      "app_sync_interval": {
+        "name": "Ajoneuvon synkronointiväli"
       }
     },
     "button": {

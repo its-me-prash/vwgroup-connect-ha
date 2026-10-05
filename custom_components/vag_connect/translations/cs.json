@@ -1982,6 +1982,9 @@
       },
       "scan_interval": {
         "name": "Interval dotazování"
+      },
+      "app_sync_interval": {
+        "name": "Interval synchronizace vozidla"
       }
     },
     "button": {

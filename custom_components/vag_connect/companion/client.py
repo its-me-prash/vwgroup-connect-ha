@@ -217,6 +217,24 @@ class CompanionClient:
         except CompanionWriteBlocked as err:
             raise VehicleCommandError("command_set_target_soc", str(err)) from err
 
+    async def command_sync_vehicle(self, vin: str, *_a: Any, **_k: Any) -> bool:
+        """Ask the car for fresh data via the app's "Synchronise now".
+
+        True when a sync started, False when the app was already running one.
+        """
+        from ..cariad.exceptions import VehicleCommandError  # noqa: PLC0415
+
+        if not self.supports_command("command_sync_vehicle"):
+            raise VehicleCommandError(
+                "command_sync_vehicle",
+                "this command is not available on the companion (ADB) channel",
+            )
+        try:
+            # The channel's screen lock keeps polls and other commands out.
+            return await self._channel.sync_vehicle()
+        except CompanionWriteBlocked as err:
+            raise VehicleCommandError("command_sync_vehicle", str(err)) from err
+
     # -- rate-limit persistence + manual reset (delegated to the channel) ------
 
     @property

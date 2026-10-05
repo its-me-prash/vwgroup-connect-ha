@@ -301,6 +301,9 @@ _OPTIMISTIC_HOLD_SECONDS = 150.0
 
 # Minimum interval enforced by Audi/VW connector (Sekunden)
 _CC_MIN_INTERVAL_S = 180
+# #968 — after "Synchronise now", wait this long before re-reading the app: the
+# app says the car takes "a few minutes" to answer.
+_APP_SYNC_READBACK_S = 180.0
 
 # Capabilities are mostly static (subscription tier, vehicle features) but
 # can change when a user renews/cancels online services. 24h is a balance
@@ -2074,6 +2077,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self.hass.async_create_background_task(
                     self._poll_loop(), f"{DOMAIN}_poll"
                 )
+                # #968 — a companion entry also asks the car itself for fresh
+                # data, on its own clock (the poll above only re-reads the app).
+                if self.is_companion():
+                    self.hass.async_create_background_task(
+                        self._companion_app_sync_loop(), f"{DOMAIN}_app_sync"
+                    )
 
             self.hass.async_create_background_task(
                 _bg_finish(), f"{DOMAIN}_setup_finish"
@@ -8205,6 +8214,79 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         )
         return not wake_sleep
+
+    def companion_app_sync_interval_s(self) -> float:
+        """#968 — the "Synchronise now" interval in seconds (options THEN data)."""
+        from .const import (  # noqa: PLC0415
+            CONF_COMPANION_APP_SYNC_INTERVAL,
+            DEFAULT_COMPANION_APP_SYNC_INTERVAL,
+            MAX_COMPANION_APP_SYNC_INTERVAL,
+            MIN_COMPANION_APP_SYNC_INTERVAL,
+        )
+
+        raw = self.entry.options.get(CONF_COMPANION_APP_SYNC_INTERVAL)
+        if raw is None:
+            raw = self.entry.data.get(
+                CONF_COMPANION_APP_SYNC_INTERVAL, DEFAULT_COMPANION_APP_SYNC_INTERVAL
+            )
+        try:
+            minutes = int(raw)
+        except (TypeError, ValueError):
+            minutes = DEFAULT_COMPANION_APP_SYNC_INTERVAL
+        minutes = max(
+            MIN_COMPANION_APP_SYNC_INTERVAL,
+            min(minutes, MAX_COMPANION_APP_SYNC_INTERVAL),
+        )
+        return float(minutes * 60)
+
+    async def _companion_app_sync_loop(self) -> None:
+        """#968 — tap the app's "Synchronise now" every sync interval.
+
+        Independent of ``_poll_loop``: that one re-reads the app screen, this
+        one makes the car send fresh data, then polls once the app has had time
+        to receive it. Wakes at least once a minute so a slider change applies
+        without a reload. The first sync waits a full interval, so an HA
+        restart never wakes the car on its own.
+        """
+        import time  # noqa: PLC0415
+
+        last = time.monotonic()
+        while self._started:
+            remaining = self.companion_app_sync_interval_s() - (time.monotonic() - last)
+            if remaining > 0:
+                await asyncio.sleep(min(remaining, 60.0))
+                continue
+            last = time.monotonic()
+            if await self.async_companion_sync_vehicle():
+                await asyncio.sleep(_APP_SYNC_READBACK_S)
+                if self._started:
+                    await self.async_request_refresh()
+
+    async def async_companion_sync_vehicle(self) -> bool:
+        """#968 — one "Synchronise now"; True if the app is now syncing.
+
+        Never raises: a refused sync (rate limit, version gate, the button not
+        found) is logged and the loop tries again next interval.
+        """
+        if not self.is_companion() or self.is_read_only():
+            return False
+        client = getattr(self, "_cariad_client", None)
+        sync = getattr(client, "command_sync_vehicle", None)
+        supports = getattr(client, "supports_command", None)
+        if sync is None or not callable(supports) or not supports("command_sync_vehicle"):
+            return False
+        try:
+            started = await sync(getattr(client, "_vin", ""))
+        except Exception as err:  # noqa: BLE001 - a background sync must not die
+            _LOGGER.warning("VW Group Connect: companion vehicle sync skipped: %s", err)
+            return False
+        finally:
+            self._persist_companion_rate_limit()
+        _LOGGER.debug(
+            "VW Group Connect: companion vehicle sync %s",
+            "requested" if started else "already running in the app",
+        )
+        return True
 
     async def async_reset_companion_cooldown(self) -> None:
         """v2.26.0 (ckomma #22) — user-initiated clear of a stuck companion

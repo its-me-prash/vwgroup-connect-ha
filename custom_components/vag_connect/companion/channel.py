@@ -55,6 +55,7 @@ from .resources import (
     find_settings_entry,
     read_battery_resources,
 )
+from .app_sync import find_sync_button
 from .charge_target import (
     ChargeTargetRow,
     find_charge_target_row,
@@ -90,6 +91,8 @@ _NAV_READ_INTERVAL_S = 900.0       # C9: a forward-nav READ (into charge detail)
 _SLIDER_TRIES = 3                  # charge-limit taps, each read back, before
                                    # giving up without saving
 _SAVE_POLLS = 15                   # dumps to wait for the app to confirm a save
+_SYNC_SCROLLS = 3                  # swipes down vehicle Settings to reach
+                                   # "Synchronise now" (one is enough on 4.3.2)
 
 
 _LIMIT_REASON = (
@@ -653,6 +656,8 @@ class CompanionChannel:
         """
         if action == "set_charge_target":
             raise CompanionWriteBlocked("the charge limit needs a target value")
+        if action == "sync_vehicle":
+            raise CompanionWriteBlocked("a vehicle sync runs through sync_vehicle")
         spec, nodes = await self._command_gate(action)
         walked = 0
         nav = next((n for n in self._preset.nav_reads if n.name == spec.nav_read), None)
@@ -815,6 +820,62 @@ class CompanionChannel:
         raise CompanionWriteBlocked(
             "the app did not confirm saving the charge limit; check it in the app"
         )
+
+    async def sync_vehicle(self) -> bool:
+        """Tap vehicle Settings → "Synchronise now", so the car sends fresh data.
+
+        Unlike a screen read this wakes the car, so it is a write: it passes the
+        same gate (verified preset, matching app version, no rate-limit, the
+        minimum gap between commands). Returns True when the app started a sync,
+        False when one was already running and nothing was tapped.
+        """
+        async with self._screen_lock:
+            return await self._sync_vehicle_serialized()
+
+    async def _sync_vehicle_serialized(self) -> bool:
+        spec, nodes = await self._command_gate("sync_vehicle")
+        nav = next((n for n in self._preset.nav_reads if n.name == spec.nav_read), None)
+        if nav is None:
+            raise CompanionWriteBlocked("the vehicle Settings path is not mapped")
+        try:
+            button = find_sync_button(nodes)
+            if button is None:
+                detail, _walked = await self._walk_to_detail(nav.path)
+                if detail is None:
+                    raise CompanionWriteBlocked("could not open the vehicle Settings")
+                # The button is below the fold; swipe until it shows.
+                for _ in range(_SYNC_SCROLLS):
+                    if self._limit_on_screen(detail):
+                        self._trip_rate_limit()
+                        raise CompanionWriteBlocked(_LIMIT_REASON)
+                    button = find_sync_button(detail)
+                    if button is not None:
+                        break
+                    detail = await self._scroll_up(detail)
+                else:
+                    button = find_sync_button(detail)
+            if button is None or button.tap_point is None:
+                raise CompanionWriteBlocked(
+                    "could not find 'Synchronise now' on the vehicle Settings screen"
+                )
+            if not button.enabled:
+                return False  # the app is already waiting for the car
+            # Stamp first, so a transport that fails after delivery still
+            # blocks an immediate repeat.
+            self._last_write_at = self._now()
+            await self._t.tap(*button.tap_point)
+            nodes, _cleared = await self._dump_and_clear_overlays(await self._settle())
+            if self._limit_on_screen(nodes):
+                self._trip_rate_limit()
+                raise CompanionWriteBlocked(_LIMIT_REASON)
+            after = find_sync_button(nodes)
+            if after is None or after.enabled:
+                raise CompanionWriteBlocked("the app did not start the vehicle sync")
+            return True
+        except CompanionTransportError as err:
+            raise CompanionWriteBlocked(str(err)) from err
+        finally:
+            await self._return_to_overview(2)
 
     async def _command_gate(self, action: str) -> tuple[ActionSelector, list[UiNode]]:
         """Every guard a command passes before its first tap.

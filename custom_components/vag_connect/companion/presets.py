@@ -441,6 +441,15 @@ _VW = BrandPreset(
             nav_read="vehicle_settings",
             app_versions=("4.3.2",),
         ),
+        # @gszigethy Tiguan, 4.3.2: "Synchronise now" under Vehicle data, at the
+        # bottom of vehicle Settings, asks the car for fresh data. Matched by id
+        # only: "Delete vehicle" (delete_cta) sits just below it.
+        ActionSelector(
+            action="sync_vehicle",
+            resource_id="subtitle_cta",
+            nav_read="vehicle_settings",
+            app_versions=("4.3.2",),
+        ),
     ),
     # v2.26.0 (C9) — charge target / power / remaining-time live behind the
     # range tile (ckomma's set_charging taps range_tile_center to reach the
@@ -1103,4 +1112,5 @@ ACTION_TO_COMMAND: dict[str, str] = {
     "stop_climate": "command_stop_climate",
     "start_charging": "command_start_charging",
     "stop_charging": "command_stop_charging",
+    "sync_vehicle": "command_sync_vehicle",
 }

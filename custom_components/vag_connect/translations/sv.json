@@ -1982,6 +1982,9 @@
       },
       "scan_interval": {
         "name": "Avläsningsintervall"
+      },
+      "app_sync_interval": {
+        "name": "Intervall för fordonssynkronisering"
       }
     },
     "button": {

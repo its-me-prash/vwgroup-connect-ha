@@ -1,0 +1,17 @@
+[
+  {
+    "fixture": "tiguan_settings_lower.xml",
+    "contributor": "gszigethy",
+    "original_file": "28-settings-lower.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip",
+    "note": "Re-captured live on app 4.3.2, 2026-10-05, @gszigethy (same screen, one swipe below the fold). Toolbar, category headers and the Vehicle data section only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "tiguan_settings_syncing.xml",
+    "contributor": "gszigethy",
+    "original_file": "live capture right after tapping Synchronise now",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
+    "note": "Local supplemental ADB capture, app 4.3.2, 2026-10-05, @gszigethy: the button turns disabled and the 'Synchronising with vehicle ...' snackbar shows. Not from the earlier ZIP. Same node selection as above."
+  }
+]

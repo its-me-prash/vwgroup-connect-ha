@@ -535,11 +535,12 @@ class TestPresetShape:
         # #968 idle/active Golf GTE and Tiguan captures ground these controls.
         # Other command families stay quarantined and older versions read only.
         assert {a.action for a in _VW.actions} == {
-            "start_charging", "stop_charging", "set_charge_target",
+            "start_charging", "stop_charging", "set_charge_target", "sync_vehicle",
         }
         assert {a.action: a.nav_read for a in _VW.actions} == {
             "start_charging": "charge_detail",
             "stop_charging": "charge_detail",
             "set_charge_target": "vehicle_settings",
+            "sync_vehicle": "vehicle_settings",
         }
         assert all(a.app_versions == ("4.3.2",) for a in _VW.actions)

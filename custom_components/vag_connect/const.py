@@ -77,6 +77,15 @@ COMPANION_MIN_TOKEN_LEN          = 32
 CONF_COMPANION_READ_VEHICLE_HEALTH   = "companion_read_vehicle_health"
 CONF_COMPANION_READ_CLIMATE_DETAIL   = "companion_read_climate_detail"
 CONF_COMPANION_READ_PARKING_POSITION = "companion_read_parking_position"
+# #968 — how often the companion asks the car itself for fresh data, via the
+# app's vehicle Settings → "Synchronise now". Separate from CONF_SCAN_INTERVAL,
+# which only re-reads the app screen: a sync wakes the car, so it runs on its
+# own, slower clock. Minutes, on the settings device's slider.
+CONF_COMPANION_APP_SYNC_INTERVAL     = "companion_app_sync_interval"
+DEFAULT_COMPANION_APP_SYNC_INTERVAL  = 60
+MIN_COMPANION_APP_SYNC_INTERVAL      = 5
+MAX_COMPANION_APP_SYNC_INTERVAL      = 240
+COMPANION_APP_SYNC_STEP              = 5
 # v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
 # vehicle has no entry here the shared CONF_SPIN is used, so existing
 # single-S-PIN setups are unchanged. Set via the Options flow.
