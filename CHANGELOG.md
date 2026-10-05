@@ -42,6 +42,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Companion: ask the car for fresh data on a timer (#968, thanks @gszigethy).** A new *Vehicle sync interval*
+  slider on the VW Group Connect Settings device (5–240 min in 5 min steps, default 60) makes the companion open the
+  Volkswagen app's vehicle Settings and tap **Synchronise now** at the bottom, then read the app again a few minutes
+  later. It sits next to the poll interval and does not replace it: the poll interval only re-reads the app screen,
+  the sync wakes the car. Syncing too often can make the car's battery protection kick in, and the app then stays in
+  failsafe mode until the car is next started; the slider says so. The button is found by its own id, never by
+  position, so "Delete vehicle" just below it can never be hit. A sync already running is not tapped again, and it
+  passes the same gates as a command (app 4.3.2, request-limit pause, 60 s between commands, Read-only Mode).
+
 ## [4.11.0] - 2026-10-04 — Trip figures and a Fix button / Fahrtdaten und ein Fix-Knopf
 
 ### Added
