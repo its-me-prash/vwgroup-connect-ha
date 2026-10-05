@@ -398,6 +398,26 @@ def _map_error(err_code: str) -> str:
     } else "cannot_connect"
 
 
+def _is_grant_retired(err: object) -> bool:
+    """Is this Phase-1 failure the manufacturer having retired the grant?
+
+    #1364 (Audi) / #1337 (Porsche): VW moved those brands' app login to Auth0
+    with on-device Play-Integrity attestation, and ``/device_authorization`` now
+    answers ``403 unauthorized_client — client is not allowed to use the
+    device_code grant``. Recognising it is what lets the brand picker show an
+    honest, actionable message instead of a raw exception.
+
+    Lives out here, rather than inline in the Phase-1 ``except``, so a test can
+    call the real classifier. It used to be inline, and the test for it
+    reimplemented these two substring checks in its own body and asserted on the
+    copy — so the production rule could have changed underneath it and the test
+    would have stayed green. Both substrings are needed: the brands differ in
+    which half of the message they send.
+    """
+    text = str(err).lower()
+    return "unauthorized_client" in text or "not allowed" in text
+
+
 def _extract_user_id_from_id_token(id_token: str, fallback: str) -> str:
     """v2.7.0 — Decode the ``sub`` claim from an OIDC id_token.
 
@@ -1737,8 +1757,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # gated behind on-device Play-Integrity attestation we can't satisfy
             # headless). Flag the unauthorized_client rejection so the brand picker
             # shows an honest, actionable message instead of a raw exception.
-            _e = str(err).lower()
-            if "unauthorized_client" in _e or "not allowed" in _e:
+            if _is_grant_retired(err):
                 self._dag_grant_disabled = True
             _LOGGER.warning(
                 "Browser login Phase 1 failed for %s: %s",
