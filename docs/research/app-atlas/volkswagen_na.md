@@ -1,7 +1,7 @@
 # App Atlas — Volkswagen US/CA (myVW)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-04
+> Last refreshed: 2026-10-05
 
 ## Identity
 

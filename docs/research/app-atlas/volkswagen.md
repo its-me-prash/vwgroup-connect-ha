@@ -1,7 +1,7 @@
 # App Atlas — Volkswagen EU (We Connect ID)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-04
+> Last refreshed: 2026-10-05
 
 ## Identity
 
@@ -22,15 +22,25 @@
 
 | | |
 |---|---|
-| Latest version-name | `4.3.2` |
+| Latest version-name | `4.6.4` |
 | Source that responded | `google_play` |
 | Previously cached version | `4.3.2` |
-| Changed since last run? | No |
+| Changed since last run? | **YES** |
 
 
 ## Discovered via APK extraction (Phase A.2)
 
-_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
+_Last extracted: 2026-10-05T10:55:05 (for version `4.6.4`)_
+
+
+### HTTP header keys found in app bytecode
+
+- `origin`
+
+### Backend hosts found in app bytecode
+
+- `emea.bff.cariad.digital`
+- `identity.vwgroup.io`
 
 ## Cross-version diff
 

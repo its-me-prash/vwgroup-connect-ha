@@ -1,12 +1,12 @@
 # App Atlas — Cross-Brand Summary
 
-> Auto-generated · Last refreshed: 2026-10-04 10:16 UTC
+> Auto-generated · Last refreshed: 2026-10-05 10:55 UTC
 
 | Brand | Android package | Latest version | Source | Expected backend | OLA enforced? |
 |---|---|---|---|---|---|
 | **SEAT** | `com.seat.myseat.ola` | `2.22.1` | `google_play` | `ola` |  |
 | **CUPRA** | `com.cupra.mycupra` | `2.22.1` | `google_play` | `ola` |  |
-| **Volkswagen EU (We Connect ID)** | `com.volkswagen.weconnect` | `4.3.2` | `google_play` | `cariad_bff` |  |
+| **Volkswagen EU (We Connect ID)** | `com.volkswagen.weconnect` | `4.6.4` | `google_play` | `cariad_bff` |  |
 | **Audi (myAudi)** | `de.myaudi.mobile.assistant` | `5.8.1` | `google_play` | `cariad_bff` |  |
 | **Škoda (MyŠkoda)** | `cz.skodaauto.myskoda` | `8.17.0` | `google_play` | `mysmob` |  |
 | **Volkswagen US/CA (myVW)** | `com.vw.carnet.release` | `2026.9.29-9674` | `google_play` | `con_veh_net` |  |
