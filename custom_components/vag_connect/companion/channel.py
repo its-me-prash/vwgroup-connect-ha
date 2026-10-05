@@ -197,15 +197,17 @@ class CompanionChannel:
         """Whether a forward-nav READ (C9) may run.
 
         Requires the user opt-in (it taps the app), the same version gate as a
-        write (a wrong tile tap is as bad as a wrong command), and no active
-        rate-limit. NOT gated on ``writable``: reading the charge target is
-        allowed even when command entities are quarantined.
+        write (a wrong tile tap is as bad as a wrong command). NOT gated on
+        ``writable``: reading the charge target is allowed even when command
+        entities are quarantined.
+
+        #968 — nor on the request-limit pause: opening a detail sheet is app
+        navigation, not a request to the car, and on 4.3.2 the battery level is
+        narrated only on the sheet behind the range tile, so blocking the walk
+        froze it at its cached value while the overview's range kept moving. A
+        walk that meets the limit alert still stops there.
         """
-        return (
-            bool(self._nav_opt_ins)
-            and bool(self._version_ok)
-            and not self._is_rate_limited()
-        )
+        return bool(self._nav_opt_ins) and bool(self._version_ok)
 
     def _nav_allowed(self, nav: "NavReadSelector") -> bool:
         """Whether this specific nav path's own opt-in is on.

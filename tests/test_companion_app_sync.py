@@ -662,3 +662,64 @@ async def test_the_first_sync_overrides_a_restored_pause():
     channel.restore_rate_limit(time.time() + 3600)
     assert await channel.sync_vehicle() is True
     assert channel.request_state == "available" and not channel._is_rate_limited()
+
+
+# ── b7: the battery level during the pause ────────────────────────────────────
+
+class TilePhone:
+    """The Tiguan overview, whose range tile opens the charge sheet."""
+
+    connected = True
+
+    def __init__(self):
+        self.screen = dump("tiguan_overview_synchronised")
+        self.taps: list[tuple[int, int]] = []
+
+    async def foreground_app(self, package):
+        pass
+
+    async def current_app_version(self, package):
+        return "4.3.2"
+
+    async def battery_strings(self, package):
+        return STRINGS
+
+    async def dump_ui(self):
+        return self.screen
+
+    async def tap(self, x, y):
+        self.taps.append((x, y))
+        # The range tile opens the sheet; the sheet's own close returns.
+        on_sheet = self.screen == dump("tiguan_charging")
+        self.screen = dump("tiguan_overview_synchronised" if on_sheet else "tiguan_charging")
+
+    async def key_back(self):
+        self.screen = dump("tiguan_overview_synchronised")
+
+
+def test_the_overview_tile_does_not_narrate_the_battery_level():
+    # 4.3.2 draws "Battery 77 %" on the tile but leaves it out of the tile's
+    # accessibility sentence, so the charge sheet is the only place to read it.
+    channel = CompanionChannel(TilePhone(), VW, time_fn=time.monotonic)
+    channel._battery_strings = STRINGS
+    from custom_components.vag_connect.companion.resources import read_battery_resources
+    from custom_components.vag_connect.companion.screen import read_fields
+
+    overview = nodes("tiguan_overview_synchronised")
+    fields = {**read_fields(overview, VW), **read_battery_resources(overview, STRINGS)}
+    assert "battery_soc" not in fields and fields["electric_range_km"] == 84
+
+
+@pytest.mark.asyncio
+async def test_the_charge_sheet_is_still_read_during_the_request_limit_pause():
+    phone = TilePhone()
+    channel = CompanionChannel(phone, VW, time_fn=time.monotonic, nav_opt_ins={"charge_detail"})
+    channel.restore_rate_limit(time.time() + 3600)
+    channel._nav_cache = {"battery_soc": 81}  # the value from before the pause
+    fields = await channel.read()
+    assert fields["battery_soc"] == 70  # read off the sheet, not the cache
+    tile = next(n for n in nodes("tiguan_overview_synchronised") if n.resource_id == "rangeTile")
+    assert phone.taps[0] == tile.tap_point
+    assert phone.screen == dump("tiguan_overview_synchronised")  # and back again
+    # The pause itself is untouched: commands still wait.
+    assert channel._is_rate_limited() and not channel.writes_enabled

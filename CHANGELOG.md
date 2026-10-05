@@ -64,7 +64,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   capability status (1010, PowerBudgetReached), without sending anything — so each scheduled sync is a free check,
   and the first one that goes through ends the pause on its own. Screen reads go on during the pause (they never
   reach the car), so the data and its age stay current; only commands wait. After a restart, a pause that is still
-  running shows as *restricted* until the first sync.
+  running shows as *restricted* until the first sync. That includes the charge sheet behind the range tile: the
+  overview narrates only the ranges, so the battery level is read there, and it no longer freezes at its last value
+  during the pause while the range keeps moving.
 
 ### Docs
 - Internal note only, no user-visible change: the device-grant source file still claimed Audi's app
