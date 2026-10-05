@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from .presets import (
@@ -49,6 +50,7 @@ from .screen import (
 )
 from .transport import CompanionTransportError, NetworkAdbTransport
 from .resources import (
+    find_app_alert,
     find_battery_control,
     find_battery_tile,
     find_request_limit,
@@ -56,6 +58,7 @@ from .resources import (
     read_battery_resources,
 )
 from .app_sync import find_sync_button
+from .sync_time import find_sync_line
 from .charge_target import (
     ChargeTargetRow,
     find_charge_target_row,
@@ -106,6 +109,10 @@ class CompanionWriteBlocked(RuntimeError):
     """A write was refused by the quarantine, with a human-readable reason."""
 
 
+REQUESTS_AVAILABLE = "available"
+REQUESTS_RESTRICTED = "restricted"
+
+
 class CompanionChannel:
     """One brand's read/write flow over one phone."""
 
@@ -142,6 +149,11 @@ class CompanionChannel:
         self._consecutive_failures: int = 0  # drives the adaptive cooldown (#16)
         self._rate_limited_until: float = 0.0  # wall-clock; persisted (ckomma #21)
         self._source_data_age_s: float | None = None  # from the app's sync line
+        # #968 — when the car last sent the app data, from the same line read
+        # through the app's own translation tables. Newest estimate wins.
+        self._seen_at: datetime | None = None
+        # #968 — what the vehicle sync flow last found; None until it has run.
+        self._request_state: str | None = None
         self._live_app_version: str | None = None
         # v2.26.0 — "verified preset AND live app version matches the one it was
         # built against". Gates BOTH writes and forward-nav reads (C9); a wrong
@@ -288,7 +300,10 @@ class CompanionChannel:
         trips the cooldown and re-raises, so the coordinator counts a real
         failure as a failed poll rather than a blank overwrite.
         """
-        if self._in_cooldown() or self._is_rate_limited():
+        # #968 — the request-limit pause stops commands, not reads: a screen
+        # read never reaches the car, and the data age matters most exactly
+        # while the car refuses requests.
+        if self._in_cooldown():
             return None
         try:
             return await self._read_once()
@@ -329,13 +344,20 @@ class CompanionChannel:
             )
             self._cooldown_until = self._now() + backoff
             raise
-        # v2.26.0 (ckomma #21) — a rate-limit / lockout banner is not a nag to
-        # dismiss; it means stop. Trip the long persisted backoff and return
-        # no-data (last-known-good stays visible) rather than reading the
-        # lockout screen.
+        # v2.26.0 (ckomma #21) — a rate-limit / lockout banner means stop: trip
+        # the long persisted backoff, which pauses commands. #968 — the alert
+        # is a dialog left over from a request, so close it (and the generic
+        # "Vehicle data unavailable" that follows it) and read the screen
+        # behind it, instead of going blind for the whole pause.
         if self._limit_on_screen(nodes):
             self._trip_rate_limit()
-            return None
+        if self._is_alert(nodes):
+            nodes, closed = await self._close_dialogs(nodes)
+            if not closed:
+                return None  # nothing readable, and not a failed poll
+            if self._preset.screen_anchor is not None and not has_anchor(nodes, self._preset):
+                await self._return_to_overview(2)
+                nodes, cleared = await self._dump_and_clear_overlays()
         if not cleared:
             # A nag/interstitial we could not dismiss is up; the screen behind it
             # is not the data screen. Return no fields rather than parsing the
@@ -348,6 +370,9 @@ class CompanionChannel:
         fields = read_fields(nodes, self._preset)
         if self._preset.brand == "volkswagen":
             fields.update(read_battery_resources(nodes, self._battery_strings))
+            self._note_sync_line(nodes)
+        if self._seen_at is not None:
+            fields["companion_app_synced_at"] = self._seen_at
         # v2.26.0 (C9) — values behind a detail screen (charge target/power/time
         # on VW) are read by tapping a tile, reading, and coming BACK. Only tap
         # when it is opted in, the version gate holds, and the cadence window has
@@ -364,6 +389,50 @@ class CompanionChannel:
             for key, val in self._nav_cache.items():
                 fields.setdefault(key, val)
         return fields
+
+    @property
+    def request_state(self) -> str | None:
+        """What the vehicle sync flow last found (#968), or None.
+
+        Before the first sync of this session, a request-limit pause restored
+        from the last run already says the car is restricted.
+        """
+        if self._request_state is None and self._is_rate_limited():
+            return REQUESTS_RESTRICTED
+        return self._request_state
+
+    def _is_alert(self, nodes: list[UiNode]) -> bool:
+        """The request-limit alert or the "Vehicle data unavailable" after it.
+
+        On 4.3.2 a refused request shows both, one after the other, each as its
+        own dialog window that BACK closes.
+        """
+        return self._limit_on_screen(nodes) or find_app_alert(nodes, self._battery_strings)
+
+    async def _close_dialogs(self, nodes: list[UiNode]) -> tuple[list[UiNode], bool]:
+        """BACK past the app's alerts; (nodes, True) once none is left."""
+        for _ in range(_OVERLAY_MAX_DISMISS):
+            if not self._is_alert(nodes):
+                return nodes, True
+            await self._t.key_back()
+            nodes, _cleared = await self._dump_and_clear_overlays()
+        return nodes, not self._is_alert(nodes)
+
+    def _note_sync_line(self, nodes: list[UiNode]) -> None:
+        """Turn "Synchronised … ago" into when the car last sent data.
+
+        The app rounds the age down, so the earliest time it can mean is used:
+        it never claims fresher data than the app has, and later reads only
+        move it forward, closing in on the real time from below. A screen
+        without the line (a sync in progress, a date-only line) changes nothing.
+        """
+        line = find_sync_line(nodes, self._battery_strings)
+        if line is None:
+            return
+        now = datetime.fromtimestamp(self._wall(), tz=timezone.utc).replace(microsecond=0)
+        seen = now - timedelta(seconds=line.age_s + line.precision_s)
+        if self._seen_at is None or seen > self._seen_at:
+            self._seen_at = seen
 
     async def _augment_via_nav(self, fields: dict[str, object]) -> None:
         """Fill missing nav-read targets by opening their detail screen.
@@ -833,7 +902,11 @@ class CompanionChannel:
             return await self._sync_vehicle_serialized()
 
     async def _sync_vehicle_serialized(self) -> bool:
-        spec, nodes = await self._command_gate("sync_vehicle")
+        # #968 — the sync is also the probe that ends a request-limit pause:
+        # while the car's power budget is used up, the app checks its own
+        # capability status (1010, PowerBudgetReached) and answers the tap
+        # with its alert without sending anything, so trying costs nothing.
+        spec, nodes = await self._command_gate("sync_vehicle", probe=True)
         nav = next((n for n in self._preset.nav_reads if n.name == spec.nav_read), None)
         if nav is None:
             raise CompanionWriteBlocked("the vehicle Settings path is not mapped")
@@ -847,6 +920,7 @@ class CompanionChannel:
                 for _ in range(_SYNC_SCROLLS):
                     if self._limit_on_screen(detail):
                         self._trip_rate_limit()
+                        self._request_state = REQUESTS_RESTRICTED
                         raise CompanionWriteBlocked(_LIMIT_REASON)
                     button = find_sync_button(detail)
                     if button is not None:
@@ -867,17 +941,28 @@ class CompanionChannel:
             nodes, _cleared = await self._dump_and_clear_overlays(await self._settle())
             if self._limit_on_screen(nodes):
                 self._trip_rate_limit()
+                self._request_state = REQUESTS_RESTRICTED
                 raise CompanionWriteBlocked(_LIMIT_REASON)
             after = find_sync_button(nodes)
             if after is None or after.enabled:
                 raise CompanionWriteBlocked("the app did not start the vehicle sync")
+            # Accepted: the car takes requests again, so the pause is over.
+            self._rate_limited_until = 0.0
+            self._request_state = REQUESTS_AVAILABLE
             return True
         except CompanionTransportError as err:
             raise CompanionWriteBlocked(str(err)) from err
         finally:
+            try:
+                left, _cleared = await self._dump_and_clear_overlays()
+                await self._close_dialogs(left)
+            except CompanionTransportError:
+                pass
             await self._return_to_overview(2)
 
-    async def _command_gate(self, action: str) -> tuple[ActionSelector, list[UiNode]]:
+    async def _command_gate(
+        self, action: str, *, probe: bool = False
+    ) -> tuple[ActionSelector, list[UiNode]]:
         """Every guard a command passes before its first tap.
 
         Returns the action's selector and the current screen with any nag
@@ -917,7 +1002,9 @@ class CompanionChannel:
                 f"'{action}' is not mapped for app version {self._live_app_version}"
             )
         # v2.26.0 (ckomma #21) — if a rate-limit backoff is active, do not send.
-        if self._is_rate_limited():
+        # #968 — except the sync probe, which the app itself stops while the
+        # car's power budget is used up.
+        if self._is_rate_limited() and not probe:
             raise CompanionWriteBlocked(
                 f"the {self._preset.brand} companion channel is backed off after "
                 "a rate-limit or lockout from the backend; commands are paused "
@@ -941,6 +1028,10 @@ class CompanionChannel:
             # v2.26.0 — dismiss any nag screen before locating the control, or
             # the BACK-safe overlay would sit on top of the button we tap.
             nodes, cleared = await self._dump_and_clear_overlays()
+            if probe and cleared and self._is_alert(nodes):
+                # An alert left over from an earlier request; the probe's own
+                # tap is what tells whether the limit still holds.
+                nodes, cleared = await self._close_dialogs(nodes)
         except CompanionTransportError as err:
             raise CompanionWriteBlocked(str(err)) from err
         if not cleared:

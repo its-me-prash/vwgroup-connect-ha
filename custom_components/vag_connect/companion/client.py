@@ -133,6 +133,8 @@ class CompanionClient:
             return self._last_data
         data = VehicleData(vin=vin.upper())
         data.source_channel = self._source_channel
+        # #968 — what the vehicle sync flow last found, kept with every read.
+        data.companion_request_state = getattr(self._channel, "request_state", None)
         if not fields:  # None (first-ever throttle) or {} (empty screen)
             data.no_data = True
             return data

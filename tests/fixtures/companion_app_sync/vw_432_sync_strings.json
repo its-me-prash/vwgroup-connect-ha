@@ -1,0 +1,38 @@
+{
+  "acc_vehicle_tab_value_vehicledata_just_now": [
+    "Synchronised just now"
+  ],
+  "acc_vehicle_tab_value_vehicledata_last_update": [
+    "Synchronised %s ago"
+  ],
+  "common_timestamp_too_old": [
+    "Data no longer up-to-date"
+  ],
+  "duration_days_long_pluralised#one": [
+    "One day"
+  ],
+  "duration_days_long_pluralised#other": [
+    "%s days"
+  ],
+  "duration_days_long_pluralised#zero": [
+    "Zero days"
+  ],
+  "duration_hours_long_pluralised#one": [
+    "One hour"
+  ],
+  "duration_hours_long_pluralised#other": [
+    "%s hours"
+  ],
+  "duration_hours_long_pluralised#zero": [
+    "Zero hours"
+  ],
+  "duration_minutes_long_pluralised#one": [
+    "One minute"
+  ],
+  "duration_minutes_long_pluralised#other": [
+    "%s minutes"
+  ],
+  "duration_minutes_long_pluralised#zero": [
+    "Zero minutes"
+  ]
+}

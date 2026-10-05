@@ -13,5 +13,33 @@
     "original_file": "live capture right after tapping Synchronise now",
     "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
     "note": "Local supplemental ADB capture, app 4.3.2, 2026-10-05, @gszigethy: the button turns disabled and the 'Synchronising with vehicle ...' snackbar shows. Not from the earlier ZIP. Same node selection as above."
+  },
+  {
+    "fixture": "tiguan_overview_synchronised.xml",
+    "contributor": "gszigethy",
+    "original_file": "live capture of the vehicle overview",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
+    "note": "Local supplemental ADB capture, app 4.3.2, 2026-10-05, @gszigethy: the toolbar line 'Synchronised 32 minutes ago' and the range tile. The user-set vehicle name is shortened to 'Tiguan'; unrelated nodes omitted."
+  },
+  {
+    "fixture": "vw_432_sync_strings.json",
+    "contributor": "gszigethy",
+    "original_file": "resources.arsc of base.apk and split_config.en.apk, Volkswagen app 4.3.2",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
+    "note": "Translation strings only, read with companion/resources.py from the app installed on @gszigethy's phone: the toolbar's sync frame, 'just now', 'too old', and the minute/hour/day duration plurals per quantity. No APK code or binary is included."
+  },
+  {
+    "fixture": "alert_power_budget.xml",
+    "contributor": "gszigethy",
+    "original_file": "live capture after tapping Synchronise now with the car's power budget used up",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
+    "note": "Local supplemental ADB capture, app 4.3.2, 2026-10-05, @gszigethy: the first of two dialogs, 'Too many requests sent to the vehicle' (alert_daily_power_budget, shown by CapabilityStatusAlertDelegate from capability status 1010 PowerBudgetReached). Complete dialog window; no personal data."
+  },
+  {
+    "fixture": "alert_vehicle_data_unavailable.xml",
+    "contributor": "gszigethy",
+    "original_file": "live capture right after closing the first dialog",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
+    "note": "Local supplemental ADB capture, app 4.3.2, 2026-10-05, @gszigethy: the second dialog, 'Vehicle data unavailable' (dialog_error_vehicledata_notavailable). Complete dialog window; no personal data."
   }
 ]

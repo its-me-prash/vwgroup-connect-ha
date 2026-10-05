@@ -24,9 +24,29 @@ _LIMIT_KEYS = (
     "dialog_maxrequests_headline",
     "dialog_maxrequest_bff_error_headline",
 )
+# The overview toolbar's "Synchronised %s ago" line and its parts (#968): the
+# frame, its "just now" and "too old" forms, and the duration plurals that fill
+# the %s. Plurals are stored per quantity as ``name#one`` / ``name#other`` ...
+SYNC_LAST_UPDATE = "acc_vehicle_tab_value_vehicledata_last_update"
+SYNC_JUST_NOW = "acc_vehicle_tab_value_vehicledata_just_now"
+SYNC_TOO_OLD = "common_timestamp_too_old"
+# The generic alert the app shows after a refused request ("Vehicle data
+# unavailable"), closed with BACK like the request-limit alert before it.
+DATA_UNAVAILABLE = "dialog_error_vehicledata_notavailable_headline"
+SYNC_PLURALS = (
+    "duration_minutes_long_pluralised",
+    "duration_hours_long_pluralised",
+    "duration_days_long_pluralised",
+)
 _SINGLE_KEYS = frozenset({
     "acc_common_hint_details", "acc_vehicle_tab_label_settings", *_LIMIT_KEYS,
+    SYNC_LAST_UPDATE, SYNC_JUST_NOW, SYNC_TOO_OLD, DATA_UNAVAILABLE,
 })
+# Android's plural quantity attributes (``android:^attr-private`` ids).
+_QUANTITIES = {
+    0x01000004: "other", 0x01000005: "zero", 0x01000006: "one",
+    0x01000007: "two", 0x01000008: "few", 0x01000009: "many",
+}
 
 
 def _pool(data: bytes, offset: int) -> list[str]:
@@ -56,12 +76,34 @@ def _pool(data: bytes, offset: int) -> list[str]:
     return strings
 
 
+def _read_plural(
+    data: bytes, entry: int, end: int, keys: list[str], strings: list[str],
+    out: StringResources,
+) -> None:
+    """One plurals bag of the sync line, stored as ``name#quantity`` strings."""
+    es, ef, key = struct.unpack_from("<HHI", data, entry)
+    name = keys[key]
+    if not ef & 1 or es < 16 or entry + 16 > end or name not in SYNC_PLURALS:
+        return
+    count = struct.unpack_from("<I", data, entry + 12)[0]
+    item = entry + es
+    if count > 16 or item + count * 12 > end:
+        raise ValueError("invalid plurals entry")
+    for _ in range(count):
+        quantity = _QUANTITIES.get(struct.unpack_from("<I", data, item)[0])
+        if quantity is not None and data[item + 7] == 3:  # TYPE_STRING
+            text = strings[struct.unpack_from("<I", data, item + 8)[0]]
+            out.setdefault(f"{name}#{quantity}", set()).add(text)
+        item += 12
+
+
 def extract_battery_strings(data: bytes) -> StringResources:
     """Decode the small relevant subset of Android's resources.arsc format.
 
     A malformed/unsupported table returns no labels. Complex entries (styles,
     bags) and non-string values are deliberately ignored, never interpreted as
-    strings. Dense, sparse, and 16-bit type offset tables are supported.
+    strings, except the sync line's duration plurals, read per quantity. Dense,
+    sparse, and 16-bit type offset tables are supported.
     """
     out: StringResources = {}
     try:
@@ -86,7 +128,8 @@ def extract_battery_strings(data: bytes) -> StringResources:
                     ck, ch, cs = struct.unpack_from("<HHI", data, child)
                     if cs < ch or ch < 8 or child + cs > pos + size:
                         return {}
-                    if ck == 0x201 and types[data[child + 8] - 1] == "string":
+                    kind_name = types[data[child + 8] - 1] if ck == 0x201 else ""
+                    if kind_name in ("string", "plurals"):
                         flags = data[child + 9]
                         count, start = struct.unpack_from("<II", data, child + 12)
                         if count > cs // 2:
@@ -107,6 +150,9 @@ def extract_battery_strings(data: bytes) -> StringResources:
                             if entry < child + ch or entry + 8 > child + cs:
                                 return {}
                             es, ef, key = struct.unpack_from("<HHI", data, entry)
+                            if kind_name == "plurals":
+                                _read_plural(data, entry, child + cs, keys, global_strings, out)
+                                continue
                             if ef & 9 or es < 8:  # complex/compact entry
                                 continue
                             name = keys[key]
@@ -242,6 +288,24 @@ def find_request_limit(nodes: list[UiNode], resources: StringResources) -> bool:
         label.casefold() for key in _LIMIT_KEYS for label in resources.get(key, ())
     }
     return bool(titles) and any(
+        text.strip().casefold() in titles
+        for node in nodes for text in (node.text, node.content_desc) if text
+    )
+
+
+def find_app_alert(nodes: list[UiNode], resources: StringResources) -> bool:
+    """A known app alert dialog: the request limit or "Vehicle data unavailable".
+
+    Matched by the translated titles of the installed app; the English 4.3.2
+    headline stands in when the tables cannot be read.
+    """
+    titles = {
+        label.casefold()
+        for key in (*_LIMIT_KEYS, DATA_UNAVAILABLE)
+        for label in resources.get(key, ())
+    } or {"too many requests sent to the vehicle", "request limit reached",
+          "vehicle data unavailable"}
+    return any(
         text.strip().casefold() in titles
         for node in nodes for text in (node.text, node.content_desc) if text
     )

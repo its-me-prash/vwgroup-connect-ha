@@ -644,6 +644,16 @@
       "last_seen_at": {
         "name": "Voertuig laatst gemeld"
       },
+      "last_vehicle_sync": {
+        "name": "Laatste voertuigsynchronisatie"
+      },
+      "app_request_status": {
+        "name": "Status app-verzoeken",
+        "state": {
+          "available": "Beschikbaar",
+          "restricted": "Beperkt"
+        }
+      },
       "adblue_range_km": {
         "name": "AdBlue bereik"
       },

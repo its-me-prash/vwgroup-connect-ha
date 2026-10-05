@@ -650,6 +650,16 @@
       "last_seen_at": {
         "name": "Ajoneuvo viimeksi raportoinut"
       },
+      "last_vehicle_sync": {
+        "name": "Ajoneuvon viimeisin synkronointi"
+      },
+      "app_request_status": {
+        "name": "Sovelluksen pyyntöjen tila",
+        "state": {
+          "available": "Käytettävissä",
+          "restricted": "Rajoitettu"
+        }
+      },
       "adblue_range_km": {
         "name": "AdBlue-toimintamatka"
       },

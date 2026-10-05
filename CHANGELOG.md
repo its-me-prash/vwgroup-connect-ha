@@ -44,13 +44,27 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 - **Companion: ask the car for fresh data on a timer (#968, thanks @gszigethy).** A new *Vehicle sync interval*
-  slider on the VW Group Connect Settings device (5–240 min in 5 min steps, default 60) makes the companion open the
-  Volkswagen app's vehicle Settings and tap **Synchronise now** at the bottom, then read the app again a few minutes
-  later. It sits next to the poll interval and does not replace it: the poll interval only re-reads the app screen,
-  the sync wakes the car. Syncing too often can make the car's battery protection kick in, and the app then stays in
-  failsafe mode until the car is next started; the slider says so. The button is found by its own id, never by
-  position, so "Delete vehicle" just below it can never be hit. A sync already running is not tapped again, and it
-  passes the same gates as a command (app 4.3.2, request-limit pause, 60 s between commands, Read-only Mode).
+  slider on the VW Group Connect Settings device (0–240 min in 5 min steps, default 180, 0 = off) makes the companion
+  open the Volkswagen app's vehicle Settings and tap **Synchronise now** at the bottom, then read the app again a few
+  minutes later. The default matches the app's own automatic wake-up spacing of three hours. It sits next to the poll
+  interval and does not replace it: the poll interval only re-reads the app screen, the sync wakes the car. Syncing
+  too often can make the car's battery protection kick in, and the app then stays in failsafe mode until the car is
+  next started; the slider says so. The button is found by its own id, never by position, so "Delete vehicle" just
+  below it can never be hit. A sync already running is not tapped again, and it passes the same gates as a command
+  (app 4.3.2, 60 s between commands, Read-only Mode).
+- **Companion: Last vehicle sync — when the car last sent the app data, for any reason (#968).** The overview's
+  "Synchronised … ago" line is read on every poll, through the app's own translation tables, so in any app language.
+  It covers every check-in (a drive, charging, the app's own wake-ups, someone opening the app, or the sync above),
+  not only Home Assistant's. The app rounds the age down; the earliest time it can mean is used, accurate to a minute
+  for the first day, an hour up to four days, then a day. Companion stream only: the cloud streams keep their own
+  *Vehicle last reported*.
+- **Companion: App request status — available or restricted (#968).** Set by the sync flow: *available* when the app
+  accepted Synchronise now, *restricted* when it answered with "Too many requests sent to the vehicle" (the car's power
+  budget is used up; starting the car resets it). While restricted the app refuses the tap itself, from the car's
+  capability status (1010, PowerBudgetReached), without sending anything — so each scheduled sync is a free check,
+  and the first one that goes through ends the pause on its own. Screen reads go on during the pause (they never
+  reach the car), so the data and its age stay current; only commands wait. After a restart, a pause that is still
+  running shows as *restricted* until the first sync.
 
 ### Docs
 - Internal note only, no user-visible change: the device-grant source file still claimed Audi's app

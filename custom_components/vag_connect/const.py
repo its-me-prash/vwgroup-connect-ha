@@ -80,9 +80,11 @@ CONF_COMPANION_READ_PARKING_POSITION = "companion_read_parking_position"
 # #968 — how often the companion asks the car itself for fresh data, via the
 # app's vehicle Settings → "Synchronise now". Separate from CONF_SCAN_INTERVAL,
 # which only re-reads the app screen: a sync wakes the car, so it runs on its
-# own, slower clock. Minutes, on the settings device's slider.
+# own, slower clock. Minutes, on the settings device's slider; 0 turns it off.
+# The 180 min default matches the app's own automatic wake-up spacing (3 h).
 CONF_COMPANION_APP_SYNC_INTERVAL     = "companion_app_sync_interval"
-DEFAULT_COMPANION_APP_SYNC_INTERVAL  = 60
+DEFAULT_COMPANION_APP_SYNC_INTERVAL  = 180
+COMPANION_APP_SYNC_OFF               = 0
 MIN_COMPANION_APP_SYNC_INTERVAL      = 5
 MAX_COMPANION_APP_SYNC_INTERVAL      = 240
 COMPANION_APP_SYNC_STEP              = 5

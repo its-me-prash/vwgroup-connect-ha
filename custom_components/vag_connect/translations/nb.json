@@ -650,6 +650,16 @@
       "last_seen_at": {
         "name": "Kjøretøy sist rapportert"
       },
+      "last_vehicle_sync": {
+        "name": "Siste synkronisering av bil"
+      },
+      "app_request_status": {
+        "name": "Appens forespørselsstatus",
+        "state": {
+          "available": "Tilgjengelig",
+          "restricted": "Begrenset"
+        }
+      },
       "adblue_range_km": {
         "name": "AdBlue-rekkevidde"
       },

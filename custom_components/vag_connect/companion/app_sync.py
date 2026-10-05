@@ -15,6 +15,7 @@ that a sync is already running, in which case nothing is tapped.
 """
 from __future__ import annotations
 
+from .presets import PRESETS
 from .screen import UiNode
 
 SYNC_BUTTON_ID = "subtitle_cta"
@@ -26,3 +27,9 @@ def find_sync_button(nodes: list[UiNode]) -> UiNode | None:
         n for n in nodes
         if n.resource_id.rsplit("/", 1)[-1] == SYNC_BUTTON_ID and n.bounds is not None
     ), None)
+
+
+def preset_can_sync(brand: str) -> bool:
+    """True when this brand's preset maps "Synchronise now"."""
+    preset = PRESETS.get((brand or "").lower())
+    return preset is not None and any(a.action == "sync_vehicle" for a in preset.actions)

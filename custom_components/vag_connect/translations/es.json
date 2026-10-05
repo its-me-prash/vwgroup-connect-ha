@@ -644,6 +644,16 @@
       "last_seen_at": {
         "name": "Vehículo informado por última vez"
       },
+      "last_vehicle_sync": {
+        "name": "Última sincronización del vehículo"
+      },
+      "app_request_status": {
+        "name": "Estado de solicitudes de la app",
+        "state": {
+          "available": "Disponible",
+          "restricted": "Restringido"
+        }
+      },
       "adblue_range_km": {
         "name": "Alcance AdBlue"
       },

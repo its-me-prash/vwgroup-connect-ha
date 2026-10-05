@@ -8216,8 +8216,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         return not wake_sleep
 
     def companion_app_sync_interval_s(self) -> float:
-        """#968 — the "Synchronise now" interval in seconds (options THEN data)."""
+        """#968 — the "Synchronise now" interval in seconds, 0 when off.
+
+        Options THEN data, as for the poll interval.
+        """
         from .const import (  # noqa: PLC0415
+            COMPANION_APP_SYNC_OFF,
             CONF_COMPANION_APP_SYNC_INTERVAL,
             DEFAULT_COMPANION_APP_SYNC_INTERVAL,
             MAX_COMPANION_APP_SYNC_INTERVAL,
@@ -8233,6 +8237,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             minutes = int(raw)
         except (TypeError, ValueError):
             minutes = DEFAULT_COMPANION_APP_SYNC_INTERVAL
+        if minutes <= COMPANION_APP_SYNC_OFF:
+            return 0.0
         minutes = max(
             MIN_COMPANION_APP_SYNC_INTERVAL,
             min(minutes, MAX_COMPANION_APP_SYNC_INTERVAL),
@@ -8246,39 +8252,59 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         one makes the car send fresh data, then polls once the app has had time
         to receive it. Wakes at least once a minute so a slider change applies
         without a reload. The first sync waits a full interval, so an HA
-        restart never wakes the car on its own.
+        restart never wakes the car on its own, and turning the slider from 0
+        back on starts a fresh interval.
+
+        Every attempt is followed by a screen read, so the App request status
+        sensor shows its outcome: after an accepted sync once the car has had
+        time to answer, otherwise straight away.
         """
         import time  # noqa: PLC0415
 
         last = time.monotonic()
         while self._started:
-            remaining = self.companion_app_sync_interval_s() - (time.monotonic() - last)
+            interval = self.companion_app_sync_interval_s()
+            if interval <= 0:
+                last = time.monotonic()
+                await asyncio.sleep(60.0)
+                continue
+            remaining = interval - (time.monotonic() - last)
             if remaining > 0:
                 await asyncio.sleep(min(remaining, 60.0))
                 continue
             last = time.monotonic()
-            if await self.async_companion_sync_vehicle():
+            outcome = await self.async_companion_sync_vehicle()
+            if outcome is None:
+                continue
+            if outcome:
                 await asyncio.sleep(_APP_SYNC_READBACK_S)
-                if self._started:
-                    await self.async_request_refresh()
+            if self._started:
+                await self.async_request_refresh()
 
-    async def async_companion_sync_vehicle(self) -> bool:
-        """#968 — one "Synchronise now"; True if the app is now syncing.
+    async def async_companion_sync_vehicle(self) -> bool | None:
+        """#968 — one "Synchronise now".
 
-        Never raises: a refused sync (rate limit, version gate, the button not
-        found) is logged and the loop tries again next interval.
+        True when the app is syncing, False when the attempt was refused (the
+        car's request limit, version gate, button not found), None when no
+        attempt was made (not a companion entry, Read-only Mode). Never raises:
+        the loop tries again next interval, and while the car's power budget is
+        used up each try is the probe that notices it is back.
         """
         if not self.is_companion() or self.is_read_only():
-            return False
+            return None
         client = getattr(self, "_cariad_client", None)
         sync = getattr(client, "command_sync_vehicle", None)
         supports = getattr(client, "supports_command", None)
         if sync is None or not callable(supports) or not supports("command_sync_vehicle"):
-            return False
+            return None
         try:
             started = await sync(getattr(client, "_vin", ""))
         except Exception as err:  # noqa: BLE001 - a background sync must not die
-            _LOGGER.warning("VW Group Connect: companion vehicle sync skipped: %s", err)
+            restricted = getattr(getattr(client, "_channel", None), "request_state", None)
+            _LOGGER.log(
+                logging.INFO if restricted == "restricted" else logging.WARNING,
+                "VW Group Connect: companion vehicle sync skipped: %s", err,
+            )
             return False
         finally:
             self._persist_companion_rate_limit()

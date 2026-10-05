@@ -23,6 +23,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    COMPANION_APP_SYNC_OFF,
     COMPANION_APP_SYNC_STEP,
     CONF_BRAND,
     CONF_COMPANION_APP_SYNC_INTERVAL,
@@ -443,17 +444,16 @@ def _companion_can_sync(coordinator: VagConnectCoordinator, entry: ConfigEntry) 
     """True for a companion entry whose brand preset maps "Synchronise now"."""
     if not coordinator.is_companion():
         return False
-    from .companion.presets import PRESETS  # noqa: PLC0415
+    from .companion.app_sync import preset_can_sync  # noqa: PLC0415
 
-    preset = PRESETS.get(str(entry.data.get(CONF_BRAND, "")).lower())
-    return preset is not None and any(a.action == "sync_vehicle" for a in preset.actions)
+    return preset_can_sync(str(entry.data.get(CONF_BRAND, "")))
 
 
 # Shown on the slider's more-info dialog; the app's own warning is not on screen.
 APP_SYNC_NOTE = (
     "Each sync wakes the car. Syncing too often can make the car's battery "
     "protection kick in, and the app then stays in failsafe mode until the car "
-    "is next started."
+    "is next started. Set to 0 to turn the sync off."
 )
 
 
@@ -463,14 +463,14 @@ class VagConnectAppSyncIntervalNumber(NumberEntity):
     #968 — separate from the poll interval, which only re-reads the app screen.
     This one makes the car send fresh data (vehicle Settings → Synchronise now),
     so it runs on its own, slower clock; the coordinator's sync loop re-reads it
-    at least once a minute, so a change applies without a reload.
+    at least once a minute, so a change applies without a reload. 0 is off.
     """
 
     _attr_has_entity_name = True
     _attr_translation_key = "app_sync_interval"
     _attr_entity_category = EntityCategory.CONFIG
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
-    _attr_native_min_value = MIN_COMPANION_APP_SYNC_INTERVAL
+    _attr_native_min_value = COMPANION_APP_SYNC_OFF
     _attr_native_max_value = MAX_COMPANION_APP_SYNC_INTERVAL
     _attr_native_step = COMPANION_APP_SYNC_STEP
     _attr_mode = NumberMode.SLIDER
@@ -502,9 +502,11 @@ class VagConnectAppSyncIntervalNumber(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         # Clamp and snap: a raw number.set_value call can bypass the slider, and
         # a too-short interval is exactly what trips the battery protection.
+        # 0 stays 0 (off); anything else is at least the 5 min the app itself
+        # waits between manual syncs.
         step = COMPANION_APP_SYNC_STEP
         snapped = int(round(float(value) / step)) * step
-        clamped = max(
+        clamped = COMPANION_APP_SYNC_OFF if snapped <= COMPANION_APP_SYNC_OFF else max(
             MIN_COMPANION_APP_SYNC_INTERVAL,
             min(snapped, MAX_COMPANION_APP_SYNC_INTERVAL),
         )

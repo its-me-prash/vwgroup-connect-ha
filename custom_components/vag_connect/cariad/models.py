@@ -1802,6 +1802,14 @@ class VehicleData:
     # no sync line. Surfaced as a diagnostic so a stale car (working connector,
     # old backend data) is visible.
     companion_source_age_s: float | None = None
+    # #968 — companion (ADB) channel only, and separate from ``last_seen_at``,
+    # which belongs to the cloud streams: when the car last sent the app data,
+    # from the overview's "Synchronised … ago" (earliest time it can mean).
+    companion_app_synced_at: Any | None = None
+    # #968 — what the vehicle sync flow last found: "available" when the app
+    # accepted Synchronise now, "restricted" when it answered with the car's
+    # power-budget alert (capability status 1010, PowerBudgetReached).
+    companion_request_state: str | None = None
     # v2.18.0 (A2) — per-FIELD provenance: {field_name: channel} for every
     # field that actually carries a value, recorded by the channel-merge layer.
     # ``source_channel`` answers "which channels fed this car"; this answers

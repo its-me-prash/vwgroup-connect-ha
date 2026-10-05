@@ -776,6 +776,16 @@
       "last_seen_at": {
         "name": "Vehicle Last Reported"
       },
+      "last_vehicle_sync": {
+        "name": "Last vehicle sync"
+      },
+      "app_request_status": {
+        "name": "App request status",
+        "state": {
+          "available": "Available",
+          "restricted": "Restricted"
+        }
+      },
       "adblue_range_km": {
         "name": "AdBlue Range"
       },
