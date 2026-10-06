@@ -5107,6 +5107,30 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     first_seen_at=now,
                 ))
 
+    def _integration_version(self) -> str:
+        """The manifest version for the two reports, or "" — never raises.
+
+        #1736/#1738 — a Scout or error report is read by us days later, on a
+        build we cannot see, so the report has to name it. Three issues in one
+        week opened with us asking the reporter which version they were on.
+
+        Deliberately NOT resolved in async_setup with the awaitable
+        ``async_get_integration``: handed a test's mocked hass that one goes
+        looking for the integration on disk and does not come back, and a
+        cosmetic header field has no business being able to hang setup.
+        ``async_get_loaded_integration`` is a @callback — one dict lookup, no
+        import, no executor, no I/O — and raises IntegrationNotLoaded when it
+        is not there, which is a perfectly good answer here.
+        """
+        try:
+            from homeassistant.loader import (  # noqa: PLC0415
+                async_get_loaded_integration,
+            )
+            integration = async_get_loaded_integration(self.hass, DOMAIN)
+            return str(integration.version or "")
+        except Exception:  # noqa: BLE001
+            return ""
+
     def _refresh_reporter_issues(self) -> None:
         """Recreate / delete the two HA repair issues from current buffers.
 
@@ -5118,6 +5142,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """
         brand = self.entry.data.get(CONF_BRAND, "")
         entry_id = getattr(self.entry, "entry_id", "") or ""
+        version = self._integration_version()
 
         # Vehicle model name (e.g. "ID.4") makes the GitHub issue recognizable
         # at a glance and doubles as the maintainer's private per-model stat.
@@ -5143,6 +5168,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 findings=all_findings,
                 brand=brand,
                 model=model,
+                integration_version=version,
             )
         except Exception:  # noqa: BLE001
             pass
@@ -5156,6 +5182,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 records=records,
                 brand=brand,
                 model=model,
+                integration_version=version,
             )
         except Exception:  # noqa: BLE001
             pass

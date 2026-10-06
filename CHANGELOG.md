@@ -63,6 +63,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   re-send your password to the next address, a redirect that leaves the host drops any
   credential header instead of carrying it along, a redirect off `https` is not followed at
   all, and a chain that never ends gives up after ten hops instead of spinning.
+- **A Vehicle Data Scout report now says which version of the integration produced it
+  (#1736, #1738).** It always had room for that line and never filled it, so every report
+  that reached me started with me asking you which version you were on — three times in the
+  past week. In one of those the field had been mapped thirty-seven minutes before the report
+  was filed, which nobody could tell from the report itself. The same line is now on the error
+  reporter's output. Nothing about what is collected changes: same fields, same masking, no
+  raw API response.
 
 ### Docs
 - Internal note only, no user-visible change: the device-grant source file still claimed Audi's app
