@@ -13,10 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Python 3.12 einrichten
+      - name: Python 3.14 einrichten
         uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Abhängigkeiten installieren
         run: |
@@ -93,10 +93,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Python 3.12 einrichten
+      - name: Python 3.14 einrichten
         uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Test-Abhängigkeiten installieren
         run: |
