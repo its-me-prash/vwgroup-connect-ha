@@ -49,6 +49,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   a user down it. Corrected, together with why Audi deliberately stays in the brand list anyway: it is
   what lets an Audi user reach the honest "this login was switched off" message instead of finding the
   brand quietly missing from the picker.
+- Internal note only, no user-visible change: the rule that recognises a manufacturer-retired app
+  login (#1364, #1337) was written inline inside the browser-login error handler, which meant the
+  test covering it had copied the rule into its own body and was asserting on the copy — it could
+  not have failed if the real rule changed. The rule now lives in one place that the test actually
+  calls, with the first negative cases it has ever had, so a timeout or a 503 can no longer be
+  mistaken for a brand's login being permanently gone.
 
 ## [4.11.0] - 2026-10-04 — Trip figures and a Fix button / Fahrtdaten und ein Fix-Knopf
 
