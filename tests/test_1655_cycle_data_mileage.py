@@ -220,7 +220,11 @@ def test_the_sensor_is_measurement_until_the_reset_question_is_answered() -> Non
     assert d.native_unit_of_measurement == UnitOfLength.KILOMETERS
     assert d.device_class == SensorDeviceClass.DISTANCE
     assert d.state_class == SensorStateClass.MEASUREMENT
-    assert d.entity_registry_enabled_default is False
+    # This used to assert entity_registry_enabled_default is False. That
+    # caution was for a field nobody had seen on a real car yet; it has been
+    # read on several since, and @fschulte2812 went looking for the entity
+    # and could not find it. The presentation now matches its two siblings,
+    # asserted for all three in test_1655_trip_memories_are_consistent.py.
     # portal-only leaf → gated, so no phantom "unknown" entity elsewhere
     assert "cyclic_trip_distance_km" in _DATA_PRESENT_REQUIRED
 

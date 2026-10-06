@@ -70,6 +70,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   was filed, which nobody could tell from the report itself. The same line is now on the error
   reporter's output. Nothing about what is collected changes: same fields, same masking, no
   raw API response.
+- **The trip-computer distance since the last fill-up is a normal sensor now, visible without
+  hunting for it (#1655, thanks @fschulte2812).** It arrived as a hidden diagnostic entity
+  while the two memories next to it — total distance and last journey — were ordinary sensors,
+  which is why @fschulte2812 went looking and could not find it. That caution was for a value
+  nobody had seen on a real car yet; several cars have reported it since. If you enabled it by
+  hand, nothing changes for you.
 
 ### Docs
 - Internal note only, no user-visible change: the device-grant source file still claimed Audi's app
