@@ -54,7 +54,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Geändert / Changed
 - **The Volkswagen.de Data Act login stops one page earlier, and is a little quicker for it
-  (thanks @VWGroupDatahub).** Signing in used to end with a request for a portal content page
+  (#1740, thanks @VWGroupDatahub).** Signing in used to end with a request for a portal content page
   that the integration reads nothing from — the page before it is the one that hands out the
   session. That last request is gone. You will not see a difference beyond a slightly faster
   login; it matters because the portal's own team told us the hop is about to change, and they
