@@ -54,6 +54,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @Carbolithos
 - @carlopetrachin-coder
 - @cbource
+- @cgeroldinger
 - @Chesstimation
 - @Chr1sDub
 - @chrisbamtam
@@ -435,8 +436,10 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @vacuum007
 - @VanHynten
 - @vencislavdimitrov
+- @Vincenzoz59
 - @vogesr
 - @vrouleau
+- @VWGroupDatahub
 - @wekog
 - @WEZANGO
 - @wfa001

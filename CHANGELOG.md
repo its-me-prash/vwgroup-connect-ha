@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.11.1] - 2026-10-06 — The Fix button actually fixes / Der Fix-Knopf tut jetzt was er sagt
+
 ### Behoben / Fixed
 - **The "Volkswagen.de channel needs re-login" Fix button now actually logs you in (#1717, thanks @fschulte2812).**
   It was shipped broken in 4.11.0: pressing Fix closed the dialog, made the notice disappear and did nothing else —
