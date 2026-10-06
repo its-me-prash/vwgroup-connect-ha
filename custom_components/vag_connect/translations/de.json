@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Volkswagen.de-Kanal neu verbinden",
             "description": "Der volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen — Volkswagen verlangt wieder den Einmalcode per E-Mail. Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Weiter, und du landest direkt im Login für dieses Auto; die Einstellungen der Integration musst du nicht selbst suchen."
+          },
+          "credentials": {
+            "title": "Volkswagen.de Website (BETA, nur Lesen)",
+            "data": {
+              "username": "E-Mail-Adresse",
+              "password": "Passwort",
+              "scan_interval": "Aktualisierungsintervall"
+            },
+            "data_description": {
+              "username": "Die E-Mail deines Volkswagen-ID- / myVolkswagen-Kontos.",
+              "password": "Dein Volkswagen-ID-Passwort.",
+              "scan_interval": "Wie oft Daten abgerufen werden (Minuten). Minimum: 5."
+            }
+          },
+          "otp": {
+            "title": "E-Mail-Bestätigungscode",
+            "description": "Ein Bestätigungscode wurde an die E-Mail von **{username}** gesendet.\n\nGib den Code ein, um die Anmeldung am Volkswagen.de-Website-Kanal (Beta) abzuschließen.",
+            "data": {
+              "mfa_code": "Bestätigungscode"
+            },
+            "data_description": {
+              "mfa_code": "Code aus deinem E-Mail-Posteingang — einige Minuten gültig."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
+          "cannot_connect": "Volkswagen konnte nicht erreicht werden. Bitte erneut versuchen.",
+          "website_login_failed": "Deine E-Mail-Adresse und dein Passwort sind nicht das Problem — die Anmeldung bei volkswagen.de ist daran vorbeigekommen und erst in einem späteren Schritt gescheitert (zum Beispiel abgelaufene Sitzung, Weiterleitungsschleife oder eine Seite, die nicht erkannt wurde). Der Grund steht im Home-Assistant-Protokoll. Ein neues Passwort hilft hier nicht; wenn es weiter auftritt, erstelle bitte ein Issue und füge diese Protokollzeile bei."
+        },
+        "abort": {
+          "entry_gone": "Dieser Integrationseintrag existiert nicht mehr."
         }
       }
     },

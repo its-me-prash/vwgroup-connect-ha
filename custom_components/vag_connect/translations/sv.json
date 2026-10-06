@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Anslut Volkswagen.de-kanalen igen",
             "description": "Volkswagen.de-läskanalen kunde inte återuppta sin session — Volkswagen vill ha engångskoden via e-post igen. Bilens huvuddata påverkas inte. Fortsätt, och du kommer direkt till inloggningen för den här bilen; du behöver inte leta upp integrationens inställningar själv."
+          },
+          "credentials": {
+            "title": "Volkswagen.de-webbplats (BETA, skrivskyddad)",
+            "data": {
+              "username": "E-postadress",
+              "password": "Lösenord",
+              "scan_interval": "Uppdateringsintervall"
+            },
+            "data_description": {
+              "username": "E-postadressen för ditt Volkswagen ID-/myVolkswagen-konto.",
+              "password": "Ditt Volkswagen ID-lösenord.",
+              "scan_interval": "Hur ofta data hämtas (minuter). Minst: 5."
+            }
+          },
+          "otp": {
+            "title": "Verifieringskod via e-post",
+            "description": "En verifieringskod skickades till e-postadressen för **{username}**.\n\nAnge koden för att slutföra inloggningen till kanalen för Volkswagen.de-webbplatsen (beta).",
+            "data": {
+              "mfa_code": "Verifieringskod"
+            },
+            "data_description": {
+              "mfa_code": "Kod från din inkorg — giltig i några minuter."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Felaktig e-postadress eller lösenord.",
+          "cannot_connect": "Kunde inte nå Volkswagen. Försök igen.",
+          "website_login_failed": "Din e-postadress och ditt lösenord är inte problemet — inloggningen på volkswagen.de kom förbi dem och misslyckades i ett senare steg (till exempel en utgången session, en omdirigeringsloop eller en sida den inte kände igen). Orsaken finns i Home Assistant-loggen. Ett nytt lösenord hjälper inte; om det fortsätter, öppna ett ärende och bifoga den loggraden."
+        },
+        "abort": {
+          "entry_gone": "Den integrationsposten finns inte längre."
         }
       }
     },

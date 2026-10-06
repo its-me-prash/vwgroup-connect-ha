@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Koble til Volkswagen.de-kanalen på nytt",
             "description": "Volkswagen.de-lesekanalen kunne ikke gjenoppta økten — Volkswagen ber om engangskoden på e-post igjen. Hoveddataene for bilen er upåvirket. Fortsett, og du kommer direkte til innloggingen for denne bilen; du trenger ikke finne innstillingene selv."
+          },
+          "credentials": {
+            "title": "Volkswagen.de-nettsted (BETA, kun lesing)",
+            "data": {
+              "username": "E-postadresse",
+              "password": "Passord",
+              "scan_interval": "Oppdateringsintervall"
+            },
+            "data_description": {
+              "username": "E-posten til Volkswagen ID- / myVolkswagen-kontoen din.",
+              "password": "Passordet til Volkswagen ID-en din.",
+              "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 5."
+            }
+          },
+          "otp": {
+            "title": "E-postbekreftelseskode",
+            "description": "En bekreftelseskode ble sendt til e-posten for **{username}**.\n\nSkriv inn koden for å fullføre innloggingen til Volkswagen.de-nettstedskanalen (beta).",
+            "data": {
+              "mfa_code": "Bekreftelseskode"
+            },
+            "data_description": {
+              "mfa_code": "Kode fra e-postinnboksen din — gyldig i noen minutter."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "E-postadresse eller passord er feil.",
+          "cannot_connect": "Kunne ikke nå Volkswagen. Prøv igjen.",
+          "website_login_failed": "E-postadressen og passordet ditt er ikke problemet — innloggingen på volkswagen.de kom forbi dem og feilet i et senere steg (for eksempel en utløpt sesjon, en omdirigeringsløkke eller en side den ikke gjenkjente). Årsaken står i Home Assistant-loggen. Nytt passord hjelper ikke; hvis det fortsetter, opprett et issue med den logglinjen."
+        },
+        "abort": {
+          "entry_gone": "Den integrasjonsoppføringen finnes ikke lenger."
         }
       }
     },

@@ -57,12 +57,20 @@ def test_only_a_401_raises_the_credential_error():
 
 
 def test_both_drivers_separate_the_two_cases():
-    """config flow and options flow must BOTH classify — #957 only fixed one."""
+    """config flow and options flow must BOTH classify — #957 only fixed one.
+
+    The two drivers no longer live in one file: #1717 moved the options-flow
+    one into ``_vwde_reauth`` so the repair flow could share it instead of
+    carrying a second copy. This test caught that move, which is the useful
+    thing about it, so it now searches both modules — the invariant is that each
+    driver classifies, not which file it sits in.
+    """
     import inspect
 
+    from custom_components.vag_connect import _vwde_reauth as reauth
     from custom_components.vag_connect import config_flow as cf
 
-    src = inspect.getsource(cf)
+    src = inspect.getsource(cf) + inspect.getsource(reauth)
     # one credential branch + one non-credential branch per driver
     assert src.count("except InvalidCredentialsError as err:") == 2
     assert src.count('raise ValueError("website_login_failed") from err') == 2

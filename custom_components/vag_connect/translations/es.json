@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Volver a conectar el canal Volkswagen.de",
             "description": "El canal de lectura volkswagen.de no pudo reanudar su sesión: Volkswagen vuelve a pedir el código de un solo uso por correo. Los datos principales de tu vehículo no se ven afectados. Continúa y llegarás directamente al inicio de sesión de este coche; no tienes que buscar las opciones de la integración."
+          },
+          "credentials": {
+            "title": "Sitio web Volkswagen.de (BETA, solo lectura)",
+            "data": {
+              "username": "Dirección de correo electrónico",
+              "password": "Contraseña",
+              "scan_interval": "Intervalo de actualización"
+            },
+            "data_description": {
+              "username": "El correo electrónico de tu cuenta Volkswagen ID / myVolkswagen.",
+              "password": "La contraseña de tu Volkswagen ID.",
+              "scan_interval": "Con qué frecuencia se obtienen los datos (minutos). Mínimo: 5."
+            }
+          },
+          "otp": {
+            "title": "Código de verificación por correo electrónico",
+            "description": "Se ha enviado un código de verificación al correo electrónico de **{username}**.\n\nIntroduce el código para completar el inicio de sesión en el canal del sitio web Volkswagen.de (beta).",
+            "data": {
+              "mfa_code": "Código de verificación"
+            },
+            "data_description": {
+              "mfa_code": "Código de tu bandeja de entrada de correo electrónico, válido durante unos minutos."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Correo electrónico o contraseña incorrectos.",
+          "cannot_connect": "No se pudo contactar con Volkswagen. Inténtalo de nuevo.",
+          "website_login_failed": "Tu correo y tu contraseña no son el problema — el inicio de sesión en volkswagen.de los superó y falló en un paso posterior (por ejemplo sesión caducada, bucle de redirecciones o una página no reconocida). El motivo está en el registro de Home Assistant. Cambiar la contraseña no ayudará; si sigue ocurriendo, abre una incidencia e incluye esa línea del registro."
+        },
+        "abort": {
+          "entry_gone": "Esa entrada de integración ya no existe."
         }
       }
     },

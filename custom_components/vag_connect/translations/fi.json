@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Yhdistä Volkswagen.de-kanava uudelleen",
             "description": "Volkswagen.de-lukukanava ei voinut jatkaa istuntoaan — Volkswagen pyytää jälleen sähköpostin kertakoodia. Auton päätiedot eivät muutu. Jatka, niin pääset suoraan tämän auton kirjautumiseen; integraation asetuksia ei tarvitse etsiä itse."
+          },
+          "credentials": {
+            "title": "Volkswagen.de-verkkosivusto (BETA, vain luku)",
+            "data": {
+              "username": "Sähköpostiosoite",
+              "password": "Salasana",
+              "scan_interval": "Päivitysväli"
+            },
+            "data_description": {
+              "username": "Volkswagen ID- / myVolkswagen-tilisi sähköposti.",
+              "password": "Volkswagen ID -salasanasi.",
+              "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 5."
+            }
+          },
+          "otp": {
+            "title": "Sähköpostin vahvistuskoodi",
+            "description": "Vahvistuskoodi lähetettiin käyttäjän **{username}** sähköpostiin.\n\nSyötä koodi viimeistelläksesi kirjautumisen Volkswagen.de-verkkosivustokanavaan (beta).",
+            "data": {
+              "mfa_code": "Vahvistuskoodi"
+            },
+            "data_description": {
+              "mfa_code": "Koodi sähköpostilaatikostasi — voimassa muutaman minuutin."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Sähköpostiosoite tai salasana väärin.",
+          "cannot_connect": "Volkswageniin ei saatu yhteyttä. Yritä uudelleen.",
+          "website_login_failed": "Sähköpostiosoitteesi ja salasanasi eivät ole ongelma — volkswagen.de-kirjautuminen pääsi niistä ohi ja kaatui vasta myöhemmässä vaiheessa (esimerkiksi vanhentunut istunto, uudelleenohjaussilmukka tai sivu jota ei tunnistettu). Syy löytyy Home Assistantin lokista. Salasanan vaihtaminen ei auta; jos tämä jatkuu, avaa issue ja liitä kyseinen lokirivi."
+        },
+        "abort": {
+          "entry_gone": "Kyseistä integraatiomerkintää ei enää ole."
         }
       }
     },

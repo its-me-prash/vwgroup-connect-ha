@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Riconnetti il canale Volkswagen.de",
             "description": "Il canale di lettura volkswagen.de non ha potuto riprendere la sessione — Volkswagen richiede di nuovo il codice monouso via e-mail. I dati principali del veicolo non sono interessati. Continua e arriverai direttamente al login per questa auto; non devi cercare tu le opzioni dell'integrazione."
+          },
+          "credentials": {
+            "title": "Sito Volkswagen.de (BETA, solo lettura)",
+            "data": {
+              "username": "Indirizzo email",
+              "password": "Password",
+              "scan_interval": "Intervallo di aggiornamento"
+            },
+            "data_description": {
+              "username": "L'email del tuo account Volkswagen ID / myVolkswagen.",
+              "password": "La password del tuo Volkswagen ID.",
+              "scan_interval": "Con quale frequenza vengono recuperati i dati (minuti). Minimo: 5."
+            }
+          },
+          "otp": {
+            "title": "Codice di verifica email",
+            "description": "Un codice di verifica è stato inviato all'email di **{username}**.\n\nInserisci il codice per completare l'accesso al canale del sito Volkswagen.de (beta).",
+            "data": {
+              "mfa_code": "Codice di verifica"
+            },
+            "data_description": {
+              "mfa_code": "Codice dalla tua casella di posta — valido per alcuni minuti."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Indirizzo email o password errati.",
+          "cannot_connect": "Impossibile raggiungere Volkswagen. Riprova.",
+          "website_login_failed": "La tua email e la password non sono il problema — l'accesso a volkswagen.de le ha superate e si è interrotto in un passaggio successivo (per esempio sessione scaduta, ciclo di reindirizzamenti o una pagina non riconosciuta). Il motivo è nel log di Home Assistant. Cambiare password non serve; se continua, apri una segnalazione allegando quella riga di log."
+        },
+        "abort": {
+          "entry_gone": "Quella voce di integrazione non esiste più."
         }
       }
     },

@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Połącz ponownie kanał Volkswagen.de",
             "description": "Kanał odczytu volkswagen.de nie mógł wznowić sesji — Volkswagen ponownie wymaga jednorazowego kodu z e-maila. Główne dane pojazdu pozostają bez zmian. Kontynuuj, a przejdziesz prosto do logowania dla tego samochodu; nie musisz sam szukać opcji integracji."
+          },
+          "credentials": {
+            "title": "Witryna Volkswagen.de (BETA, tylko do odczytu)",
+            "data": {
+              "username": "Adres e-mail",
+              "password": "Hasło",
+              "scan_interval": "Interwał aktualizacji"
+            },
+            "data_description": {
+              "username": "Adres e-mail Twojego konta Volkswagen ID / myVolkswagen.",
+              "password": "Hasło do Twojego konta Volkswagen ID.",
+              "scan_interval": "Jak często pobierane są dane (w minutach). Minimum: 5."
+            }
+          },
+          "otp": {
+            "title": "Kod weryfikacyjny e-mail",
+            "description": "Kod weryfikacyjny został wysłany na adres e-mail dla **{username}**.\n\nWprowadź kod, aby dokończyć logowanie do kanału witryny Volkswagen.de (beta).",
+            "data": {
+              "mfa_code": "Kod weryfikacyjny"
+            },
+            "data_description": {
+              "mfa_code": "Kod z Twojej skrzynki e-mail — ważny przez kilka minut."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",
+          "cannot_connect": "Nie udało się połączyć z Volkswagenem. Spróbuj ponownie.",
+          "website_login_failed": "Twój e-mail i hasło nie są problemem — logowanie do volkswagen.de przeszło ten etap i zawiodło dopiero później (na przykład wygasła sesja, pętla przekierowań albo nierozpoznana strona). Powód jest w dzienniku Home Assistanta. Zmiana hasła nie pomoże; jeśli to się powtarza, otwórz zgłoszenie i dołącz ten wiersz dziennika."
+        },
+        "abort": {
+          "entry_gone": "Ten wpis integracji już nie istnieje."
         }
       }
     },

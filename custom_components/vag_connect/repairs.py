@@ -30,13 +30,17 @@ from homeassistant import data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.issue_registry as ir
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
     TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 
+from ._vwde_reauth import VwDeReauthMixin
 from .cariad._util import mask_vin
 from .const import DOMAIN
 
@@ -704,8 +708,8 @@ class _AuthRepairFlow(RepairsFlow):
         return self.async_create_entry(title="", data={})
 
 
-class _SupplementaryReauthRepairFlow(RepairsFlow):
-    """#1717 — take the user straight to the volkswagen.de login step.
+class _SupplementaryReauthRepairFlow(VwDeReauthMixin, RepairsFlow):
+    """#1717 — carry the volkswagen.de login inside the repair itself.
 
     The sibling ``_AuthRepairFlow`` cannot be reused: it starts a CONFIG flow,
     and this login lives on the OPTIONS flow. Starting a config flow here would
@@ -713,12 +717,28 @@ class _SupplementaryReauthRepairFlow(RepairsFlow):
     primary channel keeps working while this notice is up, so that would ask the
     user to fix something that is fine.
 
+    The first attempt instead called ``options.async_init`` from here and then
+    resolved the issue. That was wrong twice over, reported by @fschulte2812 on
+    #1313: Home Assistant presents CONFIG flows, so an options flow started from
+    the backend is never shown to anyone, and ``async_create_entry`` marked the
+    notice fixed regardless — the repair vanished, the login never happened and
+    the channel stayed down. The test that was supposed to cover it asserted
+    that ``options.async_init`` had been awaited, i.e. it checked the call and
+    not the outcome.
+
+    So the login happens here: credentials, then the e-mail code if Volkswagen
+    asks for one, and the issue resolves ONLY once cookies have been captured
+    and written. Every step reuses the options flow's own machinery through
+    :class:`VwDeReauthMixin`, so there is one implementation of the login.
+
     The one-time code is unavoidable and untouched; Volkswagen wants it and only
     the user has it. What this removes is the navigation in front of it.
     """
 
     def __init__(self, entry_id: str) -> None:
         self._entry_id = entry_id
+        self._config_entry: Any = None
+        self.ovw_reset()
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -730,11 +750,70 @@ class _SupplementaryReauthRepairFlow(RepairsFlow):
     ) -> data_entry_flow.FlowResult:
         if user_input is None:
             return self.async_show_form(step_id="confirm")
-        # The marker is read by the options flow's first step, which jumps to
-        # the vw.de login instead of showing the full settings form.
-        await self.hass.config_entries.options.async_init(
-            self._entry_id, data={"goto": "add_vwde"}
+        return await self.async_step_credentials()
+
+    async def async_step_credentials(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        """Volkswagen ID e-mail + password, driven straight from the repair."""
+        entry = self.hass.config_entries.async_get_entry(self._entry_id)
+        if entry is None:
+            return self.async_abort(reason="entry_gone")
+        self._config_entry = entry
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._ovw_username = str(user_input.get(CONF_USERNAME, ""))
+            try:
+                needs_code = await self._ovw_begin_login(
+                    self._ovw_username, str(user_input.get(CONF_PASSWORD, "")),
+                )
+            except ValueError as err:
+                # The mixin raises the strings.json error key verbatim.
+                errors["base"] = str(err) or "cannot_connect"
+            else:
+                if needs_code:
+                    return await self.async_step_otp()
+                return await self._async_resolve()
+
+        return self.async_show_form(
+            step_id="credentials",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME): TextSelector(),
+                vol.Required(CONF_PASSWORD): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                ),
+            }),
+            errors=errors,
         )
+
+    async def async_step_otp(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        """The e-mail one-time code, when Volkswagen asks for it."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                ok = await self._ovw_submit_otp(
+                    str(user_input.get("mfa_code", "")).strip()
+                )
+            except ValueError as err:
+                errors["base"] = str(err) or "cannot_connect"
+            else:
+                if ok:
+                    return await self._async_resolve()
+                errors["base"] = "invalid_credentials"
+
+        return self.async_show_form(
+            step_id="otp",
+            data_schema=vol.Schema({vol.Required("mfa_code"): TextSelector()}),
+            errors=errors,
+            description_placeholders={"username": self._ovw_username},
+        )
+
+    async def _async_resolve(self) -> data_entry_flow.FlowResult:
+        """Write the cookies, reload, and only THEN mark the issue fixed."""
+        await self._ovw_persist()
         return self.async_create_entry(title="", data={})
 
 

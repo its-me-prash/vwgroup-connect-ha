@@ -42,6 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+- **The "Volkswagen.de channel needs re-login" Fix button now actually logs you in (#1717, thanks @fschulte2812).**
+  It was shipped broken in 4.11.0: pressing Fix closed the dialog, made the notice disappear and did nothing else —
+  no login appeared and the channel stayed down. @fschulte2812 found it and read the code to work out why. The repair
+  was handing the job to a settings screen that Home Assistant never shows when something other than you opens it,
+  and then marking itself done regardless. The login now happens inside the notice itself: e-mail and password, then
+  the one-time code if Volkswagen asks for it, and the notice only clears once you are actually signed in again.
+
 ### Docs
 - Internal note only, no user-visible change: the device-grant source file still claimed Audi's app
   client returned `200` from Volkswagen's device-code endpoint. That stopped being true when VW walled

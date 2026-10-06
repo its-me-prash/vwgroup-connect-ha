@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Reconnecter le canal Volkswagen.de",
             "description": "Le canal de lecture volkswagen.de n'a pas pu reprendre sa session — Volkswagen redemande le code à usage unique par e-mail. Les données principales de votre véhicule ne sont pas affectées. Continuez et vous arriverez directement à la connexion pour ce véhicule ; inutile de chercher vous-même les options de l'intégration."
+          },
+          "credentials": {
+            "title": "Site Volkswagen.de (BÊTA, lecture seule)",
+            "data": {
+              "username": "Adresse e-mail",
+              "password": "Mot de passe",
+              "scan_interval": "Intervalle de mise à jour"
+            },
+            "data_description": {
+              "username": "L'e-mail de votre compte Volkswagen ID / myVolkswagen.",
+              "password": "Le mot de passe de votre Volkswagen ID.",
+              "scan_interval": "Fréquence de récupération des données (minutes). Minimum : 5."
+            }
+          },
+          "otp": {
+            "title": "Code de vérification par e-mail",
+            "description": "Un code de vérification a été envoyé à l'e-mail de **{username}**.\n\nSaisissez le code pour terminer la connexion au canal du site Volkswagen.de (bêta).",
+            "data": {
+              "mfa_code": "Code de vérification"
+            },
+            "data_description": {
+              "mfa_code": "Code de votre boîte de réception — valable quelques minutes."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Adresse e-mail ou mot de passe incorrect.",
+          "cannot_connect": "Impossible de joindre Volkswagen. Veuillez réessayer.",
+          "website_login_failed": "Votre adresse e-mail et votre mot de passe ne sont pas en cause — la connexion à volkswagen.de a passé cette étape puis a échoué plus loin (par exemple session expirée, boucle de redirection ou page non reconnue). La raison figure dans le journal de Home Assistant. Changer de mot de passe n'y changera rien ; si cela persiste, ouvrez un ticket en joignant cette ligne de journal."
+        },
+        "abort": {
+          "entry_gone": "Cette entrée d'intégration n'existe plus."
         }
       }
     },

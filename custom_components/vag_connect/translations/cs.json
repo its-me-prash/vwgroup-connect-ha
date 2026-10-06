@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Znovu připojit kanál Volkswagen.de",
             "description": "Čtecí kanál volkswagen.de nemohl obnovit sezení — Volkswagen znovu vyžaduje jednorázový kód z e-mailu. Hlavní data vozidla to neovlivní. Pokračujte a dostanete se přímo k přihlášení pro toto vozidlo; nastavení integrace nemusíte hledat sami."
+          },
+          "credentials": {
+            "title": "Web Volkswagen.de (BETA, jen pro čtení)",
+            "data": {
+              "username": "E-mailová adresa",
+              "password": "Heslo",
+              "scan_interval": "Interval aktualizace"
+            },
+            "data_description": {
+              "username": "E-mail vašeho účtu Volkswagen ID / myVolkswagen.",
+              "password": "Heslo k vašemu Volkswagen ID.",
+              "scan_interval": "Jak často se stahují data (v minutách). Minimum: 5."
+            }
+          },
+          "otp": {
+            "title": "Ověřovací kód z e-mailu",
+            "description": "Na e-mail pro **{username}** byl odeslán ověřovací kód.\n\nZadejte kód a dokončete přihlášení ke kanálu webu Volkswagen.de (beta).",
+            "data": {
+              "mfa_code": "Ověřovací kód"
+            },
+            "data_description": {
+              "mfa_code": "Kód z vaší e-mailové schránky — platný několik minut."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Nesprávná e-mailová adresa nebo heslo.",
+          "cannot_connect": "Volkswagen se nepodařilo kontaktovat. Zkuste to prosím znovu.",
+          "website_login_failed": "Tvůj e-mail a heslo nejsou problém — přihlášení na volkswagen.de je prošlo a selhalo až v pozdějším kroku (například vypršelá session, smyčka přesměrování nebo nerozpoznaná stránka). Důvod je v logu Home Assistanta. Změna hesla nepomůže; pokud se to opakuje, založ issue a přilož tento řádek logu."
+        },
+        "abort": {
+          "entry_gone": "Tento záznam integrace již neexistuje."
         }
       }
     },

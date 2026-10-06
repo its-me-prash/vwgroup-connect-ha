@@ -97,44 +97,168 @@ def test_the_other_repairs_still_route_as_before() -> None:
 
 # ── Clicking Fix opens the options flow at the right step ────────────────────
 
-def _run_confirm() -> tuple[Any, MagicMock]:
+# A stand-in for a live config entry: the flow only passes it through to
+# async_update_entry, so its identity is all that matters here.
+_SENTINEL_ENTRY = MagicMock(name="config_entry")
+_SENTINEL_ENTRY.data = {}
+_SENTINEL_ENTRY.entry_id = ENTRY
+
+
+def _run(coro: Any) -> Any:
     import asyncio
 
+    return asyncio.new_event_loop().run_until_complete(coro)
+
+# ── #1717 round two: the Fix button has to actually log in ──────────────────
+#
+# The first version of this feature started the options flow from the repair and
+# then resolved the issue. @fschulte2812 reported the result on #1313: the
+# dialog closed, the notice disappeared, no login appeared, and the channel
+# stayed down. He read repairs.py and diagnosed it himself — Home Assistant
+# presents CONFIG flows, so an options flow started in the backend is shown to
+# nobody, while async_create_entry marked the issue fixed anyway.
+#
+# The tests below replace the ones that let that ship. The old pair asserted
+# that options.async_init had been awaited with the right marker: both true, and
+# both useless, because they checked the CALL and never that a human reaches a
+# login. These check the outcome — above all that the issue cannot resolve
+# unless cookies were captured.
+
+
+def _repair_flow(entry: Any = _SENTINEL_ENTRY) -> tuple[Any, MagicMock]:
+    """A repair flow with a stub hass. Returns (flow, hass)."""
     from custom_components.vag_connect.repairs import (
         _SupplementaryReauthRepairFlow,
     )
 
     flow = _SupplementaryReauthRepairFlow(ENTRY)
     hass = MagicMock()
+    hass.config_entries.async_get_entry = MagicMock(return_value=entry)
     hass.config_entries.options.async_init = AsyncMock(return_value={"type": "form"})
+    hass.config_entries.flow.async_init = AsyncMock(return_value={"type": "form"})
+    hass.config_entries.async_update_entry = MagicMock()
+    hass.async_create_task = MagicMock()
     flow.hass = hass
-    loop = asyncio.new_event_loop()
-    # First call with no input shows the confirm form ...
-    form = loop.run_until_complete(flow.async_step_init())
-    assert form["type"] == "form"
-    # ... the second, after the user confirms, acts.
-    result = loop.run_until_complete(flow.async_step_confirm({}))
-    return result, hass
+    return flow, hass
 
 
-def test_confirming_starts_the_options_flow_for_that_entry() -> None:
-    """The OPTIONS flow, not the config flow — and for the entry the notice
-    belongs to, which is what removes the "which entry?" problem."""
-    _, hass = _run_confirm()
-    hass.config_entries.options.async_init.assert_awaited_once()
-    args, kwargs = hass.config_entries.options.async_init.await_args
-    assert args[0] == ENTRY
-    assert kwargs["data"]["goto"] == "add_vwde"
+def test_confirming_now_asks_for_the_login_instead_of_claiming_success() -> None:
+    """The regression that shipped: confirm used to resolve the issue outright."""
+    flow, hass = _repair_flow()
+    first = _run(flow.async_step_init())
+    assert first["type"] == "form" and first["step_id"] == "confirm"
+
+    second = _run(flow.async_step_confirm({}))
+    assert second["type"] == "form", "confirm resolved the issue without a login"
+    assert second["step_id"] == "credentials"
+    hass.config_entries.options.async_init.assert_not_called()
 
 
-def test_the_config_flow_is_not_touched() -> None:
-    """A config flow here would land on reauth for the PRIMARY account, which is
-    not what is broken — the primary channel keeps working throughout."""
-    _, hass = _run_confirm()
+def test_the_invisible_options_flow_is_never_started_again() -> None:
+    """The specific mechanism of the bug, pinned so it cannot come back: an
+    options flow started from here is presented to nobody."""
+    flow, hass = _repair_flow()
+    _run(flow.async_step_confirm({}))
+    _run(flow.async_step_credentials())
+    hass.config_entries.options.async_init.assert_not_called()
     hass.config_entries.flow.async_init.assert_not_called()
 
 
-# ── The options flow honours the marker ─────────────────────────────────────
+def test_a_rejected_password_keeps_the_issue_open() -> None:
+    """A failed login re-shows the form with the error and resolves nothing."""
+    flow, hass = _repair_flow()
+    flow._ovw_begin_login = AsyncMock(side_effect=ValueError("invalid_credentials"))
+
+    res = _run(flow.async_step_credentials({"username": "a@b.c", "password": "x"}))
+    assert res["type"] == "form" and res["step_id"] == "credentials"
+    assert res["errors"]["base"] == "invalid_credentials"
+    hass.config_entries.async_update_entry.assert_not_called()
+
+
+def test_a_login_needing_the_email_code_goes_to_the_code_step() -> None:
+    flow, _hass = _repair_flow()
+    flow._ovw_begin_login = AsyncMock(return_value=True)
+
+    res = _run(flow.async_step_credentials({"username": "a@b.c", "password": "x"}))
+    assert res["type"] == "form" and res["step_id"] == "otp"
+    assert res["description_placeholders"]["username"] == "a@b.c"
+
+
+def test_a_wrong_code_keeps_the_issue_open() -> None:
+    flow, hass = _repair_flow()
+    flow._ovw_submit_otp = AsyncMock(return_value=False)
+
+    res = _run(flow.async_step_otp({"mfa_code": "000000"}))
+    assert res["type"] == "form" and res["step_id"] == "otp"
+    assert res["errors"]["base"] == "invalid_credentials"
+    hass.config_entries.async_update_entry.assert_not_called()
+
+
+def test_only_a_successful_login_writes_the_cookies_and_resolves() -> None:
+    """The whole point. Cookies written AND the issue resolved, in that order."""
+    from custom_components.vag_connect.const import (
+        CONF_SUPPLEMENTARY_AUTHPROXY,
+        CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+    )
+
+    flow, hass = _repair_flow()
+    flow._ovw_begin_login = AsyncMock(return_value=False)
+    flow._ovw_cookies = [{"name": "sess", "value": "v"}]
+
+    res = _run(flow.async_step_credentials({"username": "a@b.c", "password": "x"}))
+    assert res["type"] == "create_entry", "a good login did not resolve the issue"
+
+    hass.config_entries.async_update_entry.assert_called_once()
+    _args, kwargs = hass.config_entries.async_update_entry.call_args
+    assert kwargs["data"][CONF_SUPPLEMENTARY_AUTHPROXY] is True
+    assert kwargs["data"][CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES] == [
+        {"name": "sess", "value": "v"}
+    ]
+    # and the entry is reloaded so the coordinator arms the merged channel
+    hass.async_create_task.assert_called_once()
+
+
+def test_a_deleted_entry_aborts_instead_of_crashing() -> None:
+    flow, hass = _repair_flow(entry=None)
+    res = _run(flow.async_step_credentials())
+    assert res["type"] == "abort" and res["reason"] == "entry_gone"
+    hass.config_entries.async_update_entry.assert_not_called()
+
+
+def test_the_login_is_shared_with_the_options_flow_not_copied() -> None:
+    """One implementation. A second copy would drift from the error
+    classification that several reports hardened."""
+    from custom_components.vag_connect._vwde_reauth import VwDeReauthMixin
+    from custom_components.vag_connect.config_flow import VagConnectOptionsFlow
+    from custom_components.vag_connect.repairs import (
+        _SupplementaryReauthRepairFlow,
+    )
+
+    assert issubclass(_SupplementaryReauthRepairFlow, VwDeReauthMixin)
+    assert issubclass(VagConnectOptionsFlow, VwDeReauthMixin)
+    # Neither may define its own copy of the mechanics.
+    for cls in (_SupplementaryReauthRepairFlow, VagConnectOptionsFlow):
+        for name in ("_ovw_begin_login", "_ovw_submit_otp", "_ovw_close_session"):
+            assert name not in vars(cls), f"{cls.__name__} re-defines {name}"
+
+
+def test_every_step_the_flow_can_show_has_strings_in_all_languages() -> None:
+    """A form whose step_id has no strings renders as a raw key to the user."""
+    import json
+    from pathlib import Path
+
+    root = Path("custom_components/vag_connect")
+    files = [root / "strings.json"] + sorted((root / "translations").glob("*.json"))
+    assert len(files) >= 13, f"only {len(files)} string files found"
+    for path in files:
+        fix = json.loads(path.read_text(encoding="utf-8"))["issues"][
+            "supplementary_reauth"
+        ]["fix_flow"]
+        missing = {"confirm", "credentials", "otp"} - set(fix["step"])
+        assert not missing, f"{path.name} is missing {sorted(missing)}"
+        assert "invalid_credentials" in fix["error"], path.name
+        assert fix["abort"].get("entry_gone"), path.name
+
 
 def test_the_options_flow_jumps_straight_to_the_vwde_step() -> None:
     """Without this the user lands on the full settings form and still has to

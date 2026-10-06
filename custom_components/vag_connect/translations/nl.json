@@ -2215,7 +2215,38 @@
           "confirm": {
             "title": "Volkswagen.de-kanaal opnieuw verbinden",
             "description": "Het volkswagen.de-leeskanaal kon de sessie niet hervatten — Volkswagen vraagt opnieuw de eenmalige code per e-mail. De hoofdgegevens van je auto blijven ongewijzigd. Ga verder en je komt direct bij de login voor deze auto; je hoeft de instellingen van de integratie niet zelf te zoeken."
+          },
+          "credentials": {
+            "title": "Volkswagen.de-website (BÈTA, alleen-lezen)",
+            "data": {
+              "username": "E-mailadres",
+              "password": "Wachtwoord",
+              "scan_interval": "Update-interval"
+            },
+            "data_description": {
+              "username": "Het e-mailadres van je Volkswagen ID / myVolkswagen-account.",
+              "password": "Je Volkswagen ID-wachtwoord.",
+              "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 5."
+            }
+          },
+          "otp": {
+            "title": "E-mailverificatiecode",
+            "description": "Er is een verificatiecode verstuurd naar het e-mailadres van **{username}**.\n\nVoer de code in om het aanmelden bij het Volkswagen.de-website-kanaal (bèta) te voltooien.",
+            "data": {
+              "mfa_code": "Verificatiecode"
+            },
+            "data_description": {
+              "mfa_code": "Code uit je inbox — enkele minuten geldig."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "E-mailadres of wachtwoord onjuist.",
+          "cannot_connect": "Volkswagen niet bereikbaar. Probeer het opnieuw.",
+          "website_login_failed": "Je e-mailadres en wachtwoord zijn niet het probleem — de aanmelding bij volkswagen.de kwam daar voorbij en liep pas in een latere stap vast (bijvoorbeeld een verlopen sessie, een omleidingslus of een pagina die niet werd herkend). De reden staat in het Home Assistant-logboek. Een ander wachtwoord helpt niet; als het blijft gebeuren, open dan een issue met die logregel."
+        },
+        "abort": {
+          "entry_gone": "Die integratievermelding bestaat niet meer."
         }
       }
     },

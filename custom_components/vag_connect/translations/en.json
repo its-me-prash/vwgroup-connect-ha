@@ -2219,7 +2219,38 @@
           "confirm": {
             "title": "Re-connect the Volkswagen.de channel",
             "description": "The volkswagen.de read channel couldn't resume its session — Volkswagen wants the email one-time code again. Your vehicle's main data is unaffected. Continue and you will be taken straight to the login for this car; you do not need to find the integration's settings yourself."
+          },
+          "credentials": {
+            "title": "Volkswagen.de website (BETA, read-only)",
+            "data": {
+              "username": "Email Address",
+              "password": "Password",
+              "scan_interval": "Update Interval"
+            },
+            "data_description": {
+              "username": "The email of your Volkswagen ID / myVolkswagen account.",
+              "password": "Your Volkswagen ID password.",
+              "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+            }
+          },
+          "otp": {
+            "title": "Email verification code",
+            "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+            "data": {
+              "mfa_code": "Verification Code"
+            },
+            "data_description": {
+              "mfa_code": "Code from your email inbox — valid for a few minutes."
+            }
           }
+        },
+        "error": {
+          "invalid_credentials": "Email address or password incorrect.",
+          "cannot_connect": "Could not reach Volkswagen. Please try again.",
+          "website_login_failed": "Your email and password are not the problem — the volkswagen.de login got past that and then failed at a later step (for example an expired session, a redirect loop, or a page it did not recognise). The reason is in the Home Assistant log. Changing your password will not help; if it keeps happening, please open an issue and include that log line."
+        },
+        "abort": {
+          "entry_gone": "That integration entry no longer exists."
         }
       }
     },
