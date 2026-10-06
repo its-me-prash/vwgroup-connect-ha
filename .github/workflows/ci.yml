@@ -23,7 +23,6 @@ jobs:
           pip install \
             ruff==0.15.12 \
             mypy \
-            aiohttp \
             homeassistant
 
       - name: Ruff Lint
@@ -105,7 +104,6 @@ jobs:
             pytest-cov \
             pytest-asyncio \
             hypothesis \
-            aiohttp \
             voluptuous \
             homeassistant
 
