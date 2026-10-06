@@ -242,6 +242,9 @@ class _FakeResp:
     ) -> None:
         self.url = url
         self.status = status
+        # A real aiohttp response always has headers; the login reads
+        # "Location" off them now that it follows redirects itself.
+        self.headers: dict[str, str] = {}
         self._text = text
         self._json = json_data
         self._body = body
