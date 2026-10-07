@@ -63,6 +63,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   repeated wrong PINs are how a vehicle PIN gets locked.
 
 ### Geändert / Changed
+- Internal, no user-visible change: Home Assistant 2026.10 replaced the library it validates
+  configuration with. Nothing about this integration broke — Home Assistant keeps the old name
+  working on purpose, and names custom integrations as the reason — but our type checking had to
+  follow it, and until it did, every change to this project failed its automated checks. The
+  validation library is now reached through one documented place instead of six, so the next step
+  of that migration is a one-line change, and nine repair dialogs carry the result type Home
+  Assistant now expects. Verified against both the new release and the previous one.
 - **Requests to the EU Data Act portal now say who they are, and the login makes one fewer
   round trip (#1740, thanks @VWGroupDatahub).** The portal's operator asked for a dedicated
   user-agent on requests to their domain so they can tell traffic apart and report problems
@@ -76,6 +83,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   front of the login server started answering `403` to a non-browser one (#388, #393).
 
 ### Behoben / Fixed
+- **Two things Home Assistant 2026.10 started warning about in our LLM tools are dealt with before
+  they become errors.** Each of the Škoda tools now names the integration it comes from, and a tool
+  hands its result back in the container the newer Home Assistant expects instead of a bare object.
+  Home Assistant had been papering over both and writing a deprecation line into your log on every
+  tool call; the first becomes a hard error in 2027.10, the second in 2027.11. Nothing changes in
+  what the tools do or what an assistant sees, and older Home Assistant builds still get exactly
+  the shape they expect.
 - **A solved Porsche captcha is now replayed into the login it belongs to.** When Porsche puts a
   captcha in front of you, the integration showed it, you typed it, and the answer went back on a
   brand-new connection that had forgotten everything about the sign-in it was answering for — so
