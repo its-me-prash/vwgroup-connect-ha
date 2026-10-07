@@ -104,7 +104,21 @@ ISSUE_ID_ERROR_REPORTER = "error_reporter_findings"
 #     no body part — so even the complete dictionary can't say which opening they
 #     are. They remain Scout-visible on the generic ``open`` leaf; a reporter who
 #     can identify the physical opening on their car still gets us there.
-_SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({"scope_potential_total", "is_set"})
+_SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({
+    "scope_potential_total",
+    "is_set",
+    # #1757 (and #1164, which carried all four in one payload) — the field
+    # catalogue gives these three no meaning and no unit at all: they are
+    # zFDI/PPE-only placeholders, and every sample so far is an empty string.
+    # Skipping the REPAIR is not suppression — they stay in
+    # raw_unmapped_fields and on the raw-fields sensor, so a PPE car that one
+    # day delivers a real value is still discoverable. Same reasoning as
+    # scope_potential_total above, which carries a byte-identical catalogue
+    # entry.
+    "first_active_consumer_",
+    "second_active_consumer_",
+    "third_active_consumer_",
+})
 # Substring match on the (masked) sample: #1100's UUID annotation rides in the
 # value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open
 # PATH) preserves discovery — a genuinely-new opening UUID on the same leaf still

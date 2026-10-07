@@ -43,6 +43,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Hinzugefügt / Added
+- **A car reading the EU Data Act portal gains one more diagnostic: when the instrument cluster
+  last recorded a warning.** A Touareg reported the field, and every sample we have of it — four,
+  from three different cars — carries an absolute timestamp, so it becomes a timestamp sensor
+  beside the existing raw warning value rather than being folded into it. Off by default, like
+  every diagnostic of this kind, and it only appears on cars that actually send it (#1757, thanks
+  @robertbakum).
+- Internal, no user-visible change: three further fields the same car reported stay deliberately
+  unmapped. The official field catalogue gives them no meaning and no unit at all, and every
+  sample so far is empty — so they raise no repair card, while staying visible on the raw-fields
+  sensor, which is what keeps a car that one day sends a real value findable (#1757, #1164).
 - **Six Škoda commands can now fall back to the official Škoda API when the app backend refuses
   them.** Every Škoda command goes through the reverse-engineered app backend today, and that
   backend is expected to be switched off. The official public API — the one you already use for
@@ -76,6 +86,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   front of the login server started answering `403` to a non-browser one (#388, #393).
 
 ### Behoben / Fixed
+- A car sending an empty value for the raw dashboard-warning reading no longer creates a sensor
+  that shows nothing. Found while mapping its sibling above.
 - **A single rate-limit response from the official Škoda API could silence its readings long
   after the limit had passed.** The `Retry-After` value from a throttled response was kept and
   then re-applied to any later refusal, so one busy minute could park the channel for the whole
