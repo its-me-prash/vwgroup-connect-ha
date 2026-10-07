@@ -76,6 +76,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   front of the login server started answering `403` to a non-browser one (#388, #393).
 
 ### Behoben / Fixed
+- **A solved Porsche captcha is now replayed into the login it belongs to.** When Porsche puts a
+  captcha in front of you, the integration showed it, you typed it, and the answer went back on a
+  brand-new connection that had forgotten everything about the sign-in it was answering for — so
+  Porsche could reasonably refuse a correct answer. The login now carries its session across the
+  pause while you read the image. Every other project that handles this captcha keeps that session
+  alive; we were the one that did not. Honest caveat: nobody here has an account that produces a
+  Porsche captcha, so this is reasoned from the code and from what the working clients do, not
+  confirmed on a real one — if you hit it, the report link in the dialog is still worth using
+  (#1752).
 - **A single rate-limit response from the official Škoda API could silence its readings long
   after the limit had passed.** The `Retry-After` value from a throttled response was kept and
   then re-applied to any later refusal, so one busy minute could park the channel for the whole

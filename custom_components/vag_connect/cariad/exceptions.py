@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
+from typing import Any
 
 # ── redaction (self-contained; this is a leaf module, no cross-imports) ──────
 _UUID_RE = re.compile(
@@ -446,6 +447,14 @@ class PorscheCaptchaRequiredError(AuthenticationError):
     ACUL screen that presented it, instead of re-driving identifier + password.
     ``None`` means the classic identifier-step captcha, which resumes by
     re-POSTing the identifier with the ``captcha`` field (unchanged).
+
+    ``cookie_jar`` (#1752) is the jar the attempt that raised this was using.
+    Auth0 binds a login transaction to a session cookie as well as to the
+    ``state`` parameter, so a resume that replays the solved captcha from an
+    empty jar is a different session as far as the tenant is concerned. The
+    jar is a plain in-memory object, independent of the connection that
+    collected the cookies, so handing it over costs nothing and keeps no
+    socket open across the pause while the user reads the image.
     """
 
     def __init__(
@@ -454,6 +463,7 @@ class PorscheCaptchaRequiredError(AuthenticationError):
         state: str,
         code_verifier: str,
         resume: dict | None = None,
+        cookie_jar: Any | None = None,
     ) -> None:
         super().__init__(
             "Porsche requires a captcha to be solved — the interactive setup "
@@ -464,6 +474,7 @@ class PorscheCaptchaRequiredError(AuthenticationError):
         self.state = state
         self.code_verifier = code_verifier
         self.resume = resume
+        self.cookie_jar = cookie_jar
 
 
 class PorscheLoginWallError(AuthenticationError):
