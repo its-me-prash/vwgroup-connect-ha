@@ -24,10 +24,13 @@ from typing import Any
 
 import logging
 
-import voluptuous as vol
 
-from homeassistant import data_entry_flow
-from homeassistant.components.repairs import RepairsFlow
+# RepairsFlowResult, not the bare FlowResult: HA 2026.10 parameterised
+# RepairsFlow as FlowHandler[RepairsFlowContext, RepairsFlowResult, str], so a
+# step annotated with the unparameterised result no longer matches what
+# async_show_form returns here. The name goes back to at least 2026.9, so this
+# is the annotation both versions agree on.
+from homeassistant.components.repairs import RepairsFlow, RepairsFlowResult
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.issue_registry as ir
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -39,6 +42,8 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+
+from ._vol import vol
 
 from ._vwde_reauth import VwDeReauthMixin
 from .cariad._util import mask_vin
@@ -688,12 +693,12 @@ class _AuthRepairFlow(RepairsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         return await self.async_step_confirm()
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         if user_input is None:
             return self.async_show_form(
                 step_id="confirm",
@@ -742,19 +747,19 @@ class _SupplementaryReauthRepairFlow(VwDeReauthMixin, RepairsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         return await self.async_step_confirm()
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         if user_input is None:
             return self.async_show_form(step_id="confirm")
         return await self.async_step_credentials()
 
     async def async_step_credentials(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         """Volkswagen ID e-mail + password, driven straight from the repair."""
         entry = self.hass.config_entries.async_get_entry(self._entry_id)
         if entry is None:
@@ -789,7 +794,7 @@ class _SupplementaryReauthRepairFlow(VwDeReauthMixin, RepairsFlow):
 
     async def async_step_otp(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         """The e-mail one-time code, when Volkswagen asks for it."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -811,7 +816,7 @@ class _SupplementaryReauthRepairFlow(VwDeReauthMixin, RepairsFlow):
             description_placeholders={"username": self._ovw_username},
         )
 
-    async def _async_resolve(self) -> data_entry_flow.FlowResult:
+    async def _async_resolve(self) -> RepairsFlowResult:
         """Write the cookies, reload, and only THEN mark the issue fixed."""
         await self._ovw_persist()
         return self.async_create_entry(title="", data={})
@@ -859,12 +864,12 @@ class _SkodaOfficialKeyRepairFlow(RepairsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         return await self.async_step_enter_key(user_input)
 
     async def async_step_enter_key(
         self, user_input: dict[str, Any] | None = None
-    ) -> data_entry_flow.FlowResult:
+    ) -> RepairsFlowResult:
         from .const import CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
 
         errors: dict[str, str] = {}

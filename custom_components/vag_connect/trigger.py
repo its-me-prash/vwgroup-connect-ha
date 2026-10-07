@@ -21,11 +21,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import voluptuous as vol
 from homeassistant.const import CONF_DEVICE_ID
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.typing import ConfigType
+
+from ._vol import vol
 
 from .const import DOMAIN
 from .trigger_detect import EVENT_KEYS

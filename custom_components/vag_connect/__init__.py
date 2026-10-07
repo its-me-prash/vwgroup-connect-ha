@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 from typing import Any, TypeAlias
 
-import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -27,6 +26,8 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+
+from ._vol import vol
 
 from .const import DOMAIN, CONF_BRAND, CONF_USERNAME, CONF_PASSWORD
 from .coordinator import VagConnectCoordinator, entry_settings_fingerprint
