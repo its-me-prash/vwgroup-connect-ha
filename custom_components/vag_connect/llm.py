@@ -8,9 +8,11 @@ agent — HA's built-in Assist in LLM mode, OpenAI, Anthropic/Claude, Google
 Generative AI, Ollama — consumes that identical list through the shared
 ``conversation.ChatLog`` (each converts the tool's ``vol.Schema`` with the same
 ``voluptuous_openapi.convert(..., custom_serializer=llm.selector_serializer)``).
-The dict a tool returns is fed back to the model as the tool result — which is
+What a tool returns is fed back to the model as the tool result — which is
 exactly what lets an agent read Laura's ``summary`` and then call
-``vag_connect__skoda_send_destination`` with the chosen stop.
+``vag_connect__skoda_send_destination`` with the chosen stop. On HA 2026.10+
+that payload travels inside a ``llm.ToolResult``; on older builds it is the bare
+dict those builds expect (see ``_tool_result``).
 
 Two entry points share one ``_TOOL_CLASSES`` list:
 
@@ -30,9 +32,10 @@ from __future__ import annotations
 
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv, llm
+
+from ._vol import vol
 
 from .const import DOMAIN
 
@@ -51,15 +54,42 @@ _PROMPT = (
 )
 
 
+def _tool_result(data: dict[str, Any]) -> Any:
+    """Wrap a tool's payload the way the INSTALLED HA expects it.
+
+    b24 — HA 2026.10 deprecated returning a bare JSON object from a tool
+    ("returns a JSON object from a tool, which is deprecated; return a
+    ToolResult instead", ``breaks_in_ha_version="2027.11.0"``). Until then
+    ``APIInstance.async_call_tool`` wraps a dict into ``ToolResult`` itself and
+    logs the deprecation for custom integrations on every single tool call.
+
+    Looked up rather than imported, because ``ToolResult`` does not exist on the
+    older builds this module is the version-robust floor for — the same reason
+    ``_selector_serializer`` below resolves its callable by name.
+    """
+    tool_result = getattr(llm, "ToolResult", None)
+    if tool_result is None:
+        return data
+    return tool_result(data=data)
+
+
 class _ServiceTool(llm.Tool):
     """Base tool that calls a vag_connect service (optionally returning its data)."""
+
+    # b24 — HA 2026.10 reports every LLM tool that does not name the integration
+    # providing it ("provides the LLM tool <name> without an integration",
+    # breaking in 2027.10). HA can derive the domain and even writes it back
+    # afterwards, but it logs the deprecation each time an APIInstance is built;
+    # naming it here also keeps ``APIInstance.__post_init__`` from reaching for
+    # HA's frame helper at all. Harmless on builds whose Tool has no such field.
+    integration = DOMAIN
 
     _service: str = ""
     _return_response: bool = False
 
     async def async_call(
         self, hass: HomeAssistant, tool_input: llm.ToolInput, llm_context: llm.LLMContext
-    ) -> dict[str, Any]:
+    ) -> Any:
         result = await hass.services.async_call(
             DOMAIN,
             self._service,
@@ -69,8 +99,8 @@ class _ServiceTool(llm.Tool):
             context=llm_context.context,
         )
         if self._return_response:
-            return {"success": True, **(result or {})}
-        return {"success": True}
+            return _tool_result({"success": True, **(result or {})})
+        return _tool_result({"success": True})
 
 
 class AskAssistantTool(_ServiceTool):
