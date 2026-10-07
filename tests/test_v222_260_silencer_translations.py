@@ -60,10 +60,6 @@ class TestSilencerScout260:
         import importlib.util
         import sys
 
-        spec = importlib.util.spec_from_file_location(
-            "_uk_check_v222",
-            _COMPONENT_ROOT / "cariad" / "_unexpected_keys.py",
-        )
         # Pre-load _util as a sibling so the relative import resolves.
         util_spec = importlib.util.spec_from_file_location(
             "_util_check_v222",
@@ -189,7 +185,7 @@ class TestNoUntranslatedEnglishInNonEnFiles:
         r"Target SoC Reachable)\b"
     )
 
-    @pytest.mark.parametrize("lang", [l for l in _LANGS if l != "en"])
+    @pytest.mark.parametrize("lang", [c for c in _LANGS if c != "en"])
     def test_no_english_residue(self, lang: str) -> None:
         d = _load(_TRANSLATIONS / f"{lang}.json")
         offenders = []
