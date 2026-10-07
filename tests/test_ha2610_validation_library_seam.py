@@ -104,7 +104,7 @@ def test_repair_flow_steps_are_annotated_with_the_repairs_result() -> None:
     matches what async_show_form returns in a repair flow."""
     src = (_PKG / "repairs.py").read_text(encoding="utf-8")
     code = "\n".join(
-        l for l in src.split("\n") if not l.lstrip().startswith("#")
+        line for line in src.split("\n") if not line.lstrip().startswith("#")
     )
 
     assert "-> RepairsFlowResult:" in code
