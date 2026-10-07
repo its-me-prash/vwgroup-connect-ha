@@ -46,6 +46,7 @@ from urllib.parse import parse_qs, urljoin, urlparse
 
 from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
 
+from .._util import drop_charge_sentinel, drop_odometer_sentinel
 from ..exceptions import (
     AuthenticationError,
     EmailTwoFactorRequiredError,
@@ -55,7 +56,6 @@ from ..exceptions import (
     TwoFactorRequiredError,
     UpstreamUnavailableError,
 )
-from .._util import drop_charge_sentinel, drop_odometer_sentinel
 from ..models import VehicleData
 from ._data_act_scraper import pick_active_15min_identifier
 
@@ -142,10 +142,46 @@ _DOWNLOAD_PATH = (
     "/proxy_api/euda-apim/datadelivery/vehicles/{vin}/{identifier}/download"
 )
 
+# The sign-in steps below talk to the IDP, which is a browser flow: v2.10.x
+# (#388/#393) the WAF in front of it started answering 403 to a non-browser
+# agent, and a plain browser string is what fixed it. That is why this one
+# stays as it is.
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
 )
+
+# #1740 — the portal's operator asked that requests to the PORTAL domain carry
+# a dedicated agent, so they can attribute traffic and report problems back to
+# the project causing them. That is a different set of requests from the login
+# steps above: it is _get_json (vehicles, metadata, delivery list, relation)
+# and the dataset download, which until now went out under the HTTP library's
+# default name.
+#
+# The version is handed in once at setup rather than read from manifest.json
+# here: this module is imported from inside coroutines, so a file read at
+# import time would be I/O on the event loop.
+_PORTAL_UA_PRODUCT = "HA_vag_connect"
+_portal_ua_version: str = ""
+
+
+def set_integration_version(version: str) -> None:
+    """Record the integration version for the portal user-agent.
+
+    Called once from the coordinator at setup. Empty or missing simply omits
+    the version from the agent; it never blocks or fails a request.
+    """
+    global _portal_ua_version
+    _portal_ua_version = (version or "").strip()
+
+
+def _portal_user_agent() -> str:
+    """``HA_vag_connect/<version>``, or the bare product when unknown."""
+    return (
+        f"{_PORTAL_UA_PRODUCT}/{_portal_ua_version}"
+        if _portal_ua_version
+        else _PORTAL_UA_PRODUCT
+    )
 _NO_CONTENT_SUFFIX = "_no_content_found.zip"
 # The portal hop that sets the authenticated session cookie. Everything
 # after it is AEM content the login does not need.
@@ -722,7 +758,7 @@ def _parse_ts(value: Any) -> float | None:
         except ValueError:
             pass
         try:
-            from datetime import datetime  # noqa: PLC0415
+            from datetime import datetime
 
             return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
         except (ValueError, TypeError):
@@ -1584,7 +1620,7 @@ def _epoch_or_iso(raw: str | None) -> str | None:
         f = float(s)
     except (ValueError, TypeError):
         return s  # non-numeric → assume it's already an ISO/string timestamp
-    from datetime import datetime, timezone  # noqa: PLC0415
+    from datetime import datetime, timezone
 
     if f > 1e12:
         f /= 1000.0
@@ -3210,12 +3246,12 @@ def map_dataset_to_vehicle_data(
     # last-wins bare twins (``physical_value_x``/``_y``, ``value_type``) are left as
     # the deliberately-visible generic leaves (they are not reported by the Scout).
     _speed_ratios: dict[str, dict[str, str]] = {}
-    for _srk in fields:
+    for _srk, _srv in fields.items():
         if _srk.startswith("setup_real_speed_ratios.speed_ratio_"):
             used.add(_srk)
             _parts = _srk.split(".")
             if len(_parts) >= 3:
-                _speed_ratios.setdefault(_parts[1], {})[_parts[2]] = fields[_srk]
+                _speed_ratios.setdefault(_parts[1], {})[_parts[2]] = _srv
     if _speed_ratios and not d.speed_ratio_calibration:
         d.speed_ratio_calibration = _speed_ratios
     # state_of_hood — separate source field, same enum family (dict: unsupported
@@ -5077,7 +5113,7 @@ class EUDataActConnector:
     @staticmethod
     def _now_iso() -> str:
         """UTC now as an ISO-8601 string (the TIMESTAMP sensors parse this)."""
-        from datetime import datetime, timezone  # noqa: PLC0415
+        from datetime import datetime, timezone
 
         return datetime.now(timezone.utc).isoformat()
 
@@ -5273,6 +5309,86 @@ class EUDataActConnector:
             "(followed callback, granted no marketing scopes)"
         )
         return result
+
+    async def _request_login_redirects(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        data: Any = None,
+    ) -> tuple[str, str, int]:
+        """Follow login redirects, stopping on the portal callback response.
+
+        The callback sets the authenticated portal cookie and then redirects to
+        AEM user content. We need the callback response's cookies, not that page.
+        """
+        current_method = method.upper()
+        current_url = url
+        current_headers = dict(headers or {})
+        current_data = data
+        portal_host = urlparse(_PORTAL_BASE).netloc
+
+        for redirect_count in range(11):
+            request = (
+                self._session.post
+                if current_method == "POST"
+                else self._session.get
+            )
+            request_kwargs: dict[str, Any] = {
+                "headers": current_headers,
+                "allow_redirects": False,
+                "timeout": ClientTimeout(total=_TIMEOUT_S),
+            }
+            if current_data is not None:
+                request_kwargs["data"] = current_data
+
+            async with request(current_url, **request_kwargs) as resp:
+                response_url = str(resp.url)
+                response_html = await resp.text(errors="replace")
+                status = resp.status
+                response_headers = getattr(resp, "headers", {})
+                location = response_headers.get("Location", "")
+
+            parsed_response = urlparse(response_url)
+            if (
+                parsed_response.netloc == portal_host
+                and parsed_response.path.rstrip("/") == "/services/callbacklogin"
+            ):
+                _LOGGER.debug(
+                    "EU Data Act portal: stopped redirect following at "
+                    "callbacklogin after receiving its response"
+                )
+                return response_url, response_html, status
+
+            if status not in {301, 302, 303, 307, 308} or not location:
+                return response_url, response_html, status
+            if redirect_count == 10:
+                raise AuthenticationError(
+                    "EU Data Act portal: login exceeded redirect limit"
+                )
+
+            next_url = urljoin(response_url, location)
+            next_host = urlparse(next_url).netloc
+            if next_host != parsed_response.netloc:
+                current_headers = {
+                    key: value
+                    for key, value in current_headers.items()
+                    if key.lower() not in {"authorization", "cookie"}
+                }
+            current_headers = {
+                key: value
+                for key, value in current_headers.items()
+                if key.lower() != "referer"
+            }
+            current_headers["Referer"] = response_url
+
+            if status in {301, 302, 303} and current_method != "HEAD":
+                current_method = "GET"
+                current_data = None
+            current_url = next_url
+
+        raise AuthenticationError("EU Data Act portal: login redirect limit reached")
 
     @staticmethod
     def _is_consent_landing(landing_url: str, landing_html: str) -> bool:
@@ -5482,22 +5598,6 @@ class EUDataActConnector:
             self.logged_in = True
             return
         headers = {"User-Agent": _USER_AGENT}
-
-        # 0. Prime portal session cookies (AEM load-balancer state).
-        try:
-            async with self._session.get(
-                f"{_PORTAL_BASE}/", headers=headers,
-                timeout=ClientTimeout(total=_TIMEOUT_S),
-            ):
-                pass
-        except Exception as exc:  # noqa: BLE001
-            # Class only, never str(exc) — an aiohttp error's message echoes the
-            # request URL. (Here it is the static portal base, but keep the sweep
-            # posture uniform so no future URL change re-opens a leak.)
-            _LOGGER.debug(
-                "EU Data Act: priming GET failed (ignored): %s",
-                type(exc).__name__,
-            )
 
         # 1. Start OIDC directly at the IDP (portal's own servlet 500s for
         #    non-browser clients). response_type=code; portal does the
@@ -5805,6 +5905,8 @@ class EUDataActConnector:
         # JSON proxy_api call (vehicles list, metadata, datadelivery list,
         # relation) since they all funnel through here. No-op in cookie mode.
         eff_headers = dict(headers or {})
+        # #1740 — portal-domain traffic identifies itself.
+        eff_headers.setdefault("User-Agent", _portal_user_agent())
         if self._bearer:
             eff_headers["Authorization"] = f"Bearer {self._bearer}"
         # v2.13.1 — the portal is flaky: transient 5xx come and go within
@@ -5918,7 +6020,11 @@ class EUDataActConnector:
         (v2.13.0) is merged in without clobbering the filename/type headers the
         download endpoint requires.
         """
-        dl_headers = {"filename": name, "type": request_type}
+        dl_headers = {
+            "filename": name,
+            "type": request_type,
+            "User-Agent": _portal_user_agent(),  # #1740
+        }
         if self._bearer:
             dl_headers["Authorization"] = f"Bearer {self._bearer}"
         try:

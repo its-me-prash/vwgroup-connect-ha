@@ -1353,6 +1353,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             RateLimitError,
         )
 
+        # #1740 - the portal operator asked that requests to their domain carry a
+        # dedicated user-agent. Handed in here rather than read off disk in the
+        # connector, which is imported from inside coroutines.
+        try:
+            from .cariad.auth._eu_data_act import (  # noqa: PLC0415
+                set_integration_version,
+            )
+            set_integration_version(self._integration_version())
+        except Exception:  # noqa: BLE001
+            pass
+
         brand    = self.entry.data[CONF_BRAND]
         # v3.0.0-alpha — a companion (ADB) entry carries no username/password
         # (the phone is already signed in), so read these defensively rather

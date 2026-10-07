@@ -62,6 +62,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   official API has it, because the S-PIN is held per entry there and per vehicle here, and
   repeated wrong PINs are how a vehicle PIN gets locked.
 
+### Geändert / Changed
+- **Requests to the EU Data Act portal now say who they are, and the login makes one fewer
+  round trip (#1740, thanks @VWGroupDatahub).** The portal's operator asked for a dedicated
+  user-agent on requests to their domain so they can tell traffic apart and report problems
+  back to whoever is causing them — our data requests had been going out under the HTTP
+  library's default name. They also confirmed the priming request we made before signing in
+  was unnecessary, because the load balancer hands over the cookie it was there to collect
+  on the redirect from the login server anyway. Nothing changes for you; signing in is one
+  request shorter.
+- Internal, no user-visible change: the dedicated agent goes on portal-domain requests only.
+  The sign-in steps keep the browser agent they have carried since v2.10.x, when the WAF in
+  front of the login server started answering `403` to a non-browser one (#388, #393).
+
 ### Behoben / Fixed
 - **A single rate-limit response from the official Škoda API could silence its readings long
   after the limit had passed.** The `Retry-After` value from a throttled response was kept and
