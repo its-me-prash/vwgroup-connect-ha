@@ -76,6 +76,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   front of the login server started answering `403` to a non-browser one (#388, #393).
 
 ### Behoben / Fixed
+- **Two things Home Assistant 2026.10 started warning about in our LLM tools are dealt with before
+  they become errors.** Each of the Škoda tools now names the integration it comes from, and a tool
+  hands its result back in the container the newer Home Assistant expects instead of a bare object.
+  Home Assistant had been papering over both and writing a deprecation line into your log on every
+  tool call; the first becomes a hard error in 2027.10, the second in 2027.11. Nothing changes in
+  what the tools do or what an assistant sees, and older Home Assistant builds still get exactly
+  the shape they expect.
 - **A single rate-limit response from the official Škoda API could silence its readings long
   after the limit had passed.** The `Retry-After` value from a throttled response was kept and
   then re-applied to any later refusal, so one busy minute could park the channel for the whole
