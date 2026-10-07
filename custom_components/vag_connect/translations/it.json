@@ -1256,6 +1256,9 @@
       "dashboard_warnings_raw": {
         "name": "Avvisi del cruscotto (grezzi)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Ultima registrazione delle spie"
+      },
       "climate_error_code": {
         "name": "Codice errore clima"
       },

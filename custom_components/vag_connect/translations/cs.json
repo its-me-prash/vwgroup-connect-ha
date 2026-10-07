@@ -1256,6 +1256,9 @@
       "dashboard_warnings_raw": {
         "name": "Výstražné kontrolky (surová data)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Kontrolky naposledy zaznamenány"
+      },
       "climate_error_code": {
         "name": "Chybový kód klimatizace"
       },

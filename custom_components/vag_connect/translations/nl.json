@@ -1256,6 +1256,9 @@
       "dashboard_warnings_raw": {
         "name": "Waarschuwingslampjes (ruw)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Waarschuwingslampjes laatst vastgelegd"
+      },
       "climate_error_code": {
         "name": "Foutcode klimaatregeling"
       },

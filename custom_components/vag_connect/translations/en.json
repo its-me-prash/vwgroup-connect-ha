@@ -1256,6 +1256,9 @@
       "dashboard_warnings_raw": {
         "name": "Dashboard warnings (raw)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Dashboard warnings last recorded"
+      },
       "climate_error_code": {
         "name": "Climate error code"
       },

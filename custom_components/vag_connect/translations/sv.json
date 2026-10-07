@@ -1256,6 +1256,9 @@
       "dashboard_warnings_raw": {
         "name": "Varningslampor (rådata)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Varningslampor senast registrerade"
+      },
       "climate_error_code": {
         "name": "Felkod klimatanläggning"
       },

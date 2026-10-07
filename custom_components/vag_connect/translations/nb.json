@@ -1256,6 +1256,9 @@
       "dashboard_warnings_raw": {
         "name": "Dashbordvarsler (rå)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Varsellamper sist registrert"
+      },
       "climate_error_code": {
         "name": "Klimafeilkode"
       },

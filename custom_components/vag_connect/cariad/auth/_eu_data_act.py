@@ -4480,8 +4480,29 @@ def map_dataset_to_vehicle_data(
         "active_warnings_in_instrument_cluster_0001_filtered",
         "active_warnings_in_instrument_cluster_0001",
     )
-    if _warn is not None:
+    if _warn is not None and str(_warn).strip():
         d.dashboard_warnings_raw = str(_warn)
+    # #1757 (VW Touareg eHybrid) — the HISTORY sibling of that mask, and a
+    # different vocabulary: every sample so far is an absolute ISO timestamp,
+    # never a mask. Four payloads from three reporters (#1164, #1230, #1276,
+    # #1757) all carry one, so THE CODE WINS OVER THE DICTIONARY here — the
+    # field catalogue declares this UUID a number, and anyone 'correcting' the
+    # sensor to numeric would break a working timestamp.
+    #
+    # Only the ``_fff`` variant is read. ``_0001`` has never been delivered by
+    # any car in the Scout archive and is declared Boolean, so consuming it
+    # would mark it used and strip it from raw_unmapped_fields — costing us the
+    # discovery and buying nothing.
+    #
+    # Timezone is NOT established: the value is tz-naive and HA stamps UTC on
+    # it, while the portal does ship a local-time sibling family
+    # (``instrument_cluster_time``), so a CEST car may read two hours early.
+    # Settling that needs one payload correlated against its own
+    # car_captured_time — until then the UTC reading is an assumption, not a
+    # finding.
+    _warn_at = first("history_active_warnings_in_instrument_cluster_fff")
+    if _warn_at is not None and str(_warn_at).strip():
+        d.dashboard_warnings_last_at = _epoch_or_iso(_warn_at)
     # #901 (Mezzo1973, volkswagen) — best-effort LOW-confidence mapping of four
     # newly-observed EU-Data-Act driving-telemetry fields. Types inferred from
     # the Scout samples; we do NOT invent enum values or units beyond speed's

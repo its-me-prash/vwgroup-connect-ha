@@ -1256,6 +1256,9 @@
       "dashboard_warnings_raw": {
         "name": "Instrumentbrætadvarsler (rå)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Advarselslamper senest registreret"
+      },
       "climate_error_code": {
         "name": "Klimafejlkode"
       },
