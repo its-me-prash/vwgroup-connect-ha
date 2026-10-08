@@ -2279,7 +2279,7 @@
     },
     "skoda_official_enrolled": {
       "title": "Oficjalne API Škoda — masz już automatyczny dostęp",
-      "description": "Dobra wiadomość: użyliśmy Twojego istniejącego logowania Škoda, aby utworzyć dla Twojego samochodu oficjalny klucz API Škoda, więc Home Assistant może go teraz odczytywać przez nowy, oficjalny i trwały kanał Škoda — jako automatyczną kopię zapasową na wypadek, gdyby normalne połączenie kiedykolwiek miało trudności. Ponieważ ten oficjalny kanał ma limit zapytań (tylko niewielka liczba zapytań na godzinę), pozostaje w trybie gotowości i pobiera dane wyłącznie wtedy, gdy główne połączenie nie może — dzięki temu niczego nie spowalnia. Z Twojej strony nic nie trzeba robić; to tylko informacja, którą możesz zamknąć."
+      "description": "Dobra wiadomość: użyliśmy twojego istniejącego logowania Škoda, aby utworzyć oficjalny klucz API Škoda dla twojego samochodu, więc Home Assistant może go teraz odczytywać przez własny oficjalny i trwały kanał Škody. Jest odczytywany przy każdej zwykłej aktualizacji obok twojego normalnego połączenia, a jego odczyty od producenta uzupełniają i poprawiają to, co zgłasza tamto połączenie — i sam przejmuje zadanie, jeśli normalne połączenie zawiedzie. Ponieważ oficjalny kanał pozwala tylko na niewielką liczbę żądań na godzinę, integracja rozkłada ten limit i pomija kanał, gdy limit się kończy, więc nic nie zwalnia. Z twojej strony nie ma nic do zrobienia; to tylko informacja, którą możesz zamknąć."
     },
     "skoda_official_quota_full": {
       "title": "Oficjalne API Škoda — osiągnięto limit kluczy",

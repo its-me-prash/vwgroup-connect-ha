@@ -2279,7 +2279,7 @@
     },
     "skoda_official_enrolled": {
       "title": "API oficial de Škoda — ya estás inscrito automáticamente",
-      "description": "Buenas noticias: usamos tu inicio de sesión de Škoda para crear una clave de la API oficial de Škoda para tu coche, de modo que Home Assistant ya puede leerlo a través del nuevo canal oficial y duradero de Škoda, como copia de seguridad automática por si la conexión normal alguna vez tiene problemas. Como este canal oficial tiene un límite de peticiones (solo unas pocas por hora), permanece en espera y solo lee cuando tu conexión principal no puede, así que no ralentizará nada. No tienes que hacer nada; esto es solo un aviso y puedes descartarlo."
+      "description": "Buenas noticias: hemos usado tu acceso de Škoda existente para crear una clave de API oficial de Škoda para tu coche, así que Home Assistant ya puede leerlo por el canal oficial y duradero de Škoda. Se lee en cada actualización normal junto con tu conexión habitual, y sus lecturas del fabricante completan y corrigen lo que informa esa conexión — y toma el relevo por sí sola si la conexión habitual falla. Como el canal oficial solo permite un número reducido de peticiones por hora, la integración reparte ese margen y lo omite cuando queda poco, así que nada se ralentiza. No tienes que hacer nada; esto es solo un aviso y puedes descartarlo."
     },
     "skoda_official_quota_full": {
       "title": "API oficial de Škoda — límite de claves alcanzado",

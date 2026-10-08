@@ -2279,7 +2279,7 @@
     },
     "skoda_official_enrolled": {
       "title": "Škodas officielle API — du er nu tilmeldt automatisk",
-      "description": "Gode nyheder: Vi brugte dit eksisterende Škoda-login til at oprette en officiel Škoda-API-nøgle til din bil, så Home Assistant nu kan læse den via Škodas nye officielle og varige kanal — som en automatisk reserve, hvis den normale forbindelse en dag skulle få problemer. Fordi denne officielle kanal er hastighedsbegrænset (kun et lille antal anmodninger i timen), står den i standby og læser kun, når din hovedforbindelse ikke kan — så den bremser ikke noget. Du skal ikke gøre noget; det her er bare til orientering, og du kan roligt lukke den."
+      "description": "Godt nyt: vi brugte dit eksisterende Škoda-login til at oprette en officiel Škoda-API-nøgle til din bil, så Home Assistant nu kan læse den via Škodas egen officielle, holdbare kanal. Den læses ved hver almindelig opdatering sammen med din normale forbindelse, og dens målinger fra producenten udfylder og retter det, forbindelsen rapporterer — og den tager selv over, hvis den normale forbindelse svigter. Fordi den officielle kanal kun tillader et lille antal forespørgsler i timen, fordeler integrationen budgettet og springer den over, når det bliver knapt, så intet bliver langsommere. Du skal ikke gøre noget; dette er blot en orientering, som du kan lukke."
     },
     "skoda_official_quota_full": {
       "title": "Škodas officielle API — grænsen for nøgler er nået",

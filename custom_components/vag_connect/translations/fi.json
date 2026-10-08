@@ -2279,7 +2279,7 @@
     },
     "skoda_official_enrolled": {
       "title": "Škodan virallinen API — sinut on nyt liitetty automaattisesti",
-      "description": "Hyviä uutisia: käytimme olemassa olevaa Škoda-kirjautumistasi ja loimme autollesi virallisen Škoda API -avaimen, joten Home Assistant voi nyt lukea sen tietoja Škodan uuden, virallisen ja kestävän yhteyden kautta — automaattisena varayhteytenä siltä varalta, että tavallinen yhteys joskus takkuaa. Koska tätä virallista yhteyttä on rajoitettu (vain muutama pyyntö tunnissa), se pysyy valmiustilassa ja lukee tietoja vain silloin, kun pääyhteys ei siihen pysty — joten se ei hidasta mitään. Sinun ei tarvitse tehdä mitään; tämä on vain tiedoksi, ja voit sulkea tämän ilmoituksen."
+      "description": "Hyvä uutinen: loimme olemassa olevalla Škoda-kirjautumisellasi autollesi virallisen Škoda-API-avaimen, joten Home Assistant voi nyt lukea sitä Škodan omaa virallista ja pysyvää kanavaa pitkin. Se luetaan joka tavallisella päivityksellä normaalin yhteytesi rinnalla, ja sen valmistajan mittaukset täydentävät ja korjaavat sitä, mitä yhteys ilmoittaa — ja se ottaa itse ohjat, jos normaali yhteys pettää. Koska virallinen kanava sallii vain pienen määrän pyyntöjä tunnissa, integraatio jaksottaa budjetin ja ohittaa kanavan sen käydessä vähiin, joten mikään ei hidastu. Sinun ei tarvitse tehdä mitään; tämä on vain tiedoksi ja voit sulkea sen."
     },
     "skoda_official_quota_full": {
       "title": "Škodan virallinen API — avainten yläraja saavutettu",

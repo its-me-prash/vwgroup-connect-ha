@@ -3281,10 +3281,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     def _arm_official_from_map(self, keys_map: dict[str, Any]) -> None:
         """Arm the Škoda official failover channel from a persisted per-VIN key map
-        ({vin: {key, id, validUntil}})."""
+        ({vin: {key, id, validUntil}}).
+
+        The manual key rides along deliberately. ``arm_supplementary_official``
+        REPLACES the channel from what it is handed, and its own docstring calls
+        ``api_key`` "the single manual-fallback key (applied to any VIN without
+        its own)" — so arming from the map alone silently dropped it. A user who
+        had typed a key for one car and then auto-enrolled another lost the typed
+        one on the next re-arm, taking that car's read failover (and, since the
+        command fallback landed, its commands) with it. Setup has always passed
+        both; this is the same call shape.
+        """
         arm = getattr(self._cariad_client, "arm_supplementary_official", None)
         if arm is None:
             return
+        from .const import CONF_SKODA_OFFICIAL_API_KEY  # noqa: PLC0415
+
+        # entry.data, never entry.options: the options flow writes through to
+        # data here, so options is always {}.
+        manual_key = str((self.entry.data or {}).get(CONF_SKODA_OFFICIAL_API_KEY) or "")
         by_vin = {
             str(vin).upper(): (rec.get("key") or "")
             for vin, rec in (keys_map or {}).items()
@@ -3292,7 +3307,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         }
         if by_vin:
             try:
-                arm(keys_by_vin=by_vin)
+                arm(api_key=manual_key, keys_by_vin=by_vin)
             except Exception as exc:  # noqa: BLE001
                 # class-only — by_vin holds the per-VIN X-API-Key; a validation
                 # error could echo the key value.

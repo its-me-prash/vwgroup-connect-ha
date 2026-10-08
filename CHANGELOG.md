@@ -93,6 +93,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   front of the login server started answering `403` to a non-browser one (#388, #393).
 
 ### Behoben / Fixed
+- **A Škoda API key you typed in yourself is no longer thrown away when another car enrols
+  automatically.** Arming the official channel from the stored keys replaced it with only the
+  automatic ones, so a car that depended on the key you entered quietly lost its backup
+  connection — and, since the official channel started carrying commands, its commands too.
+  Nothing reported it, because the arming itself succeeded.
+- **The message announcing automatic Škoda enrolment no longer describes an older version of
+  itself.** It said the official channel "stays on standby and only reads when your main
+  connection can't". That stopped being true in v4.6.1, when the channel became a live source
+  read on every update. It now says what actually happens — read every cycle alongside the normal
+  connection, stepping in on its own if that fails, paced so the hourly limit is never the
+  bottleneck — in all thirteen languages.
 - **Two things Home Assistant 2026.10 started warning about in our LLM tools are dealt with before
   they become errors.** Each of the Škoda tools now names the integration it comes from, and a tool
   hands its result back in the container the newer Home Assistant expects instead of a bare object.

@@ -2279,7 +2279,7 @@
     },
     "skoda_official_enrolled": {
       "title": "Oficiální API Škoda — nyní jste automaticky zaregistrováni",
-      "description": "Dobrá zpráva: pomocí vašeho stávajícího přihlášení ke Škodě jsme pro vaše auto vytvořili oficiální klíč k API Škody, takže ho teď Home Assistant umí číst přes nový oficiální a trvalý kanál Škody — jako automatickou zálohu pro případ, že by běžné připojení někdy zlobilo. Protože je tento oficiální kanál omezený počtem požadavků (jen pár za hodinu), zůstává v pohotovosti a čte jen tehdy, když hlavní připojení nemůže — takže nic nezpomalí. Z vaší strany není potřeba nic dělat; berte to jen jako informaci a upozornění můžete zavřít."
+      "description": "Dobrá zpráva: pomocí tvého stávajícího přihlášení Škoda jsme pro tvoje auto vytvořili oficiální klíč k API Škoda, takže ho Home Assistant teď může číst přes vlastní oficiální a trvalý kanál Škody. Čte se při každé běžné aktualizaci vedle tvého normálního připojení a jeho údaje od výrobce doplňují a opravují to, co hlásí ono — a pokud normální připojení vypadne, převezme to sám. Protože oficiální kanál dovoluje jen malý počet požadavků za hodinu, integrace si rozpočet rozvrhne a vynechá ho, když ho ubývá, takže nic nezpomaluje. Z tvojí strany není co dělat; je to jen informace, kterou můžeš zavřít."
     },
     "skoda_official_quota_full": {
       "title": "Oficiální API Škoda — dosažen limit klíčů",
