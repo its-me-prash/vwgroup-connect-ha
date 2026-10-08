@@ -195,6 +195,7 @@ async def _validate_credentials(
     captcha_state: str | None = None,
     captcha_verifier: str | None = None,
     captcha_resume: dict | None = None,
+    cookie_jar: Any | None = None,
 ) -> dict[str, Any] | None:
     """Validate credentials by authenticating with the CARIAD API.
 
@@ -220,9 +221,20 @@ async def _validate_credentials(
     )
 
     connector = aiohttp.TCPConnector(ssl=True)
+    # #1752 — on a captcha resume the caller hands back the jar the attempt
+    # that RAISED the captcha was using. Auth0 binds the login transaction to
+    # a session cookie as well as to ``state``, so replaying a solved captcha
+    # from a fresh empty jar presents itself as a different session: the
+    # transaction the user just solved for is not the one we come back on.
+    # Every working third-party Porsche client keeps one jar alive across
+    # that pause; we were the only one rebuilding it empty.
+    #
+    # The JAR travels, not the session. It is plain memory with no socket
+    # attached, and closing a ClientSession does not empty the jar it was
+    # given — so nothing stays open while the user reads the image.
     async with aiohttp.ClientSession(
         connector=connector,
-        cookie_jar=aiohttp.CookieJar(unsafe=True),
+        cookie_jar=cookie_jar or aiohttp.CookieJar(unsafe=True),
     ) as auth_session:
         client = CariadClientFactory.create(
             brand, auth_session, username, password, country=country
@@ -258,12 +270,17 @@ async def _validate_credentials(
                 )
             else:
                 await client.authenticate(mfa_code=mfa_code)
-        except PorscheCaptchaRequiredError:
+        except PorscheCaptchaRequiredError as err:
             # Let the config flow catch this directly — it carries the
             # captcha image/state/verifier the caller needs to show the
             # solving form, which a plain ValueError string can't carry
             # cleanly. Must precede the generic AuthenticationError catch
             # below (it is a subclass).
+            #
+            # #1752 — hand the jar out with it. This is the only place that
+            # knows which jar the raising attempt used, and the ``async with``
+            # below is about to close the session around it.
+            err.cookie_jar = auth_session.cookie_jar
             raise
         except TermsAndConditionsError as err:
             raise ValueError("terms_and_conditions") from err
@@ -520,6 +537,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # G5 (#1337) — replay descriptor for a post-password captcha (None for a
         # classic identifier-step captcha, which resumes via the identifier POST).
         self._porsche_captcha_resume: dict | None = None
+        # #1752 — the cookie jar of the attempt that raised the captcha, so
+        # the resume replays into the SAME Auth0 login transaction.
+        self._porsche_captcha_jar: Any | None = None
         self._porsche_captcha_return: str = ""  # "email_password"|"reauth"|"reconfigure"
         # #1337 — bound the captcha loop: Auth0 can chain challenge after
         # challenge, and repeated failed attempts have LOCKED Porsche accounts
@@ -871,6 +891,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_state    = err.state
                 self._porsche_captcha_verifier = err.code_verifier
                 self._porsche_captcha_resume   = err.resume
+                self._porsche_captcha_jar   = err.cookie_jar
                 return await self.async_step_porsche_captcha()
             except ValueError as err:
                 err_str = str(err)
@@ -2293,6 +2314,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         captcha_state=self._porsche_captcha_state,
                         captcha_verifier=self._porsche_captcha_verifier,
                         captcha_resume=self._porsche_captcha_resume,
+                        # #1752 — the jar from the attempt that showed this
+                        # image, so the solved captcha goes back into the
+                        # same Auth0 transaction rather than a fresh one.
+                        cookie_jar=self._porsche_captcha_jar,
                     )
                 except PorscheCaptchaRequiredError as err:
                     # Chained captcha (CJNE-comparison #12 — ha-porscheconnect
@@ -2309,6 +2334,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._porsche_captcha_state    = err.state
                     self._porsche_captcha_verifier = err.code_verifier
                     self._porsche_captcha_resume   = err.resume
+                    self._porsche_captcha_jar   = err.cookie_jar
                     errors["base"] = "captcha_retry"
                 except ValueError as err:
                     mapped = _map_error(str(err))
@@ -2485,6 +2511,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_state    = err.state
                 self._porsche_captcha_verifier = err.code_verifier
                 self._porsche_captcha_resume   = err.resume
+                self._porsche_captcha_jar   = err.cookie_jar
                 return await self.async_step_porsche_captcha()
             except ValueError as err:
                 if str(err).startswith("porsche_login_wall"):
@@ -2673,6 +2700,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_state    = err.state
                 self._porsche_captcha_verifier = err.code_verifier
                 self._porsche_captcha_resume   = err.resume
+                self._porsche_captcha_jar   = err.cookie_jar
                 return await self.async_step_porsche_captcha()
             except ValueError as err:
                 if str(err).startswith("porsche_login_wall"):

@@ -43,6 +43,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Hinzugefügt / Added
+- **A car reading the EU Data Act portal gains one more diagnostic: when the instrument cluster
+  last recorded a warning.** A Touareg reported the field, and every sample we have of it — four,
+  from three different cars — carries an absolute timestamp, so it becomes a timestamp sensor
+  beside the existing raw warning value rather than being folded into it. Off by default, like
+  every diagnostic of this kind, and it only appears on cars that actually send it (#1757, thanks
+  @robertbakum).
+- Internal, no user-visible change: three further fields the same car reported stay deliberately
+  unmapped. The official field catalogue gives them no meaning and no unit at all, and every
+  sample so far is empty — so they raise no repair card, while staying visible on the raw-fields
+  sensor, which is what keeps a car that one day sends a real value findable (#1757, #1164).
 - **Six Škoda commands can now fall back to the official Škoda API when the app backend refuses
   them.** Every Škoda command goes through the reverse-engineered app backend today, and that
   backend is expected to be switched off. The official public API — the one you already use for
@@ -90,6 +100,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   tool call; the first becomes a hard error in 2027.10, the second in 2027.11. Nothing changes in
   what the tools do or what an assistant sees, and older Home Assistant builds still get exactly
   the shape they expect.
+- A car sending an empty value for the raw dashboard-warning reading no longer creates a sensor
+  that shows nothing. Found while mapping its sibling above.
+- **A solved Porsche captcha is now replayed into the login it belongs to.** When Porsche puts a
+  captcha in front of you, the integration showed it, you typed it, and the answer went back on a
+  brand-new connection that had forgotten everything about the sign-in it was answering for — so
+  Porsche could reasonably refuse a correct answer. The login now carries its session across the
+  pause while you read the image. Every other project that handles this captcha keeps that session
+  alive; we were the one that did not. Honest caveat: nobody here has an account that produces a
+  Porsche captcha, so this is reasoned from the code and from what the working clients do, not
+  confirmed on a real one — if you hit it, the report link in the dialog is still worth using
+  (#1752).
 - **A Porsche login that stops now asks you for something you can actually produce.** The
   report link the dialog hands you carried one set of instructions for everyone: turn on debug
   logging from the integration's three-dots menu and try the login again. That menu only exists

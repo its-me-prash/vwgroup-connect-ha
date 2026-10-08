@@ -1257,6 +1257,9 @@
       "dashboard_warnings_raw": {
         "name": "Warnleuchten (Rohwert)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Warnleuchten zuletzt erfasst"
+      },
       "climate_error_code": {
         "name": "Klima-Fehlercode"
       },

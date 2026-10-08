@@ -1257,6 +1257,9 @@
       "dashboard_warnings_raw": {
         "name": "Mittariston varoitukset (raakadata)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Varoitusvalot viimeksi kirjattu"
+      },
       "climate_error_code": {
         "name": "Ilmastoinnin virhekoodi"
       },

@@ -1257,6 +1257,9 @@
       "dashboard_warnings_raw": {
         "name": "Voyants d'alerte (brut)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Derniers témoins enregistrés"
+      },
       "climate_error_code": {
         "name": "Code d'erreur climatisation"
       },

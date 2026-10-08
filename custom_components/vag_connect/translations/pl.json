@@ -1257,6 +1257,9 @@
       "dashboard_warnings_raw": {
         "name": "Kontrolki ostrzegawcze (surowe)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Kontrolki ostatnio zarejestrowane"
+      },
       "climate_error_code": {
         "name": "Kod błędu klimatyzacji"
       },

@@ -1257,6 +1257,9 @@
       "dashboard_warnings_raw": {
         "name": "Testigos de aviso (valor bruto)"
       },
+      "dashboard_warnings_last_at": {
+        "name": "Avisos del cuadro registrados por última vez"
+      },
       "climate_error_code": {
         "name": "Código de error de climatización"
       },
