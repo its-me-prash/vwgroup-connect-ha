@@ -98,7 +98,6 @@ def _skoda_charge_type(charge_type: str):
     from custom_components.vag_connect.cariad.api.skoda import SkodaClient
 
     client = SkodaClient.__new__(SkodaClient)
-    d = VehicleData(vin="X")
     charging = {"status": {"chargeType": charge_type}}
     # exercise the same expression the parser uses
     return drop_charge_sentinel(client._val(charging["status"], "chargeType"))

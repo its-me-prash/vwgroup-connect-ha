@@ -410,6 +410,19 @@ class TestAuditT1Entities:
                 f"T1 sensor {field} not disabled-by-default"
             )
 
+        # The T1 binary sensors carry the same rule; src_binsens was read
+        # for them all along but never checked.
+        for field in [
+            "connection_active", "daily_power_budget_warning",
+            "insufficient_battery_level_warning",
+        ]:
+            idx = src_binsens.find(f'key="{field}"')
+            assert idx > 0
+            block = src_binsens[idx : idx + 500]
+            assert "entity_registry_enabled_default=False" in block, (
+                f"T1 binary sensor {field} not disabled-by-default"
+            )
+
 
 # ──────────────────────────────────────────────────────────────────────
 # 5. Scout Policy + methodology

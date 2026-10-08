@@ -103,12 +103,30 @@ async def test_chained_captcha_loop_is_bounded_with_cooldown_abort() -> None:
 
 @pytest.mark.asyncio
 async def test_non_wall_rejection_aborts_clean_not_reshowing_dead_captcha() -> None:
+    """Still a clean abort — and #1752 fixed WHICH abort.
+
+    ``invalid_credentials`` means Porsche refused the sign-in, not the captcha;
+    this used to land in the generic branch and tell the user their captcha
+    "could not be verified and is now used up".
+    """
     f = _flow()
     with patch(_VALIDATE, new=AsyncMock(side_effect=ValueError("invalid_credentials"))):
         res = await f.async_step_porsche_captcha({CONF_CAPTCHA_CODE: "AAAA"})
     assert res["type"] == "abort"
-    assert res["reason"] == "porsche_captcha_failed"
+    assert res["reason"] == "porsche_captcha_credentials"
     assert "report_url" in res["description_placeholders"]
+
+
+@pytest.mark.asyncio
+async def test_a_rejection_we_cannot_name_still_aborts_as_a_dead_captcha() -> None:
+    """The generic branch is intact for everything that is not credentials."""
+    f = _flow()
+    with patch(
+        _VALIDATE, new=AsyncMock(side_effect=ValueError("terms_and_conditions"))
+    ):
+        res = await f.async_step_porsche_captcha({CONF_CAPTCHA_CODE: "AAAA"})
+    assert res["type"] == "abort"
+    assert res["reason"] == "porsche_captcha_failed"
 
 
 @pytest.mark.asyncio

@@ -63,7 +63,6 @@ def test_the_shape_this_client_itself_sends_is_readable() -> None:
 # ── climate target temperature ──────────────────────────────────────────────
 
 def _parse(raw_climate: dict):
-    from unittest.mock import MagicMock
 
     from custom_components.vag_connect.cariad.api.vw_na import VWNAClient
 

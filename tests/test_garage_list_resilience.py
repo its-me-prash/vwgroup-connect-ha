@@ -11,7 +11,6 @@ run, so the integration lost every Audi vehicle the moment the old path went awa
 """
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

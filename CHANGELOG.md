@@ -122,6 +122,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   Porsche captcha, so this is reasoned from the code and from what the working clients do, not
   confirmed on a real one — if you hit it, the report link in the dialog is still worth using
   (#1752).
+- **A Porsche login that stops now asks you for something you can actually produce.** The
+  report link the dialog hands you carried one set of instructions for everyone: turn on debug
+  logging from the integration's three-dots menu and try the login again. That menu only exists
+  once the integration is set up, so everyone whose very first setup failed was being sent to a
+  button they do not have. And when the login hits the my.porsche.com wall, the line we need is
+  already in your normal log from the attempt you just made, so asking for another attempt cost
+  you a retry for nothing on an account where repeated failures cause lockouts. A failed setup now
+  gets the `configuration.yaml` route instead, a wall report points at the line already written,
+  and neither asks you to try again (#1737).
+- **A password Porsche refuses at the captcha step is no longer reported as a used-up captcha.**
+  Typing a correct captcha with an e-mail or password Porsche rejects produced "that captcha could
+  not be verified and it is now used up", which sent people to re-check a challenge that was fine
+  and invited exactly the retry that step exists to prevent. It now says what happened (#1752).
+- Porsche login reports name the integration version, the way the Scout and error reports already
+  do — one less round of "which version are you on" (#1736/#1738).
 - **A single rate-limit response from the official Škoda API could silence its readings long
   after the limit had passed.** The `Retry-After` value from a throttled response was kept and
   then re-applied to any later refusal, so one busy minute could park the channel for the whole

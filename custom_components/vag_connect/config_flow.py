@@ -28,6 +28,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
+from ._version import integration_version
 from ._vol import vol
 
 from ._vwde_reauth import VwDeReauthMixin
@@ -916,6 +917,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                             "portal_url": _PORSCHE_PORTAL_URL,
                             "report_url": self._porsche_report_url(
                                 "email_password", reason, screen,
+                                version=integration_version(self.hass),
                             ),
                         },
                     )
@@ -2083,8 +2085,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             errors=errors,
         )
 
+    # Steps that can only run against a configured entry — so diagnostics and
+    # the three-dots debug toggle exist. Everything else reaches the report
+    # link from a setup that never produced an entry.
+    _PORSCHE_STEPS_WITH_ENTRY: frozenset[str] = frozenset({"reauth", "reconfigure"})
+    # Walls name their screen in the WARNING log; captchas do not.
+    _PORSCHE_WALL_REASONS: frozenset[str] = frozenset(
+        {"porsche_login_wall", "porsche_portal_step"}
+    )
+
     @staticmethod
-    def _porsche_report_url(step: str, reason: str, screen: str = "") -> str:
+    def _porsche_report_url(
+        step: str, reason: str, screen: str = "", version: str = ""
+    ) -> str:
         """Build a PII-FREE pre-filled GitHub issue URL for a Porsche login wall.
 
         #1337 — when the headless login hits a screen we can't clear (captcha /
@@ -2093,30 +2106,80 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         capture, the setup dialog hands the user a one-click "report this" link
         so we get the decisive datapoint cleanly.
 
+        #1737 — the capture instructions used to be the same paragraph for every
+        caller, and wrong for most of them. Two corrections:
+
+        * The three-dots debug toggle needs a configured entry. A failed initial
+          setup leaves none, so sending those reporters there is a dead end they
+          then have to tell us about (#1337 2026-09-22: "i cannot enable debug on
+          the integration, because i never had [set up] the integration").
+        * For a WALL the decisive datapoint is already in the default log: the
+          screen and page markers ride in ``PorscheLoginWallError``'s own message
+          and are logged at WARNING. Asking for debug logging plus "reproduce
+          once" costs an extra login attempt on an account where repeated
+          failures cause lockouts — for nothing. #1633 shows a reporter supplying
+          exactly that line with no debug logging involved.
+
         Privacy: the query string carries ONLY non-identifying context — which
-        step failed, the error key, and the Auth0 screen name if known. It must
-        NEVER contain a VIN, e-mail, password, token, captcha text, or any full
-        auth URL (those carry ``state``/``code``). Everything sensitive stays in
-        the auto-redacted diagnostics the body asks the user to attach — never in
-        the URL. (Redaction-gate: no secrets/PII in query strings.)
+        step failed, the error key, the Auth0 screen name if known, and our own
+        version. It must NEVER contain a VIN, e-mail, password, token, captcha
+        text, or any full auth URL (those carry ``state``/``code``). Everything
+        sensitive stays in the auto-redacted diagnostics the body asks the user
+        to attach — never in the URL. (Redaction-gate: no secrets/PII in query
+        strings.)
         """
         from urllib.parse import urlencode  # noqa: PLC0415
+
+        has_entry = step in VagConnectConfigFlow._PORSCHE_STEPS_WITH_ENTRY
+
+        if reason in VagConnectConfigFlow._PORSCHE_WALL_REASONS:
+            capture = (
+                "Most useful, and it costs no further login attempt: Home Assistant "
+                "has already written the decisive line. Open Settings -> System -> "
+                "Logs (or home-assistant.log) and copy the one WARNING line from VW "
+                "Group Connect that contains 'markers=' -- it names the screen and "
+                "the page flags this stopped on. Please do NOT retry the login to "
+                "reproduce it: repeated failed attempts have locked Porsche accounts."
+            )
+        else:
+            capture = (
+                "Most useful: did the captcha image actually appear in the dialog, "
+                "or was the space where it should be empty or broken? And if you got "
+                "a code typed in, what came back -- a rejection, a fresh image, or a "
+                "connection error? Please do NOT retry the login just to check: "
+                "repeated failed attempts have locked Porsche accounts."
+            )
+
+        if has_entry:
+            where = (
+                "The integration is already set up, so please also attach Download "
+                "diagnostics (automatically redacted). If you are willing to make one "
+                "more attempt, the 'Porsche auth:' lines name the exact screen: "
+                "three-dots menu -> Enable debug logging."
+            )
+        else:
+            where = (
+                "The setup did not complete, so there is no entry yet: no diagnostics "
+                "file to download, and the three-dots debug toggle has nothing to hang "
+                "off. If deeper logs are needed, put this in configuration.yaml and "
+                "restart -- the 'Porsche auth:' lines then name the exact screen:\n\n"
+                "    logger:\n"
+                "      logs:\n"
+                "        custom_components.vag_connect.cariad.auth.porsche: debug"
+            )
 
         title = f"[Porsche login] {reason}"
         body = (
             "Auto-filled by the VW Group Connect setup dialog.\n\n"
             f"- Step: {step}\n"
             f"- Error: {reason}\n"
-            f"- Auth0 screen: {screen or 'unknown'}\n\n"
-            "What happened (optional):\n\n\n"
-            "Most useful: enable debug logging for VW Group Connect (Settings -> "
-            "Devices & Services -> VW Group Connect -> three-dots menu -> Enable "
-            "debug logging), reproduce once, then paste the 'Porsche auth:' lines "
-            "from the log -- they name the exact screen this got stuck on. "
-            "(If the setup itself failed there is no entry yet, so there is no "
-            "diagnostics file to download; the debug lines are the capture.) "
-            "If the integration IS set up, also attach Download diagnostics "
-            "(automatically redacted).\n"
+            f"- Auth0 screen: {screen or 'unknown'}\n"
+            + (f"- Integration: vag_connect {version}\n" if version else "")
+            + "\nWhat happened (optional):\n\n\n"
+            + capture
+            + "\n\n"
+            + where
+            + "\n"
         )
         query = urlencode({"labels": "porsche,auth", "title": title, "body": body})
         return (
@@ -2224,7 +2287,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     "portal_url": _PORSCHE_PORTAL_URL,
                     "report_url": self._porsche_report_url(
                         self._porsche_captcha_return or "porsche_captcha", reason,
-                        screen,
+                        screen, version=integration_version(self.hass),
                     ),
                 },
             )
@@ -2288,6 +2351,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         # Transient — the challenge may still be valid, so let the
                         # user retry rather than forcing a full restart.
                         errors["base"] = "cannot_connect"
+                    elif mapped == "invalid_credentials":
+                        # #1752 — Porsche refused the SIGN-IN here, not the
+                        # captcha: PorscheAuth raises AuthenticationError on a
+                        # rejected password and _map_error passes
+                        # invalid_credentials straight through, so it fell into
+                        # the branch below and was reported as "that captcha
+                        # could not be verified and it is now used up" — sending
+                        # people to re-check a challenge that was fine, and
+                        # inviting the retry this whole step exists to avoid.
+                        # The captcha is consumed either way, so still stop; the
+                        # reason just has to be the true one.
+                        return _abort_report("porsche_captcha_credentials")
                     else:
                         # Auth0 rejected without re-challenging: the captcha is
                         # consumed and dead. Don't loop on a stale image — stop
@@ -2380,7 +2455,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 "portal_url": _PORSCHE_PORTAL_URL,
                 "report_url": self._porsche_report_url(
                     self._porsche_captcha_return or "porsche_captcha",
-                    "porsche_captcha",
+                    "porsche_captcha", version=integration_version(self.hass),
                 ),
             },
         )
@@ -2450,6 +2525,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                             "portal_url": _PORSCHE_PORTAL_URL,
                             "report_url": self._porsche_report_url(
                                 "reauth", reason, screen,
+                                version=integration_version(self.hass),
                             ),
                         },
                     )
@@ -2638,6 +2714,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                             "portal_url": _PORSCHE_PORTAL_URL,
                             "report_url": self._porsche_report_url(
                                 "reconfigure", reason, screen,
+                                version=integration_version(self.hass),
                             ),
                         },
                     )

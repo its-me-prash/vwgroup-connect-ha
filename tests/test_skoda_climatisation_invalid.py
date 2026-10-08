@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from custom_components.vag_connect.cariad.api.skoda import SkodaClient, _BASE
+from custom_components.vag_connect.cariad.api.skoda import SkodaClient
 
 VIN = "TMBJR0NX4SY000001"
 

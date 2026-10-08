@@ -189,10 +189,6 @@ class TestParserHardening:
     def test_skoda_remaining_minutes_as_decimal_string_does_not_crash(self):
         """myskoda #503 — backend shipped ``"12.5"`` for the remaining-
         minutes field once. Pre-1.10.1 raised ValueError."""
-        from custom_components.vag_connect.cariad.api.skoda import SkodaClient
-
-        client = SkodaClient.__new__(SkodaClient)
-
         # Construct the relevant slice exactly as get_status does.
         # We don't run the whole pipeline — just the snippet that used
         # to break.

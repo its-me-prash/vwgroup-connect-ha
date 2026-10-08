@@ -16,7 +16,7 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
     EUDataActConnector,
     classify_portal_login_failure,
 )
-from custom_components.vag_connect.const import CONF_BRAND, DOMAIN
+from custom_components.vag_connect.const import CONF_BRAND
 from custom_components.vag_connect.coordinator import VagConnectCoordinator
 
 

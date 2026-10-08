@@ -113,10 +113,19 @@ def test_the_resolver_stays_synchronous():
     """
     import inspect
 
+    from custom_components.vag_connect import _version as vmod
     from custom_components.vag_connect import coordinator as mod
 
+    # The lookup itself moved into _version when the Porsche login report
+    # (#1737) needed the same line — so the guard follows it there, and still
+    # pins the coordinator's side as a plain synchronous delegation.
+    helper = inspect.getsource(vmod.integration_version)
+    assert "async_get_loaded_integration" in helper
+    assert "await " not in helper
+    assert not inspect.iscoroutinefunction(vmod.integration_version)
+
     src = inspect.getsource(mod.VagConnectCoordinator._integration_version)
-    assert "async_get_loaded_integration" in src
+    assert "integration_version" in src
     assert "await " not in src
     assert not inspect.iscoroutinefunction(
         mod.VagConnectCoordinator._integration_version)

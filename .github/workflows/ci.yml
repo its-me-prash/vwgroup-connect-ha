@@ -26,7 +26,7 @@ jobs:
             homeassistant
 
       - name: Ruff Lint
-        run: ruff check custom_components/
+        run: ruff check custom_components/ tests/
 
       - name: mypy strict
         run: |

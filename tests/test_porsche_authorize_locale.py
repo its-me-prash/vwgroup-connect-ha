@@ -106,7 +106,6 @@ def test_client_hands_its_locale_to_the_login():
 def test_authorize_sends_the_params(monkeypatch):
     """The params reach the real /authorize query, not just the helper."""
     import asyncio
-    from types import SimpleNamespace
 
     from custom_components.vag_connect.cariad.auth import porsche as mod
 
