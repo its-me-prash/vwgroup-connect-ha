@@ -5122,25 +5122,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """The manifest version for the two reports, or "" — never raises.
 
         #1736/#1738 — a Scout or error report is read by us days later, on a
-        build we cannot see, so the report has to name it. Three issues in one
-        week opened with us asking the reporter which version they were on.
-
-        Deliberately NOT resolved in async_setup with the awaitable
-        ``async_get_integration``: handed a test's mocked hass that one goes
-        looking for the integration on disk and does not come back, and a
-        cosmetic header field has no business being able to hang setup.
-        ``async_get_loaded_integration`` is a @callback — one dict lookup, no
-        import, no executor, no I/O — and raises IntegrationNotLoaded when it
-        is not there, which is a perfectly good answer here.
+        build we cannot see, so the report has to name it. The lookup (and the
+        reason it must not be the awaitable one) lives in ``_version`` now that
+        the Porsche login report needs the same line.
         """
-        try:
-            from homeassistant.loader import (  # noqa: PLC0415
-                async_get_loaded_integration,
-            )
-            integration = async_get_loaded_integration(self.hass, DOMAIN)
-            return str(integration.version or "")
-        except Exception:  # noqa: BLE001
-            return ""
+        from ._version import integration_version  # noqa: PLC0415
+
+        return integration_version(self.hass)
 
     def _refresh_reporter_issues(self) -> None:
         """Recreate / delete the two HA repair issues from current buffers.

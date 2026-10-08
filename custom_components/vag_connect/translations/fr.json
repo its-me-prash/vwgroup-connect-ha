@@ -219,6 +219,7 @@
       "porsche_login_wall": "Tes identifiants sont corrects — la connexion a passé l'étape du mot de passe, mais s'est arrêtée à un écran captcha/consentement de Porsche qu'elle ne peut pas terminer automatiquement (observé à my.porsche.com). C'est un blocage du côté de Porsche, suivi dans #1337, pas un mot de passe incorrect. Ne réessaie pas en boucle — des tentatives répétées ont bloqué des comptes Porsche. Si possible, merci de le signaler pour que nous puissions corriger le problème (joindre les diagnostics) : {report_url}",
       "porsche_portal_step": "Porsche a redirigé cette connexion vers son portail web (my.porsche.com) pour une étape unique que l'intégration ne peut pas terminer elle-même. Ouvre {portal_url} dans un navigateur normal — idéalement sur le même réseau que Home Assistant — connecte-toi avec le même compte, effectue ce qui s'affiche (consentement, conditions, avis sur les cookies), puis reviens et réessaie. Ne réessaie pas en boucle : des tentatives échouées répétées ont bloqué des comptes Porsche. Toujours bloqué ? Signale-le ici : {report_url}",
       "porsche_captcha_failed": "Ce captcha n'a pas pu être vérifié et il est désormais épuisé. Veuillez fermer cette boîte de dialogue et relancer la connexion Porsche pour en obtenir un nouveau. Si possible, merci de le signaler pour que nous puissions corriger le problème (joindre les diagnostics) : {report_url}",
+      "porsche_captcha_credentials": "Porsche a refusé la connexion à cette étape, le captcha est donc épuisé — mais le captcha n'était pas le problème : l'adresse e-mail ou le mot de passe n'a pas été accepté. Vérifiez-les, puis relancez la connexion Porsche. N'essayez pas en boucle : des tentatives échouées répétées ont conduit Porsche à verrouiller des comptes. Si les identifiants sont certainement corrects, merci de le signaler pour que nous puissions corriger le problème (joindre les diagnostics) : {report_url}",
       "porsche_captcha_cooldown": "Trop de tentatives de captcha. Des essais répétés peuvent amener Porsche à verrouiller temporairement le compte ou à signaler votre réseau ; l'opération a donc été arrêtée pour protéger votre compte. Attendez quelques minutes avant de réessayer. Si possible, merci de le signaler pour que nous puissions corriger le problème (joindre les diagnostics) : {report_url}",
       "reconfigure_failed": "Échec de la reconfiguration : l'entrée de configuration est introuvable. Veuillez réessayer.",
       "reauth_failed": "Échec de la ré-authentification : l'entrée de configuration est introuvable. Veuillez réessayer."
@@ -1255,6 +1256,9 @@
       },
       "dashboard_warnings_raw": {
         "name": "Voyants d'alerte (brut)"
+      },
+      "dashboard_warnings_last_at": {
+        "name": "Derniers témoins enregistrés"
       },
       "climate_error_code": {
         "name": "Code d'erreur climatisation"

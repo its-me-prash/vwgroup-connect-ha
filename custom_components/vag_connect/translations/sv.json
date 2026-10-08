@@ -219,6 +219,7 @@
       "porsche_login_wall": "Dina inloggningsuppgifter är korrekta — inloggningen tog sig förbi lösenordssteget, men stannade vid en Porsche captcha-/samtyckesskärm som den inte kan slutföra automatiskt (sedd på my.porsche.com). Det här är en spärr på Porsches sida, spårad i #1337, inte ett fel lösenord. Försök inte igen i en loop — upprepade försök har låst Porsche-konton. Om du kan, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
       "porsche_portal_step": "Porsche skickade den här inloggningen till sin webbportal (my.porsche.com) för ett engångssteg som integrationen inte kan slutföra på egen hand. Öppna {portal_url} i en vanlig webbläsare — helst på samma nätverk som Home Assistant — logga in med samma konto, slutför det som visas (samtycke, villkor, cookie-meddelande), kom sedan tillbaka och försök igen. Försök inte igen i en loop: upprepade misslyckade försök har låst Porsche-konton. Fortfarande fast? Rapportera det här: {report_url}",
       "porsche_captcha_failed": "Captchan kunde inte verifieras och är nu förbrukad. Stäng den här dialogen och starta om Porsche-inloggningen för att få en ny. Om du kan, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
+      "porsche_captcha_credentials": "Porsche avvisade inloggningen i det här steget, så captchan är nu förbrukad — men captchan var inte problemet: e-postadressen eller lösenordet godtogs inte. Kontrollera dem och starta om Porsche-inloggningen. Försök inte om och om igen: upprepade misslyckade försök har gjort att Porsche låser konton. Om inloggningsuppgifterna säkert är rätta, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
       "porsche_captcha_cooldown": "För många captcha-försök. Upprepade försök kan göra att Porsche tillfälligt låser kontot eller flaggar ditt nätverk, så detta stoppades för att skydda ditt konto. Vänta några minuter innan du försöker igen. Om du kan, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
       "reconfigure_failed": "Omkonfigurationen misslyckades: konfigurationsposten kunde inte hittas. Försök igen.",
       "reauth_failed": "Omautentiseringen misslyckades: konfigurationsposten kunde inte hittas. Försök igen."
@@ -1255,6 +1256,9 @@
       },
       "dashboard_warnings_raw": {
         "name": "Varningslampor (rådata)"
+      },
+      "dashboard_warnings_last_at": {
+        "name": "Varningslampor senast registrerade"
       },
       "climate_error_code": {
         "name": "Felkod klimatanläggning"

@@ -2009,6 +2009,10 @@ class VehicleData:
     # Instrument-cluster warning bitmask — RAW hex/interpreted value only, no
     # decode. LOW — disabled-by-default. sensor, diagnostic.
     dashboard_warnings_raw: str | None = None
+    # #1757 — the HISTORY sibling of the mask above. ``Any`` like
+    # ``aux_battery_bem_alert_at``: the parser hands over whatever
+    # ``_epoch_or_iso`` made of it.
+    dashboard_warnings_last_at: Any | None = None
     # #901 (Mezzo1973, volkswagen) — best-effort LOW-confidence driving-telemetry
     # from the EU-Data-Act feed. Types inferred from Scout samples; enums/units
     # unconfirmed beyond speed's documented km/h. All disabled-by-default.

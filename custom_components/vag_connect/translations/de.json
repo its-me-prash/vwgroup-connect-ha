@@ -219,6 +219,7 @@
       "porsche_login_wall": "Deine Zugangsdaten sind in Ordnung — die Anmeldung kam am Passwort-Schritt vorbei, blieb dann aber an einem Porsche-Captcha-/Zustimmungs-Bildschirm hängen, den sie nicht automatisch abschließen kann (auf my.porsche.com beobachtet). Das ist eine Porsche-seitige Sperre (verfolgt unter #1337), kein falsches Passwort. Nicht in einer Schleife wiederholen — wiederholte Versuche haben schon zu Porsche-Konto-Sperrungen geführt. Wenn möglich, melde es bitte, damit wir es beheben können (Diagnose anhängen): {report_url}",
       "porsche_portal_step": "Porsche hat diese Anmeldung an sein Web-Portal (my.porsche.com) weitergeleitet, für einen einmaligen Schritt, den die Integration nicht selbst abschließen kann. Öffne {portal_url} in einem normalen Browser — am besten im selben Netzwerk wie Home Assistant — melde dich mit demselben Konto an, erledige, was dort angezeigt wird (Zustimmung, AGB, Cookie-Hinweis), und versuche es danach hier erneut. Nicht in einer Schleife wiederholen: wiederholte Fehlversuche haben schon zu Porsche-Konto-Sperrungen geführt. Klappt es immer noch nicht? Melde es hier: {report_url}",
       "porsche_captcha_failed": "Das Captcha konnte nicht bestätigt werden und ist jetzt verbraucht. Bitte schließe diesen Dialog und starte die Porsche-Anmeldung neu, um ein frisches zu erhalten. Wenn möglich, melde es bitte, damit wir es beheben können (Diagnose anhängen): {report_url}",
+      "porsche_captcha_credentials": "Porsche hat die Anmeldung in diesem Schritt abgelehnt, damit ist das Captcha verbraucht — es war aber nicht das Problem: E-Mail oder Passwort wurden nicht akzeptiert. Prüfe beides und starte die Porsche-Anmeldung neu. Nicht in einer Schleife wiederholen: wiederholte Fehlversuche haben schon zu gesperrten Porsche-Konten geführt. Wenn die Zugangsdaten sicher stimmen, melde es bitte, damit wir es beheben können (Diagnose anhängen): {report_url}",
       "porsche_captcha_cooldown": "Zu viele Captcha-Versuche. Wiederholte Versuche können dazu führen, dass Porsche das Konto vorübergehend sperrt oder dein Netzwerk markiert – daher wurde hier gestoppt, um dein Konto zu schützen. Warte ein paar Minuten, bevor du es erneut versuchst. Wenn möglich, melde es bitte, damit wir es beheben können (Diagnose anhängen): {report_url}",
       "reconfigure_failed": "Neukonfiguration fehlgeschlagen: Der Konfigurationseintrag wurde nicht gefunden. Bitte versuche es erneut.",
       "reauth_failed": "Erneute Anmeldung fehlgeschlagen: Der Konfigurationseintrag wurde nicht gefunden. Bitte versuche es erneut."
@@ -1255,6 +1256,9 @@
       },
       "dashboard_warnings_raw": {
         "name": "Warnleuchten (Rohwert)"
+      },
+      "dashboard_warnings_last_at": {
+        "name": "Warnleuchten zuletzt erfasst"
       },
       "climate_error_code": {
         "name": "Klima-Fehlercode"

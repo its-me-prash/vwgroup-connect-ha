@@ -219,6 +219,7 @@
       "porsche_login_wall": "Your credentials are fine — the login got past the password step but stopped at a Porsche captcha/consent screen it can't complete automatically (seen at my.porsche.com). This is a Porsche-side wall, tracked in #1337, not a wrong password. Don't retry in a loop — repeated attempts have locked Porsche accounts. If you can, please report it so we can fix it (attach diagnostics): {report_url}",
       "porsche_portal_step": "Porsche sent this login to its web portal (my.porsche.com) for a one-time step the integration cannot complete on its own. Open {portal_url} in a normal browser — ideally on the same network as Home Assistant — sign in with the same account, complete whatever it shows (consent, terms, cookie notice), then come back and try again. Do not retry in a loop: repeated failed attempts have locked Porsche accounts. Still stuck? Report it here: {report_url}",
       "porsche_captcha_failed": "That captcha could not be verified and it is now used up. Please close this dialog and start the Porsche login again to get a fresh one. If you can, please report it so we can fix it (attach diagnostics): {report_url}",
+      "porsche_captcha_credentials": "Porsche refused the sign-in at this step, so that captcha is used up — but the captcha was not the problem: the e-mail or password was not accepted. Check them, then start the Porsche login again. Do not retry in a loop: repeated failed attempts have caused Porsche to lock accounts. If the credentials are definitely correct, please report it so we can fix it (attach diagnostics): {report_url}",
       "porsche_captcha_cooldown": "Too many captcha attempts. Repeated tries can make Porsche temporarily lock the account or flag your network, so this stopped to keep your account safe. Wait a few minutes before trying again. If you can, please report it so we can fix it (attach diagnostics): {report_url}",
       "reconfigure_failed": "Reconfigure failed: the configuration entry could not be found. Please try again.",
       "reauth_failed": "Re-authentication failed: the configuration entry could not be found. Please try again."
@@ -1255,6 +1256,9 @@
       },
       "dashboard_warnings_raw": {
         "name": "Dashboard warnings (raw)"
+      },
+      "dashboard_warnings_last_at": {
+        "name": "Dashboard warnings last recorded"
       },
       "climate_error_code": {
         "name": "Climate error code"

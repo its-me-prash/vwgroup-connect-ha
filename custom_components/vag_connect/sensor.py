@@ -3271,6 +3271,18 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # #1757 — when the cluster last recorded a warning. EU-Data-Act dialect
+    # only; observed value is an absolute ISO timestamp on every sample so far
+    # (see the parser note: the field catalogue disagrees and the code wins).
+    VagSensorDescription(
+        key="dashboard_warnings_last_at",
+        translation_key="dashboard_warnings_last_at",
+        data_key="dashboard_warnings_last_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # #901 (Mezzo1973, volkswagen) — best-effort LOW-confidence EU-Data-Act
     # driving-telemetry. All disabled-by-default. Speed carries km/h (grounded
     # in the parser dictionary) + SPEED device class (HA auto-converts to mph);
@@ -4481,6 +4493,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # #897 — 12V battery BEM level-2 pre-warning alert time. EU-Data-Act dialect
     # only; vehicles/channels without the field stay None → no phantom.
     "aux_battery_bem_alert_at",
+    # #1757 — warnings-history timestamp. EU-Data-Act dialect only; cars and
+    # channels without the field stay None → no phantom.
+    "dashboard_warnings_last_at",
     "ascent_slope_consumption",
     "descent_slope_consumption",
     "report_type",

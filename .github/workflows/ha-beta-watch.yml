@@ -1,0 +1,173 @@
+name: Home Assistant beta watch
+
+# Early warning for the thing that happened on 2026-10-07: Home Assistant
+# 2026.10.0 shipped between two CI runs forty minutes apart, swapped the
+# validation library underneath us, and turned every pull request red at once —
+# with no warning, on a build nobody here had ever run.
+#
+# The beta existed for about two weeks before that. This runs our own checks
+# against the beta channel every day, so a breaking release announces itself
+# while there is still time to adapt, instead of on the morning it lands.
+#
+# Deliberately NOT a gate. A broken beta must never block a pull request: it
+# opens ONE tracking issue per Home Assistant version and leaves the job green.
+# The INSTALL step is allowed to fail hard, though — a watcher that cannot
+# install anything has to show up as a red scheduled run rather than as
+# silence, because silence here looks exactly like "all clear".
+
+on:
+  schedule:
+    # 05:00 UTC daily — Home Assistant cuts betas on no fixed hour, and a day
+    # of latency costs nothing against a two-week warning window.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  beta:
+    name: Checks against the HA beta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Python 3.14 einrichten
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install the Home Assistant beta
+        id: install
+        run: |
+          set -euo pipefail
+          # Same tool and test dependencies CI uses, so a finding here means
+          # "the new Home Assistant breaks us" and not "the watcher is set up
+          # differently". ruff stays pinned exactly as in ci.yml.
+          pip install \
+            ruff==0.15.12 \
+            mypy \
+            pytest \
+            pytest-cov \
+            pytest-asyncio \
+            hypothesis
+          # --pre is what makes this a beta watch. When no prerelease is
+          # published it simply resolves to the current stable, which is still
+          # worth checking: that is precisely the case we were blind to.
+          pip install --pre --upgrade homeassistant
+          VERSION="$(python -c 'from homeassistant.const import __version__ as v; print(v)')"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          IS_PRE="$(python -c "import sys; from packaging.version import Version; print('yes' if Version(sys.argv[1]).is_prerelease else 'no')" "${VERSION}" 2>/dev/null || echo unknown)"
+          echo "prerelease=${IS_PRE}" >> "$GITHUB_OUTPUT"
+          echo "Testing against Home Assistant ${VERSION} (prerelease: ${IS_PRE})"
+          # The version of every library that has broken us before, on the
+          # record, so a future failure can be diffed against a passing run.
+          pip list 2>/dev/null \
+            | grep -iE '^(homeassistant|probatio|voluptuous|aiohttp|yarl|pydantic) ' \
+            | tee installed_versions.txt
+
+      - name: mypy strict
+        id: mypy
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mypy custom_components/vag_connect/ \
+            --ignore-missing-imports \
+            --disallow-untyped-defs \
+            --disallow-incomplete-defs \
+            --warn-return-any \
+            --no-error-summary 2>&1 | tee mypy_output.log
+
+      - name: Tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          # No coverage gate here on purpose: a coverage threshold failing
+          # against a beta says nothing about the beta.
+          python3 -m pytest tests/ -q --tb=short 2>&1 | tee pytest_output.log
+
+      - name: Summarise for anyone reading the run
+        if: always()
+        run: |
+          {
+            echo "## Home Assistant ${{ steps.install.outputs.version }}"
+            echo ""
+            echo "- prerelease: ${{ steps.install.outputs.prerelease }}"
+            echo "- mypy: ${{ steps.mypy.outcome }}"
+            echo "- tests: ${{ steps.tests.outcome }}"
+            echo ""
+            echo '```'
+            cat installed_versions.txt 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open a tracking issue when the beta breaks us
+        if: steps.mypy.outcome == 'failure' || steps.tests.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.install.outputs.version }}
+          PRERELEASE: ${{ steps.install.outputs.prerelease }}
+          MYPY_OUTCOME: ${{ steps.mypy.outcome }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          set -euo pipefail
+          # De-dup across ALL states, open or closed: at most one issue per
+          # Home Assistant version, for the reason the Škoda watcher documents —
+          # looking only at open issues re-files the same thing every night once
+          # a maintainer has closed it as evaluated.
+          existing="$(gh issue list --state all \
+            --search 'in:title Home Assistant beta breaks' \
+            --json title \
+            --jq "[.[] | select(.title | contains(\"${VERSION}\"))] | length")"
+          if [ "${existing}" != "0" ]; then
+            echo "Tracking issue for ${VERSION} already exists (open or closed) — nothing to do."
+            exit 0
+          fi
+
+          # Anti-spam: the decisive first lines of each failure, never the log.
+          {
+            echo "Our own checks fail against **Home Assistant ${VERSION}** (prerelease: ${PRERELEASE}),"
+            echo "found by the scheduled beta watch rather than by a user."
+            echo ""
+            echo "- mypy: \`${MYPY_OUTCOME}\`"
+            echo "- tests: \`${TESTS_OUTCOME}\`"
+            echo ""
+            echo "Installed versions of the libraries that have broken this integration before:"
+            echo ""
+            echo '```'
+            cat installed_versions.txt 2>/dev/null || echo "(not captured)"
+            echo '```'
+            if [ "${MYPY_OUTCOME}" = "failure" ]; then
+              echo ""
+              echo "### mypy — first 40 lines"
+              echo ""
+              echo '```'
+              head -40 mypy_output.log 2>/dev/null || true
+              echo '```'
+            fi
+            if [ "${TESTS_OUTCOME}" = "failure" ]; then
+              echo ""
+              echo "### tests — the failures"
+              echo ""
+              echo '```'
+              grep -E '^(FAILED|ERROR|E   )' pytest_output.log 2>/dev/null | head -40 || true
+              echo '```'
+            fi
+            echo ""
+            echo "### Reading this"
+            echo ""
+            echo "A mypy-only failure is usually a type-level change and the integration may still"
+            echo "run correctly — but it blocks every pull request the moment that version reaches"
+            echo "stable, so it still has to be dealt with before then. A failing test is the"
+            echo "stronger signal: that is behaviour, not types."
+            echo ""
+            echo "Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > issue_body.md
+
+          gh issue create \
+            --title "Home Assistant beta breaks our checks: ${VERSION}" \
+            --label "enhancement" \
+            --body-file issue_body.md
+          echo "Opened tracking issue for ${VERSION}."

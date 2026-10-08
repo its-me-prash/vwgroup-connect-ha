@@ -219,6 +219,7 @@
       "porsche_login_wall": "Tus credenciales son correctas — el inicio de sesión superó el paso de la contraseña, pero se detuvo en una pantalla de captcha/consentimiento de Porsche que no puede completar automáticamente (vista en my.porsche.com). Es un bloqueo del lado de Porsche, registrado en #1337, no una contraseña incorrecta. No lo reintentes en bucle — los intentos repetidos han bloqueado cuentas de Porsche. Si puedes, notifícalo para que podamos solucionarlo (adjunta los diagnósticos): {report_url}",
       "porsche_portal_step": "Porsche envió este inicio de sesión a su portal web (my.porsche.com) para un paso único que la integración no puede completar por sí sola. Abre {portal_url} en un navegador normal — idealmente en la misma red que Home Assistant — inicia sesión con la misma cuenta, completa lo que muestre (consentimiento, términos, aviso de cookies) y luego vuelve e inténtalo de nuevo. No lo reintentes en bucle: los intentos fallidos repetidos han bloqueado cuentas de Porsche. ¿Sigues atascado? Notifícalo aquí: {report_url}",
       "porsche_captcha_failed": "No se pudo verificar el captcha y ya está caducado. Cierra este diálogo y vuelve a iniciar el acceso de Porsche para obtener uno nuevo. Si puedes, notifícalo para que podamos solucionarlo (adjunta los diagnósticos): {report_url}",
+      "porsche_captcha_credentials": "Porsche rechazó el inicio de sesión en este paso, así que el captcha ya está caducado — pero el captcha no era el problema: no se aceptaron el correo electrónico o la contraseña. Compruébalos y vuelve a iniciar el acceso de Porsche. No lo repitas en bucle: los intentos fallidos repetidos han provocado que Porsche bloquee cuentas. Si las credenciales son correctas con seguridad, notifícalo para que podamos solucionarlo (adjunta los diagnósticos): {report_url}",
       "porsche_captcha_cooldown": "Demasiados intentos de captcha. Los intentos repetidos pueden hacer que Porsche bloquee temporalmente la cuenta o marque tu red, por lo que se detuvo para proteger tu cuenta. Espera unos minutos antes de volver a intentarlo. Si puedes, notifícalo para que podamos solucionarlo (adjunta los diagnósticos): {report_url}",
       "reconfigure_failed": "Error al reconfigurar: no se encontró la entrada de configuración. Inténtalo de nuevo.",
       "reauth_failed": "Error en la reautenticación: no se encontró la entrada de configuración. Inténtalo de nuevo."
@@ -1255,6 +1256,9 @@
       },
       "dashboard_warnings_raw": {
         "name": "Testigos de aviso (valor bruto)"
+      },
+      "dashboard_warnings_last_at": {
+        "name": "Avisos del cuadro registrados por última vez"
       },
       "climate_error_code": {
         "name": "Código de error de climatización"
