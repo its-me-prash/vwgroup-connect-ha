@@ -75,3 +75,15 @@ def test_verdict_set_exists_even_before_any_call() -> None:
     c = _client([_GOOD])
     asyncio.run(c._get_mbb_operationlist(VIN))
     assert c.mbb_no_legacy_vins == set()
+
+
+
+def test_verdict_warning_points_at_mbb_eligibility(caplog) -> None:
+    """The 401 also reaches fully enrolled accounts (relation PRIMARY_USER,
+    carnetIndicator true, pre-flight ``eligible``), so the warning must point at
+    ``mbb_eligibility`` instead of only asking about the primary-user role. The
+    command hiding itself is covered by test_1150_no_legacy_command_gate."""
+    c = _client([_AUTH_401])
+    with caplog.at_level("WARNING"):
+        asyncio.run(c._get_mbb_operationlist(VIN, for_command=True))
+    assert "mbb_eligibility" in " ".join(r.getMessage() for r in caplog.records)
