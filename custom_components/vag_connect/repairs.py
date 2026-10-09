@@ -662,10 +662,16 @@ def raise_issue_historical_timeout(
     surface this rather than leaving the request pending forever. WARNING,
     dismissible; the pending state is cleared so a new export can be requested.
     """
+    # #1768 — the repair id lands verbatim in Home Assistant’s own config-entry
+    # diagnostics, which our VIN redaction never sees, and a user uploaded two
+    # of those to a public issue with a full VIN in them. The identical fix was
+    # applied to the stale_data sibling under #1626 and missed here. Delete the
+    # legacy raw-VIN id first so a card raised before this upgrade disappears.
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_historical_timeout_{vin}")
     ir.async_create_issue(
         hass,
         DOMAIN,
-        f"{entry_id}_historical_timeout_{vin}",
+        f"{entry_id}_historical_timeout_{mask_vin(vin)}",
         is_fixable=False,
         is_persistent=False,
         severity=ir.IssueSeverity.WARNING,
@@ -675,7 +681,14 @@ def raise_issue_historical_timeout(
 
 
 def clear_issue_historical_timeout(hass: HomeAssistant, entry_id: str, vin: str) -> None:
-    """Clear the per-VIN historical-export timeout repair."""
+    """Clear the per-VIN historical-export timeout repair.
+
+    Deletes both the masked-VIN id (#1768) and the legacy raw-VIN one, so a
+    card raised before the upgrade is cleared too (delete is idempotent).
+    """
+    ir.async_delete_issue(
+        hass, DOMAIN, f"{entry_id}_historical_timeout_{mask_vin(vin)}"
+    )
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_historical_timeout_{vin}")
 
 

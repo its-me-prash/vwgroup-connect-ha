@@ -93,6 +93,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   front of the login server started answering `403` to a non-browser one (#388, #393).
 
 ### Behoben / Fixed
+- **A diagnostics download could carry more vehicle identification than it should.** Tightened, and
+  any card created before this update is cleared on upgrade so nothing lingers. If you have already
+  shared a diagnostics file publicly, consider replacing it (#1768, thanks @kalwados).
 - **A Škoda API key you typed in yourself is no longer thrown away when another car enrols
   automatically.** Arming the official channel from the stored keys replaced it with only the
   automatic ones, so a car that depended on the key you entered quietly lost its backup
