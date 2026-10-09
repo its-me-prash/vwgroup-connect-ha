@@ -4,59 +4,59 @@
     "seat": {
       "last_version_name": "2.22.1",
       "last_source": "google_play",
-      "last_checked_at": "2026-10-05T10:54:25.511439+00:00",
-      "last_confirmed_at": "2026-10-05T10:54:25.511439+00:00",
+      "last_checked_at": "2026-10-09T10:57:06.958375+00:00",
+      "last_confirmed_at": "2026-10-09T10:57:06.958375+00:00",
       "last_status": "ok"
     },
     "cupra": {
       "last_version_name": "2.22.1",
       "last_source": "google_play",
-      "last_checked_at": "2026-10-05T10:54:25.669225+00:00",
-      "last_confirmed_at": "2026-10-05T10:54:25.669225+00:00",
+      "last_checked_at": "2026-10-09T10:57:07.160361+00:00",
+      "last_confirmed_at": "2026-10-09T10:57:07.160361+00:00",
       "last_status": "ok"
     },
     "volkswagen": {
       "last_version_name": "4.6.4",
       "last_source": "google_play",
-      "last_checked_at": "2026-10-05T10:55:12.972315+00:00",
-      "last_confirmed_at": "2026-10-05T10:55:12.972315+00:00",
+      "last_checked_at": "2026-10-09T10:57:07.382076+00:00",
+      "last_confirmed_at": "2026-10-09T10:57:07.382076+00:00",
       "last_status": "ok"
     },
     "audi": {
       "last_version_name": "5.8.1",
       "last_source": "google_play",
-      "last_checked_at": "2026-10-05T10:55:13.152966+00:00",
-      "last_confirmed_at": "2026-10-05T10:55:13.152966+00:00",
+      "last_checked_at": "2026-10-09T10:57:07.561466+00:00",
+      "last_confirmed_at": "2026-10-09T10:57:07.561466+00:00",
       "last_status": "ok"
     },
     "skoda": {
       "last_version_name": "8.17.0",
       "last_source": "google_play",
-      "last_checked_at": "2026-10-05T10:55:13.305312+00:00",
-      "last_confirmed_at": "2026-10-05T10:55:13.305312+00:00",
+      "last_checked_at": "2026-10-09T10:57:07.830924+00:00",
+      "last_confirmed_at": "2026-10-09T10:57:07.830924+00:00",
       "last_status": "ok"
     },
     "volkswagen_na": {
       "last_version_name": "2026.9.29-9674",
       "last_source": "google_play",
-      "last_checked_at": "2026-10-05T10:55:13.458192+00:00",
-      "last_confirmed_at": "2026-10-05T10:55:13.458192+00:00",
+      "last_checked_at": "2026-10-09T10:57:08.055495+00:00",
+      "last_confirmed_at": "2026-10-09T10:57:08.055495+00:00",
       "last_status": "ok"
     },
     "porsche": {
       "last_version_name": "21.26.39",
       "last_source": "apkmirror",
-      "last_checked_at": "2026-10-05T10:55:14.099052+00:00",
-      "last_confirmed_at": "2026-10-05T10:55:14.099052+00:00",
+      "last_checked_at": "2026-10-09T10:57:08.724501+00:00",
+      "last_confirmed_at": "2026-10-09T10:57:08.724501+00:00",
       "last_status": "ok"
     },
     "porsche_row": {
       "last_version_name": "21.26.39",
       "last_source": "apkcombo",
-      "last_checked_at": "2026-10-05T10:55:14.385831+00:00",
+      "last_checked_at": "2026-10-09T10:57:08.947892+00:00",
       "last_confirmed_at": "2026-10-05T10:55:14.385831+00:00",
-      "last_status": "ok"
+      "last_status": "stale"
     }
   },
-  "_last_updated": "2026-10-05T10:55:14.386054+00:00"
+  "_last_updated": "2026-10-09T10:57:08.948089+00:00"
 }
