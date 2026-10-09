@@ -10,8 +10,8 @@ What makes it fail is visible in @derschneewolf's attachment. Every UDS value in
 it arrives with a trailing space — ``"MTIw "`` — and ``base64.b64decode`` with
 ``validate=True`` rejects any character outside the alphabet, a space included.
 That is not stray whitespace: it is the portal's own ``<value> <unit-token>``
-convention with an empty unit, the same shape ``_first_number`` was written for
-in #1622 (``"3644.0 Unit_MilliVolt"``). So the fix is the split that function
+convention with an empty unit, the same shape ``_lead_float`` was written for in
+#1622 (``"3644.0 Unit_MilliVolt"``). So the fix is the split that function
 already uses, not a strip — a value arriving as ``"<base64> Unit_Something"``
 must survive too.
 

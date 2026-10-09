@@ -1468,7 +1468,7 @@ def _uds_envelope(raw: str | None) -> tuple[dict[str, str], str | None]:
     # because the dispatch loop only marks a key used after a NON-empty decode,
     # that is exactly how an ID.4 came to report all eight DIDs we decode as
     # new fields. Base64 never contains whitespace, so the leading token is the
-    # payload; this is the split ``_first_number`` already uses for the scalar
+    # payload; this is the split ``_lead_float`` already uses for the scalar
     # leaves (#1622, ``"3644.0 Unit_MilliVolt"``). Strictness is kept: only the
     # separator is forgiven, a corrupt payload still yields nothing.
     token = str(raw).split()
