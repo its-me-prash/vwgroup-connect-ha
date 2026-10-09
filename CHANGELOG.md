@@ -44,8 +44,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 - **Eight readings an electric car already sends were being thrown away over a single
-  space.** The portal appends a unit token to each value it delivers, and does so even when
-  the unit is empty — so a base64 diagnostic envelope arrives with a trailing separator.
+  space.** In the diagnostic and battery-module field families the portal appends a unit
+  token to each value, and does so even when the unit is empty — so a base64 diagnostic
+  envelope arrives with a trailing separator.
   Our decoder rejected the whole envelope because of it, which silently cost one ID.4 every
   one of the eight diagnostic responses we know how to read: both high-voltage battery
   temperature extremes, both cell-voltage extremes, the 12 V battery cluster, the outside

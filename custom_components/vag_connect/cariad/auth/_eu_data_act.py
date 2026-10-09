@@ -1460,10 +1460,16 @@ def _uds_envelope(raw: str | None) -> tuple[dict[str, str], str | None]:
     """
     if not raw:
         return {}, None
-    # v4.12.1 (#1772, @HeBraun's ID.4 / #1769, @derschneewolf) — the portal
-    # appends its unit token to a value even when the unit is empty, so an
-    # envelope arrives as ``"<base64> "`` and can arrive as
-    # ``"<base64> Unit_X"``. ``validate=True`` rejects any character outside
+    # v4.12.1 (#1772, @HeBraun's ID.4 / #1769, @derschneewolf) — in the UDS and
+    # BMS/BCM field families the portal appends its unit token to a value even
+    # when the unit is empty, so an envelope arrives as ``"<base64> "`` and can
+    # arrive as ``"<base64> Unit_X"``. Scope deliberately stated narrowly: the
+    # append is evidenced on these families (#1622 for the scalars, #1769 for
+    # the envelopes) and NOT on the top-level continuous leaves — a survey of
+    # the live third-party portal readers found none that splits a value on
+    # whitespace, and several parse the plain fields with parsers that would
+    # reject a stray space outright, so those fields cannot be carrying one.
+    # ``validate=True`` rejects any character outside
     # the alphabet, a space included, so the whole envelope was discarded — and
     # because the dispatch loop only marks a key used after a NON-empty decode,
     # that is exactly how an ID.4 came to report all eight DIDs we decode as
