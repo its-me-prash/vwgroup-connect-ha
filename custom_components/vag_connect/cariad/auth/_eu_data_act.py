@@ -1460,8 +1460,22 @@ def _uds_envelope(raw: str | None) -> tuple[dict[str, str], str | None]:
     """
     if not raw:
         return {}, None
+    # v4.12.1 (#1772, @HeBraun's ID.4 / #1769, @derschneewolf) — the portal
+    # appends its unit token to a value even when the unit is empty, so an
+    # envelope arrives as ``"<base64> "`` and can arrive as
+    # ``"<base64> Unit_X"``. ``validate=True`` rejects any character outside
+    # the alphabet, a space included, so the whole envelope was discarded — and
+    # because the dispatch loop only marks a key used after a NON-empty decode,
+    # that is exactly how an ID.4 came to report all eight DIDs we decode as
+    # new fields. Base64 never contains whitespace, so the leading token is the
+    # payload; this is the split ``_first_number`` already uses for the scalar
+    # leaves (#1622, ``"3644.0 Unit_MilliVolt"``). Strictness is kept: only the
+    # separator is forgiven, a corrupt payload still yields nothing.
+    token = str(raw).split()
+    if not token:
+        return {}, None
     try:
-        doc = json.loads(base64.b64decode(str(raw), validate=True))
+        doc = json.loads(base64.b64decode(token[0], validate=True))
     except (ValueError, TypeError, binascii.Error):
         return {}, None
     if not isinstance(doc, dict):
