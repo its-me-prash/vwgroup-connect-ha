@@ -2091,11 +2091,15 @@ class VWEUClient(CariadBaseClient):
                 _LOGGER.log(
                     logging.WARNING if first_denial else logging.DEBUG,
                     "MBB operationList ***%s → 401 gw.error.authentication: the "
-                    "gateway rejected the bearer for this vehicle. This is an "
-                    "enrolment/authorization issue for this account and car (is "
-                    "the account the primary user in the brand app?), not an "
-                    "expired token — refreshing or re-authenticating won't "
-                    "change it. Not retried for %d h.",
+                    "legacy gateway refuses this car. Often the account is not "
+                    "the primary user in the brand app, but it also happens on "
+                    "fully enrolled accounts. With a volkswagen.de channel, "
+                    "mbb_eligibility in the diagnostics tells them apart "
+                    "('eligible' = the account side is fine; empty = that check "
+                    "has not run). It is not an expired token — refreshing or "
+                    "re-authenticating won't change it. MBB commands stay hidden "
+                    "for this car; readings from volkswagen.de or the EU Data Act "
+                    "portal are not affected. Not retried for %d h.",
                     vin[-6:], int(_MBB_OPLIST_DENY_TTL.total_seconds() // 3600),
                 )
                 # #584 — cohort-only, read-only leapfrog probe. The legacy

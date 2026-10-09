@@ -73,6 +73,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   repeated wrong PINs are how a vehicle PIN gets locked.
 
 ### Geändert / Changed
+- **The "MBB operationList → 401" warning no longer tells primary users to become primary user (#584, #923).**
+  The warning asked "is the account the primary user in the brand app?" as if that were the only cause. On a
+  Tiguan eHybrid MY2026 whose relation reads `PRIMARY_USER`, `enrollmentStatus COMPLETED`, `carnetIndicator true`
+  — and whose own pre-flight says `mbb_eligibility: eligible` — the same 401 still arrives, so the question sent
+  the owner looking for a problem on the account side that is not there. The message now says the legacy gateway
+  refuses the car, that this also happens on fully enrolled accounts, and — for entries with a volkswagen.de
+  channel — points at `mbb_eligibility` to tell the two apart (empty means that check has not run). It no longer
+  promises that all vehicle data is unaffected, only readings from volkswagen.de or the EU Data Act portal. Log
+  text only; the verdict and its handling are unchanged.
 - Internal, no user-visible change: Home Assistant 2026.10 replaced the library it validates
   configuration with. Nothing about this integration broke — Home Assistant keeps the old name
   working on purpose, and names custom integrations as the reason — but our type checking had to
