@@ -53,6 +53,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   only fills what the feed left empty — and a part the car reports as unsupported or invalid
   stays unknown rather than being called closed (#1780, thanks @kmeinderink, whose own
   correction after checking his diagnostics is what made the cause findable).
+### Geändert / Changed
+- **A car park no longer means a login each.** One portal connection serves every vehicle on
+  an account, and the integration reads the cars at the same time — so a three-car account
+  could ask the portal to log the same person in three times at once, and any car hitting an
+  expired session added another. Now the first login runs and the others simply wait for it:
+  one identity, one login. A failure is shared with whoever was waiting instead of being tried
+  again by each of them, because seven attempts with a wrong password is how an account gets
+  locked out by a fix. Nothing is cached — the next poll still logs in normally, so an expired
+  session is still replaced. This was not our finding: two other portal readers shipped the
+  same change within two days of each other after running into it, and we are in the middle of
+  a conversation with the portal's operator about request volume (#1778).
 
 ### Behoben / Fixed
 - **231 field names the car sends could never be discovered.** Fields whose name ends in a
