@@ -1399,6 +1399,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # other client; the token/portal/MBB attributes it lacks are all read
         # via getattr(..., default) elsewhere, so those paths no-op cleanly.
         from .const import CONF_STRATEGY, STRATEGY_COMPANION_ADB  # noqa: PLC0415
+        # #1774 — declared before the strategy branch so the hand-over further
+        # down reads unconditionally. Only the non-companion branch fills it; an
+        # ADB companion entry never talks to the portal.
+        portal_session: Any = None
         if self.entry.data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB:
             import time  # noqa: PLC0415
 
@@ -1490,6 +1494,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self._cariad_client.restore_rate_limit(float(_rl))
         else:
             session = async_get_clientsession(self.hass)
+            # #1774 (@kalwados) — one jar-isolated session per config entry, for
+            # the EU Data Act portal only. The portal authenticates with cookies,
+            # so Home Assistant's shared session meant two entries for two
+            # accounts wrote their portal cookies into the same jar: the second
+            # login overwrote the first and both entries read whichever car
+            # authenticated last. He had both of his cars on both hubs with
+            # neither working, which is exactly that.
+            #
+            # ``async_create_clientsession`` ties the session's cleanup to this
+            # config entry, so unloading the entry closes it; there is nothing to
+            # unwind by hand. Fail-soft: if the session cannot be created we pass
+            # None and the client keeps its previous behaviour rather than
+            # failing setup — a shared jar is a wrong reading, an exception here
+            # would be no integration at all.
+            try:
+                from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
+                    async_create_clientsession,
+                )
+                portal_session = async_create_clientsession(self.hass)
+            except Exception as _exc:  # noqa: BLE001
+                _LOGGER.debug(
+                    "VW Group Connect: no isolated portal session (%s); falling "
+                    "back to the shared one. A second config entry for a "
+                    "different portal account may read the wrong car.",
+                    type(_exc).__name__,
+                )
             self._cariad_client = CariadClientFactory.create(
                 brand, session, username, password, spin,
                 # v2.15.1 (#503) — Volkswagen US/Canada region. Only the
@@ -1499,6 +1529,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 ola_app_version_override=ola_app_v,
                 ola_user_agent_override=ola_ua,
             )
+        # #1774 — hand the isolated portal session over AFTER construction, the
+        # same way the locale and the MBB client id are handed over below. The
+        # five brand clients that use the portal each define their own
+        # ``__init__`` with a fixed signature, so threading a new keyword
+        # through the factory would mean editing five constructors and the
+        # factory for something only the portal cares about. The connector is
+        # not built until the first poll, well after this point, so setting the
+        # attribute here is in time.
+        if portal_session is not None:
+            try:
+                self._cariad_client._portal_session = portal_session
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "VW Group Connect: could not attach the isolated portal "
+                    "session; a second entry for a different portal account "
+                    "may read the wrong car (#1774)."
+                )
+
         # v4.7.12 (#584) — hand every brand client the HA instance locale so
         # market-scoped paths (MBB fs-car ``{country}``) can fall back to the
         # user's real country instead of a hard "DE". Fail-soft; the Škoda
