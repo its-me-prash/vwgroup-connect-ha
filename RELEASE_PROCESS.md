@@ -13,6 +13,33 @@ green. There is no fixed cadence. The session-based roadmap
 ([`docs/ROADMAP.md`](docs/ROADMAP.md)) maps each upcoming session to a
 target version.
 
+### The rolling window — a hard cap of two
+
+**At most two tagged releases in any rolling seven-day window, and pre-releases
+count.** Five betas plus a stable in one week is six, not one.
+
+The cap exists for the people on the other end: every tag is an update prompt in
+everyone's Home Assistant, and a project that ships daily trains its users to
+ignore them — which is exactly when a release that genuinely matters gets skipped.
+
+Count it from the live release list rather than from memory, because betas are easy
+to forget:
+
+```bash
+gh release list --limit 30 --json tagName,publishedAt,isPrerelease
+```
+
+Everything published within the last seven days counts, boundary included: at
+exactly the seven-day mark the old release is still inside, so freedom starts after
+it, not at it.
+
+**Overriding it is allowed and must be written down.** A release that escapes a
+live outage can be worth the cost — v4.12.0 went out two days early because the
+portal was refusing logins and no published version survived it. When you override,
+record in the release commit or the issue which rule you set aside, what the harm
+was, who was affected by name, and that the decision was taken knowingly. An
+undocumented override is indistinguishable from not having checked.
+
 ---
 
 ## Daily: `[Unreleased]` block
@@ -174,10 +201,21 @@ new empty `[Unreleased]` block above it.
 - Capability-aware entity creation (#56)
 ```
 
-### 3. Mirror release notes into all 8 READMEs
+### 3. READMEs — nothing to mirror any more
 
-If the release adds visible features, update the roadmap table in
-`README.md` and the seven translations to mark the version as `✅ Done`.
+This step used to say "mirror the release notes into all 8 READMEs" and update a
+roadmap table marking the version `✅ Done`. Both halves are out of date:
+
+- There is no roadmap table in the READMEs any longer, and no per-release version
+  marker. The only version strings left are historical prose references (a
+  CHANGELOG pointer, for example), which a release must not touch.
+- There are **12** top-level READMEs, not 8: `README.md` plus eleven translations
+  (`cs da de es fi fr it nb nl pl sv`). The other README files in the tree are
+  internal and not user-facing.
+
+So a normal release changes no README at all. If a release *does* add something the
+READMEs should describe, all twelve are updated together under the i18n convention
+above — never English alone.
 
 ### 4. Commit + push
 
@@ -214,7 +252,7 @@ issue author.**
 
 ```bash
 python -m pytest tests/                                   # all green
-python -m ruff check custom_components/                   # 0 errors
+python -m ruff check custom_components/ tests/            # 0 errors
 python -m mypy custom_components/vag_connect/ \
   --ignore-missing-imports \
   --disallow-untyped-defs \
@@ -222,10 +260,15 @@ python -m mypy custom_components/vag_connect/ \
   --warn-return-any                                       # 0 errors
 python -m pytest tests/ \
   --cov=custom_components/vag_connect \
-  --cov-fail-under=65                                     # ≥65 % coverage
+  --cov-fail-under=75                                     # ≥75 % coverage
 ```
 
-These match the CI gates exactly.
+These match the CI gates exactly — and that sentence has to be re-checked against
+`.github/workflows/ci.yml` whenever either side changes, because it was false for a
+while in both directions at once: the checklist still said `ruff check
+custom_components/` after CI had widened to `custom_components/ tests/`, and still
+said 65 % after the coverage gate moved to 75 %. A checklist that passes locally and
+fails in CI is worse than no checklist, and it has already cost one release cycle.
 
 ---
 
