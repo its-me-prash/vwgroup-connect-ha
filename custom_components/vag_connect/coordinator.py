@@ -2629,8 +2629,58 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     if current.get(key) is None:  # never clobber a live value
                         current[key] = val
                         merged_any = True
+                # #1776 — the gap-fill above can never set a drivetrain flag,
+                # and that single omission cost this whole service its point.
+                # ``has_battery`` is a bool defaulting to False rather than
+                # None, so ``current.get(key) is None`` skips it forever: the
+                # export offers a state of charge AND the flag in the same
+                # object, the value lands and the flag is refused. Every
+                # electric entity is gated on that flag before anything else
+                # (98 descriptions across sensor, binary_sensor and number),
+                # and that gate is evaluated BEFORE the hide-empty one — which
+                # is why a reporter saw no battery entity at all rather than one
+                # reading unknown, and why switching "hide entities without
+                # data" off changed nothing for him.
+                #
+                # Re-derived through the SAME rule the channel merge uses, not a
+                # second implementation of it: additive, positive evidence only,
+                # with the flags already believed passed in as asserted so the
+                # recompute can only promote. A PHEV therefore cannot be
+                # flattened into an EV by a dialect that carries no combustion
+                # evidence — the exact hazard the gap-fill rule was protecting
+                # against, now handled by the function instead of by refusing
+                # to write at all.
+                from .cariad._channel_merge import (  # noqa: PLC0415
+                    drivetrain_from_evidence,
+                )
+                for _flag, _flag_val in drivetrain_from_evidence(
+                    current.get,
+                    asserted_battery=bool(current.get("has_battery"))
+                    or bool(hist.get("has_battery")),
+                    asserted_combustion=bool(current.get("has_combustion"))
+                    or bool(hist.get("has_combustion")),
+                ).items():
+                    if current.get(_flag) == _flag_val:
+                        continue
+                    current[_flag] = _flag_val
+                    # Only a PROMOTION counts as having imported something.
+                    # Writing a False flag into a snapshot that merely lacked
+                    # the key changes nothing a user can see, and counting it
+                    # would make this service report a successful import — and
+                    # mark the export done — when it had nothing to give.
+                    if _flag_val:
+                        merged_any = True
         if merged_any:
             self.async_set_updated_data(dict(self.vehicles))
+            # #1776 — and persist it. The snapshot was written in exactly one
+            # place, inside the poll loop, so an import followed by a reload
+            # discarded everything it had merged: a reload starts from an empty
+            # dict and repopulates from disk alone, and ``async_shutdown`` never
+            # flushes the store either. The advice we had been giving — "run the
+            # import, then reload so the entities appear" — therefore threw the
+            # import away unless a poll happened to run in between, which is
+            # precisely the case this service exists for.
+            self._save_vehicle_cache()
             _LOGGER.info(
                 "EU Data Act: merged one-time historical export config fields "
                 "for VIN %s", mask_vin(vin),
