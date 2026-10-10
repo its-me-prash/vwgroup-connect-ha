@@ -56,6 +56,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   corrupt value still produces no reading and stays visible on the raw-fields sensor rather
   than half-parsing into something plausible (#1772, thanks @HeBraun; the deciding evidence
   came from @derschneewolf's attachment on #1769).
+- **Four tyre-sensor fields now show their official name instead of nothing.** The field
+  catalogue is extracted from the official PDF, and the extraction left line-wrap spaces
+  inside 43 field names — so the tyre-pressure-sensor service-life family is catalogued
+  twice, once broken and once with every space removed, while cars send a third spelling.
+  All three missed each other, so those fields reported no official name at all even though
+  the catalogue describes them. Names are now matched with whitespace collapsed on both
+  sides, as a last resort after the exact lookups, so nothing that already resolved changes.
+  No unit is invented along the way: where the catalogue publishes none — as it does for
+  this family — none is shown, and a name whose space-free form is shared by entries with
+  different units stays deliberately unresolved rather than inheriting one of them
+  (#1767, thanks @zdimic1; same four fields on @derschneewolf's car in #1769).
 
 ## [4.12.0] - 2026-10-09 — The portal login works again / Die Portal-Anmeldung geht wieder
 
