@@ -2691,9 +2691,50 @@ class VWEUClient(CariadBaseClient):
             raise VehicleCommandError(command_name, "SecToken completion returned no token")
         # Leg 3 — the action on the service's own host
         url = build_mbb_action_url(base, spec.action_subpath)
-        resp = await self._mbb_post_action(
-            url, sec, body_override if body_override is not None else spec.body,
-            spec.content_type, for_command=True)
+        try:
+            resp = await self._mbb_post_action(
+                url, sec, body_override if body_override is not None else spec.body,
+                spec.content_type, for_command=True)
+        except APIError as _e:
+            # #584 (@Joassens, 2017 Passat GTE, NL) — two refusals that arrive
+            # HERE, after legs 1 and 2 have already succeeded, and that used to
+            # surface as a raw 403/400 traceback. Both are measured, not guessed:
+            # he instrumented all three legs and then captured the official app.
+            _body = str(_e).lower()
+            if "xid_app_vw" in _body or "rolesandrights.unauthorized" in _body \
+                    or "auth.forbidden" in _body:
+                # The gateway accepted the S-PIN and then refused the client
+                # identity. Nothing the owner can change: the licence was
+                # ACTIVATED, the operationList granted the operation, and the
+                # S-PIN handshake completed. His capture of the official app
+                # (4.6.4) shows it authenticating purely as a CARIAD/BFF client
+                # with an attested token and no MBB scope — so for such a car
+                # the command most likely never travels this plane at all, and
+                # there is no setting that opens it.
+                raise VehicleCommandError(
+                    command_name,
+                    "the car's gateway accepted your S-PIN and then refused "
+                    "this integration's client identity for commands. This is "
+                    "not your password, your S-PIN or your subscription — all "
+                    "three checked out. Some cars only accept commands from the "
+                    "manufacturer's own app, which authenticates in a way an "
+                    "open-source client cannot reproduce. Reads are unaffected.",
+                ) from _e
+            if "gw.error.validation" in _body:
+                # Observed on a 2017 car for setSettings carrying
+                # targetStateOfChargeInPercent: the gateway validates the body
+                # against this service's (older) schema BEFORE the permission
+                # check, so this says the field is not in that car's schema —
+                # NOT that the operation is forbidden. His operationList lists
+                # P_SETTINGS as granted, which is why we do not hide the control.
+                raise VehicleCommandError(
+                    command_name,
+                    "the car rejected the request as invalid rather than "
+                    "forbidden — this model's service version most likely does "
+                    "not accept this setting at all, even though your account "
+                    "is allowed to send it. Other commands are unaffected.",
+                ) from _e
+            raise
         request_id = parse_mbb_action_request_id(resp)
         # NOTE: we deliberately do NOT poll for confirmation on the climater/
         # charger/timer actions. The action fires correctly above, but their

@@ -89,6 +89,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   fuel. Second: the merged values are now saved. They had only ever been written to disk by the
   regular poll, so the advice to reload afterwards discarded them unless a poll happened to land
   in between (#1776, found grounding @placidcasual98's report on #1403).
+- **A command your car refuses now says what it refused.** On some older cars the gateway
+  accepts your S-PIN and then declines the request anyway, and until now that arrived as an
+  unexplained error — which reads like a wrong password or a lapsed subscription. Both had
+  been verified fine in the case this comes from: the subscription active until 2027, the
+  car's own service list granting the operation, the S-PIN handshake completed. The message
+  now rules those out by name and says plainly that some cars only accept commands from the
+  manufacturer's own app, which an open-source client cannot imitate, and that reading data
+  is unaffected. A second, different refusal is kept separate rather than lumped in: when the
+  car calls the request *invalid* instead of forbidden, that means this model's software does
+  not take that particular setting at all — so the control stays available, because the
+  account is allowed to send it (#584, thanks @Joassens, who instrumented all three
+  authorisation steps and then captured the official app to settle which of the two
+  explanations it was).
+
+### Behoben / Fixed
 - **Eight readings an electric car already sends were being thrown away over a single
   space.** In the diagnostic and battery-module field families the portal appends a unit
   token to each value, and does so even when the unit is empty — so a base64 diagnostic
