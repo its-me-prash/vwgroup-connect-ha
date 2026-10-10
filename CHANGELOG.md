@@ -42,7 +42,29 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+- **Doors, windows, boot and bonnet now read from a one-time export.** The 15-minute feed and
+  the one-time export describe the car's body in two different dialects: the feed sends numeric
+  codes, the export sends words under per-part containers. We only ever understood the feed, so
+  a reporter whose Audi delivers these fields only in the export watched those entities sit at
+  `unknown` while his own downloaded file said CLOSED and LOCKED for every one of them. Both
+  dialects are now read, per door and per window, plus the boot's lock, the bonnet, the window
+  opening percentage and the parking lights. The export never overwrites a live reading — it
+  only fills what the feed left empty — and a part the car reports as unsupported or invalid
+  stays unknown rather than being called closed (#1780, thanks @kmeinderink, whose own
+  correction after checking his diagnostics is what made the cause findable).
+
 ### Behoben / Fixed
+- **231 field names the car sends could never be discovered.** Fields whose name ends in a
+  generic word — `…value`, `…unit`, `…state` — were treated as envelope packaging and dropped
+  before the Vehicle Data Scout could report them. That rule is right for a bare `timestamp`
+  and wrong for an official field name that happens to end that way, and it silenced an entire
+  family: every per-door and per-window state, the unit companions that let us map a quantity
+  without guessing its scale, the low-voltage battery level, the per-tyre state. It is also why
+  nobody had ever reported them — discovery could not see them, and the one reporter who found
+  them had to read his export by hand. A generic ending now only counts as packaging when the
+  whole name is generic. Expect the Scout to start reporting fields it was previously blind to;
+  that is the point, and it is how the next ones get mapped (#1780).
 - **Eight readings an electric car already sends were being thrown away over a single
   space.** In the diagnostic and battery-module field families the portal appends a unit
   token to each value, and does so even when the unit is empty — so a base64 diagnostic
