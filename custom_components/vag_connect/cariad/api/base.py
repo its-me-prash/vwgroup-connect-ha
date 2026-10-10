@@ -133,8 +133,28 @@ class CariadBaseClient:
         email: str,
         password: str,
         spin: str = "",
+        portal_session: "ClientSession | None" = None,
     ) -> None:
         self._session = session
+        # #1774 (@kalwados) — the EU Data Act portal authenticates with COOKIES,
+        # not a bearer token, so its session's cookie jar IS the identity. Home
+        # Assistant hands every integration the same shared client session, so
+        # two config entries for two different accounts were writing their
+        # portal cookies into one jar: the second login overwrote the first and
+        # both entries then read whichever car authenticated last. That is why
+        # he saw both of his cars on both hubs, and why NEITHER worked rather
+        # than one of them.
+        #
+        # Only the portal connector needs isolating. ``self._session`` is used
+        # in a dozen other places for bearer-token APIs, where a shared jar is
+        # harmless, and swapping all of them would touch every brand's auth
+        # path for no gain. So the coordinator creates one jar-isolated session
+        # per entry and passes it here; everything else is unchanged.
+        #
+        # Optional on purpose: a caller that passes nothing keeps the previous
+        # behaviour, which is what keeps this constructor usable from tests and
+        # from the offline tooling that has no Home Assistant to ask.
+        self._portal_session = portal_session
         self._brand = brand
         self._email = email
         self._password = password
@@ -500,7 +520,8 @@ class CariadBaseClient:
 
         from ..auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
 
-        connector = EUDataActConnector(self._session, brand=self._brand.name)
+        connector = EUDataActConnector(
+            self._portal_session or self._session, brand=self._brand.name)
         await connector.login(self._email, self._password)
         self._eu_portal = connector
         # Sentinel TokenSet: no real token (cookie session), but valid()
@@ -754,7 +775,8 @@ class CariadBaseClient:
             return False
         from ..auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
         try:
-            connector = EUDataActConnector(self._session, brand=self._brand.name)
+            connector = EUDataActConnector(
+            self._portal_session or self._session, brand=self._brand.name)
             await connector.login(email, password or "")
             self._supplementary_eu_portal = connector
             self._supplementary_eu_portal_creds = (email, password or "")
