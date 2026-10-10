@@ -1864,13 +1864,49 @@ _EMBEDDED_UUID_RE = re.compile(
 )
 
 
+# Containers that are the ENVELOPE itself rather than a part of the car: the
+# walker emits both the bare leaf and a container-qualified twin, so these are
+# the prefixes that must not make a generic leaf look like a real field name.
+# ``eu_data_act`` is our own endpoint tag; ``Data`` and ``dataPoints`` are the
+# portal's response wrappers. None of the three appears in the official field
+# catalogue, which is the test: a container the catalogue names is part of the
+# car, a container it does not name is packaging.
+_ENVELOPE_CONTAINERS: frozenset[str] = frozenset({
+    "eu_data_act", "data", "datapoints",
+})
+
+
 def _is_envelope_noise(key: str) -> bool:
     """True for account / VIN / envelope-timestamp / generic-name / point-UUID
     keys — the v2.18.1 carve-out from the no-suppression rule (see comment
     above). Matched on the leaf so bare and container-qualified spellings both
-    catch (``vin`` and ``eu_data_act.vin``; ``Data.key`` → ``key``)."""
+    catch (``vin`` and ``eu_data_act.vin``; ``Data.key`` → ``key``).
+
+    v4.12.1 (#1780, @kmeinderink) — a leaf match ALONE was far too blunt. In the
+    one-time export's dialect the generic leaf is part of the official field
+    name: ``door_info.front_left.door_status.value`` is catalogued under exactly
+    that name, and silencing it on its ``value`` leaf hid **231 published
+    fields** from the Vehicle Data Scout — the whole ``*_info.*.value`` family,
+    the ``.unit`` companions that would let us map a quantity without guessing
+    its scale, and ``tires.[*].state`` among others. That is why nobody ever
+    filed these: discovery could not see them, and the reporter had to find his
+    own door and window states by reading his downloaded export by hand.
+
+    So a generic leaf only counts as noise when it is generic all the way up —
+    bare, or qualified by nothing but the envelope container. One further dot of
+    real path means the catalogue has a name for it and the no-suppression rule
+    applies. The 142 catalogue entries that are bare ``timestamp`` /
+    ``message_id`` / ``state`` / ``value`` stay silenced, which is what the
+    carve-out was for.
+    """
     leaf = key.rsplit(".", 1)[-1].strip().lower()
-    return leaf in _ENVELOPE_NOISE_LEAVES or bool(_ENVELOPE_UUID_RE.match(leaf))
+    if leaf not in _ENVELOPE_NOISE_LEAVES and not _ENVELOPE_UUID_RE.match(leaf):
+        return False
+    path = key.strip().lower()
+    head, _, rest = path.partition(".")
+    if rest and head in _ENVELOPE_CONTAINERS:
+        path = rest
+    return "." not in path
 
 
 # v4.7.12 (Scout #1421 follow-up) — containers whose ``.is_set`` present-flag the
@@ -3326,6 +3362,118 @@ def map_dataset_to_vehicle_data(
         if _pv is not None:
             d.windows_position[_slot] = _pv
 
+    # v4.12.1 (#1780, @kmeinderink's Audi Q4 e-tron) — the ONE-TIME export's own
+    # body-state dialect. The continuous feed sends numeric enums
+    # (``open_state_*`` 2/3) and the dotted booleans above; the historical export
+    # instead sends STRING enums under per-part containers. All of them are
+    # catalogued, every one in the ``Historical Export`` cluster:
+    #
+    #   door_info.<pos>.door_status.value              OPEN / CLOSED
+    #   door_info.<pos>.door_lock_status.value         LOCKED / UNLOCKED
+    #   window_info.<pos>.window_status.value          OPEN / CLOSED
+    #   window_info.<pos>.window_percentage_open.value 0..100  (unit % published)
+    #   trunk_lid_info.trunk_lid_status.value          OPEN / CLOSED
+    #   trunk_lid_info.trunk_lid_lock_status.value     LOCKED / UNLOCKED
+    #   hood_info.hood_status.value                    OPEN / CLOSED
+    #
+    # The reporter's doors/windows/boot/bonnet entities sat at ``unknown`` while
+    # his own downloaded export carried CLOSED and LOCKED for every one of them —
+    # we simply never asked for these names. His feed does not carry them at all
+    # (he checked the diagnostics and corrected his own report), so for this car
+    # the export is the only source there is.
+    #
+    # Fill-if-empty throughout, per slot as well as per field, so a live feed
+    # always wins and an older config dump can never overwrite a current reading.
+    # ``hood_lock_status`` is deliberately NOT mapped: the model has no hood-lock
+    # field, and parsing a value no entity renders would consume it and remove it
+    # from Scout discovery for nothing.
+    def _hist_state(raw: Any, true_token: str, false_token: str) -> bool | None:
+        """One export status string → bool, or ``None`` for anything else.
+
+        Only the two documented tokens are believed. The family also carries
+        UNSUPPORTED / INVALID / UNKNOWN on cars that cannot report a part, and
+        folding those into ``False`` would tell an owner the boot is shut when
+        the car never said so.
+        """
+        if raw is None:
+            return None
+        tok = str(raw).strip().upper()
+        if tok == true_token:
+            return True
+        if tok == false_token:
+            return False
+        return None
+
+    _HIST_SLOTS = (
+        ("frontLeft", "front_left"),
+        ("frontRight", "front_right"),
+        ("rearLeft", "rear_left"),
+        ("rearRight", "rear_right"),
+    )
+
+    # doors — ``doors_individual`` holds True == OPEN.
+    for _slot, _part in _HIST_SLOTS:
+        if _slot in d.doors_individual:
+            continue
+        _hd = _hist_state(
+            first(f"door_info.{_part}.door_status.value"), "OPEN", "CLOSED"
+        )
+        if _hd is not None:
+            d.doors_individual[_slot] = _hd
+    if d.doors_individual and d.doors_open is None:
+        d.doors_open = any(d.doors_individual.values())
+
+    # door locks — one unlocked door makes the car unlocked, same rule as the
+    # per-door enum path above.
+    _hist_locks = [
+        _hist_state(
+            first(f"door_info.{_part}.door_lock_status.value"),
+            "LOCKED", "UNLOCKED",
+        )
+        for _slot, _part in _HIST_SLOTS
+    ]
+    _hist_lock_vals = [v for v in _hist_locks if v is not None]
+    if _hist_lock_vals and d.doors_locked is None:
+        d.doors_locked = all(_hist_lock_vals)
+
+    # windows — NOTE the inverted convention: ``windows_individual`` holds
+    # True == CLOSED (see the window-lifter loop above), while the export reports
+    # openness. Getting this backwards would report every closed window as open.
+    for _slot, _part in _HIST_SLOTS:
+        if _slot in d.windows_individual:
+            continue
+        _hw = _hist_state(
+            first(f"window_info.{_part}.window_status.value"), "OPEN", "CLOSED"
+        )
+        if _hw is not None:
+            d.windows_individual[_slot] = not _hw
+    if d.windows_individual and d.windows_open is None:
+        d.windows_open = any(v is False for v in d.windows_individual.values())
+
+    # window opening percentage — the catalogue publishes the unit as %, so this
+    # needs no scale guess. 0 = closed.
+    for _slot, _part in _HIST_SLOTS:
+        if _slot in d.windows_position:
+            continue
+        _hp = _to_int(first(f"window_info.{_part}.window_percentage_open.value"))
+        if _hp is not None and 0 <= _hp <= 100:
+            d.windows_position[_slot] = _hp
+
+    # boot and bonnet
+    _ht = _hist_state(
+        first("trunk_lid_info.trunk_lid_status.value"), "OPEN", "CLOSED"
+    )
+    if _ht is not None and d.trunk_open is None:
+        d.trunk_open = _ht
+    _htl = _hist_state(
+        first("trunk_lid_info.trunk_lid_lock_status.value"), "LOCKED", "UNLOCKED"
+    )
+    if _htl is not None and d.trunk_locked is None:
+        d.trunk_locked = _htl
+    _hh = _hist_state(first("hood_info.hood_status.value"), "OPEN", "CLOSED")
+    if _hh is not None and d.hood_open is None:
+        d.hood_open = _hh
+
     # trip statistics (short-term → last trip, long-term → lifetime). Units from
     # the dictionary: mileage km, travel_time min, speed km/h. Consumption fields
     # (l/1000km, kWh/1000km) are deferred — current values look like sentinels;
@@ -3797,8 +3945,14 @@ def map_dataset_to_vehicle_data(
         d.plug_lock_state = _pls
 
     # parking_light_left / _right → aggregate parking_light + per-side fields.
-    _pll = first("parking_light_left")
-    _plr = first("parking_light_right")
+    # #1780 — the one-time export spells these per side under its own container
+    # and sends ON / OFF, which ``_truthy_light`` below already reads correctly.
+    _pll = first(
+        "parking_light_left", "parking_lights_info.left_status.value"
+    )
+    _plr = first(
+        "parking_light_right", "parking_lights_info.right_status.value"
+    )
 
     def _truthy_light(raw: str | None) -> bool | None:
         if raw is None:
