@@ -42,18 +42,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-### Behoben / Fixed
-- **Two accounts no longer end up reading the same car.** If you run two config entries for
-  two different portal accounts, both could show both cars with neither working. The portal
-  identifies you by cookie rather than by a token, and Home Assistant gives every integration
-  one shared connection to the internet — so the second account's login wrote its cookies over
-  the first one's, and from then on both entries read whichever car had logged in last. Each
-  entry now gets its own cookie storage for the portal, and only for the portal: everything
-  else keeps sharing, because nothing else is identified that way. If you removed one of your
-  entries to work around this, you can add it back (#1774, thanks @kalwados, whose "both hubs
-  still show both cars" is what pinned it down, and who tested the release that did not fix it
-  so we would know).
-
 ### Hinzugefügt / Added
 - **Doors, windows, boot and bonnet now read from a one-time export.** The 15-minute feed and
   the one-time export describe the car's body in two different dialects: the feed sends numeric
@@ -65,6 +53,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   only fills what the feed left empty — and a part the car reports as unsupported or invalid
   stays unknown rather than being called closed (#1780, thanks @kmeinderink, whose own
   correction after checking his diagnostics is what made the cause findable).
+
 ### Geändert / Changed
 - **A car park no longer means a login each.** One portal connection serves every vehicle on
   an account, and the integration reads the cars at the same time — so a three-car account
@@ -78,6 +67,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   a conversation with the portal's operator about request volume (#1778).
 
 ### Behoben / Fixed
+- **Two accounts no longer end up reading the same car.** If you run two config entries for
+  two different portal accounts, both could show both cars with neither working. The portal
+  identifies you by cookie rather than by a token, and Home Assistant gives every integration
+  one shared connection to the internet — so the second account's login wrote its cookies over
+  the first one's, and from then on both entries read whichever car had logged in last. Each
+  entry now gets its own cookie storage for the portal, and only for the portal: everything
+  else keeps sharing, because nothing else is identified that way. If you removed one of your
+  entries to work around this, you can add it back (#1774, thanks @kalwados, whose "both hubs
+  still show both cars" is what pinned it down, and who tested the release that did not fix it
+  so we would know).
 - **231 field names the car sends could never be discovered.** Fields whose name ends in a
   generic word — `…value`, `…unit`, `…state` — were treated as envelope packaging and dropped
   before the Vehicle Data Scout could report them. That rule is right for a bare `timestamp`
@@ -114,8 +113,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   account is allowed to send it (#584, thanks @Joassens, who instrumented all three
   authorisation steps and then captured the official app to settle which of the two
   explanations it was).
-
-### Behoben / Fixed
 - **Eight readings an electric car already sends were being thrown away over a single
   space.** In the diagnostic and battery-module field families the portal appends a unit
   token to each value, and does so even when the unit is empty — so a base64 diagnostic
