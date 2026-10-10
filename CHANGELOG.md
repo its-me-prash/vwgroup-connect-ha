@@ -65,6 +65,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   them had to read his export by hand. A generic ending now only counts as packaging when the
   whole name is generic. Expect the Scout to start reporting fields it was previously blind to;
   that is the point, and it is how the next ones get mapped (#1780).
+- **Importing a one-time export could not create a single electric entity, and a reload threw
+  the import away.** Two faults with one symptom: you ran the import, it reported success, and
+  nothing appeared. The flag every electric entity is gated on is a plain true/false rather
+  than "unknown", and the merge only fills a field it has no value for at all — so the export
+  handed over a state of charge and the flag in the same breath, the reading landed and the
+  flag was refused. That gate is checked before the one that hides empty entities, which is why
+  there was no battery entity to find rather than an empty one, and why switching "hide entities
+  without data" off changed nothing. The flag is now re-derived through the same rule the
+  multi-channel merge has always used — it can only ever add a drivetrain, never take one away,
+  so a plug-in hybrid cannot be turned into an electric car by an export that says nothing about
+  fuel. Second: the merged values are now saved. They had only ever been written to disk by the
+  regular poll, so the advice to reload afterwards discarded them unless a poll happened to land
+  in between (#1776, found grounding @placidcasual98's report on #1403).
 - **Eight readings an electric car already sends were being thrown away over a single
   space.** In the diagnostic and battery-module field families the portal appends a unit
   token to each value, and does so even when the unit is empty — so a base64 diagnostic

@@ -31,10 +31,10 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import fields
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .models import VehicleData
@@ -353,24 +353,61 @@ def annotate_provenance(channel: str, data: "VehicleData") -> "VehicleData":
     return data
 
 
+_BATTERY_EVIDENCE: tuple[str, ...] = (
+    "battery_soc", "electric_range_km", "charging_state",
+)
+_COMBUSTION_EVIDENCE: tuple[str, ...] = ("fuel_level", "combustion_range_km")
+
+
+def drivetrain_from_evidence(
+    get: Callable[[str], Any],
+    *,
+    asserted_battery: bool = False,
+    asserted_combustion: bool = False,
+) -> dict[str, bool]:
+    """This project's single drivetrain rule, as a mapping of flags to set.
+
+    ADDITIVE and positive-evidence only: a flag goes True on a clear signal and
+    is never forced False, so a channel that knows nothing about combustion can
+    never flatten a PHEV into an EV. ``asserted_*`` carries the flags already
+    believed (from other channels, or from the snapshot being merged into), so
+    passing them in is what makes the function unable to demote.
+
+    ``get`` reads one field by name — ``snapshot.get`` for a dict,
+    ``lambda k: getattr(obj, k, None)`` for a ``VehicleData``. Extracted in
+    v4.12.1 (#1776) so the one-time-export import can use the very rule
+    :func:`_merge_drivetrain` already applies, instead of growing a second
+    implementation of it next door.
+    """
+    has_battery = bool(asserted_battery) or any(
+        get(k) is not None for k in _BATTERY_EVIDENCE
+    )
+    has_combustion = bool(asserted_combustion) or any(
+        get(k) is not None for k in _COMBUSTION_EVIDENCE
+    )
+    flags: dict[str, bool] = {
+        "has_battery": has_battery,
+        "has_combustion": has_combustion,
+    }
+    # Only claim a CLASSIFICATION when there is something to classify: a car we
+    # know nothing about must stay unclassified rather than be called an EV.
+    if has_battery or has_combustion:
+        flags["is_electric"] = has_battery and not has_combustion
+        flags["is_hybrid"] = has_battery and has_combustion
+    return flags
+
+
 def _merge_drivetrain(
     merged: "VehicleData", sources: list[tuple[str, "VehicleData"]]
 ) -> None:
     """Union the additive drivetrain flags across channels and re-derive the
     EV/PHEV/ICE classification from the merged result."""
-    has_battery = any(vd.has_battery for _n, vd in sources) or (
-        merged.battery_soc is not None
-        or merged.electric_range_km is not None
-        or merged.charging_state is not None
-    )
-    has_combustion = any(vd.has_combustion for _n, vd in sources) or (
-        merged.fuel_level is not None or merged.combustion_range_km is not None
-    )
-    merged.has_battery = has_battery
-    merged.has_combustion = has_combustion
-    if has_battery or has_combustion:
-        merged.is_electric = has_battery and not has_combustion
-        merged.is_hybrid = has_battery and has_combustion
+    for name, value in drivetrain_from_evidence(
+        lambda k: getattr(merged, k, None),
+        asserted_battery=any(vd.has_battery for _n, vd in sources),
+        asserted_combustion=any(vd.has_combustion for _n, vd in sources),
+    ).items():
+        setattr(merged, name, value)
 
 
 async def gather_and_merge(
