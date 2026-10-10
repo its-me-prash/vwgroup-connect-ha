@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.13.0] - 2026-10-10 — Six reporters' diagnostic readings, and two accounts that read the same car
+
 ### Hinzugefügt / Added
 - **Doors, windows, boot and bonnet now read from a one-time export.** The 15-minute feed and
   the one-time export describe the car's body in two different dialects: the feed sends numeric
