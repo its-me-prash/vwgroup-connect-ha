@@ -5240,6 +5240,15 @@ class EUDataActConnector:
         language: str = "de",
         access_token: str | None = None,
     ) -> None:
+        # v4.12.1 — single-flight login state. One connector is shared by every
+        # vehicle on an entry (built once in cariad/api/base.py) while the
+        # coordinator reads each VIN concurrently, and seven call sites across
+        # the brand clients re-login on a 401. Nothing serialised them, so a
+        # multi-car account could fire several simultaneous logins at the portal
+        # for one identity. See ``login`` for what the generation counter buys.
+        self._login_lock: asyncio.Lock = asyncio.Lock()
+        self._login_gen: int = 0
+        self._login_error: BaseException | None = None
         self._session = session
         cfg = _EUDA_BRANDS.get(brand.lower())
         if cfg is None:
@@ -5775,13 +5784,50 @@ class EUDataActConnector:
         consent-required, attestation, 4xx) are raised INSIDE ``_login_impl`` as
         ``AuthenticationError`` / ``PortalInteractionRequiredError`` subclasses,
         which are NOT caught here, so they surface unchanged.
+
+        v4.12.1 — SINGLE-FLIGHT. One connector serves every vehicle on an entry
+        and the coordinator reads the VINs concurrently, so a three-car account
+        could run three logins at once for one identity — and seven call sites
+        across the brand clients call this on a 401. Two live portal readers
+        shipped the same fix within two days of each other after meeting it in
+        the field, which is a strong hint that the portal notices.
+
+        The lock serialises; the generation counter is what makes a queued
+        caller a no-op instead of a second login. A follower that was waiting
+        while another login completed has nothing left to do: same credentials,
+        same shared cookie jar. A failure also advances the generation and is
+        re-raised to the followers rather than retried by each of them — seven
+        sequential attempts with a wrong password is a worse outcome than one,
+        and the identity provider is entitled to treat it as an attack. The next
+        call after the window still gets a fresh attempt, so nothing is cached.
         """
-        try:
-            await self._login_impl(email, password)
-        except (TimeoutError, ClientConnectionError) as exc:
-            # ONLY connection/timeouts map to transient. asyncio.TimeoutError is
-            # an alias of the builtin TimeoutError on py3.11+, so it is covered.
-            raise UpstreamUnavailableError(504, brand=self._state) from exc
+        entry_gen = self._login_gen
+        async with self._login_lock:
+            if self._login_gen != entry_gen:
+                # Another caller finished a login while we were queued.
+                if self._login_error is not None:
+                    raise self._login_error
+                return
+            try:
+                await self._login_impl(email, password)
+            except (TimeoutError, ClientConnectionError) as exc:
+                # ONLY connection/timeouts map to transient. asyncio.TimeoutError
+                # is an alias of the builtin TimeoutError on py3.11+, so it is
+                # covered.
+                transient = UpstreamUnavailableError(504, brand=self._state)
+                self._login_error = transient
+                self._login_gen += 1
+                raise transient from exc
+            except BaseException as exc:
+                # Every other failure — bad password, consent required,
+                # attestation — is raised from inside _login_impl and must reach
+                # the caller unchanged. Recorded so the followers see the same
+                # verdict without re-attempting it.
+                self._login_error = exc
+                self._login_gen += 1
+                raise
+            self._login_error = None
+            self._login_gen += 1
 
     async def _login_impl(self, email: str, password: str) -> None:
         """OIDC code-flow login worker (see ``login`` for the transient wrap).
