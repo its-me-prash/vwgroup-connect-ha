@@ -42,6 +42,31 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+- **A charge level the car could not report is no longer published as a reading.** When a car
+  cannot report its charge level it sends a placeholder number instead, and we put that
+  straight on the battery sensor: a car that said "no reading" showed up as 255 % charged. The
+  sensor feeds Home Assistant's long term statistics, so the nonsense was written into your
+  history as well. Anything outside 0 to 100 is now treated as no reading and left empty,
+  which is what the integration already did for one of the other charge level sources but
+  never for this one. 0 % and 100 % are of course still real readings, and a car that reported
+  nothing valid no longer looks like it has a battery at all.
+- **A petrol or diesel car no longer reads as an electric one.** The one time export names its
+  own engine type and we were throwing that away, so a car whose own file said petrol had its
+  fuel range copied onto the electric range sensor and was marked as an EV. The engine type is
+  now read and the range lands on the combustion sensor where it belongs. The plug in hybrids
+  whose two ranges were swapped back in an earlier release are deliberately untouched by this,
+  and there are tests to keep them that way.
+- **A connected charging cable no longer says "not connected".** The portal writes the plug
+  state as a long protocol word and the check only understood the short form, so a plugged in
+  car was told its cable was out, as a definite no rather than an honest unknown. The value a
+  car sends when it cannot report the plug at all was being turned into a "no" too, and now
+  stays unknown. Thanks @placidcasual98, whose own export is what showed this (#1403).
+- **The charge limit from a one time export is read again.** The field name we were looking for
+  had a capital letter that the portal's own catalogue never uses, so no real export could
+  match it.
+
+
 ## [4.13.0] - 2026-10-10 — Six reporters' diagnostic readings, and two accounts that read the same car
 
 ### Hinzugefügt / Added

@@ -1730,6 +1730,13 @@ _ENUM_PREFIXES = (
     # prefix is stripped so the sensor reads "NO_REASON" rather than shouting
     # the protocol family at the user. See portal_delivery_trigger.
     "TRIGGER_",
+    # #1403 grounding — the plug families. The catalogue documents
+    # PLUG_CONNECTION_STATE_{INVALID,CONNECTED,DISCONNECTED} (name
+    # plug_states.[*].plug_connection_state, cluster "All Data") and the
+    # PLUG_LOCK_STATE_/FLAP_LOCK_STATE_ families appear in our own fixtures.
+    # Without the prefix the verbose token reached the connected test verbatim
+    # and matched nothing, so a CONNECTED plug published plug_connected=False.
+    "PLUG_CONNECTION_STATE_", "PLUG_LOCK_STATE_", "FLAP_LOCK_STATE_",
 )
 
 # v2.15.1 — labels appended to ``available_charge_modes`` per truthy
@@ -2235,6 +2242,25 @@ def map_dataset_to_vehicle_data(
     # first_freshest, leaking its co-present battery_state_report.soc leaf to the
     # Scout as a "new field" on every poll (six duplicate issues in a day). #1088
     # value-preference (VALID HV wins) is unchanged.
+    # #1403 grounding — a percentage outside 0..100 is not a reading. The
+    # VALID-gated HV pair above already screens its own value exactly this way
+    # (``0 <= _hv_val <= 100``); the leaf chain never did, so a car shipping the
+    # classic CAN "signal not available" byte published it as a charge level:
+    # measured ``soc=255`` -> battery_soc 255 and ``soc=310`` -> 310, on a sensor
+    # declaring device_class BATTERY + state_class MEASUREMENT, so the nonsense
+    # also entered long-term statistics. 65535 was already caught globally
+    # (_GLOBAL_SENTINELS), 255 was not. Screened here rather than in
+    # _FIELD_SENTINELS because the invariant belongs to the QUANTITY, not to a
+    # field-name substring: the SoC aliases run from "soc" to
+    # "battery_level_HV.value" and no common needle covers them. Dropped, never
+    # clamped -- 255 means "unavailable", and clamping would publish a
+    # confident 100%. Screened before the HV/leaf choice so a garbage leaf can
+    # never mask a good HV reading (and vice versa).
+    if _leaf_soc is not None and not 0 <= _leaf_soc <= 100:
+        _LOGGER.debug(
+            "EU Data Act: implausible SoC %s dropped (outside 0-100)", _leaf_soc,
+        )
+        _leaf_soc = None
     soc = _hv_soc if _hv_soc is not None else _leaf_soc
     if soc is not None:
         d.battery_soc = soc
@@ -2455,10 +2481,42 @@ def map_dataset_to_vehicle_data(
         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
         record_as="range_km")
     rng = _to_int(_rng_val)
+    # #1403 grounding — the one-time export states its own engine type, and we
+    # were throwing it away. The nested export shape ships
+    # ``batteryStatus.cruisingRange.{range,engineType}``, and the walker emits
+    # the bare leaves ``range`` / ``engineType`` beside the dotted names. Bare
+    # ``range`` is the FIRST alias of the headline chain above, while neither
+    # engine-type spelling is in ``et_raw`` -- so orientation fell through to
+    # the BEV-safe default and the fallback below copied the headline range
+    # into electric_range_km. Measured on
+    # {"batteryStatus":{"cruisingRange":{"range":"380",
+    #  "engineType":"ENGINE_TYPE_PETROL_GASOLINE"}}}: electric_range_km=380,
+    # has_battery=True, is_electric=True -- a petrol car read as an electric
+    # one, with a petrol range on the EV range sensor.
+    #
+    # Read deliberately HERE and not by widening ``et_raw``: adding this leaf
+    # to the shared orientation gate was measured to REGRESS the combustion-
+    # primary PHEVs (Passat/Tiguan GTE, #555/#565), whose per-engine container
+    # can report ELECTRIC while their primary range is the petrol one. Scoped
+    # to this fallback it cannot touch them: by the time they reach it their
+    # electric_range_km is already set from the secondary range, so the
+    # fallback never fires. It changes exactly one case -- a dataset that
+    # names a combustion engine AND would otherwise have its range copied to
+    # the electric sensor by default.
+    _xpt_et = (first("batteryStatus.cruisingRange.engineType",
+                     "engineType") or "").upper()
+    _xpt_combustion = any(tok in _xpt_et for tok in _COMBUSTION_TOKENS)
     if rng is not None:
         d.range_km = rng
         dist_src["range_km"] = _rng_src or ""
-        if d.electric_range_km is None:
+        if _xpt_combustion:
+            # The payload says combustion: route the headline range to the
+            # combustion sensor instead of inventing an electric one. Honest
+            # placement beats dropping it -- this IS that car's range.
+            if d.combustion_range_km is None:
+                d.combustion_range_km = rng
+                dist_src["combustion_range_km"] = _rng_src or ""
+        elif d.electric_range_km is None:
             d.electric_range_km = rng
             dist_src["electric_range_km"] = _rng_src or ""
 
@@ -2516,7 +2574,15 @@ def map_dataset_to_vehicle_data(
     if ce is not None and ce >= 0:
         d.charge_session_energy_kwh = ce
 
+    # #1403 grounding — "targetSOC_pct" (capital O-C) exists in NO catalogue
+    # entry in any spelling, so on an exact lookup it can never match; the real
+    # one-time-export name is "targetSoc_pct" (catalogue 5ec53403, integer, %,
+    # "The maximum charge level the battery should be charged as specified by
+    # the user"). The dead spelling is kept -- it costs one tuple slot and some
+    # firmware may yet ship it -- and the real name goes immediately after it,
+    # which is order-safe because first() is first-present-wins.
     tsoc = _to_int(first("settings.target_soc", "target_soc", "targetSOC_pct",
+                         "targetSoc_pct",
                          record_as="target_soc"))
     if tsoc is not None:
         d.target_soc = tsoc
@@ -2835,8 +2901,28 @@ def map_dataset_to_vehicle_data(
             1,
         )
 
-    plug = first("charging_plug1_connectionstate", "plug_connection_state",
-                 "plugConnectionState", "plug_state", record_as="plug_state")
+    # #1403 grounding — three defects in four lines, all measured on the
+    # reporter's own export (plugConnectionState =
+    # "PLUG_CONNECTION_STATE_CONNECTED"):
+    #  (1) the raw value never passed through _shorten_enum, so the verbose
+    #      token was compared against ("connected", ...) and matched nothing --
+    #      a connected plug published plug_connected=FALSE, not None. A
+    #      definite wrong answer is worse than an absent one.
+    #  (2) the same verbose token was published as the plug_state label, while
+    #      every sibling enum in this file goes through _shorten_enum.
+    #  (3) PLUG_CONNECTION_STATE_INVALID is a documented no-reading token and
+    #      likewise became a confident False. drop_charge_sentinel already
+    #      handles prefixed dialects by testing the segment after the last
+    #      underscore, so INVALID now leaves both attributes unset.
+    # plugStatusItem.plugConnectionState is the one-time export's spelling of
+    # the same datum (catalogue 17e75411, "The current plug connection state");
+    # appended LAST, which is order-safe here because first() is
+    # first-present-wins (unlike first_freshest, where position is only a
+    # tie-break).
+    plug = drop_charge_sentinel(_shorten_enum(
+        first("charging_plug1_connectionstate", "plug_connection_state",
+              "plugConnectionState", "plug_state",
+              "plugStatusItem.plugConnectionState", record_as="plug_state")))
     if plug is not None:
         d.plug_state = plug
         d.plug_connected = str(plug).lower() in ("connected", "plugged", "true", "1")
