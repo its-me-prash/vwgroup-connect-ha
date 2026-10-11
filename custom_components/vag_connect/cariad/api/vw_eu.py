@@ -290,6 +290,47 @@ def _parse_bff_charging_profiles(value: Any) -> dict[str, Any]:
     return out
 
 
+def leg3_refusal_kind(err: Exception) -> str | None:
+    """Name what the gateway refused on an MBB action, from its BODY.
+
+    Returns ``"client-identity"``, ``"schema"``, or ``None`` for anything we have
+    not measured, which must keep propagating unchanged.
+
+    Reads the raw ``body`` attribute and never ``str(err)``. The APIError message
+    is deliberately redacted to the status plus a masked URL so that re-raising it
+    cannot leak the body (#1355), so a marker matched against that string can
+    never fire. v4.13.0 shipped exactly that mistake: both branches below were
+    unreachable, and two reporters kept getting the bare 403 we had told them was
+    fixed. ``exceptions.py`` states the rule for this very reason, and three sites
+    in this file were the only ones ignoring it.
+
+    This is a module-level function rather than a branch inside the handler so a
+    test can drive the SAME code with a real ``APIError``. The test that was
+    supposed to cover it re-implemented the branch over a plain string and pinned
+    it with a source-text grep, which passed happily while the handler fed it a
+    value that could not match.
+    """
+    body = (getattr(err, "body", "") or "").lower()
+    if not body:
+        return None
+    if ("xid_app_vw" in body or "rolesandrights.unauthorized" in body
+            or "auth.forbidden" in body):
+        return "client-identity"
+    if "gw.error.validation" in body:
+        return "schema"
+    return None
+
+
+def body_has_marker(err: Exception, marker: str) -> bool:
+    """True when the response BODY of *err* carries *marker*.
+
+    Same reason as :func:`leg3_refusal_kind`: because the APIError message is
+    redacted, the S-PIN-locked detection that tested the string never fired
+    either, so a user whose S-PIN was locked got a generic failure instead of
+    being told what to do about it.
+    """
+    return marker.lower() in (getattr(err, "body", "") or "").lower()
+
 class VWEUClient(CariadBaseClient):
     """VW EU / WeConnect client — emea.bff.cariad.digital.
 
@@ -2453,7 +2494,7 @@ class VWEUClient(CariadBaseClient):
             # A locked S-PIN 403s here (mbbc.rolesandrights.securityPinLocked)
             # before any challenge — surface it as a clear S-PIN message, not a
             # raw 403 traceback.
-            if "securitypinlocked" in str(_e).lower():
+            if body_has_marker(_e, "securitypinlocked"):
                 raise SpinError(
                     "S-PIN is locked (too many wrong tries) — unlock it by "
                     "entering the correct S-PIN in the brand app, then retry."
@@ -2668,7 +2709,7 @@ class VWEUClient(CariadBaseClient):
         except APIError as _e:
             # A locked S-PIN 403s here (mbbc.rolesandrights.securityPinLocked)
             # before any challenge — surface a clear S-PIN message, not a raw 403.
-            if "securitypinlocked" in str(_e).lower():
+            if body_has_marker(_e, "securitypinlocked"):
                 raise SpinError(
                     "S-PIN is locked (too many wrong tries) — unlock it by "
                     "entering the correct S-PIN in the brand app, then retry."
@@ -2700,9 +2741,8 @@ class VWEUClient(CariadBaseClient):
             # HERE, after legs 1 and 2 have already succeeded, and that used to
             # surface as a raw 403/400 traceback. Both are measured, not guessed:
             # he instrumented all three legs and then captured the official app.
-            _body = str(_e).lower()
-            if "xid_app_vw" in _body or "rolesandrights.unauthorized" in _body \
-                    or "auth.forbidden" in _body:
+            _kind = leg3_refusal_kind(_e)
+            if _kind == "client-identity":
                 # The gateway accepted the S-PIN and then refused the client
                 # identity. Nothing the owner can change: the licence was
                 # ACTIVATED, the operationList granted the operation, and the
@@ -2720,7 +2760,7 @@ class VWEUClient(CariadBaseClient):
                     "manufacturer's own app, which authenticates in a way an "
                     "open-source client cannot reproduce. Reads are unaffected.",
                 ) from _e
-            if "gw.error.validation" in _body:
+            if _kind == "schema":
                 # Observed on a 2017 car for setSettings carrying
                 # targetStateOfChargeInPercent: the gateway validates the body
                 # against this service's (older) schema BEFORE the permission

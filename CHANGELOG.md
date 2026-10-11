@@ -60,6 +60,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **The clear message when the car's gateway refuses a command now actually appears.** The last
+  release announced that a command refused on its final leg would explain itself instead of
+  surfacing a raw 403. It did not. The check looked for the gateway's own words in the error's
+  message, and that message is deliberately stripped of the response body so that logging or
+  re-raising it cannot leak your car's identifier. The words were therefore never in it, both
+  explanations were unreachable, and a reporter who tested the release still got the bare 403.
+  The same mistake sat on the locked-S-PIN detection in two other places, where it cost the one
+  message that tells you what to do about it. All three now read the response body, and the
+  decision lives in a single function that the tests call directly instead of re-implementing
+  it, because the old test did re-implement it and passed against code that could not run.
+  Thanks @panther7 for testing the release and reporting that commands still failed (#584).
 - **An electric car no longer loses its battery entities a quarter of an hour after they
   appear.** The snapshot the integration keeps carries a charge level and a range forward when
   a poll does not report them, but it did not carry the flag that says the car HAS a battery,
