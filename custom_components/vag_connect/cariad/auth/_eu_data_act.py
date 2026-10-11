@@ -1697,6 +1697,11 @@ _FIXED_KM_LEAVES: frozenset[str] = frozenset({
     "maintenance_interval_monthly_mileage",
     "short_term_data_mileage", "short_term_data_start_mileage",
     "long_term_data_mileage", "long_term_data_start_mileage",
+    # #1403 — both one-time-export range names declare kilometres in the
+    # catalogue ("Estimated cruising range in kilometer"; unit column "km"), so
+    # the miles post-process must leave them alone. Without this a UK car whose
+    # display unit is miles would have its 148 km published as 238.
+    "cruisingRangeElectricInKm", "batteryStatus.cruisingRange.range",
     _UDS_KM_SOURCE,
 })
 
@@ -2271,6 +2276,41 @@ def map_dataset_to_vehicle_data(
         # frozen leaf (soulriding's CUPRA Born datasets 11/13/14; #465 Arno-MA-73).
         d.battery_soc_from_hv = _hv_soc is not None
 
+    # #1403 (@placidcasual98, Audi A6 e-tron Avant, PPE) — the one-time export
+    # spells the traction SoC differently from the 15-minute feed, and every
+    # alias above is a FEED spelling. Of the 17 names in the chain exactly one
+    # ("soc") is catalogued under Historical Export, so his downloaded file
+    # carried a charge level of 31 under a name no lookup asked for and the car
+    # read as having no battery at all. Measured on his exact field set: every
+    # attribute None and has_battery False, with all of it in
+    # raw_unmapped_fields. Same bug class as the #702 Touareg dialect and the
+    # #1780 body dialect: we never asked for the export's spelling.
+    #
+    # Deliberately a separate ``if ... is None`` + ``first()`` step and NOT more
+    # names on the chain above. Position in ``first_freshest`` is only a
+    # TIE-BREAK: its sort key is the capture timestamp, and a candidate with a
+    # timestamp always beats one without (see its own docstring), so "kept
+    # LAST" would not have stopped these from out-ranking a live reading on a
+    # car that reports both. ``first()`` is genuinely first-present-wins, and
+    # the guard means this can only ever fill a gap.
+    #   batteryStatus.currentSOC_pct  92a91c75, %, integer (0-100),
+    #       "The current SOC of HV- Battery between 0 and 100% SOC"
+    #   currentSOCInPct               2daa693b, Percent, unsignedInt,
+    #       "State of charge of the HV- battery"
+    #   Stateofcharge                 399733fa, %, int,
+    #       "State of charge for vehicles with an electric battery in percentage"
+    # LvsocValue (fa91cac5) is the LOW voltage starter battery and is pointedly
+    # NOT here: one letter apart, and conflating the two would report the 12 V
+    # battery as the traction pack. Nor is any ChargingEvent.[N].* session
+    # value: the index is not a time order, this reporter has eleven sessions,
+    # and a session's charge level is not the car's current one.
+    if d.battery_soc is None:
+        _xpt_soc = _to_int(first("batteryStatus.currentSOC_pct",
+                                 "currentSOCInPct", "Stateofcharge"))
+        if _xpt_soc is not None and 0 <= _xpt_soc <= 100:
+            d.battery_soc = _xpt_soc
+            d.has_battery = True
+
     _odo_val, _odo_src = first_src("mileage.value", "mileage", "odometer", "totalMileage",
                         # v2.29.x — UUID last-resort (openWB vweuda catalog).
                         "41c0805c-43e5-313e-9dfb-356cb8d20f7c",
@@ -2519,6 +2559,42 @@ def map_dataset_to_vehicle_data(
         elif d.electric_range_km is None:
             d.electric_range_km = rng
             dist_src["electric_range_km"] = _rng_src or ""
+
+    # #1403 — the export's own electric-range spellings, same gap as the SoC
+    # above. Gap-fill only, and skipped outright when the dataset names a
+    # combustion engine, in which case the range was already routed to the
+    # combustion sensor just above.
+    #   cruisingRangeElectricInKm          048a99d0, unsignedInt,
+    #       "Estimated cruising range in kilometer"
+    #   batteryStatus.cruisingRange.range  087e56ae, km, integer,
+    #       "The range of the corresponding engine."
+    # The second one is read as the self-describing pair it is: the container
+    # states an engine type and that engine's range, so with the type absent or
+    # electric its range IS the electric range. It is NOT fed into the shared
+    # orientation gate, which stays untouched for the reason given above.
+    # ChargingEvent.[*].BatteryStatus.[*].cruisingRangeElectricKm is excluded:
+    # that is the per-session leaf, and the bare "cruisingRangeElectricKm" this
+    # reporter quoted exists in NO catalogue entry in any spelling.
+    if _xpt_combustion:
+        # The container names a combustion engine, so its range belongs on the
+        # combustion sensor. Only reachable in the FLAT envelope: the nested
+        # shape also emits a bare "range" twin, which the headline chain above
+        # already routed. cruisingRangeElectricInKm is pointedly not read here,
+        # since its own name and catalogue entry say electric.
+        if d.combustion_range_km is None:
+            _xpt_cr_val, _xpt_cr_src = first_src(
+                "batteryStatus.cruisingRange.range")
+            _xpt_cr = _to_int(_xpt_cr_val)
+            if _xpt_cr is not None:
+                d.combustion_range_km = _xpt_cr
+                dist_src["combustion_range_km"] = _xpt_cr_src or ""
+    elif d.electric_range_km is None:
+        _xpt_rng_val, _xpt_rng_src = first_src(
+            "cruisingRangeElectricInKm", "batteryStatus.cruisingRange.range")
+        _xpt_rng = _to_int(_xpt_rng_val)
+        if _xpt_rng is not None:
+            d.electric_range_km = _xpt_rng
+            dist_src["electric_range_km"] = _xpt_rng_src or ""
 
     # #717 / #764 — the portal reports charge power at 0.1-kW resolution (deci-kW),
     # so battery_state_report.charge_power / charge_power / charging_power all scale

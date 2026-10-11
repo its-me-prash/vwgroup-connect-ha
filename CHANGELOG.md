@@ -42,6 +42,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+- **A charge level and an electric range from a one time export now reach your car.** The
+  15 minute feed and the one time export name the same readings differently, and the
+  integration only ever knew the feed's names: of the seventeen charge level names it looks
+  for, exactly one appears in the portal's own catalogue of export fields, and of the range
+  names, none at all. So a reporter whose Audi delivers its charge level only in the export
+  watched the import report success while his car still had no battery entity at all, because
+  the flag that decides whether a car gets electric entities is derived from exactly those
+  readings. The export's own spellings are now read, for the charge level and for the electric
+  range. It still only fills what the feed left empty, a value the car could not report is
+  still dropped rather than published, and the 12 V starter battery is deliberately kept out
+  of it, since it sits one letter from the traction pack in the same catalogue. Charging
+  sessions out of the file are not read as current state either: this car's export holds
+  eleven of them, and a session's charge level is not the car's charge level now. Thanks
+  @placidcasual98, who ran every test asked of him and whose negative results are what pinned
+  this down (#1403).
+
 ### Behoben / Fixed
 - **A charge level the car could not report is no longer published as a reading.** When a car
   cannot report its charge level it sends a placeholder number instead, and we put that
