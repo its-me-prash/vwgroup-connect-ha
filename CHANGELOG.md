@@ -60,6 +60,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **An electric car no longer loses its battery entities a quarter of an hour after they
+  appear.** The snapshot the integration keeps carries a charge level and a range forward when
+  a poll does not report them, but it did not carry the flag that says the car HAS a battery,
+  and that flag is what decides whether the electric entities exist at all. So a car whose
+  charge level had been filled in from a one time export kept the number and lost the flag on
+  the very next feed snapshot, and the entities disappeared again with their own values sitting
+  right there. The flag is now worked out again from the readings that survived, through the
+  same single rule the rest of the integration uses, and only ever upward: a car that reports
+  fuel as well as charge stays a hybrid rather than being turned into an EV, and a car we know
+  nothing about stays unclassified instead of being called electric. A plug in hybrid also
+  stops losing the word hybrid on every poll that omits the flags.
 - **A charge level the car could not report is no longer published as a reading.** When a car
   cannot report its charge level it sends a placeholder number instead, and we put that
   straight on the battery sensor: a car that said "no reading" showed up as 255 % charged. The

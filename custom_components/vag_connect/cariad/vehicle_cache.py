@@ -580,4 +580,52 @@ def reconcile(
             "held over from a finished run while climatisation reads off; zeroed (#1231)"
         )
         merged["climate_remaining_time_min"] = 0
+
+    # #1403 — re-derive the drivetrain flags from the evidence that SURVIVED
+    # this merge, because the flags themselves do not survive it.
+    #
+    # CARRY_FORWARD_FIELDS holds battery_soc, electric_range_km, fuel_level and
+    # combustion_range_km, but no has_* or is_* flag, and ``merged`` starts as a
+    # copy of the FRESH poll. So a car whose charge level was filled in by the
+    # one-time-export import kept the reading and lost the flag on the very next
+    # poll: measured, reconcile({battery_soc: 31, has_battery: True}, a feed
+    # snapshot with no battery fields) returns battery_soc 31 with
+    # has_battery FALSE. Since that flag gates every electric entity before the
+    # hide-empty gate, the entity appeared on import and vanished within the
+    # next quarter hour, with its own value sitting in the snapshot.
+    #
+    # Derived through the SAME shared rule the channel merge and the import both
+    # use, never a second copy of it, and the flags already in the snapshot are
+    # passed in as asserted so the call can only ever promote. Only the two
+    # has_* flags are written, and only upward: they are what the entity gate
+    # reads, and leaving the is_electric / is_hybrid classification to its
+    # existing owner means this can never produce a snapshot that claims both.
+    #
+    # The is_electric / is_hybrid classification is written too, and safely: the
+    # flags in ``merged`` come from the FRESH poll alone (none of them is a
+    # carry-forward field), so there is no stale True to contradict, and the
+    # rule returns the two as mutually exclusive, so at most one of them is
+    # ever promoted by a single call. Without this a plug-in hybrid kept its
+    # readings and lost the word "hybrid" on every poll that omitted the flags.
+    from ._channel_merge import drivetrain_from_evidence  # noqa: PLC0415
+
+    _flags = drivetrain_from_evidence(
+        merged.get,
+        asserted_battery=bool(merged.get("has_battery")),
+        asserted_combustion=bool(merged.get("has_combustion")),
+    )
+    for _flag in ("has_battery", "has_combustion", "is_electric", "is_hybrid"):
+        if not _flags.get(_flag) or merged.get(_flag):
+            continue
+        # A note only where the poll actually CONTRADICTED the evidence by
+        # claiming False. An absent flag claims nothing, and noting that would
+        # put a discrepancy line in every ordinary merge, which is what the
+        # notes list exists to stand out from.
+        _contradicted = merged.get(_flag, "absent") is False
+        merged[_flag] = True
+        if _contradicted:
+            notes.append(
+                f"{_flag} was reported False while the carried-forward "
+                "evidence still supports it; re-derived as True (#1403)"
+            )
     return merged, notes
