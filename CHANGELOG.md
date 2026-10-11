@@ -60,6 +60,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **The one time export now identifies this project to the portal, like the rest of the
+  integration already did.** The portal's operator asked that requests to their domain carry a
+  name, so they can attribute traffic and report a problem back to whoever causes it. We did
+  that, but only for the login and the dataset download: the one time export and the automatic
+  data request lived in their own module and still went out anonymously, including the two
+  requests that actually create a data request on the portal. That is not only a courtesy. On
+  9 October the portal answered logins with an error for hours purely on the strength of a
+  header, so unidentified requests were exposed to exactly that kind of gate. Every request
+  from that module now carries the name, and the headers it already sent are kept rather than
+  replaced.
+
 - **The clear message when the car's gateway refuses a command now actually appears.** The last
   release announced that a command refused on its final leg would explain itself instead of
   surfacing a raw 403. It did not. The check looked for the gateway's own words in the error's

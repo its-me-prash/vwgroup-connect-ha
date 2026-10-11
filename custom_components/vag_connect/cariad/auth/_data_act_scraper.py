@@ -375,6 +375,43 @@ class DataActScraper:
         # stays visible in diagnostics instead of only a one-time attempt log.
         self.last_kickoff_status: int | None = None
 
+    def _hdrs(self, extra: dict[str, str] | None = None) -> dict[str, str]:
+        """Portal request headers, always carrying the project user agent.
+
+        #1740 asked that every request to the PORTAL domain identify the project
+        so the operator can attribute traffic and report a problem back to
+        whoever causes it. That change reached the login module and the dataset
+        download, and its own comment enumerates what it covered, which is how
+        this file stayed missing: the one-time-export and auto-kickoff requests
+        live here, including the two POSTs that CREATE a data request, and they
+        went out under the HTTP library default name. Measured before this: no
+        user-agent anywhere in this module in any spelling, and the portal
+        session is built without default headers, so nothing supplied one
+        further down either.
+
+        It matters beyond politeness. On 2026-10-09 the portal answered our
+        logins with 406 for hours (#1771), a header-level rejection at the edge
+        and not a credential problem, so unidentified requests from here are
+        exposed to exactly that class of gate.
+
+        Every host this module talks to is the portal (a single base constant),
+        so there is no risk of tagging the IDP, which keeps a browser string by
+        decision because the WAF in front of it answers 403 to anything else.
+
+        Merges rather than replaces: five of the seven request sites already
+        send an Accept, a traceId or a CSRF token, and the portal answers 400
+        without the traceId.
+
+        The import is deferred because this module deliberately avoids importing
+        the portal module at module level, to stay usable on its own.
+        """
+        from ._eu_data_act import _portal_user_agent  # noqa: PLC0415
+
+        headers: dict[str, str] = {"User-Agent": _portal_user_agent()}
+        if extra:
+            headers.update(extra)
+        return headers
+
     @property
     def empty_streak(self) -> int:
         """Consecutive polls that returned no fresh data.
@@ -482,7 +519,7 @@ class DataActScraper:
                 async with self._session.get(
                     url,
                     timeout=ClientTimeout(total=_API_REQUEST_TIMEOUT_S),
-                    headers={"Accept": "application/json, application/zip"},
+                    headers=self._hdrs({"Accept": "application/json, application/zip"}),
                 ) as resp:
                     ct = resp.headers.get("Content-Type", "").lower()
                     if resp.status != 200:
@@ -564,6 +601,7 @@ class DataActScraper:
             async with self._session.get(
                 url,
                 timeout=ClientTimeout(total=_API_REQUEST_TIMEOUT_S),
+                headers=self._hdrs(),
                 allow_redirects=True,
             ) as resp:
                 if resp.status != 200:
@@ -905,6 +943,7 @@ class DataActScraper:
             async with self._session.get(
                 _PORTAL_BASE + path,
                 timeout=ClientTimeout(total=15),
+                headers=self._hdrs(),
                 allow_redirects=True,
             ) as page:
                 hdrs = getattr(page, "headers", {})
@@ -947,7 +986,7 @@ class DataActScraper:
             async with self._session.get(
                 url,
                 timeout=ClientTimeout(total=10),
-                headers={"Accept": "application/json"},
+                headers=self._hdrs({"Accept": "application/json"}),
             ) as resp:
                 # getattr: a response object without headers must not turn a
                 # readable failure into an AttributeError traceback.
@@ -1010,14 +1049,14 @@ class DataActScraper:
             async with self._session.get(
                 url,
                 timeout=ClientTimeout(total=20),
-                headers={
+                headers=self._hdrs({
                     "Accept": "application/json",
                     # v2.17.x — the euda-apim layer now rejects requests without
                     # a traceId (the portal's newer API contract; verified live
                     # 2026-07-12 — the sibling relations endpoint 400s
                     # "Required request header 'traceId' not present" without it).
                     "traceId": uuid.uuid4().hex,
-                },
+                }),
             ) as resp:
                 if resp.status == 401:
                     raise DataActSessionExpiredError(
@@ -1168,7 +1207,7 @@ class DataActScraper:
                     url,
                     json=_body(duration, days),
                     timeout=ClientTimeout(total=30),
-                    headers=headers,
+                    headers=self._hdrs(headers),
                 ) as resp:
                     if resp.status == 401:
                         raise DataActSessionExpiredError(
@@ -1335,7 +1374,7 @@ class DataActScraper:
                 url,
                 json=body,
                 timeout=ClientTimeout(total=30),
-                headers=headers,
+                headers=self._hdrs(headers),
             ) as resp:
                 if resp.status == 401:
                     raise DataActSessionExpiredError(
