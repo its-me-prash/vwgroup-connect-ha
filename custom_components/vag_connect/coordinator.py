@@ -132,6 +132,59 @@ def _values_moved(
     return None
 
 
+#: Side maps that describe WHERE a snapshot value came from and WHEN the car
+#: captured it. They are ordinary keys in the snapshot dict, which is why the
+#: gap-fill below has to treat them specially.
+_PROVENANCE_MAPS = ("field_sources", "field_captured_ts")
+
+
+def _gap_fill_from_export(
+    current: dict[str, Any], hist: dict[str, Any]
+) -> list[str]:
+    """Fill empty fields in *current* from *hist*, provenance included.
+
+    Returns the keys that were filled, so the caller can report whether the
+    import gained anything.
+
+    #1780 (@kmeinderink) — the provenance is the point of this function. A
+    sensor's freshness attributes are built from the two side maps above:
+    ``field_sources`` has to name ``eu_data_act`` before anything is added at
+    all, and then ``field_captured_ts`` supplies ``data_captured_at`` and turns
+    ``freshness_source`` from "dataset" into "point". Because those maps are
+    themselves keys in the snapshot, the original loop skipped them whole on any
+    car that already had a live feed: ``current["field_sources"]`` was not None,
+    so nothing merged into it, and every imported value arrived anonymous and
+    impossible to date. He measured that, and it is also why I told him the
+    attributes would be there when they were not.
+
+    The entries are copied per filled key and never as a whole map: for every
+    other field those maps describe the LIVE feed, so replacing them wholesale
+    would relabel live readings as imported.
+
+    A live value is never clobbered, which is the rule this whole import rests
+    on, and an entry already present in the destination map is left alone.
+    """
+    filled: list[str] = []
+    for key, val in hist.items():
+        if val is None or key in _PROVENANCE_MAPS:
+            continue
+        if current.get(key) is None:  # never clobber a live value
+            current[key] = val
+            filled.append(key)
+    for name in _PROVENANCE_MAPS:
+        source = hist.get(name)
+        if not isinstance(source, dict):
+            continue
+        dest = current.get(name)
+        if not isinstance(dest, dict):
+            dest = {}
+            current[name] = dest
+        for key in filled:
+            if key in source and key not in dest:
+                dest[key] = source[key]
+    return filled
+
+
 def _capture_age_s(data: dict[str, Any]) -> float | None:
     """Seconds since the car's own data was captured (``last_seen_at``), or None.
 
@@ -2671,12 +2724,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self.vehicles[vin] = hist
                 merged_any = True
             else:
-                for key, val in hist.items():
-                    if val is None:
-                        continue
-                    if current.get(key) is None:  # never clobber a live value
-                        current[key] = val
-                        merged_any = True
+                if _gap_fill_from_export(current, hist):
+                    merged_any = True
                 # #1776 — the gap-fill above can never set a drivetrain flag,
                 # and that single omission cost this whole service its point.
                 # ``has_battery`` is a bool defaulting to False rather than
@@ -2928,12 +2977,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self.vehicles[vin] = hist
                 merged_any = True
             else:
-                for key, val in hist.items():
-                    if val is None:
-                        continue
-                    if current.get(key) is None:  # never clobber a live value
-                        current[key] = val
-                        merged_any = True
+                if _gap_fill_from_export(current, hist):
+                    merged_any = True
         if merged_any:
             self.async_set_updated_data(dict(self.vehicles))
             _LOGGER.info(

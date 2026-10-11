@@ -60,6 +60,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **A value filled in from a one time export now says when the car captured it.** The sensors
+  fed by the 15 minute feed carry the car's own capture time and whether that time belongs to
+  the reading or to the file it came in. The ones filled in by the import carried neither, so
+  there was no way to tell whether an imported door state was from this morning or from three
+  days ago. The cause was that the two pieces of bookkeeping are stored next to the readings
+  rather than on them, and the import skipped them on any car that already had a live feed.
+  Imported values now carry their own capture time where the export supplied one, and say
+  plainly that the age is the file's where it did not. A live reading keeps its own time and is
+  still never overwritten. Thanks @kmeinderink, who measured the missing attributes and then
+  said which half of the problem actually mattered to him, which is what made this small
+  instead of large.
+
 - **The one time export now identifies this project to the portal, like the rest of the
   integration already did.** The portal's operator asked that requests to their domain carry a
   name, so they can attribute traffic and report a problem back to whoever causes it. We did
