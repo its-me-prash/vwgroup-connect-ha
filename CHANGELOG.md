@@ -43,6 +43,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Behoben / Fixed
+- **The privacy note on an automatic report no longer reads as covering the file you attach
+  yourself.** What the integration generates is masked, and that has not changed: the vehicle
+  identifier in a report is cut to its last six characters and a model name that turns out to be
+  an identifier is left out entirely. But that promise prints directly above the box you drag a
+  file into, and a data export downloaded from the portal is named with your full vehicle
+  identifier, so people have been attaching one without realising. Six of the open reports carry
+  one that way. The note now says plainly that your own attachments are not covered, and suggests
+  renaming the file first.
+
 - **A refused lock or unlock now explains itself, like a refused climate command already did.**
   The last release added a clear message for a command the car's gateway turns down on its final
   step, and credited the reporter who worked it out. His own command was locking, and that path
