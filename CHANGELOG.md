@@ -42,6 +42,27 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+- **A refused lock or unlock now explains itself, like a refused climate command already did.**
+  The last release added a clear message for a command the car's gateway turns down on its final
+  step, and credited the reporter who worked it out. His own command was locking, and that path
+  never received the message: it had no handler on that step at all, so he would have seen the
+  same bare error a third time. Both paths now share one classification, so they cannot disagree
+  about what you are told, and the specific code his car returns is recognised as well, which
+  means we no longer have to ask anyone for a description the integration does not print. Thanks
+  @panther7 for testing the release and saying it still failed, and @Joassens, whose instrumented
+  logs are what made the messages possible in the first place (#584).
+
+- **The stale-data warning no longer tells you to re-request your data sharing.** The portal's
+  operator has asked that nobody file further data requests while they work through a backlog,
+  because it does not speed anything up and can put you further back in the queue. Our warning
+  had been advising exactly that, in all twelve languages. It now points at re-adding the channel
+  instead, and in English it says plainly that empty or unchanged downloads are a hold-up on the
+  portal's side rather than yours. The other eleven languages have the bad advice removed; the
+  added explanation follows in a later pass rather than being machine-translated into an
+  instruction nobody here can check.
+
+
 ### Hinzugefügt / Added
 - **A charge level and an electric range from a one time export now reach your car.** The
   15 minute feed and the one time export name the same readings differently, and the
