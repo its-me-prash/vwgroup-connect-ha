@@ -1938,6 +1938,25 @@ _IS_SET_METADATA_CONTAINERS: tuple[str, ...] = (
     "trunk",
 )
 
+# Containers that ship a VALIDITY COMPANION beside their reading: a
+# ``<container>.state`` leaf valued VALID or INVALID, saying whether the
+# sibling value from the same container can be trusted. Scout #1797 (VW ID.3
+# Neo Life: enginehood + trunk), #1803 and #1795 (CUPRA Raval: the primary
+# range) reported these on every poll because nothing consumed them, which is
+# how four issues came to describe the same three leaves.
+#
+# Named, already-mapped containers only, exactly like
+# ``_IS_SET_METADATA_CONTAINERS`` above and for the same reason: a blanket rule
+# over every ``*.state`` leaf would also consume the companion of a container
+# we have not identified yet, and the no-suppression policy forbids hiding a
+# field we do not actually use. An unknown container's companion stays visible
+# to the Scout, which is correct — that one is a real discovery.
+_STATE_COMPANION_CONTAINERS: tuple[str, ...] = (
+    "enginehood",
+    "estimatedcruisingrangeprimary",
+    "trunk",
+)
+
 
 def map_dataset_to_vehicle_data(
     fields: dict[str, str],
@@ -2161,6 +2180,32 @@ def map_dataset_to_vehicle_data(
                 best_ts = ts
                 best_val = val
         return best_val if best_val is not None else first_present
+
+    # Scout #1797/#1803/#1795 — the validity companions. Read them FIRST, so
+    # every gated read below can consult the result. The sibling leaves are
+    # still consumed at their own call sites whatever the state says: a
+    # withheld value must not hand its leaf back to the Scout as undiscovered.
+    #
+    # Every sample observed so far reads VALID, so the withholding branch is a
+    # safeguard rather than a behaviour change — it only ever drops a reading
+    # the portal itself flagged as not valid. Mirrors the ``battery_level_HV``
+    # pair that #1088 resolves the same way, a few lines below.
+    _distrusted: set[str] = set()
+    for _container in _STATE_COMPANION_CONTAINERS:
+        _state_raw = first(f"{_container}.state")
+        if _state_raw is None:
+            continue
+        _state_txt = str(_state_raw).strip()
+        # Recorded so the datum stays visible in to_dict()/diagnostics even
+        # though it gets no entity (same treatment as speed_ratio_calibration).
+        d.validity_companions[_container] = _state_txt
+        if _state_txt.upper() != "VALID":
+            _distrusted.add(_container)
+            _LOGGER.debug(
+                "EU Data Act: %s.state reads %s, withholding that container's "
+                "own reading for this poll",
+                _container, _state_txt,
+            )
 
     # #1088 (ggfbrkt6mc-max, ID.Buzz) — some cars ship battery_state_report.soc
     # TWICE, and VW stamps the STALE value with the NEWER capture time, so the
@@ -2471,6 +2516,15 @@ def map_dataset_to_vehicle_data(
         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
     )
     primary_raw = _to_int(_pri_raw_val)
+    # Scout #1803/#1795 — the companion governs the value only when it actually
+    # CAME from that container. A canonical spelling such as
+    # ``cruising_range_primary_engine`` is a different data point with its own
+    # validity, so it must survive an invalid container. The leaf stays consumed
+    # either way; only the belief is withdrawn.
+    if "estimatedcruisingrangeprimary" in _distrusted and (
+        _pri_src or ""
+    ).startswith("estimatedcruisingrangeprimary"):
+        primary_raw = None
     _sec_raw_val, _sec_src = first_src(
         "cruising_range_secondary_engine",
         # #1220 — official secondary-range dict leaf (PHEV combustion range).
@@ -2521,6 +2575,13 @@ def map_dataset_to_vehicle_data(
         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
         record_as="range_km")
     rng = _to_int(_rng_val)
+    # Same container, second destination: the headline range_km reads the leaf
+    # through its own chain, so gating only the primary-engine read above would
+    # publish the withheld value here instead.
+    if "estimatedcruisingrangeprimary" in _distrusted and (
+        _rng_src or ""
+    ).startswith("estimatedcruisingrangeprimary"):
+        rng = None
     # #1403 grounding — the one-time export states its own engine type, and we
     # were throwing it away. The nested export shape ships
     # ``batteryStatus.cruisingRange.{range,engineType}``, and the walker emits
@@ -3414,8 +3475,10 @@ def map_dataset_to_vehicle_data(
         d.trunk_locked = _tail_lock == 2
     # v2.17.5 — the boolean ``trunk.locked`` dialect (dotted spelling so it never
     # collides with the door's bare ``locked``). "true" = trunk locked.
+    # Consumed whatever the companion says (see _STATE_COMPANION_CONTAINERS);
+    # only BELIEVED when the container did not flag itself invalid.
     _trunk_l = first("trunk.locked", "trunk_locked")
-    if _trunk_l is not None and d.trunk_locked is None:
+    if _trunk_l is not None and "trunk" not in _distrusted and d.trunk_locked is None:
         d.trunk_locked = str(_trunk_l).strip().lower() in ("true", "locked", "1")
 
     # open-state → doors_individual (True == OPEN, matching the vw_eu polarity)
@@ -3439,7 +3502,7 @@ def map_dataset_to_vehicle_data(
     # portal was sending only this dotted string, so trunk_open stayed unset. Use
     # the dotted key (never the bare ``open``) so it can't collide with a door.
     _trunk_o = first("trunk.open", "trunk_open")
-    if _trunk_o is not None and d.trunk_open is None:
+    if _trunk_o is not None and "trunk" not in _distrusted and d.trunk_open is None:
         d.trunk_open = str(_trunk_o).strip().lower() in ("true", "open", "1")
     _bonnet_open = _to_int(first("open_state_front_engine_bonnet"))
     if _bonnet_open in (2, 3) and d.hood_open is None:
@@ -3485,13 +3548,15 @@ def map_dataset_to_vehicle_data(
     # above; the flattener aliases those by UUID (see _MAPPED_UUIDS). Fold the
     # single-boolean openings into the existing entities only when the enum path
     # didn't fire. Booleans → no 0/1 sentinel rule.
+    # These two carry the SAME container's reading as the dotted dialect above,
+    # so the validity companion governs them too (Scout #1797).
     if d.trunk_open is None:
         _t_uuid = first("25ed3407-82de-353e-9f3e-f37952731932")  # trunk.open
-        if _t_uuid is not None:
+        if _t_uuid is not None and "trunk" not in _distrusted:
             d.trunk_open = str(_t_uuid).strip().lower() in ("true", "1")
     if d.hood_open is None:
         _h_uuid = first("8540dd41-556c-3e41-aea9-3e28f8d80a2a")  # enginehood.open
-        if _h_uuid is not None:
+        if _h_uuid is not None and "enginehood" not in _distrusted:
             d.hood_open = str(_h_uuid).strip().lower() in ("true", "1")
     if d.sunroof_open is None:
         _sr_uuid = first(

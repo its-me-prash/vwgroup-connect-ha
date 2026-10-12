@@ -1822,6 +1822,13 @@ class VehicleData:
     # rather than suppressed, and the leaves are consumed so they stop flooding the
     # Vehicle Data Scout. Keyed by control point ("speed_ratio_x2_y2") -> {leaf: value}.
     speed_ratio_calibration: dict[str, dict[str, str]] = field(default_factory=dict)
+    # Scout #1797/#1803/#1795 — some portal containers ship a VALIDITY COMPANION
+    # beside their reading (``trunk.state``, ``enginehood.state``,
+    # ``estimatedcruisingrangeprimary.state``), valued VALID or INVALID. It is
+    # not a reading and gets no entity: it decides whether its sibling counts.
+    # Kept here (and so in to_dict()/diagnostics) rather than suppressed, keyed
+    # by container name -> the state word as the portal spelled it.
+    validity_companions: dict[str, str] = field(default_factory=dict)
     # Fields the export delivered MORE THAN ONCE under one capture time with
     # different values. The append order is then the only thing separating
     # them, which is not evidence, so the parser records every candidate here
