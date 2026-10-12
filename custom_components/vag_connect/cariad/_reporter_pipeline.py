@@ -289,6 +289,13 @@ def build_error_report(
 
     for idx, r in enumerate(records_list, start=1):
         lines.append(f"### {idx}. `{r.exception_type}` at {r.timestamp}")
+        # #1808 — a persistent failure is now one record with a count,
+        # so say how persistent it is instead of hiding it in the buffer.
+        if getattr(r, "repeat_count", 1) > 1:
+            lines.append(
+                f"- **Seen:** {r.repeat_count} times in a row "
+                "(the timestamp above is the first occurrence)"
+            )
         if r.endpoint:
             lines.append(f"- **Endpoint:** `{r.endpoint}`")
         rec_model = _safe_model(r.model)
