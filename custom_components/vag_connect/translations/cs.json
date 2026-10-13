@@ -1590,6 +1590,18 @@
       },
       "alarm_reason": {
         "name": "Důvod alarmu"
+      },
+      "tyre_sensor_life_fl": {
+        "name": "Životnost snímače tlaku vpředu vlevo"
+      },
+      "tyre_sensor_life_fr": {
+        "name": "Životnost snímače tlaku vpředu vpravo"
+      },
+      "tyre_sensor_life_rl": {
+        "name": "Životnost snímače tlaku vzadu vlevo"
+      },
+      "tyre_sensor_life_rr": {
+        "name": "Životnost snímače tlaku vzadu vpravo"
       }
     },
     "binary_sensor": {

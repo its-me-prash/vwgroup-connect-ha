@@ -1995,6 +1995,17 @@ class VehicleData:
     tyre_pressure_required_rl: int | None = None
     tyre_pressure_required_rr: int | None = None
     tyre_pressure_required_spare: int | None = None
+    # Tyres — remaining operation time of each wheel's PRESSURE SENSOR, from the
+    # UDS DIDs 0x4E94-97 (#1767, the largest Scout family: five Audis). Not a
+    # pressure: the portal names it "<corner> tire pressure sensor remaining
+    # operation time". The catalogue gives these four no unit and no meaning, so
+    # unitless diagnostic like the two pressure families above; 255 is the CAN
+    # "signal not available" byte (four of the five reporting cars send it) and
+    # is dropped at the parser. LOW — disabled-by-default. sensor, diagnostic.
+    tyre_sensor_life_fl: int | None = None
+    tyre_sensor_life_fr: int | None = None
+    tyre_sensor_life_rl: int | None = None
+    tyre_sensor_life_rr: int | None = None
     # #528/#538 — TPMS system-type. Indirect/ABS-based TPMS ships the whole
     # actual-pressure family as "1" (dict 1=invalid: system present, no numeric
     # bar), which the sentinel filter drops — so the per-wheel pressure sensors

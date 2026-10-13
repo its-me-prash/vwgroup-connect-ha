@@ -1590,6 +1590,18 @@
       },
       "alarm_reason": {
         "name": "Alarmgrund"
+      },
+      "tyre_sensor_life_fl": {
+        "name": "Reifensensor-Restlaufzeit vorne links"
+      },
+      "tyre_sensor_life_fr": {
+        "name": "Reifensensor-Restlaufzeit vorne rechts"
+      },
+      "tyre_sensor_life_rl": {
+        "name": "Reifensensor-Restlaufzeit hinten links"
+      },
+      "tyre_sensor_life_rr": {
+        "name": "Reifensensor-Restlaufzeit hinten rechts"
       }
     },
     "binary_sensor": {

@@ -3218,6 +3218,42 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # #1767 — remaining operation time of each wheel's PRESSURE SENSOR (UDS
+    # 0x4E94-97), not a pressure. Catalogue gives no unit and no meaning, so
+    # unitless like the two pressure families above; the 255 "not available"
+    # byte is dropped at the parser, so a car that sends it spawns nothing.
+    VagSensorDescription(
+        key="tyre_sensor_life_fl",
+        translation_key="tyre_sensor_life_fl",
+        data_key="tyre_sensor_life_fl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_sensor_life_fr",
+        translation_key="tyre_sensor_life_fr",
+        data_key="tyre_sensor_life_fr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_sensor_life_rl",
+        translation_key="tyre_sensor_life_rl",
+        data_key="tyre_sensor_life_rl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_sensor_life_rr",
+        translation_key="tyre_sensor_life_rr",
+        data_key="tyre_sensor_life_rr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # #528/#538 — TPMS system-type. On an indirect/ABS-based TPMS car the whole
     # actual-pressure family is "1" (dropped), so this is the ONLY tyre signal that
     # car gets: "measured" (per-wheel numeric) vs "indirect" (present, no values).
@@ -4416,6 +4452,10 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "tyre_pressure_diff_rl",
     "tyre_pressure_diff_rr",
     "tyre_pressure_diff_spare",
+    "tyre_sensor_life_fl",
+    "tyre_sensor_life_fr",
+    "tyre_sensor_life_rl",
+    "tyre_sensor_life_rr",
     "parking_lights_state",
     "aux_battery_energy_pct",
     "dashboard_warnings_raw",

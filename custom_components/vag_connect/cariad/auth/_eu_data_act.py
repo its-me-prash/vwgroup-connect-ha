@@ -1447,6 +1447,48 @@ _UDS_HANDLED_DIDS = frozenset(
     {"0x2ab6", "0x2af7", "0x27c3", "0x2bd", "0x1e0e", "0x1e0f", "0x1e33", "0x1e34"}
 )
 
+# DIDs whose base64 payload is a BARE NUMBER instead of a diagnostic envelope.
+# ``_uds_envelope`` json-loads the payload and then requires a dict, so a bare
+# number yields nothing and the dispatch loop never marks the key used — which
+# is exactly how five Audis came to report these four on every poll (#1767).
+#   0x4E94-97 remaining operation time of each wheel's tyre-pressure sensor
+_UDS_SCALAR_DIDS: dict[str, str] = {
+    "0x4e94": "fl",
+    "0x4e95": "fr",
+    "0x4e96": "rl",
+    "0x4e97": "rr",
+}
+
+# The CAN "signal not available" byte. Four of the five cars reporting the DIDs
+# above send it on all four wheels, so it is screened like the sentinels the
+# per-wheel pressure families already drop. Anything else in the byte range is
+# published: nothing evidences a second sentinel for this family.
+_UDS_SCALAR_NOT_AVAILABLE = 255
+
+
+def _uds_bare_scalar(raw: str | None) -> float | None:
+    """Decode a base64 UDS payload that is a bare number, not an envelope.
+
+    ``"MTIw "`` is the base64 of ``120`` plus the unit token the portal appends
+    even when the unit is empty (#1772), so the same leading-token split
+    ``_uds_envelope`` uses applies here.
+
+    Returns the number for ANY payload that decodes to one, sentinels included.
+    Reading a sentinel is an interpretation, so the field counts as handled and
+    the caller's plausibility screen decides whether to publish it. Without
+    that, the cars sending 255 would keep reporting the field as undiscovered.
+    """
+    if not raw:
+        return None
+    token = str(raw).split()
+    if not token:
+        return None
+    try:
+        text = base64.b64decode(token[0], validate=True).decode("ascii")
+    except (ValueError, TypeError, binascii.Error, UnicodeDecodeError):
+        return None
+    return _to_float(text.strip())
+
 
 def _uds_envelope(raw: str | None) -> tuple[dict[str, str], str | None]:
     """Decode one base64 UDS envelope into ``({param: value}, capture_ts)``.
@@ -5237,12 +5279,23 @@ def map_dataset_to_vehicle_data(
     # Envelopes whose DID we do NOT map are deliberately left unconsumed so the
     # Scout keeps reporting them — the catalogue lists 77 and we map eight.
     _uds_seen: dict[str, dict[str, str]] = {}
+    _uds_scalars: dict[str, float] = {}
     _uds_ts: str | None = None
     for _key in list(fields):
         _m = _UDS_KEY_RE.search(_key)
         if not _m:
             continue
         _did = _m.group(1).lower()
+        if _did in _UDS_SCALAR_DIDS:
+            # Bare-number payload (#1767). Marked used on ANY successful decode,
+            # sentinel included, so the majority of cars that report 255 stop
+            # offering the field; an undecodable payload stays Scout-visible.
+            _uds_sval = _uds_bare_scalar(fields.get(_key))
+            if _uds_sval is None:
+                continue
+            _uds_scalars.setdefault(_did, _uds_sval)
+            used.add(_key)
+            continue
         if _did not in _UDS_HANDLED_DIDS:
             continue
         _params, _cap = _uds_envelope(fields.get(_key))
@@ -5257,6 +5310,18 @@ def map_dataset_to_vehicle_data(
         """A UDS param as a float, only when inside its plausible range."""
         val = _to_float((_uds_seen.get(did) or {}).get(param))
         return val if val is not None and lo <= val <= hi else None
+
+    # DIDs 0x4E94-97 "<corner> tire pressure sensor remaining operation time".
+    # Fill-if-empty per corner. The value is a single byte, so the screen keeps
+    # 0..254 and drops only the not-available sentinel; the unit is unknown
+    # (the catalogue documents neither), hence a unitless diagnostic.
+    for _sdid, _slot in _UDS_SCALAR_DIDS.items():
+        _sval = _uds_scalars.get(_sdid)
+        if _sval is None or not 0 <= _sval < _UDS_SCALAR_NOT_AVAILABLE:
+            continue
+        _sattr = f"tyre_sensor_life_{_slot}"
+        if getattr(d, _sattr, None) is None:
+            setattr(d, _sattr, int(_sval))
 
     # DID 0x2AB6 "Calculated_value_range_display" — the range the instrument
     # cluster shows. Primary/secondary DRIVE map straight onto the existing
