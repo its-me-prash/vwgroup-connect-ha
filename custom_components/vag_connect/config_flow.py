@@ -1551,9 +1551,20 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     # portal reads: create the portal entry without commands.
                     if self._dag_mbb_command and self._pending_portal_data:
                         # b13 — flag the read-only fallback so the coordinator
-                        # raises a clear "commands unavailable on this MEB/ID
-                        # car" repair instead of silently missing the command
-                        # entities the user ticked the box for.
+                        # raises a clear "commands unavailable" repair instead
+                        # of silently missing the command entities the user
+                        # ticked the box for.
+                        #
+                        # #1809 (jocke-w, Audi e-tron 55 MY2019) — the flag is
+                        # set from the backend REFUSAL, not from any platform or
+                        # model check, so it must not be read as "this is an MEB
+                        # car". An original e-tron is a GE-platform car and was
+                        # told it was an ID/MEB model, because "Unknown user" is
+                        # also what an older car answers once the brand has
+                        # migrated it off Car-Net. The user-facing texts now say
+                        # what we actually know; the key name stays as it is
+                        # because it is persisted in entry.data and renaming it
+                        # would silently drop the flag for existing entries.
                         return await self._create_or_update_portal_entry(
                             title=self._pending_portal_title,
                             data={**self._pending_portal_data,
@@ -1954,9 +1965,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 }
                 entry_data[CONF_MBB_COMMAND_CLIENT_ID] = self._dag_mbb_client_id
             else:
-                # b13 — commands requested but the MBB bearer never minted
-                # (MEB/ID car): keep the read-only portal entry and flag it so
-                # the coordinator surfaces a clear "commands unavailable" repair.
+                # b13 — commands requested but the MBB bearer never minted:
+                # keep the read-only portal entry and flag it so the coordinator
+                # surfaces a clear "commands unavailable" repair. #1809 — this
+                # says the mint failed, NOT that the car is MEB/ID; see the
+                # other call site for the e-tron that was told it was an ID.
                 entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True
             return await self._create_or_update_portal_entry(
                 title=self._pending_portal_title, data=entry_data,

@@ -79,6 +79,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **Your car is no longer told it is a model it isn't.** An Audi e-tron 55 from 2019 was
+  informed by the integration that it is "an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born,
+  Q4)". It is not one, and its owner said so. The notice was built from the backend's
+  refusal and not from any check of the car: when the durable Car-Net login answers
+  "Unknown user", the integration concluded the car must be an ID. That answer only says
+  the car is not registered in the old Car-Net system, which is the expected case for ID
+  and MEB models and equally what an older car answers once the brand has moved it off
+  that system. The outcome was right, since the refusal is real and commands genuinely
+  cannot be sent, but the explanation sent people looking for an answer that does not
+  exist. The notice and the setup message now say what the refusal actually tells us.
+  German and English are corrected; the other languages still carry the old wording until
+  a native speaker gets to them. Thanks @jocke-w (#1809).
 - **An error report now says what the backend actually answered.** A report reached the
   tracker saying only that a request had failed with a 400, which is not something anyone
   can act on: a 400 can mean an expired subscription, a passing backend problem, or a

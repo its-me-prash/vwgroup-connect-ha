@@ -213,7 +213,7 @@
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication successful.",
       "reconfigure_successful": "Configuration updated successfully.",
-      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models).",
+      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login: the backend returned \"Unknown user\", which means the car is not enrolled in the legacy Car-Net/MBB system. That is the expected answer for ID and MEB models, and it is also what an older car answers once the brand has migrated it off that system, so it does not identify the model class. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead.",
       "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
       "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here.",
       "porsche_login_wall": "Your credentials are fine — the login got past the password step but stopped at a Porsche captcha/consent screen it can't complete automatically (seen at my.porsche.com). This is a Porsche-side wall, tracked in #1337, not a wrong password. Don't retry in a loop — repeated attempts have locked Porsche accounts. If you can, please report it so we can fix it (attach diagnostics): {report_url}",
@@ -2275,7 +2275,7 @@
     },
     "meb_commands_unavailable": {
       "title": "Remote commands aren't available for this car ({brand})",
-      "description": "You enabled MBB remote commands when setting up {brand}, but this is an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB backend doesn't support the durable Car-Net command path — the durable login answered \"Unknown user\" — so lock, climate and charge commands can't be sent.\n\nThe entry was kept **read-only**: vehicle data still flows through the EU Data Act portal, you just won't see command entities. This is a known limitation of VW's MEB platform, not a setup error — you can dismiss this notice."
+      "description": "You enabled MBB remote commands when setting up {brand}, but the durable Car-Net login answered \"Unknown user\" for this car, so lock, climate and charge commands cannot be sent through it.\n\nThat answer means the car is not enrolled in VW's legacy Car-Net system. It is the expected answer for ID and MEB models, which were never enrolled, and it is also what an older car answers once the brand has migrated it off that system. The answer alone does not tell us which of the two your car is.\n\nThe entry was kept **read-only**: vehicle data still flows through the EU Data Act portal, you just will not see command entities. You can dismiss this notice."
     },
     "mandatory_consent_missing": {
       "title": "Škoda: mandatory consent not accepted",
