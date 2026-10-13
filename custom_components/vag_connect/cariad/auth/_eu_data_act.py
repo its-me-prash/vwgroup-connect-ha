@@ -4834,7 +4834,9 @@ def map_dataset_to_vehicle_data(
         ("tyre_pressure_diff_rr", "tyre_pressure_differential_rear_right"),
         ("tyre_pressure_diff_spare", "tyre_pressure_differential_spare_tyre"),
     ):
-        _tpd = _to_int(first(_name))
+        # #1819 — float, not int: _to_int truncates, so a 0.3 bar delta
+        # became 0 and vanished into the sentinel rule.
+        _tpd = _to_float(first(_name))
         if _tpd is not None:
             setattr(d, _attr, _tpd)
 
@@ -4850,7 +4852,11 @@ def map_dataset_to_vehicle_data(
         ("tyre_pressure_actual_rr", "tyre_pressure_actual_rear_right"),
         ("tyre_pressure_actual_spare", "tyre_pressure_actual_spare_tyre"),
     ):
-        _tpa = _to_int(first(_name))
+        # #1819 (Kolbi) — the reported defect: the portal sends
+        # "2.8" and _to_int truncated it to 2 on every corner. The value
+        # is a measurement with one decimal, so read it as one. Rounding
+        # would be equally wrong: 2.8 bar is not 3 bar.
+        _tpa = _to_float(first(_name))
         if _tpa is not None:
             setattr(d, _attr, _tpa)
 
@@ -4865,7 +4871,8 @@ def map_dataset_to_vehicle_data(
         ("tyre_pressure_required_rr", "tyre_pressure_required_rear_right"),
         ("tyre_pressure_required_spare", "tyre_pressure_required_spare_tyre"),
     ):
-        _tpr = _to_int(first(_name))
+        # #1819 — same truncation as the actual family above.
+        _tpr = _to_float(first(_name))
         if _tpr is not None:
             setattr(d, _attr, _tpr)
 
@@ -4876,9 +4883,14 @@ def map_dataset_to_vehicle_data(
     # sentinel to None. Any corner >1 is a genuine reading ("measured"); else any
     # corner ==1 is an indirect/no-numeric TPMS ("indirect"); all-0/absent → None
     # so no phantom entity spawns.
+    # #1819 — _to_float, not _to_int. Truncation turned every corner between
+    # 1.0 and 2.0 bar into exactly 1, which is the "invalid" marker, so a car
+    # with a soft tyre was classified as having an indirect TPMS that reports no
+    # numbers at all. That inverts the rule stated below, and it did so at the
+    # one moment the reading matters most.
     _tpms_present = [
         _v for _v in (
-            _to_int(fields.get(_n))
+            _to_float(fields.get(_n))
             for _n in (
                 "tyre_pressure_actual_front_left",
                 "tyre_pressure_actual_front_right",

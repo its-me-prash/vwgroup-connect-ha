@@ -79,6 +79,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **Your tyre pressures show their decimal again.** The portal sends a value like 2.8 bar, and
+  every tyre-pressure sensor was showing 2. The number was being read as a whole number and the
+  fraction thrown away, on all four corners and the spare, in the actual, the target and the
+  deviation readings alike. They are measurements with one decimal and are read as such now.
+  Rounding would have been the same mistake wearing a different hat, since 2.8 bar is not 3 bar.
+  A car that reports whole units instead of bar is unaffected.
+  The half nobody could see from the outside was worse. The sensor that tells you whether your
+  car measures each tyre individually or only estimates it reads the same numbers, and the field
+  catalogue uses 1 to mean "no reading available". Throwing the fraction away turned every
+  pressure between 1 and 2 bar into exactly 1, so a car with one soft tyre was reported as not
+  measuring its tyres at all. That is the moment the reading matters most, and it now reads as
+  the measurement it is. Thanks @Kolbi, who quoted the raw value straight from the portal
+  response (#1819).
 - **An entry you set up by scanning the sign-in code now asks you to scan it again, instead of
   guessing at a password it never had.** A UK Audi Q4 e-tron was set up that way in July and ran
   for 87 days. Then its session stopped renewing, and the integration spent the next seven hours

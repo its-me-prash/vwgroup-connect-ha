@@ -1977,30 +1977,33 @@ class VehicleData:
     # Fuel reading is calculated rather than measured (fuel_level__accuracy
     # 1=calculated) — LOW. binary_sensor, diagnostic.
     fuel_level_estimated: bool | None = None
+    # #1819 (Kolbi) — float, not int. The portal sends bar with one
+    # decimal ("2.8"), and an int annotation plus _to_int truncated every
+    # corner. A car reporting whole 10 kPa units is unaffected.
     # E. Tyres — pressure DELTA vs target (unit-ambiguous; sentinels 0/1
     # dropped at the parser). LOW — disabled-by-default. sensor, diagnostic.
-    tyre_pressure_diff_fl: int | None = None
-    tyre_pressure_diff_fr: int | None = None
-    tyre_pressure_diff_rl: int | None = None
-    tyre_pressure_diff_rr: int | None = None
-    tyre_pressure_diff_spare: int | None = None
+    tyre_pressure_diff_fl: float | None = None
+    tyre_pressure_diff_fr: float | None = None
+    tyre_pressure_diff_rl: float | None = None
+    tyre_pressure_diff_rr: float | None = None
+    tyre_pressure_diff_spare: float | None = None
     # Tyres — ACTUAL per-wheel pressure (dict unit "10kPA / Bar / PSI/ kPA" is
     # ambiguous → unitless diagnostic; sentinels 0=unsupported/1=invalid dropped
     # at the parser). #528 front pair, #538 rear+spare. LOW — disabled-by-
     # default. sensor, diagnostic.
-    tyre_pressure_actual_fl: int | None = None
-    tyre_pressure_actual_fr: int | None = None
-    tyre_pressure_actual_rl: int | None = None
-    tyre_pressure_actual_rr: int | None = None
-    tyre_pressure_actual_spare: int | None = None
+    tyre_pressure_actual_fl: float | None = None
+    tyre_pressure_actual_fr: float | None = None
+    tyre_pressure_actual_rl: float | None = None
+    tyre_pressure_actual_rr: float | None = None
+    tyre_pressure_actual_spare: float | None = None
     # Tyres — REQUIRED/target per-wheel pressure (#538). Same ambiguous unit →
     # unitless diagnostic; sentinels 0/1 dropped at the parser. LOW — disabled-
     # by-default. sensor, diagnostic.
-    tyre_pressure_required_fl: int | None = None
-    tyre_pressure_required_fr: int | None = None
-    tyre_pressure_required_rl: int | None = None
-    tyre_pressure_required_rr: int | None = None
-    tyre_pressure_required_spare: int | None = None
+    tyre_pressure_required_fl: float | None = None
+    tyre_pressure_required_fr: float | None = None
+    tyre_pressure_required_rl: float | None = None
+    tyre_pressure_required_rr: float | None = None
+    tyre_pressure_required_spare: float | None = None
     # Tyres — remaining operation time of each wheel's PRESSURE SENSOR, from the
     # UDS DIDs 0x4E94-97 (#1767, the largest Scout family: five Audis). Not a
     # pressure: the portal names it "<corner> tire pressure sensor remaining
