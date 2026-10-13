@@ -47,9 +47,9 @@ class TestStaleDumpFileGuard:
         })
         t = _transport(dev)
         await t.dump_ui()
-        rm_idx = next(i for i, c in enumerate(dev.calls) if c.startswith("rm -f"))
-        dump_idx = next(i for i, c in enumerate(dev.calls) if "uiautomator dump" in c)
-        cat_idx = next(i for i, c in enumerate(dev.calls) if c.startswith("cat "))
+        # One shell call; the order inside it is what matters.
+        cmd = next(c for c in dev.calls if "uiautomator dump" in c)
+        rm_idx, dump_idx, cat_idx = (cmd.index(p) for p in ("rm -f", "uiautomator dump", "cat "))
         assert rm_idx < dump_idx < cat_idx, (
             "the stale dump must be removed BEFORE the new dump and cat"
         )

@@ -4,14 +4,20 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
+
+if TYPE_CHECKING:
+    pass
 
 # CARIAD charge modes.
 #
@@ -153,6 +159,8 @@ async def async_setup_entry(
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
+        # Companion: the climate entity's presets hold the Start mode.
+        drop_retired_climate(hass, coordinator, "select", vin)
         if vehicle.get("has_battery"):
             # v3.0.0a1 — only if the client implements the command, else the
             # select raises AttributeError on change (companion/ADB has no

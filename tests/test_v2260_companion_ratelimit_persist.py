@@ -178,7 +178,7 @@ class TestButtonSpawn:
         names = self._added_for("audi")
         assert "VagCompanionResetButton" in names
         assert "VagDataActRequestButton" not in names
-        assert "VagRefreshButton" in names
+        assert "VagCompanionRefreshButton" in names
 
     def test_companion_verified_brand_also_gets_reset(self) -> None:
         # volkswagen preset is writable (not forced read-only), still a companion

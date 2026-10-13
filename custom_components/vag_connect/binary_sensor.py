@@ -567,6 +567,247 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # v2.0.0 (Big-Bang) — read-only ``enabled`` binary_sensors for the
+    # Companion only — charging locations, in the app's list order.
+    VagBinarySensorDescription(
+        key="charging_location_1_active",
+        translation_key="charging_location_1_active",
+        data_key="charging_location_1_active",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_1_reduced_ac_current",
+        translation_key="charging_location_1_reduced_ac_current",
+        data_key="charging_location_1_reduced_ac_current",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_1_auto_release_connector",
+        translation_key="charging_location_1_auto_release_connector",
+        data_key="charging_location_1_auto_release_connector",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_1_timer_1_enabled",
+        translation_key="charging_location_1_timer_1_enabled",
+        data_key="charging_location_1_timer_1_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_1_timer_2_enabled",
+        translation_key="charging_location_1_timer_2_enabled",
+        data_key="charging_location_1_timer_2_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_1_timer_3_enabled",
+        translation_key="charging_location_1_timer_3_enabled",
+        data_key="charging_location_1_timer_3_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_2_active",
+        translation_key="charging_location_2_active",
+        data_key="charging_location_2_active",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_2_reduced_ac_current",
+        translation_key="charging_location_2_reduced_ac_current",
+        data_key="charging_location_2_reduced_ac_current",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_2_auto_release_connector",
+        translation_key="charging_location_2_auto_release_connector",
+        data_key="charging_location_2_auto_release_connector",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_2_timer_1_enabled",
+        translation_key="charging_location_2_timer_1_enabled",
+        data_key="charging_location_2_timer_1_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_2_timer_2_enabled",
+        translation_key="charging_location_2_timer_2_enabled",
+        data_key="charging_location_2_timer_2_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_2_timer_3_enabled",
+        translation_key="charging_location_2_timer_3_enabled",
+        data_key="charging_location_2_timer_3_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_3_active",
+        translation_key="charging_location_3_active",
+        data_key="charging_location_3_active",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_3_reduced_ac_current",
+        translation_key="charging_location_3_reduced_ac_current",
+        data_key="charging_location_3_reduced_ac_current",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_3_auto_release_connector",
+        translation_key="charging_location_3_auto_release_connector",
+        data_key="charging_location_3_auto_release_connector",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_3_timer_1_enabled",
+        translation_key="charging_location_3_timer_1_enabled",
+        data_key="charging_location_3_timer_1_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_3_timer_2_enabled",
+        translation_key="charging_location_3_timer_2_enabled",
+        data_key="charging_location_3_timer_2_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_3_timer_3_enabled",
+        translation_key="charging_location_3_timer_3_enabled",
+        data_key="charging_location_3_timer_3_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_4_active",
+        translation_key="charging_location_4_active",
+        data_key="charging_location_4_active",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_4_reduced_ac_current",
+        translation_key="charging_location_4_reduced_ac_current",
+        data_key="charging_location_4_reduced_ac_current",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_4_auto_release_connector",
+        translation_key="charging_location_4_auto_release_connector",
+        data_key="charging_location_4_auto_release_connector",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_4_timer_1_enabled",
+        translation_key="charging_location_4_timer_1_enabled",
+        data_key="charging_location_4_timer_1_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_4_timer_2_enabled",
+        translation_key="charging_location_4_timer_2_enabled",
+        data_key="charging_location_4_timer_2_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_4_timer_3_enabled",
+        translation_key="charging_location_4_timer_3_enabled",
+        data_key="charging_location_4_timer_3_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_5_active",
+        translation_key="charging_location_5_active",
+        data_key="charging_location_5_active",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_5_reduced_ac_current",
+        translation_key="charging_location_5_reduced_ac_current",
+        data_key="charging_location_5_reduced_ac_current",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_5_auto_release_connector",
+        translation_key="charging_location_5_auto_release_connector",
+        data_key="charging_location_5_auto_release_connector",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_5_timer_1_enabled",
+        translation_key="charging_location_5_timer_1_enabled",
+        data_key="charging_location_5_timer_1_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_5_timer_2_enabled",
+        translation_key="charging_location_5_timer_2_enabled",
+        data_key="charging_location_5_timer_2_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="charging_location_5_timer_3_enabled",
+        translation_key="charging_location_5_timer_3_enabled",
+        data_key="charging_location_5_timer_3_enabled",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # 3 departure timers. The existing ``departure_timer_X_switch``
     # entities are write-able and conflate read+write, which makes them
     # awkward as conditions in template automations. These pure-read
@@ -595,6 +836,32 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         data_key="departure_timer_3_enabled",
         condition="electric",
         icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Companion (ADB) only — the timer page's Repeat switch: off means the
+    # timer runs once, on its one weekday.
+    VagBinarySensorDescription(
+        key="departure_timer_1_repeat",
+        translation_key="departure_timer_1_repeat",
+        data_key="departure_timer_1_repeat",
+        condition="electric",
+        icon="mdi:repeat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="departure_timer_2_repeat",
+        translation_key="departure_timer_2_repeat",
+        data_key="departure_timer_2_repeat",
+        condition="electric",
+        icon="mdi:repeat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="departure_timer_3_repeat",
+        translation_key="departure_timer_3_repeat",
+        data_key="departure_timer_3_repeat",
+        condition="electric",
+        icon="mdi:repeat",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # v2.5.0 (#306 goncal Mii electric, parity with PyCupra) — three
@@ -904,6 +1171,42 @@ _CLOSED_INVERT_KEYS: frozenset[str] = frozenset({
 
 # v1.11.0 — same phantom-entity-prevention pattern as sensor.py.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
+    # Companion (ADB) only: the timer page's Repeat switch. No cloud parser fills it.
+    "departure_timer_1_repeat",
+    "departure_timer_2_repeat",
+    "departure_timer_3_repeat",
+    # Companion only: unread location slots must not create entities.
+    "charging_location_1_active",
+    "charging_location_1_reduced_ac_current",
+    "charging_location_1_auto_release_connector",
+    "charging_location_1_timer_1_enabled",
+    "charging_location_1_timer_2_enabled",
+    "charging_location_1_timer_3_enabled",
+    "charging_location_2_active",
+    "charging_location_2_reduced_ac_current",
+    "charging_location_2_auto_release_connector",
+    "charging_location_2_timer_1_enabled",
+    "charging_location_2_timer_2_enabled",
+    "charging_location_2_timer_3_enabled",
+    "charging_location_3_active",
+    "charging_location_3_reduced_ac_current",
+    "charging_location_3_auto_release_connector",
+    "charging_location_3_timer_1_enabled",
+    "charging_location_3_timer_2_enabled",
+    "charging_location_3_timer_3_enabled",
+    "charging_location_4_active",
+    "charging_location_4_reduced_ac_current",
+    "charging_location_4_auto_release_connector",
+    "charging_location_4_timer_1_enabled",
+    "charging_location_4_timer_2_enabled",
+    "charging_location_4_timer_3_enabled",
+    "charging_location_5_active",
+    "charging_location_5_reduced_ac_current",
+    "charging_location_5_auto_release_connector",
+    "charging_location_5_timer_1_enabled",
+    "charging_location_5_timer_2_enabled",
+    "charging_location_5_timer_3_enabled",
+
     "trailer_connected",             # #1798 — Audi trailer hitch only
     # v2.8.1 #306 — 6 P1 boolean OLA-field gap entries. SEAT/CUPRA OLA
     # primarily; vehicles without the underlying field stay None so
@@ -1042,6 +1345,7 @@ async def async_setup_entry(
     # Only None is treated as "no data" — False is a real "off" reading. The
     # per-id spawner re-spawns the sensor when its value first appears.
     from .const import CONF_HIDE_EMPTY_ENTITIES  # noqa: PLC0415
+    from .companion.entity_twins import has_control_twin, remove_twin  # noqa: PLC0415
     hide_empty = bool(entry.options.get(
         CONF_HIDE_EMPTY_ENTITIES,
         entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True),
@@ -1066,6 +1370,9 @@ async def async_setup_entry(
         # 1) Description-driven binary sensors
         for desc in BINARY_DESCRIPTIONS:
             if desc.condition == "electric" and not has_battery:
+                continue
+            if has_control_twin(coordinator, vin, vehicle, "binary_sensor", desc.key):
+                remove_twin(hass, "binary_sensor", vin, desc.key)
                 continue
             # v4.0.0 grounding wave — soft capability gate (opt-in via
             # desc.capability; hidden only on an explicitly-absent cap).

@@ -163,9 +163,9 @@
           "adb_port": "Yleensä 5555, kun ADB toimii Wi-Fin yli.",
           "vin": "Sovelluksessa näkyvän auton 17-merkkinen VIN.",
           "companion_use_addon": "Valitse tämä Android 11:tä tai uudempaa puhelinta varten, joka tarjoaa vain langattoman virheenkorjauksen. Syötä sitten yllä LISÄOSAN osoite puhelimen osoitteen sijaan.",
-          "companion_addon_token": "Tarvitaan vain, jos määritit api_token-arvon lisäosassa.",
+          "companion_addon_token": "Required for new add-on connections. Set the same api_token in the add-on. The bridge uses plain HTTP; use a trusted network.",
           "companion_use_relay": "Valitse tämä, jos puhelimessa on companion-agenttisovellus. Silloin puhelin soittaa Home Assistantille: ADB:tä, langatonta vianjäljitystä tai kiinteää IP-osoitetta ei tarvita — jätä osoitekenttä tyhjäksi.",
-          "companion_agent_token": "Agenttisovelluksen luoma satunnainen tunnus. Vähintään 32 merkkiä ja jokaiselle ajoneuvolle oma."
+          "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
       "audi_mbb_fallback": {
@@ -204,10 +204,12 @@
       "companion_needs_addon": "Tämä näyttää Android 11 -puhelimelta tai uudemmalta, joka käyttää langatonta virheenkorjausta. Suora yhteys tästä ei toimi sen kanssa (se vaatii TLS:n ja parituksen). Asenna 'VW Group App ADB Bridge' -lisäosa (github.com/its-me-prash/vwgroup-app-adb-bridge) ja anna sen osoite tähän. Vanhemmat puhelimet (Android 10 tai vanhempi) yhdistyvät suoraan.",
       "companion_app_not_found": "Yhteys puhelimeen muodostettiin, mutta merkin sovellusta ei ole asennettu siihen.",
       "companion_unknown_brand": "Kyseiselle merkille ei ole vielä apupuhelimen esiasetusta.",
-      "companion_agent_token_too_short": "Agentin tunnus on liian lyhyt. Liitä agenttisovelluksen luoma satunnainen tunnus (vähintään 32 merkkiä).",
+      "companion_agent_token_too_short": "The agent token is too short. Use a random token with at least 32 characters, such as the generated token.",
       "companion_host_required": "Anna puhelimen IP-osoite — tai valitse agenttivaihtoehto, jos puhelin soittaa Home Assistantille.",
       "missing_captcha": "Kirjoita yllä olevassa kuvassa näkyvät merkit.",
-      "captcha_retry": "Ratkaise yllä näkyvä captcha jatkaaksesi."
+      "captcha_retry": "Ratkaise yllä näkyvä captcha jatkaaksesi.",
+      "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
     },
     "abort": {
       "already_configured": "Tämä tili on jo määritetty.",
@@ -240,7 +242,6 @@
           "fuel_tank_capacity": "Polttoainesäiliön tilavuus (litraa, polttoaine-%)",
           "enable_reverse_geocoding": "Käänteinen geokoodaus (pysäköintiosoite)",
           "read_only_mode": "Vain luku -tila",
-          "companion_read_charge_detail": "Companion: lue lataustavoite (navigoi sovelluksessa)",
           "companion_wake_sleep": "Companion: herätä näyttö kyselyn ajaksi, nukuta sen jälkeen",
           "companion_close_app": "Companion: sulje auton sovellus jokaisen luennan jälkeen",
           "force_ppe_climate": "Audi PPE/PPC -ilmastoinnin runko (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
@@ -265,9 +266,6 @@
           "vwde_cred_relogin": "Volkswagen.de: kirjaudu uudelleen tallennetulla salasanalla, kun verkkoistunto vanhenee",
           "vweu_device_grant": "Lisää VW EU Two-Way — komennot + live-lukemat (BETA)",
           "remove_vweu_twoway": "Poista VW EU Two-Way (palaa edelliseen kanavaan)",
-          "companion_read_vehicle_health": "Companion: lue mittarilukema ja huolto ajoneuvon kunnosta (navigoi sovelluksessa)",
-          "companion_read_climate_detail": "Companion: lue tavoite- ja ulkolämpötila (navigoi sovelluksessa)",
-          "companion_read_parking_position": "Companion: lue pysäköintipaikka sovelluksen jakolinkistä (navigoi sovelluksessa)",
           "skoda_official_api_key": "Virallinen Škoda-API-avain — lisää valmistajan virallisen API:n live-tietolähteeksi (ja vikasietona)",
           "clear_skoda_official_key": "Tyhjennä tallennettu virallinen Škoda-API-avain (uusi luodaan automaattisesti, jos kirjautumisesi tukee sitä)",
           "skoda_official_mode": "Škodan virallisen API:n lähdetila"
@@ -277,7 +275,6 @@
           "spin": "S-PIN ovien lukitsemiseen. Sovellus → Turvallisuus → S-PIN.",
           "enable_reverse_geocoding": "Lähettää pysäköinnin GPS-sijainnin OpenStreetMap Nominatimille kadun/kaupungin selvittämiseksi. Oletuksena pois päältä yksityisyyden vuoksi.",
           "read_only_mode": "Käytössä ollessaan vain tilanantureita luodaan — ei kytkimiä, painikkeita, lukkoja, ilmastointia tai liukusäätimiä, jotka lähettävät komentoja. Hyödyllinen, jos haluat ajoneuvon telemetrian ilman tahattoman toiminnan riskiä. Lataa integraatio uudelleen vaihdon jälkeen.",
-          "companion_read_charge_detail": "Vain Companion (ADB). Lukee lisäksi lataustavoitteen, lataustehon ja jäljellä olevan ajan, jotka ovat latauksen tietonäytön takana. Tämä NAPAUTTAA sovellusta siirtyäkseen sinne (noin 15 minuutin välein), joten ota se käyttöön vasta kun olet varmistanut, että se toimii puhelimessasi. Oletuksena pois päältä. Lataa uudelleen vaihdon jälkeen.",
           "companion_wake_sleep": "Vain Companion (ADB). Herättää puhelimen näytön ennen jokaista kyselyä ja nukuttaa sen jälkeen, jotta lukittu tai nukkuva puhelin näyttää sovelluksen luvun ajan ilman, että näyttö jää pysyvästi päälle. Oletuksena pois päältä. Lataa uudelleen vaihdon jälkeen.",
           "companion_close_app": "Vain Companion (ADB). Pysäyttää (sulkee) auton sovelluksen pakotetusti jokaisen kyselyn jälkeen, jotta seuraava luenta käynnistää sen uudelleen puhtaalta pöydältä eikä lue välimuistiin jäänyttä näyttöä. Auttaa laitteissa, joissa sovellus jäädyttää arvonsa luentojen välillä. Oletuksena pois — kylmäkäynnistys on hitaampi. Lataa uudelleen muutoksen jälkeen.",
           "force_ppe_climate": "Vain Audi. Pakottaa uuden PPE/PPC-rungon muodon (climatisationMode pakollinen, targetTemperature jätetty pois) ilmastoinnin käynnistyksessä. Ota käyttöön vain, jos omistat Q6 e-tronin, A6 e-tronin, RS e-tron GT Faceliftin tai A3 2024+ PHEV:n — muutoin ilmastoinnin käynnistys palauttaa 400. Lataa integraatio uudelleen vaihdon jälkeen.",
@@ -645,11 +642,30 @@
       "departure_timer_3_time": {
         "name": "Lähtöajastin 3"
       },
+      "departure_timer_1_weekdays": {
+        "name": "Lähtöajastin 1 viikonpäivät"
+      },
+      "departure_timer_2_weekdays": {
+        "name": "Lähtöajastin 2 viikonpäivät"
+      },
+      "departure_timer_3_weekdays": {
+        "name": "Lähtöajastin 3 viikonpäivät"
+      },
       "last_updated_at": {
         "name": "Viimeisin päivitys"
       },
       "last_seen_at": {
         "name": "Ajoneuvo viimeksi raportoinut"
+      },
+      "last_vehicle_sync": {
+        "name": "Ajoneuvon viimeisin synkronointi"
+      },
+      "app_request_status": {
+        "name": "Sovelluksen pyyntöjen tila",
+        "state": {
+          "available": "Käytettävissä",
+          "restricted": "Rajoitettu"
+        }
       },
       "adblue_range_km": {
         "name": "AdBlue-toimintamatka"
@@ -1088,6 +1104,13 @@
       },
       "climate_mode": {
         "name": "Ilmastointitila"
+      },
+      "climate_start_mode": {
+        "name": "Ilmastoinnin käynnistystila",
+        "state": {
+          "air_conditioning": "Ilmastointi",
+          "window_heating": "Lasinlämmitys"
+        }
       },
       "active_target_soc": {
         "name": "Aktiivinen lataustavoite"
@@ -1591,6 +1614,146 @@
       "alarm_reason": {
         "name": "Hälytyksen syy"
       },
+      "companion_charge_mode": {
+        "name": "Lataustapa",
+        "state": {
+          "manual": "Manuaalinen",
+          "timer": "Ajastin",
+          "preferred_charging_times": "Ensisijaiset latausajat",
+          "only_own_current": "Vain oma sähkö",
+          "immediate_discharging": "Pura nyt",
+          "timer_charging_climatization": "Ajastettu lataus ilmastoinnilla"
+        }
+      },
+      "charging_location_count": {
+        "name": "Latauspaikkojen määrä"
+      },
+      "charging_location_current": {
+        "name": "Nykyinen latauspaikka",
+        "state": {
+          "none": "Ei mitään"
+        }
+      },
+      "charging_location_1_name": {
+        "name": "Latauspaikka 1"
+      },
+      "charging_location_1_active_timers": {
+        "name": "Latauspaikka 1 aktiiviset ajastimet"
+      },
+      "charging_location_1_timer_1_time": {
+        "name": "Latauspaikka 1 ajastin 1 aika"
+      },
+      "charging_location_1_timer_1_weekdays": {
+        "name": "Latauspaikka 1 ajastin 1 viikonpäivät"
+      },
+      "charging_location_1_timer_2_time": {
+        "name": "Latauspaikka 1 ajastin 2 aika"
+      },
+      "charging_location_1_timer_2_weekdays": {
+        "name": "Latauspaikka 1 ajastin 2 viikonpäivät"
+      },
+      "charging_location_1_timer_3_time": {
+        "name": "Latauspaikka 1 ajastin 3 aika"
+      },
+      "charging_location_1_timer_3_weekdays": {
+        "name": "Latauspaikka 1 ajastin 3 viikonpäivät"
+      },
+      "charging_location_2_name": {
+        "name": "Latauspaikka 2"
+      },
+      "charging_location_2_active_timers": {
+        "name": "Latauspaikka 2 aktiiviset ajastimet"
+      },
+      "charging_location_2_timer_1_time": {
+        "name": "Latauspaikka 2 ajastin 1 aika"
+      },
+      "charging_location_2_timer_1_weekdays": {
+        "name": "Latauspaikka 2 ajastin 1 viikonpäivät"
+      },
+      "charging_location_2_timer_2_time": {
+        "name": "Latauspaikka 2 ajastin 2 aika"
+      },
+      "charging_location_2_timer_2_weekdays": {
+        "name": "Latauspaikka 2 ajastin 2 viikonpäivät"
+      },
+      "charging_location_2_timer_3_time": {
+        "name": "Latauspaikka 2 ajastin 3 aika"
+      },
+      "charging_location_2_timer_3_weekdays": {
+        "name": "Latauspaikka 2 ajastin 3 viikonpäivät"
+      },
+      "charging_location_3_name": {
+        "name": "Latauspaikka 3"
+      },
+      "charging_location_3_active_timers": {
+        "name": "Latauspaikka 3 aktiiviset ajastimet"
+      },
+      "charging_location_3_timer_1_time": {
+        "name": "Latauspaikka 3 ajastin 1 aika"
+      },
+      "charging_location_3_timer_1_weekdays": {
+        "name": "Latauspaikka 3 ajastin 1 viikonpäivät"
+      },
+      "charging_location_3_timer_2_time": {
+        "name": "Latauspaikka 3 ajastin 2 aika"
+      },
+      "charging_location_3_timer_2_weekdays": {
+        "name": "Latauspaikka 3 ajastin 2 viikonpäivät"
+      },
+      "charging_location_3_timer_3_time": {
+        "name": "Latauspaikka 3 ajastin 3 aika"
+      },
+      "charging_location_3_timer_3_weekdays": {
+        "name": "Latauspaikka 3 ajastin 3 viikonpäivät"
+      },
+      "charging_location_4_name": {
+        "name": "Latauspaikka 4"
+      },
+      "charging_location_4_active_timers": {
+        "name": "Latauspaikka 4 aktiiviset ajastimet"
+      },
+      "charging_location_4_timer_1_time": {
+        "name": "Latauspaikka 4 ajastin 1 aika"
+      },
+      "charging_location_4_timer_1_weekdays": {
+        "name": "Latauspaikka 4 ajastin 1 viikonpäivät"
+      },
+      "charging_location_4_timer_2_time": {
+        "name": "Latauspaikka 4 ajastin 2 aika"
+      },
+      "charging_location_4_timer_2_weekdays": {
+        "name": "Latauspaikka 4 ajastin 2 viikonpäivät"
+      },
+      "charging_location_4_timer_3_time": {
+        "name": "Latauspaikka 4 ajastin 3 aika"
+      },
+      "charging_location_4_timer_3_weekdays": {
+        "name": "Latauspaikka 4 ajastin 3 viikonpäivät"
+      },
+      "charging_location_5_name": {
+        "name": "Latauspaikka 5"
+      },
+      "charging_location_5_active_timers": {
+        "name": "Latauspaikka 5 aktiiviset ajastimet"
+      },
+      "charging_location_5_timer_1_time": {
+        "name": "Latauspaikka 5 ajastin 1 aika"
+      },
+      "charging_location_5_timer_1_weekdays": {
+        "name": "Latauspaikka 5 ajastin 1 viikonpäivät"
+      },
+      "charging_location_5_timer_2_time": {
+        "name": "Latauspaikka 5 ajastin 2 aika"
+      },
+      "charging_location_5_timer_2_weekdays": {
+        "name": "Latauspaikka 5 ajastin 2 viikonpäivät"
+      },
+      "charging_location_5_timer_3_time": {
+        "name": "Latauspaikka 5 ajastin 3 aika"
+      },
+      "charging_location_5_timer_3_weekdays": {
+        "name": "Latauspaikka 5 ajastin 3 viikonpäivät"
+      },
       "tyre_sensor_life_fl": {
         "name": "Painesensorin käyttöikä vasen etu"
       },
@@ -1727,6 +1890,15 @@
       },
       "departure_timer_3_enabled": {
         "name": "Lähtöajastin 3 käytössä"
+      },
+      "departure_timer_1_repeat": {
+        "name": "Lähtöajastin 1 toista"
+      },
+      "departure_timer_2_repeat": {
+        "name": "Lähtöajastin 2 toista"
+      },
+      "departure_timer_3_repeat": {
+        "name": "Lähtöajastin 3 toista"
       },
       "alarm_active": {
         "name": "Hälytys aktiivinen"
@@ -1926,6 +2098,96 @@
       "connect_contract_active": {
         "name": "Connect-sopimus aktiivinen"
       },
+      "charging_location_1_active": {
+        "name": "Latauspaikka 1 aktiivinen"
+      },
+      "charging_location_1_reduced_ac_current": {
+        "name": "Latauspaikka 1 alennettu AC-latausvirta"
+      },
+      "charging_location_1_auto_release_connector": {
+        "name": "Latauspaikka 1 AC-liittimen automaattinen vapautus"
+      },
+      "charging_location_1_timer_1_enabled": {
+        "name": "Latauspaikka 1 ajastin 1 käytössä"
+      },
+      "charging_location_1_timer_2_enabled": {
+        "name": "Latauspaikka 1 ajastin 2 käytössä"
+      },
+      "charging_location_1_timer_3_enabled": {
+        "name": "Latauspaikka 1 ajastin 3 käytössä"
+      },
+      "charging_location_2_active": {
+        "name": "Latauspaikka 2 aktiivinen"
+      },
+      "charging_location_2_reduced_ac_current": {
+        "name": "Latauspaikka 2 alennettu AC-latausvirta"
+      },
+      "charging_location_2_auto_release_connector": {
+        "name": "Latauspaikka 2 AC-liittimen automaattinen vapautus"
+      },
+      "charging_location_2_timer_1_enabled": {
+        "name": "Latauspaikka 2 ajastin 1 käytössä"
+      },
+      "charging_location_2_timer_2_enabled": {
+        "name": "Latauspaikka 2 ajastin 2 käytössä"
+      },
+      "charging_location_2_timer_3_enabled": {
+        "name": "Latauspaikka 2 ajastin 3 käytössä"
+      },
+      "charging_location_3_active": {
+        "name": "Latauspaikka 3 aktiivinen"
+      },
+      "charging_location_3_reduced_ac_current": {
+        "name": "Latauspaikka 3 alennettu AC-latausvirta"
+      },
+      "charging_location_3_auto_release_connector": {
+        "name": "Latauspaikka 3 AC-liittimen automaattinen vapautus"
+      },
+      "charging_location_3_timer_1_enabled": {
+        "name": "Latauspaikka 3 ajastin 1 käytössä"
+      },
+      "charging_location_3_timer_2_enabled": {
+        "name": "Latauspaikka 3 ajastin 2 käytössä"
+      },
+      "charging_location_3_timer_3_enabled": {
+        "name": "Latauspaikka 3 ajastin 3 käytössä"
+      },
+      "charging_location_4_active": {
+        "name": "Latauspaikka 4 aktiivinen"
+      },
+      "charging_location_4_reduced_ac_current": {
+        "name": "Latauspaikka 4 alennettu AC-latausvirta"
+      },
+      "charging_location_4_auto_release_connector": {
+        "name": "Latauspaikka 4 AC-liittimen automaattinen vapautus"
+      },
+      "charging_location_4_timer_1_enabled": {
+        "name": "Latauspaikka 4 ajastin 1 käytössä"
+      },
+      "charging_location_4_timer_2_enabled": {
+        "name": "Latauspaikka 4 ajastin 2 käytössä"
+      },
+      "charging_location_4_timer_3_enabled": {
+        "name": "Latauspaikka 4 ajastin 3 käytössä"
+      },
+      "charging_location_5_active": {
+        "name": "Latauspaikka 5 aktiivinen"
+      },
+      "charging_location_5_reduced_ac_current": {
+        "name": "Latauspaikka 5 alennettu AC-latausvirta"
+      },
+      "charging_location_5_auto_release_connector": {
+        "name": "Latauspaikka 5 AC-liittimen automaattinen vapautus"
+      },
+      "charging_location_5_timer_1_enabled": {
+        "name": "Latauspaikka 5 ajastin 1 käytössä"
+      },
+      "charging_location_5_timer_2_enabled": {
+        "name": "Latauspaikka 5 ajastin 2 käytössä"
+      },
+      "charging_location_5_timer_3_enabled": {
+        "name": "Latauspaikka 5 ajastin 3 käytössä"
+      },
       "trailer_connected": {
         "name": "Peräkärry kytketty"
       }
@@ -1967,8 +2229,44 @@
       "auto_unlock_plug_switch": {
         "name": "Avaa latauspistoke automaattisesti"
       },
+      "climate_at_unlock_switch": {
+        "name": "Ilmastointi avattaessa"
+      },
+      "window_heating_auto_switch": {
+        "name": "Automaattinen ikkunanlämmitys"
+      },
+      "climate_zone_front_left_switch": {
+        "name": "Ilmastointivyöhyke vasen etu"
+      },
+      "climate_zone_front_right_switch": {
+        "name": "Ilmastointivyöhyke oikea etu"
+      },
       "active_ventilation_switch": {
         "name": "Aktiivinen tuuletus"
+      },
+      "companion_read_charge_detail": {
+        "name": "Lue lataustiedot"
+      },
+      "companion_read_vehicle_health": {
+        "name": "Lue ajoneuvon kunto ja asetukset"
+      },
+      "companion_read_climate_detail": {
+        "name": "Lue ilmastoinnin tiedot"
+      },
+      "companion_read_climate_settings": {
+        "name": "Lue ilmastointiasetukset"
+      },
+      "companion_read_departure_times": {
+        "name": "Lue lähtöajat"
+      },
+      "companion_read_driving_data": {
+        "name": "Lue ajotiedot"
+      },
+      "companion_read_parking_position": {
+        "name": "Lue pysäköintipaikka"
+      },
+      "companion_read_charging_locations": {
+        "name": "Lue latauspaikat"
       }
     },
     "number": {
@@ -2001,6 +2299,17 @@
       },
       "scan_interval": {
         "name": "Kyselyväli"
+      },
+      "app_sync_interval": {
+        "name": "Ajoneuvon synkronointiväli (herättää auton)",
+        "state_attributes": {
+          "note": {
+            "name": "Huomautus",
+            "state": {
+              "battery_protection": "Oletuksena pois käytöstä. Jokainen synkronointi herättää auton ja kuluttaa sen pyyntökiintiötä. Liian tiheä synkronointi voi aktivoida auton akun suojauksen, jolloin sovellus pysyy vikasietotilassa, kunnes auto seuraavan kerran käynnistetään. Lyhin aikaväli on 60 min; aseta arvoksi 0 poistaaksesi synkronoinnin käytöstä."
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2019,13 +2328,27 @@
       "historical_export_button": {
         "name": "Pyydä historiatietojen vienti"
       },
+      "companion_refresh_button": {
+        "name": "Päivitä sovelluksen näytön tiedot"
+      },
       "companion_reset_button": {
         "name": "Nollaa companion-yhteys"
+      },
+      "companion_force_refresh_button": {
+        "name": "Päivitä ajoneuvon tiedot"
       }
     },
     "climate": {
       "climate": {
-        "name": "Ilmastointi"
+        "name": "Ilmastointi",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "air_conditioning": "Ilmastointi",
+              "window_heating": "Vain ikkunalämmitys"
+            }
+          }
+        }
       }
     },
     "device_tracker": {
@@ -2050,6 +2373,13 @@
         "state": {
           "maximum": "Maksimi",
           "reduced": "Alennettu"
+        }
+      },
+      "companion_climate_start_mode": {
+        "name": "Haluttu ilmastoinnin käynnistystila",
+        "state": {
+          "air_conditioning": "Ilmastointi",
+          "window_heating": "Vain ikkunalämmitys"
         }
       }
     },
@@ -2499,6 +2829,15 @@
     }
   },
   "exceptions": {
+    "companion_limit_language_unavailable": {
+      "message": "Tietojen kirjoittaminen ja synkronointi on poistettu käytöstä: sovelluksen käännösresurssit eivät ole saatavilla, eikä voida vahvistaa, että käyttöliittymän nykyinen kieli on englanti, saksa tai espanja. Tietojen lukeminen toimii edelleen."
+    },
+    "companion_sync_refused": {
+      "message": "Sovellus ei synkronoinut autoa. Jokainen synkronointi herättää auton, joten se hylätään, kun komennot ovat tauolla tai liian pian edellisen komennon jälkeen. Katso anturi Sovelluksen pyyntöjen tila."
+    },
+    "companion_app_version_unverified": {
+      "message": "Komennot ovat pois päältä: puhelimen sovellus on versio {version}, jota ei ole vielä varmennettu komennoille. Komennot, tallennukset ja synkronoinnit pysyvät pois päältä, kunnes tämä versio on varmennettu. Ajoneuvon tiedot päivittyvät edelleen."
+    },
     "vehicle_not_found": {
       "message": "Ajoneuvoa, jonka VIN on {vin}, ei löytynyt. Tarkista, että integraatio on käynnistetty."
     },
@@ -2523,6 +2862,9 @@
     "read_only_attestation_blocked": {
       "message": "VW estää SEAT/CUPRAn etäkomennot Googlen laitetarkistuksen (Play Integrity / App Check) taakse, jonka läpäisee vain virallinen sovellus aidolla puhelimella. Lukitusta, ilmastointia ja latausta ei siksi voi lähettää täältä. Kyseessä on VW:n pysyvä palvelinpuolen esto, ei asetus, jonka voi kytkeä pois. Ajoneuvon tiedot päivittyvät edelleen EU:n datasäädösportaalin kautta."
     },
+    "departure_timer_enabled_required": {
+      "message": "Aseta 'enabled' tämän ajoneuvon lähtöajastimelle: sen yhteys vaatii sen. Vain companion-kanava (ADB) voi jättää sen pois."
+    },
     "export_file_not_allowed": {
       "message": "Home Assistantilla ei ole lupaa lukea polkua {path}. Siirrä vientitiedosto config-kansioon (tai kansioon, joka on listattu kohdassa allowlist_external_dirs) ja anna sen polku uudelleen."
     },
@@ -2540,6 +2882,15 @@
     },
     "historical_wedge_blocked": {
       "message": "Tälle autolle on jo käynnissä kertaluonteinen historiatietojen vienti. Portaali käsittelee vain yhtä tällaista pyyntöä kerrallaan, joten odota, että nykyinen valmistuu (tai aikakatkaistaan), ennen kuin pyydät uutta."
+    },
+    "hvac_mode_not_supported": {
+      "message": "HVAC-tilaa {hvac_mode} ei tueta; käytä jotakin näistä: {modes}. Mitään ei lähetetty."
+    },
+    "climate_preset_while_running": {
+      "message": "Pysäytä ilmastointi ensin: tilaa ei voi vaihtaa sen ollessa käynnissä. Mitään ei lähetetty."
+    },
+    "climate_preset_not_supported": {
+      "message": "Tilaa {preset} ei tueta; käytä jotakin näistä: {presets}. Mitään ei lähetetty."
     }
   },
   "selector": {

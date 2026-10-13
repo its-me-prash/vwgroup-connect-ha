@@ -39,6 +39,7 @@ class AgentRelayTransport(NetworkAdbTransport):
 
     async def connect(self, timeout_s: float = 10.0) -> None:
         """"Connected" means an agent is calling in, so wait for its poll."""
+        self._refuse_if_shut_down()
         await self._broker.wait_online(timeout_s)
         self._device = True
 
@@ -50,6 +51,14 @@ class AgentRelayTransport(NetworkAdbTransport):
         return self._device is not None and self._broker.online
 
     # -- the shell is deliberately absent -------------------------------------
+
+    async def app_resource_paths(self, package: str) -> tuple[str, ...]:
+        """No APK access in the fixed-verb relay protocol."""
+        return ()
+
+    async def battery_strings(self, package: str) -> dict[str, set[str]]:
+        """The current phone agent cannot expose compiled app resources."""
+        return {}
 
     async def shell(self, cmd: str, timeout_s: float = 10.0) -> str:
         raise CompanionTransportError(
@@ -93,6 +102,15 @@ class AgentRelayTransport(NetworkAdbTransport):
             _LOGGER.debug("companion relay: could not read the app version")
             return None
         return str(got) if got else None
+
+    # One relay round trip per tap: taps cannot be sent back to back.
+    can_tap_burst = False
+
+    async def tap_burst(self, x: int, y: int, count: int) -> None:
+        raise CompanionTransportError(
+            "the companion agent sends one tap per request; it cannot send "
+            "taps back to back"
+        )
 
     async def tap(self, x: int, y: int, timeout_s: float = 10.0) -> None:
         await self._broker.command(

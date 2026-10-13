@@ -26,11 +26,25 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from ._vol import vol
 
-from .const import DOMAIN, CONF_BRAND, CONF_USERNAME, CONF_PASSWORD
-from .coordinator import VagConnectCoordinator, entry_settings_fingerprint
+from .const import (
+    COMPANION_UNIQUE_ID_INFIX,
+    CONF_COMPANION_UID_NAMESPACE,
+    CONF_BRAND,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    DOMAIN,
+    is_companion_entry_data,
+    vehicle_unique_id,
+)
+from .coordinator import (
+    VagConnectCoordinator,
+    _self_update_entry,
+    entry_settings_fingerprint,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,15 +184,24 @@ def _get_coordinator(hass: HomeAssistant, vin: str) -> VagConnectCoordinator | N
     `_get_coordinator` called during a startup race) without the older
     `hasattr` overhead.
     """
+    found = _get_coordinators(hass, vin)
+    return found[0] if found else None
+
+
+def _get_coordinators(hass: HomeAssistant, vin: str) -> list[VagConnectCoordinator]:
+    """Every loaded coordinator that owns *vin*, in config-entry order.
+
+    One car can sit in several entries, e.g. a read-only EU Data Act entry and a
+    companion (ADB) entry; a command must go to the one that can send it.
+    """
+    found: list[VagConnectCoordinator] = []
     for entry in hass.config_entries.async_entries(DOMAIN):
         coordinator: VagConnectCoordinator | None = getattr(
             entry, "runtime_data", None
         )
-        if coordinator is None:
-            continue
-        if vin in coordinator.vehicles:
-            return coordinator
-    return None
+        if coordinator is not None and vin in coordinator.vehicles:
+            found.append(coordinator)
+    return found
 
 
 _LLM_API_KEY = f"{DOMAIN}_llm_api"
@@ -218,8 +241,35 @@ def _unregister_llm_api(hass: HomeAssistant) -> None:
         unregister()
 
 
+def _pin_companion_app_sync_off(hass: HomeAssistant, entry: VagConnectConfigEntry) -> None:
+    """#968 — the companion's "Synchronise now" wakes the car, so it is opt-in.
+
+    A companion entry with no stored sync interval (in data or options) gets an
+    explicit 0 (off), once: after that the key is there, and a value the user
+    set is never touched. Other channels have no such setting.
+    """
+    from .const import (  # noqa: PLC0415
+        COMPANION_APP_SYNC_OFF,
+        CONF_COMPANION_APP_SYNC_INTERVAL,
+        CONF_STRATEGY,
+        STRATEGY_COMPANION_ADB,
+    )
+
+    if entry.data.get(CONF_STRATEGY) != STRATEGY_COMPANION_ADB:
+        return
+    if CONF_COMPANION_APP_SYNC_INTERVAL in entry.data or CONF_COMPANION_APP_SYNC_INTERVAL in (
+        entry.options or {}
+    ):
+        return
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, CONF_COMPANION_APP_SYNC_INTERVAL: COMPANION_APP_SYNC_OFF},
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -> bool:
     """Set up a VW Group Connect config entry."""
+    # Before the update listener is attached, so this write never reloads.
+    _pin_companion_app_sync_off(hass, entry)
     coordinator = VagConnectCoordinator(hass, entry)
 
     try:
@@ -263,6 +313,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
     coordinator.async_set_updated_data(dict(coordinator.vehicles))
     entry.runtime_data = coordinator
 
+    if _companion_uid_migration_due(entry.data):
+        _migrate_companion_unique_ids(hass, entry, list(coordinator.vehicles))
+        _self_update_entry(
+            coordinator,
+            data={**entry.data, CONF_COMPANION_UID_NAMESPACE: COMPANION_UID_NAMESPACE_VERSION},
+        )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -290,6 +347,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
 
     _LOGGER.info("VW Group Connect ready: %d vehicle(s)", len(coordinator.vehicles))
     return True
+
+
+# 1: bare "{vin}_{key}" ids moved to "{vin}_companion_{key}".
+# 2: also undoes the doubled "{vin}_companion_companion_{key}" that version 1
+#    gave keys which themselves started with "companion_" (earlier fork builds).
+COMPANION_UID_NAMESPACE_VERSION = 2
+
+
+def _companion_uid_migration_due(data: Any) -> bool:
+    """True for a companion entry whose ids are not at the current namespace version."""
+    if not is_companion_entry_data(data):
+        return False
+    return (data.get(CONF_COMPANION_UID_NAMESPACE) or 0) < COMPANION_UID_NAMESPACE_VERSION
+
+
+def _migrate_companion_unique_ids(
+    hass: HomeAssistant, entry: VagConnectConfigEntry, vins: list[str]
+) -> None:
+    """Move this companion entry's ``{vin}_{key}`` entities to ``{vin}_companion_{key}``.
+
+    Keeps each entity's entity_id, name and history; only the registry's
+    unique id changes, so the platforms find them again under the new id.
+    An id already in the namespace stays (upstream's reset button was
+    ``{vin}_companion_reset_button`` from the start), and a doubled
+    ``{vin}_companion_companion_{key}`` loses one infix. Entry-scoped ids
+    (``{entry_id}_…``) stay.
+    """
+    infix = f"{COMPANION_UNIQUE_ID_INFIX}_"
+    registry = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        uid = reg_entry.unique_id or ""
+        vin = next((v for v in vins if uid.startswith(f"{v}_")), None)
+        if vin is None:
+            continue
+        key = uid[len(vin) + 1:]
+        if key.startswith(infix * 2):
+            key = key[len(infix) * 2:]
+        elif key.startswith(infix):
+            continue
+        new_uid = vehicle_unique_id(vin, key, companion=True)
+        if registry.async_get_entity_id(reg_entry.domain, DOMAIN, new_uid):
+            continue
+        registry.async_update_entity(reg_entry.entity_id, new_unique_id=new_uid)
 
 
 async def async_migrate_entry(
@@ -356,6 +456,11 @@ def _register_services(hass: HomeAssistant) -> None:
         creation; raw service calls still went through).
         """
         c = _coord(vin)
+        # The same car in a read-only entry and a writable one: use the
+        # writable one instead of failing on whichever entry was set up first.
+        c = next(
+            (o for o in _get_coordinators(hass, vin) if not o.is_read_only()), c
+        )
         if c.is_read_only():
             # #543 — a portal/website car is STRUCTURALLY read-only: the
             # token has no command path, so "disable the option" is wrong
@@ -545,12 +650,24 @@ def _register_services(hass: HomeAssistant) -> None:
         # the brand client; ignored by clients that don't support
         # weekly preheat (e.g. Porsche).
         # v4.7.11 (departure-timer-rich-setter) — forward the optional rich
-        # fields (charging / climatisation / target SoC / one-off day). Only the
-        # CARIAD client, and only for test-cohort entries, actually sends them.
-        await _coord_writeable(call.data["vin"]).async_set_departure_timer(
+        # fields (charging / climatisation / target SoC / one-off day). The
+        # CARIAD client sends them only for test-cohort entries; the companion
+        # (ADB) client refuses the first three and honours ``one_off_day``.
+        coord = _coord_writeable(call.data["vin"])
+        # ``enabled`` may be left out on the companion (ADB) channel, to edit
+        # only the time or days; the cloud clients still need it.
+        if "enabled" not in call.data and not coord.is_companion():
+            raise ServiceValidationError(
+                "Set 'enabled' for this vehicle's departure timer: its "
+                "connection needs it. Only the companion (ADB) channel can "
+                "leave it out.",
+                translation_domain=DOMAIN,
+                translation_key="departure_timer_enabled_required",
+            )
+        await coord.async_set_departure_timer(
             call.data["vin"],
             int(call.data["timer_id"]),
-            bool(call.data["enabled"]),
+            call.data["enabled"] if "enabled" in call.data else None,
             call.data.get("departure_time"),
             call.data.get("recurring_on"),
             charging=call.data.get("charging"),
@@ -808,7 +925,7 @@ def _register_services(hass: HomeAssistant) -> None:
             vol.Schema({
                 vol.Required("vin"):            cv.string,
                 vol.Required("timer_id"):       vol.All(vol.Coerce(int), vol.In([1, 2, 3])),
-                vol.Required("enabled"):        cv.boolean,
+                vol.Optional("enabled"):        cv.boolean,
                 vol.Optional("departure_time"): cv.string,
                 # v2.0.0 (Big-Bang) — weekly preheat schedule. Each
                 # element must be one of the ISO weekday names
@@ -818,8 +935,9 @@ def _register_services(hass: HomeAssistant) -> None:
                     cv.ensure_list, [cv.string]
                 ),
                 # v4.7.11 (departure-timer-rich-setter, myskoda #631/#640) —
-                # optional rich fields; only the CARIAD test-cohort path sends
-                # them, the other brands ignore them (uniform interface).
+                # optional rich fields; the CARIAD test-cohort path sends them,
+                # the companion (ADB) refuses charging/climatisation/target SoC
+                # and honours one_off_day, the other brands ignore them.
                 vol.Optional("charging"):       cv.boolean,
                 vol.Optional("climatisation"):  cv.boolean,
                 vol.Optional("target_soc_pct"): vol.All(
@@ -1133,7 +1251,9 @@ async def _async_update_listener(
     - spin: coordinator reads it directly from entry.data at command time
 
     A full reload is only triggered when brand, username or password changes
-    (those require a new authenticated API client).
+    (those require a new authenticated API client). Companion wake/sleep and
+    close-app flags are pushed to the live transport instead: a reload would
+    build a new channel with no write-interval memory.
     """
     coordinator: VagConnectCoordinator | None = getattr(entry, "runtime_data", None)
 
@@ -1200,5 +1320,11 @@ async def _async_update_listener(
                     await apply_relogin()
                 except Exception:  # noqa: BLE001 — never break a settings save
                     _LOGGER.debug("vw.de cred-relogin re-apply skipped", exc_info=True)
+            apply_flags = getattr(coordinator, "_apply_companion_transport_flags", None)
+            if callable(apply_flags):
+                try:
+                    await apply_flags()
+                except Exception:  # noqa: BLE001 — never break a settings save
+                    _LOGGER.debug("companion transport flags re-apply skipped", exc_info=True)
             # Trigger one immediate refresh so users see the effect
             await coordinator.async_request_refresh()

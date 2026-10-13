@@ -163,9 +163,9 @@
           "adb_port": "Vanligtvis 5555 för ADB över Wi-Fi.",
           "vin": "Det 17 tecken långa VIN-numret för bilen som visas i appen.",
           "companion_use_addon": "Kryssa i detta för en telefon med Android 11 eller nyare, som bara erbjuder trådlös felsökning. Ange sedan TILLÄGGETS adress ovan istället för telefonens.",
-          "companion_addon_token": "Behövs bara om du har angett api_token i tillägget.",
+          "companion_addon_token": "Required for new add-on connections. Set the same api_token in the add-on. The bridge uses plain HTTP; use a trusted network.",
           "companion_use_relay": "Kryssa i detta om telefonen kör companion-agentappen. Telefonen ringer då upp Home Assistant, så varken ADB, trådlös felsökning eller fast IP behövs — lämna adressfältet tomt.",
-          "companion_agent_token": "Den slumpmässiga token som agentappen skapade. Minst 32 tecken, och en egen för varje fordon."
+          "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
       "audi_mbb_fallback": {
@@ -204,10 +204,12 @@
       "companion_needs_addon": "Det här ser ut som en telefon med Android 11 eller nyare som använder trådlös felsökning, vilket den direkta anslutningen här inte klarar (den bygger på TLS och parkoppling). Installera tillägget 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) och peka companion-anslutningen mot tillägget. Äldre telefoner (Android 10 eller tidigare) ansluter direkt här.",
       "companion_app_not_found": "Anslöt till telefonen, men märkesappen är inte installerad på den.",
       "companion_unknown_brand": "Det märket har ännu ingen förinställning för extra telefon.",
-      "companion_agent_token_too_short": "Agent-token är för kort. Klistra in den slumpmässiga token som agentappen skapade (minst 32 tecken).",
+      "companion_agent_token_too_short": "The agent token is too short. Use a random token with at least 32 characters, such as the generated token.",
       "companion_host_required": "Ange telefonens IP-adress — eller kryssa i agentalternativet om telefonen ringer upp Home Assistant.",
       "missing_captcha": "Skriv in tecknen som visas i bilden ovan.",
-      "captcha_retry": "Lös den captcha som visas ovan för att fortsätta."
+      "captcha_retry": "Lös den captcha som visas ovan för att fortsätta.",
+      "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
     },
     "abort": {
       "already_configured": "Det här kontot är redan konfigurerat.",
@@ -240,7 +242,6 @@
           "fuel_tank_capacity": "Tankvolym (liter, för bränsle-%)",
           "enable_reverse_geocoding": "Omvänd geokodning (parkeringsadress)",
           "read_only_mode": "Skrivskyddat läge",
-          "companion_read_charge_detail": "Companion: läs laddningsmål (navigerar i appen)",
           "companion_wake_sleep": "Companion: väck skärmen för hämtning, släck efteråt",
           "companion_close_app": "Companion: stäng bil-appen efter varje avläsning",
           "force_ppe_climate": "Audi PPE/PPC klimat-body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
@@ -265,9 +266,6 @@
           "vwde_cred_relogin": "Volkswagen.de: logga in igen med det sparade lösenordet när webbsessionen upphör",
           "vweu_device_grant": "Lägg till VW EU Two-Way — kommandon + live-avläsningar (BETA)",
           "remove_vweu_twoway": "Ta bort VW EU Two-Way (återgå till föregående kanal)",
-          "companion_read_vehicle_health": "Companion: läs mätarställning och service från fordonsstatus (navigerar i appen)",
-          "companion_read_climate_detail": "Companion: läs börtemperatur och utetemperatur (navigerar i appen)",
-          "companion_read_parking_position": "Companion: läs parkeringsposition från appens delningslänk (navigerar i appen)",
           "skoda_official_api_key": "Officiell Škoda API-nyckel — lägger till tillverkarens officiella API som live-datakälla (och failover)",
           "clear_skoda_official_key": "Rensa den lagrade officiella Škoda API-nyckeln (en ny skapas automatiskt om din inloggning stöder det)",
           "skoda_official_mode": "Škoda officiell API-källäge"
@@ -277,7 +275,6 @@
           "spin": "S-PIN för dörrlåsning.",
           "enable_reverse_geocoding": "Skickar parkerings-GPS till OpenStreetMap Nominatim för att hämta gata/stad. Av som standard (integritet).",
           "read_only_mode": "När aktiverat skapas endast statussensorer — inga brytare, knappar, lås, klimat eller reglage som skickar kommandon. Användbart om du vill ha fordonstelemetri utan risk för oavsiktlig aktivering. Ladda om integrationen efter ändring.",
-          "companion_read_charge_detail": "Endast Companion (ADB). Läser även laddningsmål, effekt och återstående tid som ligger bakom laddningsdetaljvyn. Detta TRYCKER i appen för att navigera dit (ungefär var 15:e minut), så aktivera det först när du har bekräftat att flödet fungerar på din telefon. Av som standard. Ladda om efter ändring.",
           "companion_wake_sleep": "Endast Companion (ADB). Väcker telefonens skärm före varje hämtning och släcker den igen efteråt, så att en låst eller sovande telefon visar appen under avläsningen utan att skärmen är tänd hela tiden. Av som standard. Ladda om efter ändring.",
           "companion_close_app": "Endast Companion (ADB). Tvångsstoppar (stänger) bil-appen efter varje avläsning, så att nästa läsning startar om den från början i stället för att läsa en skärm som appen lämnat i cache. Hjälper på enheter där appen fryser sina värden mellan avläsningar. Av som standard — en kall omstart är långsammare. Ladda om efter ändring.",
           "force_ppe_climate": "Endast Audi. Tvingar det nya PPE/PPC body-formatet (climatisationMode obligatoriskt, targetTemperature utelämnat) vid klimatstart. Aktivera bara om du äger en Q6 e-tron, A6 e-tron, RS e-tron GT Facelift eller A3 2024+ PHEV — annars svarar API:t med 400. Ladda om integrationen efter aktivering.",
@@ -639,11 +636,30 @@
       "departure_timer_3_time": {
         "name": "Avgångstimer 3"
       },
+      "departure_timer_1_weekdays": {
+        "name": "Avresetimer 1 veckodagar"
+      },
+      "departure_timer_2_weekdays": {
+        "name": "Avresetimer 2 veckodagar"
+      },
+      "departure_timer_3_weekdays": {
+        "name": "Avresetimer 3 veckodagar"
+      },
       "last_updated_at": {
         "name": "Senast uppdaterad"
       },
       "last_seen_at": {
         "name": "Fordon senast rapporterat"
+      },
+      "last_vehicle_sync": {
+        "name": "Senaste fordonssynkronisering"
+      },
+      "app_request_status": {
+        "name": "Appens förfrågningsstatus",
+        "state": {
+          "available": "Tillgänglig",
+          "restricted": "Begränsad"
+        }
       },
       "adblue_range_km": {
         "name": "AdBlue-räckvidd"
@@ -1088,6 +1104,13 @@
       },
       "climate_mode": {
         "name": "Klimatläge"
+      },
+      "climate_start_mode": {
+        "name": "Klimat startläge",
+        "state": {
+          "air_conditioning": "Luftkonditionering",
+          "window_heating": "Rutvärme"
+        }
       },
       "active_target_soc": {
         "name": "Aktivt laddmål"
@@ -1591,6 +1614,146 @@
       "alarm_reason": {
         "name": "Larmorsak"
       },
+      "companion_charge_mode": {
+        "name": "Laddningsläge",
+        "state": {
+          "manual": "Manuell",
+          "timer": "Timer",
+          "preferred_charging_times": "Föredragna laddningstider",
+          "only_own_current": "Endast egen el",
+          "immediate_discharging": "Ladda ur nu",
+          "timer_charging_climatization": "Tidsstyrd laddning med klimatanläggning"
+        }
+      },
+      "charging_location_count": {
+        "name": "Antal laddplatser"
+      },
+      "charging_location_current": {
+        "name": "Aktuell laddplats",
+        "state": {
+          "none": "Ingen"
+        }
+      },
+      "charging_location_1_name": {
+        "name": "Laddplats 1"
+      },
+      "charging_location_1_active_timers": {
+        "name": "Laddplats 1 aktiva timer"
+      },
+      "charging_location_1_timer_1_time": {
+        "name": "Laddplats 1 timer 1 tid"
+      },
+      "charging_location_1_timer_1_weekdays": {
+        "name": "Laddplats 1 timer 1 veckodagar"
+      },
+      "charging_location_1_timer_2_time": {
+        "name": "Laddplats 1 timer 2 tid"
+      },
+      "charging_location_1_timer_2_weekdays": {
+        "name": "Laddplats 1 timer 2 veckodagar"
+      },
+      "charging_location_1_timer_3_time": {
+        "name": "Laddplats 1 timer 3 tid"
+      },
+      "charging_location_1_timer_3_weekdays": {
+        "name": "Laddplats 1 timer 3 veckodagar"
+      },
+      "charging_location_2_name": {
+        "name": "Laddplats 2"
+      },
+      "charging_location_2_active_timers": {
+        "name": "Laddplats 2 aktiva timer"
+      },
+      "charging_location_2_timer_1_time": {
+        "name": "Laddplats 2 timer 1 tid"
+      },
+      "charging_location_2_timer_1_weekdays": {
+        "name": "Laddplats 2 timer 1 veckodagar"
+      },
+      "charging_location_2_timer_2_time": {
+        "name": "Laddplats 2 timer 2 tid"
+      },
+      "charging_location_2_timer_2_weekdays": {
+        "name": "Laddplats 2 timer 2 veckodagar"
+      },
+      "charging_location_2_timer_3_time": {
+        "name": "Laddplats 2 timer 3 tid"
+      },
+      "charging_location_2_timer_3_weekdays": {
+        "name": "Laddplats 2 timer 3 veckodagar"
+      },
+      "charging_location_3_name": {
+        "name": "Laddplats 3"
+      },
+      "charging_location_3_active_timers": {
+        "name": "Laddplats 3 aktiva timer"
+      },
+      "charging_location_3_timer_1_time": {
+        "name": "Laddplats 3 timer 1 tid"
+      },
+      "charging_location_3_timer_1_weekdays": {
+        "name": "Laddplats 3 timer 1 veckodagar"
+      },
+      "charging_location_3_timer_2_time": {
+        "name": "Laddplats 3 timer 2 tid"
+      },
+      "charging_location_3_timer_2_weekdays": {
+        "name": "Laddplats 3 timer 2 veckodagar"
+      },
+      "charging_location_3_timer_3_time": {
+        "name": "Laddplats 3 timer 3 tid"
+      },
+      "charging_location_3_timer_3_weekdays": {
+        "name": "Laddplats 3 timer 3 veckodagar"
+      },
+      "charging_location_4_name": {
+        "name": "Laddplats 4"
+      },
+      "charging_location_4_active_timers": {
+        "name": "Laddplats 4 aktiva timer"
+      },
+      "charging_location_4_timer_1_time": {
+        "name": "Laddplats 4 timer 1 tid"
+      },
+      "charging_location_4_timer_1_weekdays": {
+        "name": "Laddplats 4 timer 1 veckodagar"
+      },
+      "charging_location_4_timer_2_time": {
+        "name": "Laddplats 4 timer 2 tid"
+      },
+      "charging_location_4_timer_2_weekdays": {
+        "name": "Laddplats 4 timer 2 veckodagar"
+      },
+      "charging_location_4_timer_3_time": {
+        "name": "Laddplats 4 timer 3 tid"
+      },
+      "charging_location_4_timer_3_weekdays": {
+        "name": "Laddplats 4 timer 3 veckodagar"
+      },
+      "charging_location_5_name": {
+        "name": "Laddplats 5"
+      },
+      "charging_location_5_active_timers": {
+        "name": "Laddplats 5 aktiva timer"
+      },
+      "charging_location_5_timer_1_time": {
+        "name": "Laddplats 5 timer 1 tid"
+      },
+      "charging_location_5_timer_1_weekdays": {
+        "name": "Laddplats 5 timer 1 veckodagar"
+      },
+      "charging_location_5_timer_2_time": {
+        "name": "Laddplats 5 timer 2 tid"
+      },
+      "charging_location_5_timer_2_weekdays": {
+        "name": "Laddplats 5 timer 2 veckodagar"
+      },
+      "charging_location_5_timer_3_time": {
+        "name": "Laddplats 5 timer 3 tid"
+      },
+      "charging_location_5_timer_3_weekdays": {
+        "name": "Laddplats 5 timer 3 veckodagar"
+      },
       "tyre_sensor_life_fl": {
         "name": "Trycksensor livslängd fram vänster"
       },
@@ -1715,6 +1878,15 @@
       },
       "departure_timer_3_enabled": {
         "name": "Avgångstimer 3 Aktiv"
+      },
+      "departure_timer_1_repeat": {
+        "name": "Avresetimer 1 upprepa"
+      },
+      "departure_timer_2_repeat": {
+        "name": "Avresetimer 2 upprepa"
+      },
+      "departure_timer_3_repeat": {
+        "name": "Avresetimer 3 upprepa"
       },
       "alarm_active": {
         "name": "Larm Aktivt"
@@ -1926,6 +2098,96 @@
       "connect_contract_active": {
         "name": "Connect-avtal aktivt"
       },
+      "charging_location_1_active": {
+        "name": "Laddplats 1 aktiv"
+      },
+      "charging_location_1_reduced_ac_current": {
+        "name": "Laddplats 1 minskad AC-laddström"
+      },
+      "charging_location_1_auto_release_connector": {
+        "name": "Laddplats 1 automatisk frigöring av AC-kontakt"
+      },
+      "charging_location_1_timer_1_enabled": {
+        "name": "Laddplats 1 timer 1 aktiverad"
+      },
+      "charging_location_1_timer_2_enabled": {
+        "name": "Laddplats 1 timer 2 aktiverad"
+      },
+      "charging_location_1_timer_3_enabled": {
+        "name": "Laddplats 1 timer 3 aktiverad"
+      },
+      "charging_location_2_active": {
+        "name": "Laddplats 2 aktiv"
+      },
+      "charging_location_2_reduced_ac_current": {
+        "name": "Laddplats 2 minskad AC-laddström"
+      },
+      "charging_location_2_auto_release_connector": {
+        "name": "Laddplats 2 automatisk frigöring av AC-kontakt"
+      },
+      "charging_location_2_timer_1_enabled": {
+        "name": "Laddplats 2 timer 1 aktiverad"
+      },
+      "charging_location_2_timer_2_enabled": {
+        "name": "Laddplats 2 timer 2 aktiverad"
+      },
+      "charging_location_2_timer_3_enabled": {
+        "name": "Laddplats 2 timer 3 aktiverad"
+      },
+      "charging_location_3_active": {
+        "name": "Laddplats 3 aktiv"
+      },
+      "charging_location_3_reduced_ac_current": {
+        "name": "Laddplats 3 minskad AC-laddström"
+      },
+      "charging_location_3_auto_release_connector": {
+        "name": "Laddplats 3 automatisk frigöring av AC-kontakt"
+      },
+      "charging_location_3_timer_1_enabled": {
+        "name": "Laddplats 3 timer 1 aktiverad"
+      },
+      "charging_location_3_timer_2_enabled": {
+        "name": "Laddplats 3 timer 2 aktiverad"
+      },
+      "charging_location_3_timer_3_enabled": {
+        "name": "Laddplats 3 timer 3 aktiverad"
+      },
+      "charging_location_4_active": {
+        "name": "Laddplats 4 aktiv"
+      },
+      "charging_location_4_reduced_ac_current": {
+        "name": "Laddplats 4 minskad AC-laddström"
+      },
+      "charging_location_4_auto_release_connector": {
+        "name": "Laddplats 4 automatisk frigöring av AC-kontakt"
+      },
+      "charging_location_4_timer_1_enabled": {
+        "name": "Laddplats 4 timer 1 aktiverad"
+      },
+      "charging_location_4_timer_2_enabled": {
+        "name": "Laddplats 4 timer 2 aktiverad"
+      },
+      "charging_location_4_timer_3_enabled": {
+        "name": "Laddplats 4 timer 3 aktiverad"
+      },
+      "charging_location_5_active": {
+        "name": "Laddplats 5 aktiv"
+      },
+      "charging_location_5_reduced_ac_current": {
+        "name": "Laddplats 5 minskad AC-laddström"
+      },
+      "charging_location_5_auto_release_connector": {
+        "name": "Laddplats 5 automatisk frigöring av AC-kontakt"
+      },
+      "charging_location_5_timer_1_enabled": {
+        "name": "Laddplats 5 timer 1 aktiverad"
+      },
+      "charging_location_5_timer_2_enabled": {
+        "name": "Laddplats 5 timer 2 aktiverad"
+      },
+      "charging_location_5_timer_3_enabled": {
+        "name": "Laddplats 5 timer 3 aktiverad"
+      },
       "trailer_connected": {
         "name": "Släp anslutet"
       }
@@ -1967,8 +2229,44 @@
       "auto_unlock_plug_switch": {
         "name": "Lås upp laddkontakten automatiskt"
       },
+      "climate_at_unlock_switch": {
+        "name": "Klimat vid upplåsning"
+      },
+      "window_heating_auto_switch": {
+        "name": "Automatisk rutvärme"
+      },
+      "climate_zone_front_left_switch": {
+        "name": "Klimatzon fram vänster"
+      },
+      "climate_zone_front_right_switch": {
+        "name": "Klimatzon fram höger"
+      },
       "active_ventilation_switch": {
         "name": "Aktiv ventilation"
+      },
+      "companion_read_charge_detail": {
+        "name": "Läs laddningsdetaljer"
+      },
+      "companion_read_vehicle_health": {
+        "name": "Läs fordonets status och inställningar"
+      },
+      "companion_read_climate_detail": {
+        "name": "Läs klimatdetaljer"
+      },
+      "companion_read_climate_settings": {
+        "name": "Läs klimatinställningar"
+      },
+      "companion_read_departure_times": {
+        "name": "Läs avresetider"
+      },
+      "companion_read_driving_data": {
+        "name": "Läs kördata"
+      },
+      "companion_read_parking_position": {
+        "name": "Läs parkeringsposition"
+      },
+      "companion_read_charging_locations": {
+        "name": "Läs laddplatser"
       }
     },
     "number": {
@@ -2001,6 +2299,17 @@
       },
       "scan_interval": {
         "name": "Avläsningsintervall"
+      },
+      "app_sync_interval": {
+        "name": "Intervall för fordonssynkronisering (väcker bilen)",
+        "state_attributes": {
+          "note": {
+            "name": "Anmärkning",
+            "state": {
+              "battery_protection": "Avstängt som standard. Varje synkronisering väcker bilen och förbrukar en del av dess förfrågningsbudget. För tät synkronisering kan aktivera bilens batteriskydd, och appen förblir då i nödläge tills bilen startas nästa gång. Det kortaste intervallet är 60 min; ställ in 0 för att stänga av synkroniseringen."
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2019,13 +2328,27 @@
       "historical_export_button": {
         "name": "Begär historisk export"
       },
+      "companion_refresh_button": {
+        "name": "Uppdatera data från appskärmen"
+      },
       "companion_reset_button": {
         "name": "Återställ companion-anslutning"
+      },
+      "companion_force_refresh_button": {
+        "name": "Uppdatera fordonsdata"
       }
     },
     "climate": {
       "climate": {
-        "name": "Kupévärmare"
+        "name": "Kupévärmare",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "air_conditioning": "Luftkonditionering",
+              "window_heating": "Endast rutvärme"
+            }
+          }
+        }
       }
     },
     "device_tracker": {
@@ -2050,6 +2373,13 @@
         "state": {
           "maximum": "Maximal",
           "reduced": "Reducerad"
+        }
+      },
+      "companion_climate_start_mode": {
+        "name": "Önskat startläge för klimat",
+        "state": {
+          "air_conditioning": "Luftkonditionering",
+          "window_heating": "Endast rutvärme"
         }
       }
     },
@@ -2499,6 +2829,15 @@
     }
   },
   "exceptions": {
+    "companion_limit_language_unavailable": {
+      "message": "Skrivning och synkronisering är inaktiverade: appens översättningsresurser är inte tillgängliga och det går inte att bekräfta att användargränssnittets aktuella språk är engelska, tyska eller spanska. Data kan fortfarande läsas."
+    },
+    "companion_sync_refused": {
+      "message": "Appen synkroniserade inte bilen. Varje synkronisering väcker bilen, så den nekas medan kommandon är pausade eller för kort tid efter förra kommandot. Se sensorn Appens förfrågningsstatus."
+    },
+    "companion_app_version_unverified": {
+      "message": "Kommandon är avstängda: appen på telefonen har version {version}, som ännu inte har verifierats för kommandon. Kommandon, sparningar och synkroniseringar förblir avstängda tills den här versionen har verifierats. Fordonsdata uppdateras fortfarande."
+    },
     "vehicle_not_found": {
       "message": "Fordon med VIN {vin} hittades inte."
     },
@@ -2523,6 +2862,9 @@
     "read_only_attestation_blocked": {
       "message": "VW blockerar fjärrkommandon för SEAT/CUPRA bakom en enhetskontroll från Google (Play Integrity / App Check) som bara den officiella appen på en riktig telefon klarar. Lås, klimat och laddning kan därför inte skickas härifrån. Det är en permanent blockering på VW:s serversida, inte en inställning du kan stänga av. Fordonsdata uppdateras fortfarande via EU Data Act-portalen."
     },
+    "departure_timer_enabled_required": {
+      "message": "Ange 'enabled' för fordonets avgångstimer: anslutningen kräver det. Bara companion-kanalen (ADB) kan utelämna det."
+    },
     "export_file_not_allowed": {
       "message": "Home Assistant får inte läsa {path}. Lägg exportfilen i konfigurationsmappen (eller en mapp som anges under allowlist_external_dirs) och ange sökvägen igen."
     },
@@ -2540,6 +2882,15 @@
     },
     "historical_wedge_blocked": {
       "message": "En engångsexport av historiken pågår redan för den här bilen. Portalen hanterar bara en sådan begäran i taget, så vänta tills den pågående är klar (eller når tidsgränsen) innan du begär en ny."
+    },
+    "hvac_mode_not_supported": {
+      "message": "HVAC-läget {hvac_mode} stöds inte; använd ett av: {modes}. Inget skickades."
+    },
+    "climate_preset_while_running": {
+      "message": "Stoppa klimatet först: läget kan inte ändras medan det körs. Inget skickades."
+    },
+    "climate_preset_not_supported": {
+      "message": "Läget {preset} stöds inte; använd ett av: {presets}. Inget skickades."
     }
   },
   "selector": {

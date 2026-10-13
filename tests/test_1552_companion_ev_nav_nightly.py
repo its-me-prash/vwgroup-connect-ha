@@ -116,6 +116,8 @@ class _StillTransport:
         # A bare overview with no charge-detail targets on it.
         return (
             '<?xml version="1.0" encoding="UTF-8"?><hierarchy rotation="0">'
+            '<node resource-id="rangeTile" content-desc="" text="" '
+            'class="android.view.View" clickable="false" bounds="[0,300][1080,480]" />'
             '<node resource-id="" content-desc="Vehicle is locked" text="" '
             'class="android.widget.TextView" clickable="false" '
             'bounds="[0,0][100,50]" /></hierarchy>'
@@ -135,8 +137,7 @@ class TestNavRefreshNotFrozenByCache:
         # the transport reports its app version; the "refresh ran" assertion below
         # is what proves the gate opened.)
 
-        # A prior nav read left a value in the cache, and the cadence window has
-        # elapsed (last_nav_at is None => due).
+        # A prior nav read left a value in the cache; every poll refreshes.
         channel._nav_cache = {"battery_soc": 41}
 
         seen: dict[str, object] = {}
@@ -218,6 +219,8 @@ class _RecordingTransport:
     async def dump_ui(self) -> str:
         return (
             '<?xml version="1.0" encoding="UTF-8"?><hierarchy rotation="0">'
+            '<node resource-id="rangeTile" content-desc="" text="" '
+            'class="android.view.View" clickable="false" bounds="[0,300][1080,480]" />'
             '<node resource-id="" content-desc="Vehicle is locked" text="" '
             'class="android.widget.TextView" clickable="false" '
             'bounds="[0,0][100,50]" /></hierarchy>'

@@ -1,0 +1,115 @@
+[
+  {
+    "fixture": "tiguan_overview.xml",
+    "contributor": "gszigethy",
+    "original_file": "01-vehicle-main.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "tiguan_charging.xml",
+    "contributor": "gszigethy",
+    "original_file": "04-range.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "attachment": "https://github.com/user-attachments/files/32955036/vw-ui-dumps-2026-10-02.zip",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "tiguan_target_reached.xml",
+    "contributor": "gszigethy",
+    "original_file": "02-charge-detail.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/1684",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy; battery nodes only. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "gte_overview.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Overview.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5386248711",
+    "attachment": "https://github.com/user-attachments/files/31348900/Golf.GTE.Mk8.App.4.3.2.Overview.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "gte_charging.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Charging.screen.Whilst.charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5441678954",
+    "attachment": "https://github.com/user-attachments/files/31522525/Golf.GTE.Mk8.App.4.3.2.Charging.screen.Whilst.charging.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "gte_stopped.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Charging.Screen.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5386248711",
+    "attachment": "https://github.com/user-attachments/files/31348902/Golf.GTE.Mk8.App.4.3.2.Charging.Screen.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "id4_overview.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_main_id4.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5183597867",
+    "attachment": "https://github.com/user-attachments/files/30718062/vag_connect_ui_main_id4.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "id4_charging.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_chargingscreen_id4_while_charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5200485856",
+    "attachment": "https://github.com/user-attachments/files/30771967/vag_connect_ui_chargingscreen_id4_while_charging.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "eup_charging.xml",
+    "contributor": "kgroshert",
+    "original_file": "vag_connect_ui_chargingscreen_eup_while_charging.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5189757805",
+    "attachment": "https://github.com/user-attachments/files/30736768/vag_connect_ui_chargingscreen_eup_while_charging.xml",
+    "note": "Battery nodes only; unrelated personal/vehicle data omitted."
+  },
+  {
+    "fixture": "tiguan_overview_settings.xml",
+    "contributor": "gszigethy",
+    "original_file": "ct-ov2.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); overview scrolled to the Settings row; anchor, tiles and Settings row only. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_settings.xml",
+    "contributor": "gszigethy",
+    "original_file": "ct-settings.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); vehicle Settings at the phone's own density 420; toolbar, category, charge limit row only. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_settings_dpi320.xml",
+    "contributor": "gszigethy",
+    "original_file": "geo-d320.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); the same screen with the display density set to 320 for the capture (wm density), to prove the slider geometry scales; same nodes. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_settings_dpi560.xml",
+    "contributor": "gszigethy",
+    "original_file": "geo-d560.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968#issuecomment-5950045566",
+    "note": "Local supplemental ADB capture, 2026-10-04, @gszigethy (Tiguan 1.5 l eHybrid, VW 4.3.2, Android 10, 1080x2340); the same screen at density 560; same nodes. Not from the earlier ZIP."
+  },
+  {
+    "fixture": "tiguan_settings_switches.xml",
+    "contributor": "gszigethy",
+    "source": "Local ADB capture, 2026-10-06, Tiguan Life 1.5 l eHybrid, VW app 4.3.2 (English)",
+    "note": "Vehicle Settings, top of the list: Reduced AC charging current off, Automatically release AC connector on. Read-only navigation."
+  },
+  {
+    "fixture": "vw_432_resources.json",
+    "contributor": "gszigethy",
+    "original_file": "resources.arsc from the installed Volkswagen 4.3.2 APK (original APK filenames not recorded)",
+    "source": "https://github.com/gszigethy/vwgroup-connect-ha/blob/481a07b7fbe7fd457cb5e0774ca3815f55140308/docs/COMPANION_BATTERY.md",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
+    "note": "Extraction on 2026-10-04 and APK/English split hashes documented in commit 481a07b7. English resource labels only, expanded by later commits for tested companion readers; full string tables and APK code omitted. No personal/place data. No original extraction filename or #968 comment for this JSON is recorded in git history."
+  }
+]

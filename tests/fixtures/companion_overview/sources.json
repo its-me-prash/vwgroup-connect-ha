@@ -1,0 +1,8 @@
+[
+  {
+    "fixture": "tiguan_overview_locked.xml",
+    "contributor": "gszigethy",
+    "source": "Local ADB capture, 2026-10-06, Tiguan Life 1.5 l eHybrid, VW app 4.3.2 (English)",
+    "note": "Vehicle tab overview, locked, climate off, target charge level reached. No personal data on this screen."
+  }
+]

@@ -2815,6 +2815,22 @@ class VWEUClient(CariadBaseClient):
         if not mbb_operation_granted(oplist, spec.service_id, spec.operation_id):
             oplist = await self._get_mbb_operationlist(
                 vin, for_command=True, force_refresh=True)
+        # #1807 follow-up — re-check the EU-DP marker now that the fetch above
+        # has had its chance to set it. The gate near the top of this function
+        # reads the same set, but nothing fills it except
+        # _get_mbb_operationlist, which runs here rather than before it, so on a
+        # cold marker (every fresh start until the first
+        # _refresh_mbb_command_capabilities) the early gate sees an empty set
+        # and a service call walks straight past it. The entity gate still hides
+        # the controls, so this is a race rather than an open door, but what it
+        # costs when lost is a locked vehicle PIN, which is why the second gate
+        # exists at all. Same message as the early gate on purpose: the user's
+        # situation is identical, only our bookkeeping differed.
+        if vin in getattr(self, "mbb_eudp_oplist_vins", ()):
+            raise VehicleCommandError(
+                command_name,
+                "MBB commands are not available for this car yet (its service "
+                "list comes from the EU-DP host, which is read-only for now)")
         country, country_src = self._mbb_country_with_source()
         base = mbb_service_base(
             oplist, spec.service_id, brand=self._brand.name,

@@ -163,9 +163,9 @@
           "adb_port": "Obvykle 5555 pro ADB přes Wi-Fi.",
           "vin": "17místný VIN vozidla zobrazeného v aplikaci.",
           "companion_use_addon": "Zaškrtněte u telefonu s Androidem 11 nebo novějším, který nabízí pouze bezdrátové ladění. Poté výše zadejte adresu DOPLŇKU místo adresy telefonu.",
-          "companion_addon_token": "Potřebné pouze v případě, že jste v doplňku nastavili api_token.",
+          "companion_addon_token": "Required for new add-on connections. Set the same api_token in the add-on. The bridge uses plain HTTP; use a trusted network.",
           "companion_use_relay": "Zaškrtněte, pokud na telefonu běží aplikace agenta. Telefon pak volá Home Assistant: není potřeba ADB, bezdrátové ladění ani pevná IP adresa — pole s adresou nechte prázdné.",
-          "companion_agent_token": "Náhodný token vygenerovaný aplikací agenta. Nejméně 32 znaků a pro každé vozidlo jiný."
+          "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
       "audi_mbb_fallback": {
@@ -204,10 +204,12 @@
       "companion_needs_addon": "Vypadá to na telefon s Androidem 11+ používající bezdrátové ladění, které zdejší přímé připojení neumí (vyžaduje TLS a párování). Nainstalujte doplněk 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) a nasměrujte na něj companion. Starší telefony (Android 10 a starší) se připojí přímo zde.",
       "companion_app_not_found": "Připojení k telefonu proběhlo, ale aplikace značky na něm není nainstalovaná.",
       "companion_unknown_brand": "Pro tuto značku zatím není k dispozici žádná přednastavená konfigurace doprovodného telefonu.",
-      "companion_agent_token_too_short": "Token agenta je příliš krátký. Vložte náhodný token vygenerovaný aplikací agenta (nejméně 32 znaků).",
+      "companion_agent_token_too_short": "The agent token is too short. Use a random token with at least 32 characters, such as the generated token.",
       "companion_host_required": "Zadejte IP adresu telefonu — nebo zaškrtněte volbu agenta, pokud telefon volá Home Assistant.",
       "missing_captcha": "Zadej znaky zobrazené na obrázku výše.",
-      "captcha_retry": "Pro pokračování vyřeš captcha zobrazenou výše."
+      "captcha_retry": "Pro pokračování vyřeš captcha zobrazenou výše.",
+      "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
     },
     "abort": {
       "already_configured": "Tento účet je již nastaven.",
@@ -240,7 +242,6 @@
           "fuel_tank_capacity": "Objem nádrže (litry, pro % paliva)",
           "enable_reverse_geocoding": "Reverzní geokódování (adresa parkování)",
           "read_only_mode": "Režim jen pro čtení",
-          "companion_read_charge_detail": "Companion: číst cíl nabíjení (naviguje v aplikaci)",
           "companion_wake_sleep": "Companion: probudit displej k dotazu, poté uspat",
           "companion_close_app": "Companion: zavřít aplikaci auta po každém čtení",
           "force_ppe_climate": "Audi PPE/PPC klima-tělo (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
@@ -265,9 +266,6 @@
           "vwde_cred_relogin": "Volkswagen.de: při vypršení webové relace se znovu přihlásit uloženým heslem",
           "vweu_device_grant": "Přidat VW EU Two-Way — příkazy + živé čtení dat (BETA)",
           "remove_vweu_twoway": "Odebrat VW EU Two-Way (návrat k předchozímu kanálu)",
-          "companion_read_vehicle_health": "Companion: číst stav tachometru a servis ze stavu vozidla (naviguje v aplikaci)",
-          "companion_read_climate_detail": "Companion: číst cílovou a venkovní teplotu (naviguje v aplikaci)",
-          "companion_read_parking_position": "Companion: číst pozici parkování z odkazu pro sdílení v aplikaci (naviguje v aplikaci)",
           "skoda_official_api_key": "Oficiální klíč API Škoda — přidá oficiální API výrobce jako živý zdroj dat (a zálohu)",
           "clear_skoda_official_key": "Vymazat uložený oficiální klíč API Škoda (nový se vytvoří automaticky, pokud to vaše přihlášení podporuje)",
           "skoda_official_mode": "Režim zdroje oficiálního API Škoda"
@@ -277,7 +275,6 @@
           "spin": "S-PIN pro zamykání dveří.",
           "enable_reverse_geocoding": "Odesílá GPS parkování do OpenStreetMap Nominatim pro získání ulice/města. Výchozí: vypnuto (soukromí).",
           "read_only_mode": "Když je povoleno, vytváří se pouze stavové senzory — žádné spínače, tlačítka, zámky, klima ani posuvníky odesílající příkazy. Užitečné, pokud chcete telemetrii vozidla bez rizika náhodného spuštění. Po přepnutí znovu načtěte integraci.",
-          "companion_read_charge_detail": "Pouze companion (ADB). Načítá navíc cíl nabíjení, výkon a zbývající čas, které jsou skryté za obrazovkou s detailem nabíjení. Kvůli tomu KLEPÁ do aplikace, aby se tam dostala (asi každých 15 minut), proto to zapínejte až po ověření, že postup na vašem telefonu funguje. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
           "companion_wake_sleep": "Pouze companion (ADB). Před každým dotazem probudí displej telefonu a poté ho zase uspí, takže zamčený nebo spící telefon během čtení zobrazí aplikaci, aniž by displej svítil trvale. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
           "companion_close_app": "Pouze Companion (ADB). Po každém dotazu vynuceně ukončí (zavře) aplikaci auta, takže další čtení ji spustí znovu načisto místo čtení obrazovky ponechané v mezipaměti. Pomáhá na zařízeních, kde aplikace mezi čteními zamrzne své hodnoty. Výchozí: vypnuto — studený start je pomalejší. Po přepnutí znovu načtěte.",
           "force_ppe_climate": "Pouze Audi. Vynucuje nový PPE/PPC formát těla (climatisationMode povinný, targetTemperature vynechaný) při startu klimatizace. Zapnout pouze pokud vlastníš Q6 e-tron, A6 e-tron, RS e-tron GT Facelift nebo A3 2024+ PHEV — jinak API vrátí 400. Po zapnutí znovu načti integraci.",
@@ -639,11 +636,30 @@
       "departure_timer_3_time": {
         "name": "Časovač odjezdu 3"
       },
+      "departure_timer_1_weekdays": {
+        "name": "Časovač odjezdu 1 dny v týdnu"
+      },
+      "departure_timer_2_weekdays": {
+        "name": "Časovač odjezdu 2 dny v týdnu"
+      },
+      "departure_timer_3_weekdays": {
+        "name": "Časovač odjezdu 3 dny v týdnu"
+      },
       "last_updated_at": {
         "name": "Naposledy aktualizováno"
       },
       "last_seen_at": {
         "name": "Vozidlo naposledy nahlášeno"
+      },
+      "last_vehicle_sync": {
+        "name": "Poslední synchronizace vozidla"
+      },
+      "app_request_status": {
+        "name": "Stav požadavků aplikace",
+        "state": {
+          "available": "Dostupné",
+          "restricted": "Omezené"
+        }
       },
       "adblue_range_km": {
         "name": "Dojezd AdBlue"
@@ -1088,6 +1104,13 @@
       },
       "climate_mode": {
         "name": "Režim klimatizace"
+      },
+      "climate_start_mode": {
+        "name": "Režim spuštění klimatizace",
+        "state": {
+          "air_conditioning": "Klimatizace",
+          "window_heating": "Vyhřívání oken"
+        }
       },
       "active_target_soc": {
         "name": "Aktivní cíl nabíjení"
@@ -1591,6 +1614,146 @@
       "alarm_reason": {
         "name": "Důvod alarmu"
       },
+      "companion_charge_mode": {
+        "name": "Režim nabíjení",
+        "state": {
+          "manual": "Ruční",
+          "timer": "Časovač",
+          "preferred_charging_times": "Preferované časy nabíjení",
+          "only_own_current": "Pouze vlastní energie",
+          "immediate_discharging": "Vybít nyní",
+          "timer_charging_climatization": "Časované nabíjení s klimatizací"
+        }
+      },
+      "charging_location_count": {
+        "name": "Počet nabíjecích míst"
+      },
+      "charging_location_current": {
+        "name": "Aktuální nabíjecí místo",
+        "state": {
+          "none": "Žádné"
+        }
+      },
+      "charging_location_1_name": {
+        "name": "Nabíjecí místo 1"
+      },
+      "charging_location_1_active_timers": {
+        "name": "Nabíjecí místo 1 aktivní časovače"
+      },
+      "charging_location_1_timer_1_time": {
+        "name": "Nabíjecí místo 1 časovač 1 čas"
+      },
+      "charging_location_1_timer_1_weekdays": {
+        "name": "Nabíjecí místo 1 časovač 1 dny v týdnu"
+      },
+      "charging_location_1_timer_2_time": {
+        "name": "Nabíjecí místo 1 časovač 2 čas"
+      },
+      "charging_location_1_timer_2_weekdays": {
+        "name": "Nabíjecí místo 1 časovač 2 dny v týdnu"
+      },
+      "charging_location_1_timer_3_time": {
+        "name": "Nabíjecí místo 1 časovač 3 čas"
+      },
+      "charging_location_1_timer_3_weekdays": {
+        "name": "Nabíjecí místo 1 časovač 3 dny v týdnu"
+      },
+      "charging_location_2_name": {
+        "name": "Nabíjecí místo 2"
+      },
+      "charging_location_2_active_timers": {
+        "name": "Nabíjecí místo 2 aktivní časovače"
+      },
+      "charging_location_2_timer_1_time": {
+        "name": "Nabíjecí místo 2 časovač 1 čas"
+      },
+      "charging_location_2_timer_1_weekdays": {
+        "name": "Nabíjecí místo 2 časovač 1 dny v týdnu"
+      },
+      "charging_location_2_timer_2_time": {
+        "name": "Nabíjecí místo 2 časovač 2 čas"
+      },
+      "charging_location_2_timer_2_weekdays": {
+        "name": "Nabíjecí místo 2 časovač 2 dny v týdnu"
+      },
+      "charging_location_2_timer_3_time": {
+        "name": "Nabíjecí místo 2 časovač 3 čas"
+      },
+      "charging_location_2_timer_3_weekdays": {
+        "name": "Nabíjecí místo 2 časovač 3 dny v týdnu"
+      },
+      "charging_location_3_name": {
+        "name": "Nabíjecí místo 3"
+      },
+      "charging_location_3_active_timers": {
+        "name": "Nabíjecí místo 3 aktivní časovače"
+      },
+      "charging_location_3_timer_1_time": {
+        "name": "Nabíjecí místo 3 časovač 1 čas"
+      },
+      "charging_location_3_timer_1_weekdays": {
+        "name": "Nabíjecí místo 3 časovač 1 dny v týdnu"
+      },
+      "charging_location_3_timer_2_time": {
+        "name": "Nabíjecí místo 3 časovač 2 čas"
+      },
+      "charging_location_3_timer_2_weekdays": {
+        "name": "Nabíjecí místo 3 časovač 2 dny v týdnu"
+      },
+      "charging_location_3_timer_3_time": {
+        "name": "Nabíjecí místo 3 časovač 3 čas"
+      },
+      "charging_location_3_timer_3_weekdays": {
+        "name": "Nabíjecí místo 3 časovač 3 dny v týdnu"
+      },
+      "charging_location_4_name": {
+        "name": "Nabíjecí místo 4"
+      },
+      "charging_location_4_active_timers": {
+        "name": "Nabíjecí místo 4 aktivní časovače"
+      },
+      "charging_location_4_timer_1_time": {
+        "name": "Nabíjecí místo 4 časovač 1 čas"
+      },
+      "charging_location_4_timer_1_weekdays": {
+        "name": "Nabíjecí místo 4 časovač 1 dny v týdnu"
+      },
+      "charging_location_4_timer_2_time": {
+        "name": "Nabíjecí místo 4 časovač 2 čas"
+      },
+      "charging_location_4_timer_2_weekdays": {
+        "name": "Nabíjecí místo 4 časovač 2 dny v týdnu"
+      },
+      "charging_location_4_timer_3_time": {
+        "name": "Nabíjecí místo 4 časovač 3 čas"
+      },
+      "charging_location_4_timer_3_weekdays": {
+        "name": "Nabíjecí místo 4 časovač 3 dny v týdnu"
+      },
+      "charging_location_5_name": {
+        "name": "Nabíjecí místo 5"
+      },
+      "charging_location_5_active_timers": {
+        "name": "Nabíjecí místo 5 aktivní časovače"
+      },
+      "charging_location_5_timer_1_time": {
+        "name": "Nabíjecí místo 5 časovač 1 čas"
+      },
+      "charging_location_5_timer_1_weekdays": {
+        "name": "Nabíjecí místo 5 časovač 1 dny v týdnu"
+      },
+      "charging_location_5_timer_2_time": {
+        "name": "Nabíjecí místo 5 časovač 2 čas"
+      },
+      "charging_location_5_timer_2_weekdays": {
+        "name": "Nabíjecí místo 5 časovač 2 dny v týdnu"
+      },
+      "charging_location_5_timer_3_time": {
+        "name": "Nabíjecí místo 5 časovač 3 čas"
+      },
+      "charging_location_5_timer_3_weekdays": {
+        "name": "Nabíjecí místo 5 časovač 3 dny v týdnu"
+      },
       "tyre_sensor_life_fl": {
         "name": "Životnost snímače tlaku vpředu vlevo"
       },
@@ -1715,6 +1878,15 @@
       },
       "departure_timer_3_enabled": {
         "name": "Časovač Odjezdu 3 Aktivní"
+      },
+      "departure_timer_1_repeat": {
+        "name": "Časovač odjezdu 1 opakovat"
+      },
+      "departure_timer_2_repeat": {
+        "name": "Časovač odjezdu 2 opakovat"
+      },
+      "departure_timer_3_repeat": {
+        "name": "Časovač odjezdu 3 opakovat"
       },
       "alarm_active": {
         "name": "Alarm Aktivní"
@@ -1926,6 +2098,96 @@
       "connect_contract_active": {
         "name": "Smlouva Connect aktivní"
       },
+      "charging_location_1_active": {
+        "name": "Nabíjecí místo 1 aktivní"
+      },
+      "charging_location_1_reduced_ac_current": {
+        "name": "Nabíjecí místo 1 snížený nabíjecí proud AC"
+      },
+      "charging_location_1_auto_release_connector": {
+        "name": "Nabíjecí místo 1 automatické uvolnění konektoru AC"
+      },
+      "charging_location_1_timer_1_enabled": {
+        "name": "Nabíjecí místo 1 časovač 1 zapnutý"
+      },
+      "charging_location_1_timer_2_enabled": {
+        "name": "Nabíjecí místo 1 časovač 2 zapnutý"
+      },
+      "charging_location_1_timer_3_enabled": {
+        "name": "Nabíjecí místo 1 časovač 3 zapnutý"
+      },
+      "charging_location_2_active": {
+        "name": "Nabíjecí místo 2 aktivní"
+      },
+      "charging_location_2_reduced_ac_current": {
+        "name": "Nabíjecí místo 2 snížený nabíjecí proud AC"
+      },
+      "charging_location_2_auto_release_connector": {
+        "name": "Nabíjecí místo 2 automatické uvolnění konektoru AC"
+      },
+      "charging_location_2_timer_1_enabled": {
+        "name": "Nabíjecí místo 2 časovač 1 zapnutý"
+      },
+      "charging_location_2_timer_2_enabled": {
+        "name": "Nabíjecí místo 2 časovač 2 zapnutý"
+      },
+      "charging_location_2_timer_3_enabled": {
+        "name": "Nabíjecí místo 2 časovač 3 zapnutý"
+      },
+      "charging_location_3_active": {
+        "name": "Nabíjecí místo 3 aktivní"
+      },
+      "charging_location_3_reduced_ac_current": {
+        "name": "Nabíjecí místo 3 snížený nabíjecí proud AC"
+      },
+      "charging_location_3_auto_release_connector": {
+        "name": "Nabíjecí místo 3 automatické uvolnění konektoru AC"
+      },
+      "charging_location_3_timer_1_enabled": {
+        "name": "Nabíjecí místo 3 časovač 1 zapnutý"
+      },
+      "charging_location_3_timer_2_enabled": {
+        "name": "Nabíjecí místo 3 časovač 2 zapnutý"
+      },
+      "charging_location_3_timer_3_enabled": {
+        "name": "Nabíjecí místo 3 časovač 3 zapnutý"
+      },
+      "charging_location_4_active": {
+        "name": "Nabíjecí místo 4 aktivní"
+      },
+      "charging_location_4_reduced_ac_current": {
+        "name": "Nabíjecí místo 4 snížený nabíjecí proud AC"
+      },
+      "charging_location_4_auto_release_connector": {
+        "name": "Nabíjecí místo 4 automatické uvolnění konektoru AC"
+      },
+      "charging_location_4_timer_1_enabled": {
+        "name": "Nabíjecí místo 4 časovač 1 zapnutý"
+      },
+      "charging_location_4_timer_2_enabled": {
+        "name": "Nabíjecí místo 4 časovač 2 zapnutý"
+      },
+      "charging_location_4_timer_3_enabled": {
+        "name": "Nabíjecí místo 4 časovač 3 zapnutý"
+      },
+      "charging_location_5_active": {
+        "name": "Nabíjecí místo 5 aktivní"
+      },
+      "charging_location_5_reduced_ac_current": {
+        "name": "Nabíjecí místo 5 snížený nabíjecí proud AC"
+      },
+      "charging_location_5_auto_release_connector": {
+        "name": "Nabíjecí místo 5 automatické uvolnění konektoru AC"
+      },
+      "charging_location_5_timer_1_enabled": {
+        "name": "Nabíjecí místo 5 časovač 1 zapnutý"
+      },
+      "charging_location_5_timer_2_enabled": {
+        "name": "Nabíjecí místo 5 časovač 2 zapnutý"
+      },
+      "charging_location_5_timer_3_enabled": {
+        "name": "Nabíjecí místo 5 časovač 3 zapnutý"
+      },
       "trailer_connected": {
         "name": "Přívěs připojen"
       }
@@ -1967,8 +2229,44 @@
       "auto_unlock_plug_switch": {
         "name": "Automatické odemknutí nabíjecí zástrčky"
       },
+      "climate_at_unlock_switch": {
+        "name": "Klimatizace při odemknutí"
+      },
+      "window_heating_auto_switch": {
+        "name": "Automatické vyhřívání oken"
+      },
+      "climate_zone_front_left_switch": {
+        "name": "Klimatická zóna vpředu vlevo"
+      },
+      "climate_zone_front_right_switch": {
+        "name": "Klimatická zóna vpředu vpravo"
+      },
       "active_ventilation_switch": {
         "name": "Aktivní větrání"
+      },
+      "companion_read_charge_detail": {
+        "name": "Číst detail nabíjení"
+      },
+      "companion_read_vehicle_health": {
+        "name": "Číst stav vozidla a nastavení"
+      },
+      "companion_read_climate_detail": {
+        "name": "Číst detail klimatizace"
+      },
+      "companion_read_climate_settings": {
+        "name": "Číst nastavení klimatizace"
+      },
+      "companion_read_departure_times": {
+        "name": "Číst časy odjezdu"
+      },
+      "companion_read_driving_data": {
+        "name": "Číst jízdní data"
+      },
+      "companion_read_parking_position": {
+        "name": "Číst parkovací polohu"
+      },
+      "companion_read_charging_locations": {
+        "name": "Číst nabíjecí místa"
       }
     },
     "number": {
@@ -2001,6 +2299,17 @@
       },
       "scan_interval": {
         "name": "Interval dotazování"
+      },
+      "app_sync_interval": {
+        "name": "Interval synchronizace vozidla (probouzí vozidlo)",
+        "state_attributes": {
+          "note": {
+            "name": "Poznámka",
+            "state": {
+              "battery_protection": "Ve výchozím nastavení vypnuto. Každá synchronizace probudí vozidlo a čerpá jeho limit požadavků. Příliš častá synchronizace může aktivovat ochranu baterie vozidla a aplikace pak zůstane v nouzovém režimu až do příštího nastartování vozidla. Nejkratší interval je 60 min; nastavením na 0 synchronizaci vypnete."
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2019,13 +2328,27 @@
       "historical_export_button": {
         "name": "Vyžádat historický export"
       },
+      "companion_refresh_button": {
+        "name": "Obnovit data z obrazovky aplikace"
+      },
       "companion_reset_button": {
         "name": "Resetovat spojení companion"
+      },
+      "companion_force_refresh_button": {
+        "name": "Obnovit data vozidla"
       }
     },
     "climate": {
       "climate": {
-        "name": "Klimatizace"
+        "name": "Klimatizace",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "air_conditioning": "Klimatizace",
+              "window_heating": "Pouze vyhřívání oken"
+            }
+          }
+        }
       }
     },
     "device_tracker": {
@@ -2050,6 +2373,13 @@
         "state": {
           "maximum": "Maximální",
           "reduced": "Snížený"
+        }
+      },
+      "companion_climate_start_mode": {
+        "name": "Požadovaný režim spuštění klimatizace",
+        "state": {
+          "air_conditioning": "Klimatizace",
+          "window_heating": "Pouze vyhřívání oken"
         }
       }
     },
@@ -2499,6 +2829,15 @@
     }
   },
   "exceptions": {
+    "companion_limit_language_unavailable": {
+      "message": "Zápis a synchronizace jsou zakázány: překladové prostředky aplikace nejsou k dispozici a nelze ověřit, zda je aktuální jazyk uživatelského rozhraní angličtina, němčina nebo španělština. Čtení dat nadále funguje."
+    },
+    "companion_sync_refused": {
+      "message": "Aplikace vozidlo nesynchronizovala. Každá synchronizace probouzí vozidlo, proto je odmítnuta, když jsou příkazy pozastaveny nebo příliš brzy po posledním příkazu. Zkontrolujte senzor Stav požadavků aplikace."
+    },
+    "companion_app_version_unverified": {
+      "message": "Příkazy jsou vypnuté: aplikace v telefonu má verzi {version}, která zatím nebyla ověřena pro příkazy. Příkazy, ukládání a synchronizace zůstanou vypnuté, dokud nebude tato verze ověřena. Data vozidla se dál aktualizují."
+    },
     "vehicle_not_found": {
       "message": "Vozidlo s VIN {vin} nebylo nalezeno."
     },
@@ -2523,6 +2862,9 @@
     "read_only_attestation_blocked": {
       "message": "VW blokuje vzdálené příkazy pro SEAT/CUPRA za ověřením zařízení od Googlu (Play Integrity / App Check), kterým projde jen oficiální aplikace na skutečném telefonu. Zamýkání, klimatizaci ani nabíjení proto odsud nelze odeslat. Jde o trvalé serverové omezení ze strany VW, nikoli o přepínatelné nastavení. Data vozidla se dál aktualizují přes portál EU Data Act."
     },
+    "departure_timer_enabled_required": {
+      "message": "Nastavte 'enabled' pro časovač odjezdu tohoto vozidla: jeho připojení to vyžaduje. Vynechat to může jen kanál companion (ADB)."
+    },
     "export_file_not_allowed": {
       "message": "Home Assistant nemá povoleno číst {path}. Umístěte soubor s exportem do konfigurační složky (nebo do složky uvedené v allowlist_external_dirs) a zadejte cestu znovu."
     },
@@ -2540,6 +2882,15 @@
     },
     "historical_wedge_blocked": {
       "message": "Pro toto auto už probíhá jednorázový export historie. Portál zpracovává vždy jen jeden takový požadavek, takže než si vyžádáte další, počkejte, až se ten aktuální dokončí (nebo vyprší)."
+    },
+    "hvac_mode_not_supported": {
+      "message": "Režim HVAC {hvac_mode} není podporován; použijte jeden z: {modes}. Nic nebylo odesláno."
+    },
+    "climate_preset_while_running": {
+      "message": "Nejprve zastavte klimatizaci: režim nelze měnit, když běží. Nic nebylo odesláno."
+    },
+    "climate_preset_not_supported": {
+      "message": "Režim {preset} není podporován; použijte jeden z: {presets}. Nic nebylo odesláno."
     }
   },
   "selector": {

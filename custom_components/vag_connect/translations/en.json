@@ -163,9 +163,9 @@
           "adb_port": "Usually 5555 for ADB over Wi-Fi.",
           "vin": "The 17-character VIN of the car shown in the app.",
           "companion_use_addon": "Tick this for an Android 11 or newer phone, which only offers wireless debugging. Then enter the ADD-ON's address above instead of the phone's.",
-          "companion_addon_token": "Only needed if you set api_token in the add-on.",
+          "companion_addon_token": "Required for new add-on connections. Set the same api_token in the add-on. The bridge uses plain HTTP; use a trusted network.",
           "companion_use_relay": "Tick this when the phone runs the companion agent app. The phone then calls Home Assistant, so no ADB, no wireless debugging and no fixed phone IP are needed — leave the address field empty.",
-          "companion_agent_token": "The random token the agent app generated. At least 32 characters, and a different one for every vehicle."
+          "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
       "audi_mbb_fallback": {
@@ -204,10 +204,12 @@
       "companion_needs_addon": "This looks like an Android 11+ phone using wireless debugging, which the direct connection here cannot use (it is TLS + pairing). Install the 'VW Group App ADB Bridge' add-on (github.com/its-me-prash/vwgroup-app-adb-bridge) and point the companion at it. Older phones (Android 10 or earlier) connect here directly.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet.",
-      "companion_agent_token_too_short": "The agent token is too short. Paste the random token the agent app generated (at least 32 characters).",
+      "companion_agent_token_too_short": "The agent token is too short. Use a random token with at least 32 characters, such as the generated token.",
       "companion_host_required": "Enter the phone's IP address — or tick the companion agent option if the phone calls Home Assistant instead.",
       "missing_captcha": "Please type the characters shown in the image above.",
-      "captcha_retry": "Please solve the captcha shown above to continue."
+      "captcha_retry": "Please solve the captcha shown above to continue.",
+      "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
     },
     "abort": {
       "already_configured": "This account is already configured.",
@@ -240,7 +242,6 @@
           "fuel_tank_capacity": "Fuel tank capacity (litres, for fuel level %)",
           "enable_reverse_geocoding": "Reverse Geocoding (parking address)",
           "read_only_mode": "Read-only Mode",
-          "companion_read_charge_detail": "Companion: read charge target (navigates the app)",
           "companion_wake_sleep": "Companion: wake screen to poll, sleep after",
           "companion_close_app": "Companion: close car app after each read",
           "force_ppe_climate": "Audi PPE/PPC Climate body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
@@ -265,9 +266,6 @@
           "test_cohort": "Help improve VW Group Connect (opt-in test cohort)",
           "vwde_cred_relogin": "Volkswagen.de: re-login with your stored password when the web session dies",
           "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)",
-          "companion_read_vehicle_health": "Companion: read odometer and service from Vehicle Health (navigates the app)",
-          "companion_read_climate_detail": "Companion: read target and outside temperature (navigates the app)",
-          "companion_read_parking_position": "Companion: read parking position from the app's share link (navigates the app)",
           "skoda_official_api_key": "Škoda official API key — adds the official manufacturer API as a live data source (and failover)",
           "clear_skoda_official_key": "Clear the stored Škoda official API key (a fresh one is created automatically if your login supports it)",
           "skoda_official_mode": "Škoda official-API source mode"
@@ -277,7 +275,6 @@
           "spin": "S-PIN for door locking. App → Security → S-PIN.",
           "enable_reverse_geocoding": "Sends parking GPS to OpenStreetMap Nominatim to resolve street/city. Off by default for privacy.",
           "read_only_mode": "When enabled, only status sensors are created — no switches, buttons, locks, climate or sliders that send commands. Useful if you want vehicle telemetry without any risk of accidental actuation. Reload the integration after toggling.",
-          "companion_read_charge_detail": "Companion (ADB) only. Also reads the charge target, power and remaining time that live behind the charge-detail screen. This TAPS the app to navigate there (about every 15 minutes), so enable it only after confirming the flow works on your phone. Off by default. Reload after toggling.",
           "companion_wake_sleep": "Companion (ADB) only. Wakes the phone display before each poll and puts it back to sleep afterwards, so a locked or sleeping phone shows the app during the read without keeping the screen on permanently. Off by default. Reload after toggling.",
           "companion_close_app": "Companion (ADB) only. Force-stops (closes) the car app after each poll, so the next read relaunches it fresh instead of scraping a screen the app left cached. Helps on devices where the app freezes its values between reads. Off by default — a cold relaunch is slower. Reload after toggling.",
           "force_ppe_climate": "Audi-only. Forces the new PPE/PPC body shape (climatisationMode mandatory, targetTemperature omitted) on climate start. Enable only if you own a Q6 e-tron, A6 e-tron, RS e-tron GT Facelift or A3 2024+ PHEV — climate-start otherwise returns 400. Reload the integration after toggling.",
@@ -645,11 +642,30 @@
       "departure_timer_3_time": {
         "name": "Departure timer 3"
       },
+      "departure_timer_1_weekdays": {
+        "name": "Departure timer 1 weekdays"
+      },
+      "departure_timer_2_weekdays": {
+        "name": "Departure timer 2 weekdays"
+      },
+      "departure_timer_3_weekdays": {
+        "name": "Departure timer 3 weekdays"
+      },
       "last_updated_at": {
         "name": "Last Update"
       },
       "last_seen_at": {
         "name": "Vehicle Last Reported"
+      },
+      "last_vehicle_sync": {
+        "name": "Last vehicle sync"
+      },
+      "app_request_status": {
+        "name": "App request status",
+        "state": {
+          "available": "Available",
+          "restricted": "Restricted"
+        }
       },
       "adblue_range_km": {
         "name": "AdBlue Range"
@@ -1088,6 +1104,13 @@
       },
       "climate_mode": {
         "name": "Climate mode"
+      },
+      "climate_start_mode": {
+        "name": "Climate Start Mode",
+        "state": {
+          "air_conditioning": "Air conditioning",
+          "window_heating": "Window heating"
+        }
       },
       "active_target_soc": {
         "name": "Active charge target"
@@ -1591,6 +1614,146 @@
       "alarm_reason": {
         "name": "Alarm Reason"
       },
+      "companion_charge_mode": {
+        "name": "Charging Mode",
+        "state": {
+          "manual": "Manual",
+          "timer": "Timer",
+          "preferred_charging_times": "Preferred charging times",
+          "only_own_current": "Own power only",
+          "immediate_discharging": "Discharge now",
+          "timer_charging_climatization": "Timer charging with climate control"
+        }
+      },
+      "charging_location_count": {
+        "name": "Charging location count"
+      },
+      "charging_location_current": {
+        "name": "Current charging location",
+        "state": {
+          "none": "None"
+        }
+      },
+      "charging_location_1_name": {
+        "name": "Charging location 1"
+      },
+      "charging_location_1_active_timers": {
+        "name": "Charging location 1 active timers"
+      },
+      "charging_location_1_timer_1_time": {
+        "name": "Charging location 1 timer 1 time"
+      },
+      "charging_location_1_timer_1_weekdays": {
+        "name": "Charging location 1 timer 1 weekdays"
+      },
+      "charging_location_1_timer_2_time": {
+        "name": "Charging location 1 timer 2 time"
+      },
+      "charging_location_1_timer_2_weekdays": {
+        "name": "Charging location 1 timer 2 weekdays"
+      },
+      "charging_location_1_timer_3_time": {
+        "name": "Charging location 1 timer 3 time"
+      },
+      "charging_location_1_timer_3_weekdays": {
+        "name": "Charging location 1 timer 3 weekdays"
+      },
+      "charging_location_2_name": {
+        "name": "Charging location 2"
+      },
+      "charging_location_2_active_timers": {
+        "name": "Charging location 2 active timers"
+      },
+      "charging_location_2_timer_1_time": {
+        "name": "Charging location 2 timer 1 time"
+      },
+      "charging_location_2_timer_1_weekdays": {
+        "name": "Charging location 2 timer 1 weekdays"
+      },
+      "charging_location_2_timer_2_time": {
+        "name": "Charging location 2 timer 2 time"
+      },
+      "charging_location_2_timer_2_weekdays": {
+        "name": "Charging location 2 timer 2 weekdays"
+      },
+      "charging_location_2_timer_3_time": {
+        "name": "Charging location 2 timer 3 time"
+      },
+      "charging_location_2_timer_3_weekdays": {
+        "name": "Charging location 2 timer 3 weekdays"
+      },
+      "charging_location_3_name": {
+        "name": "Charging location 3"
+      },
+      "charging_location_3_active_timers": {
+        "name": "Charging location 3 active timers"
+      },
+      "charging_location_3_timer_1_time": {
+        "name": "Charging location 3 timer 1 time"
+      },
+      "charging_location_3_timer_1_weekdays": {
+        "name": "Charging location 3 timer 1 weekdays"
+      },
+      "charging_location_3_timer_2_time": {
+        "name": "Charging location 3 timer 2 time"
+      },
+      "charging_location_3_timer_2_weekdays": {
+        "name": "Charging location 3 timer 2 weekdays"
+      },
+      "charging_location_3_timer_3_time": {
+        "name": "Charging location 3 timer 3 time"
+      },
+      "charging_location_3_timer_3_weekdays": {
+        "name": "Charging location 3 timer 3 weekdays"
+      },
+      "charging_location_4_name": {
+        "name": "Charging location 4"
+      },
+      "charging_location_4_active_timers": {
+        "name": "Charging location 4 active timers"
+      },
+      "charging_location_4_timer_1_time": {
+        "name": "Charging location 4 timer 1 time"
+      },
+      "charging_location_4_timer_1_weekdays": {
+        "name": "Charging location 4 timer 1 weekdays"
+      },
+      "charging_location_4_timer_2_time": {
+        "name": "Charging location 4 timer 2 time"
+      },
+      "charging_location_4_timer_2_weekdays": {
+        "name": "Charging location 4 timer 2 weekdays"
+      },
+      "charging_location_4_timer_3_time": {
+        "name": "Charging location 4 timer 3 time"
+      },
+      "charging_location_4_timer_3_weekdays": {
+        "name": "Charging location 4 timer 3 weekdays"
+      },
+      "charging_location_5_name": {
+        "name": "Charging location 5"
+      },
+      "charging_location_5_active_timers": {
+        "name": "Charging location 5 active timers"
+      },
+      "charging_location_5_timer_1_time": {
+        "name": "Charging location 5 timer 1 time"
+      },
+      "charging_location_5_timer_1_weekdays": {
+        "name": "Charging location 5 timer 1 weekdays"
+      },
+      "charging_location_5_timer_2_time": {
+        "name": "Charging location 5 timer 2 time"
+      },
+      "charging_location_5_timer_2_weekdays": {
+        "name": "Charging location 5 timer 2 weekdays"
+      },
+      "charging_location_5_timer_3_time": {
+        "name": "Charging location 5 timer 3 time"
+      },
+      "charging_location_5_timer_3_weekdays": {
+        "name": "Charging location 5 timer 3 weekdays"
+      },
       "tyre_sensor_life_fl": {
         "name": "Tyre sensor life front-left"
       },
@@ -1727,6 +1890,15 @@
       },
       "departure_timer_3_enabled": {
         "name": "Departure Timer 3 Enabled"
+      },
+      "departure_timer_1_repeat": {
+        "name": "Departure timer 1 repeat"
+      },
+      "departure_timer_2_repeat": {
+        "name": "Departure timer 2 repeat"
+      },
+      "departure_timer_3_repeat": {
+        "name": "Departure timer 3 repeat"
       },
       "alarm_active": {
         "name": "Alarm Active"
@@ -1926,6 +2098,96 @@
       "connect_contract_active": {
         "name": "Connect Contract Active"
       },
+      "charging_location_1_active": {
+        "name": "Charging location 1 active"
+      },
+      "charging_location_1_reduced_ac_current": {
+        "name": "Charging location 1 reduced AC charging current"
+      },
+      "charging_location_1_auto_release_connector": {
+        "name": "Charging location 1 automatically release AC connector"
+      },
+      "charging_location_1_timer_1_enabled": {
+        "name": "Charging location 1 timer 1 enabled"
+      },
+      "charging_location_1_timer_2_enabled": {
+        "name": "Charging location 1 timer 2 enabled"
+      },
+      "charging_location_1_timer_3_enabled": {
+        "name": "Charging location 1 timer 3 enabled"
+      },
+      "charging_location_2_active": {
+        "name": "Charging location 2 active"
+      },
+      "charging_location_2_reduced_ac_current": {
+        "name": "Charging location 2 reduced AC charging current"
+      },
+      "charging_location_2_auto_release_connector": {
+        "name": "Charging location 2 automatically release AC connector"
+      },
+      "charging_location_2_timer_1_enabled": {
+        "name": "Charging location 2 timer 1 enabled"
+      },
+      "charging_location_2_timer_2_enabled": {
+        "name": "Charging location 2 timer 2 enabled"
+      },
+      "charging_location_2_timer_3_enabled": {
+        "name": "Charging location 2 timer 3 enabled"
+      },
+      "charging_location_3_active": {
+        "name": "Charging location 3 active"
+      },
+      "charging_location_3_reduced_ac_current": {
+        "name": "Charging location 3 reduced AC charging current"
+      },
+      "charging_location_3_auto_release_connector": {
+        "name": "Charging location 3 automatically release AC connector"
+      },
+      "charging_location_3_timer_1_enabled": {
+        "name": "Charging location 3 timer 1 enabled"
+      },
+      "charging_location_3_timer_2_enabled": {
+        "name": "Charging location 3 timer 2 enabled"
+      },
+      "charging_location_3_timer_3_enabled": {
+        "name": "Charging location 3 timer 3 enabled"
+      },
+      "charging_location_4_active": {
+        "name": "Charging location 4 active"
+      },
+      "charging_location_4_reduced_ac_current": {
+        "name": "Charging location 4 reduced AC charging current"
+      },
+      "charging_location_4_auto_release_connector": {
+        "name": "Charging location 4 automatically release AC connector"
+      },
+      "charging_location_4_timer_1_enabled": {
+        "name": "Charging location 4 timer 1 enabled"
+      },
+      "charging_location_4_timer_2_enabled": {
+        "name": "Charging location 4 timer 2 enabled"
+      },
+      "charging_location_4_timer_3_enabled": {
+        "name": "Charging location 4 timer 3 enabled"
+      },
+      "charging_location_5_active": {
+        "name": "Charging location 5 active"
+      },
+      "charging_location_5_reduced_ac_current": {
+        "name": "Charging location 5 reduced AC charging current"
+      },
+      "charging_location_5_auto_release_connector": {
+        "name": "Charging location 5 automatically release AC connector"
+      },
+      "charging_location_5_timer_1_enabled": {
+        "name": "Charging location 5 timer 1 enabled"
+      },
+      "charging_location_5_timer_2_enabled": {
+        "name": "Charging location 5 timer 2 enabled"
+      },
+      "charging_location_5_timer_3_enabled": {
+        "name": "Charging location 5 timer 3 enabled"
+      },
       "trailer_connected": {
         "name": "Trailer connected"
       }
@@ -1967,8 +2229,44 @@
       "auto_unlock_plug_switch": {
         "name": "Auto-unlock charging plug"
       },
+      "climate_at_unlock_switch": {
+        "name": "Climate at unlock"
+      },
+      "window_heating_auto_switch": {
+        "name": "Automatic window heating"
+      },
+      "climate_zone_front_left_switch": {
+        "name": "Climate zone front left"
+      },
+      "climate_zone_front_right_switch": {
+        "name": "Climate zone front right"
+      },
       "active_ventilation_switch": {
         "name": "Active ventilation"
+      },
+      "companion_read_charge_detail": {
+        "name": "Read charge detail"
+      },
+      "companion_read_vehicle_health": {
+        "name": "Read Vehicle Health & Settings"
+      },
+      "companion_read_climate_detail": {
+        "name": "Read climate detail"
+      },
+      "companion_read_climate_settings": {
+        "name": "Read climate settings"
+      },
+      "companion_read_departure_times": {
+        "name": "Read departure times"
+      },
+      "companion_read_driving_data": {
+        "name": "Read driving data"
+      },
+      "companion_read_parking_position": {
+        "name": "Read parking position"
+      },
+      "companion_read_charging_locations": {
+        "name": "Read charging locations"
       }
     },
     "number": {
@@ -2001,6 +2299,17 @@
       },
       "scan_interval": {
         "name": "Poll interval"
+      },
+      "app_sync_interval": {
+        "name": "Vehicle sync interval (wakes the car)",
+        "state_attributes": {
+          "note": {
+            "name": "Note",
+            "state": {
+              "battery_protection": "Off by default. Each sync wakes the car and uses its request budget. Syncing too often can make the car's battery protection kick in, and the app then stays in failsafe mode until the car is next started. The shortest interval is 60 min; set to 0 to turn the sync off."
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2019,13 +2328,27 @@
       "historical_export_button": {
         "name": "Request historical export"
       },
+      "companion_refresh_button": {
+        "name": "Refresh app screen data"
+      },
       "companion_reset_button": {
         "name": "Reset companion connection"
+      },
+      "companion_force_refresh_button": {
+        "name": "Refresh vehicle data"
       }
     },
     "climate": {
       "climate": {
-        "name": "Climate Control"
+        "name": "Climate Control",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "air_conditioning": "Air conditioning",
+              "window_heating": "Window heating only"
+            }
+          }
+        }
       }
     },
     "device_tracker": {
@@ -2050,6 +2373,13 @@
         "state": {
           "maximum": "Maximum",
           "reduced": "Reduced"
+        }
+      },
+      "companion_climate_start_mode": {
+        "name": "Desired Climate Start Mode",
+        "state": {
+          "air_conditioning": "Air conditioning",
+          "window_heating": "Window heating only"
         }
       }
     },
@@ -2499,6 +2829,15 @@
     }
   },
   "exceptions": {
+    "companion_limit_language_unavailable": {
+      "message": "Writes and synchronisation are disabled: app translation resources are unavailable and the current UI language cannot be confirmed as English, German or Spanish. Reads continue."
+    },
+    "companion_sync_refused": {
+      "message": "The app did not sync the car. Each sync wakes the car, so it is refused while commands are paused or too soon after the last command. Check the App request status sensor."
+    },
+    "companion_app_version_unverified": {
+      "message": "Commands are off: the app on the phone is version {version}, which has not been verified for commands yet. Commands, saves and syncs stay off until this version is verified. Vehicle data still updates."
+    },
     "vehicle_not_found": {
       "message": "Vehicle with VIN {vin} not found. Check that the integration is started."
     },
@@ -2523,6 +2862,9 @@
     "read_only_attestation_blocked": {
       "message": "VW blocks remote commands for SEAT/CUPRA behind a Google device-attestation check (Play Integrity / App Check) that only the official app on a genuine phone can pass, so lock, climate and charging can't be sent from here. This is a permanent VW server-side lockdown, not a setting you can toggle. Vehicle data still updates via the EU Data Act portal."
     },
+    "departure_timer_enabled_required": {
+      "message": "Set 'enabled' for this vehicle's departure timer: its connection needs it. Only the companion (ADB) channel can leave it out."
+    },
     "export_file_not_allowed": {
       "message": "Home Assistant is not allowed to read {path}. Put the export file in the config folder (or a folder listed under allowlist_external_dirs) and pass its path again."
     },
@@ -2540,6 +2882,15 @@
     },
     "historical_wedge_blocked": {
       "message": "A one-time historical export is already in progress for this car. The portal handles one request of this kind at a time, so wait for the current one to finish (or time out) before requesting another."
+    },
+    "hvac_mode_not_supported": {
+      "message": "The HVAC mode {hvac_mode} is not supported; use one of: {modes}. Nothing was sent."
+    },
+    "climate_preset_while_running": {
+      "message": "Stop the climate first: the mode cannot change while it runs. Nothing was sent."
+    },
+    "climate_preset_not_supported": {
+      "message": "The mode {preset} is not supported; use one of: {presets}. Nothing was sent."
     }
   },
   "selector": {

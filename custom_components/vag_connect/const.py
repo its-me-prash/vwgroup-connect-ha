@@ -25,6 +25,17 @@ CONF_CAPTCHA_CODE             = "captcha_code"
 # the phone's app shows. EXPERIMENTAL, opt-in from the hub menu.
 CONF_STRATEGY                 = "strategy"
 STRATEGY_COMPANION_ADB        = "companion_adb"
+# A companion entry often sits next to a cloud or EU Data Act entry for the
+# same car. Its vehicle entities carry this infix in their unique id
+# ("{vin}_companion_{key}") so the two entries never claim the same id; with a
+# bare "{vin}_{key}" the entry set up second lost every shared entity (battery
+# level, ranges, doors locked, currently charging, …) to HA's duplicate check.
+COMPANION_UNIQUE_ID_INFIX     = "companion"
+# Set in a companion entry's data once its registered ids were moved to that
+# namespace; its value is the version of that move (see __init__.py). Entity
+# keys never start with "companion_": the helper adds the infix, so the reset
+# button's key is "reset_button" and its id stays "{vin}_companion_reset_button".
+CONF_COMPANION_UID_NAMESPACE  = "companion_uid_namespace"
 CONF_ADB_HOST                 = "adb_host"
 CONF_ADB_PORT                 = "adb_port"
 CONF_VIN                      = "vin"
@@ -34,11 +45,16 @@ DEFAULT_ADB_PORT              = 5555
 # in-memory backoff clearing on restart is fine for a TCP blip, dangerous for a
 # real lockout). Written by the coordinator after a poll; restored at setup.
 CONF_COMPANION_RATE_LIMIT_UNTIL = "companion_rate_limit_until"
+# Wall-clock time of the last companion command tap, for the gap between them.
+CONF_COMPANION_LAST_WRITE_AT = "companion_last_write_at"
 # v2.26.0 (C9) — opt-in: also read the charge-target/power/time that live behind
 # the charge-detail screen. OFF by default because it TAPS the app to navigate
 # there (a forward tap, unlike a plain screen dump); only a user who has
 # confirmed the flow on their device should turn it on.
 CONF_COMPANION_READ_CHARGE_DETAIL = "companion_read_charge_detail"
+# Maximum age of a cached app-screen nav read; not the car's sync age.
+COMPANION_NAV_MAX_AGE_S = 24 * 60 * 60
+
 # v2.26.0 (#974) — opt-in: wake the phone display before a poll and put it back
 # to sleep afterwards, so a locked/asleep phone shows the app (not the keyguard)
 # without needing "Stay awake" on permanently. OFF by default.
@@ -76,7 +92,30 @@ COMPANION_MIN_TOKEN_LEN          = 32
 # which is read from the coordinates in the app's own share link.
 CONF_COMPANION_READ_VEHICLE_HEALTH   = "companion_read_vehicle_health"
 CONF_COMPANION_READ_CLIMATE_DETAIL   = "companion_read_climate_detail"
+# Climate Settings sheet (climate at unlock, automatic window heating, zones):
+# one tap deeper than the climate detail, so it has its own opt-in.
+CONF_COMPANION_READ_CLIMATE_SETTINGS = "companion_read_climate_settings"
 CONF_COMPANION_READ_PARKING_POSITION = "companion_read_parking_position"
+# The Departure times screen: each timer's time and on/off switch (read only).
+CONF_COMPANION_READ_CHARGING_LOCATIONS = "companion_read_charging_locations"
+CONF_COMPANION_READ_DEPARTURE_TIMES = "companion_read_departure_times"
+# The Driving data screen: the last trip and the trip since charging/refuelling.
+CONF_COMPANION_READ_DRIVING_DATA = "companion_read_driving_data"
+# #968 — how often the companion asks the car itself for fresh data, via the
+# app's vehicle Settings → "Synchronise now". Separate from CONF_SCAN_INTERVAL,
+# which only re-reads the app screen: a sync wakes the car, so it runs on its
+# own, slower clock. Minutes, on the settings device's slider; 0 turns it off.
+# Off by default and opt-in (each sync wakes the car and spends its request
+# budget); setup writes 0 into companion entries that have no value yet. The
+# 60 min floor caps an opted-in sync at 24 wakes a day (the old 5 min floor
+# allowed 288), while still allowing hourly data on top of the app's own
+# automatic wake-up every 3 h.
+CONF_COMPANION_APP_SYNC_INTERVAL     = "companion_app_sync_interval"
+COMPANION_APP_SYNC_OFF               = 0
+DEFAULT_COMPANION_APP_SYNC_INTERVAL  = COMPANION_APP_SYNC_OFF
+MIN_COMPANION_APP_SYNC_INTERVAL      = 60
+MAX_COMPANION_APP_SYNC_INTERVAL      = 240
+COMPANION_APP_SYNC_STEP              = 5
 # v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
 # vehicle has no entry here the shared CONF_SPIN is used, so existing
 # single-S-PIN setups are unchanged. Set via the Options flow.
@@ -473,6 +512,25 @@ RECOMMENDED_SCAN_INTERVAL: dict[str, int] = {
     # catches the post-drive snapshot.
     "audi_acpp": 60,
 }
+
+
+# Tag in the entity ids of new companion entities, so sensor.tiguan_adb_battery_level
+# can't be mistaken for the cloud entry's sensor.tiguan_battery_level of the same
+# car. Entity names stay as they are ("Tiguan Battery Level").
+COMPANION_NAME_TAG = "ADB"
+
+
+def vehicle_unique_id(vin: str, key: str, *, companion: bool = False) -> str:
+    """Unique id of a per-vehicle entity; companion entries get their own namespace."""
+    if companion:
+        return f"{vin}_{COMPANION_UNIQUE_ID_INFIX}_{key}"
+    return f"{vin}_{key}"
+
+
+def is_companion_entry_data(data: object) -> bool:
+    """True if a config entry's ``data`` mapping describes a companion (ADB) entry."""
+    get = getattr(data, "get", None)
+    return bool(callable(get) and get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB)
 
 
 def recommended_scan_interval(brand: str | None) -> int:

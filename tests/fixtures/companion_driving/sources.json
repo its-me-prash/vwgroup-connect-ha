@@ -1,0 +1,14 @@
+[
+  {
+    "fixture": "tiguan_driving.xml",
+    "contributor": "gszigethy",
+    "original_file": "09-driving.xml",
+    "note": "Local read-only ADB capture of Driving data, 2026-10-06, @gszigethy (Tiguan eHybrid, app 4.3.2, English). The second trip card is clipped at the edge."
+  },
+  {
+    "fixture": "tiguan_driving_swiped.xml",
+    "contributor": "gszigethy",
+    "original_file": "32-driving-swiped.xml",
+    "note": "The same screen after one sideways swipe of the trip carousel, 2026-10-06."
+  }
+]

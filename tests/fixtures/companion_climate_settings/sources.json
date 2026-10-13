@@ -1,0 +1,90 @@
+[
+  {
+    "fixture": "overview.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/settings-save/00-start.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Overview before opening Air Conditioning.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "sheet.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/settings-save/07-exit.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Air Conditioning sheet after leaving Settings unchanged. Town redacted.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "settings.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/settings-save/02-settings.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Climate Settings as saved: both switches off, Zones 'Front left'. No Save.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "settings_aux_staged.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/settings-save/03-aux-on.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Auxiliary air conditioning switched on, not saved: Save appears.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "settings_aux_unstaged.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/settings-save/04-aux-back.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. The same switch switched back: Save disappears.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "settings_wh_staged.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/settings-save/05-wh-on.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Automatic window heating switched on, not saved: Save appears.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "zones.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/64-zones.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Zones page: front left on, front right off.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "zones_fr_on.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/65-fr-on.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Zones page after tapping front right.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "settings_2zones_staged.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/66-staged1.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Settings after the Zones page's toolbar arrow: '2 zones' staged, Save shown.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "sheet_after_save.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/67-s1-0s.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Right after Save: the app closed Settings onto the sheet. Town redacted.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  },
+  {
+    "fixture": "settings_2zones_saved.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/71-s1-reenter-settings.xml",
+    "note": "Tiguan 1.5 l eHybrid, VW 4.6.4, live ADB capture 2026-10-08. Settings opened again after Save: '2 zones' saved, no Save.",
+    "source": "Local capture, 2026-10-08; contributor and original file recorded in commit 7f60e9bdbd28a2bbc44f0b010028a84f9a7fc2c8. No #968 publication/comment link recorded in git history.",
+    "related_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968"
+  }
+]

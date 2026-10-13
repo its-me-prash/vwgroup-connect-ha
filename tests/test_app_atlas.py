@@ -20,7 +20,6 @@ _REPO_ROOT      = Path(__file__).resolve().parent.parent
 _CONFIG_PATH    = _REPO_ROOT / "scripts" / "app_atlas" / "config.json"
 _SCRIPT_PATH    = _REPO_ROOT / "scripts" / "app_atlas" / "build_atlas.py"
 _EXTRACTOR_PATH = _REPO_ROOT / "scripts" / "app_atlas" / "apk_extractor.py"
-_WORKFLOW_PATH  = _REPO_ROOT / ".github" / "workflows" / "app-atlas-builder.yml"
 _ATLAS_DIR      = _REPO_ROOT / "docs" / "research" / "app-atlas"
 _NOTES_DIR      = _REPO_ROOT / "scripts" / "app_atlas" / "notes"
 
@@ -163,45 +162,6 @@ class TestBuildScript:
     def test_supports_single_brand_filter(self) -> None:
         src = _SCRIPT_PATH.read_text(encoding="utf-8")
         assert "--brand" in src
-
-
-# ──────────────────────────────────────────────────────────────────────
-# 3. Workflow file
-# ──────────────────────────────────────────────────────────────────────
-
-
-class TestWorkflow:
-    def test_workflow_exists(self) -> None:
-        assert _WORKFLOW_PATH.exists()
-
-    def test_runs_daily(self) -> None:
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        # Daily cron, 04:00 UTC (different from upstream-ola-watcher to
-        # avoid runner contention).
-        assert '"0 4 * * *"' in src
-
-    def test_has_write_permissions(self) -> None:
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        assert "contents: write" in src
-        assert "pull-requests: write" in src
-
-    def test_opens_pr_on_changes(self) -> None:
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        assert "gh pr create" in src
-        assert "auto-atlas" in src  # label
-
-    def test_idempotent_pr_dedup(self) -> None:
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        assert "gh pr list" in src
-
-    def test_no_auto_merge(self) -> None:
-        """Safety: APKMirror/Uptodown could return junk data; human reviews."""
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        assert "gh pr merge" not in src
-
-    def test_runs_atlas_builder_script(self) -> None:
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        assert "scripts/app_atlas/build_atlas.py" in src
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -371,14 +331,6 @@ class TestPhaseA2Integration:
         src = _SCRIPT_PATH.read_text(encoding="utf-8")
         assert "Discovered via APK extraction" in src
 
-    def test_workflow_installs_apktool(self) -> None:
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        assert "apt-get install" in src and "apktool" in src
-
-    def test_workflow_passes_with_apk_extraction_flag(self) -> None:
-        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
-        assert "--with-apk-extraction" in src
-
 
 class TestAllBrandsHaveApkcomboSlug:
     """Phase A.2 currently uses APKCombo CDN — every brand needs a slug."""
@@ -398,7 +350,6 @@ class TestAllBrandsHaveApkcomboSlug:
 _JADX_PATH         = _REPO_ROOT / "scripts" / "app_atlas" / "jadx_decompiler.py"
 _VERSION_DIFF_PATH = _REPO_ROOT / "scripts" / "app_atlas" / "version_diff.py"
 _DEEP_DIFF_PATH    = _REPO_ROOT / "scripts" / "app_atlas" / "run_deep_diff.py"
-_DEEP_DIFF_WF_PATH = _REPO_ROOT / ".github" / "workflows" / "app-atlas-deep-diff.yml"
 _DIFFS_DIR         = _ATLAS_DIR / "diffs"
 
 
@@ -451,50 +402,9 @@ class TestPhaseA3Modules:
         assert "--new-version" in src
 
 
-class TestPhaseA3Workflow:
-    """Manual-trigger workflow for deep-diff generation."""
+class TestPhaseA3Docs:
+    """Documentation for locally generated deep-diff reports."""
 
-    def test_workflow_exists(self) -> None:
-        assert _DEEP_DIFF_WF_PATH.exists()
-
-    def test_workflow_is_manual_only(self) -> None:
-        """Deep diff is too heavy for scheduled runs — manual only."""
-        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
-        assert "workflow_dispatch:" in src
-        # Critical: NO schedule trigger — would burn through CI budget.
-        assert "schedule:" not in src
-
-    def test_workflow_inputs_present(self) -> None:
-        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
-        assert "brand:" in src
-        assert "old_version:" in src
-        assert "new_version:" in src
-
-    def test_workflow_brand_choice_constrained(self) -> None:
-        """Brand input restricted to the brands we know — and offering all of
-        them: a brand in the config with no choice option is a brand nobody can
-        deep-diff without editing the workflow first."""
-        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
-        for brand in _brand_keys():
-            assert f"          - {brand}" in src, (
-                f"workflow_dispatch brand input missing choice for {brand}"
-            )
-
-    def test_workflow_installs_jadx_and_rg(self) -> None:
-        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
-        assert "jadx" in src
-        assert "ripgrep" in src
-
-    def test_workflow_opens_pr_with_report(self) -> None:
-        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
-        assert "gh pr create" in src
-        assert "diffs/" in src
-        assert "auto-atlas-diff" in src  # label
-
-    def test_workflow_does_not_auto_merge(self) -> None:
-        """Safety: maintainer reviews + merges the diff report."""
-        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
-        assert "gh pr merge" not in src
 
     def test_diffs_directory_has_readme(self) -> None:
         """Empty diffs/ dir gets a README so new contributors find docs."""

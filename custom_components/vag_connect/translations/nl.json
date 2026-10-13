@@ -163,9 +163,9 @@
           "adb_port": "Meestal 5555 voor ADB via Wi-Fi.",
           "vin": "Het VIN van 17 tekens van de auto die in de app wordt getoond.",
           "companion_use_addon": "Vink dit aan voor een telefoon met Android 11 of nieuwer, die alleen draadloos debuggen biedt. Voer dan hierboven het adres van de ADD-ON in in plaats van dat van de telefoon.",
-          "companion_addon_token": "Alleen nodig als je api_token in de add-on hebt ingesteld.",
+          "companion_addon_token": "Required for new add-on connections. Set the same api_token in the add-on. The bridge uses plain HTTP; use a trusted network.",
           "companion_use_relay": "Vink dit aan als de telefoon de companion-agent-app draait. De telefoon belt dan Home Assistant, dus ADB, draadloos debuggen en een vast IP zijn niet nodig — laat het adresveld leeg.",
-          "companion_agent_token": "Het willekeurige token uit de agent-app. Minstens 32 tekens, en voor elk voertuig een ander."
+          "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
       "audi_mbb_fallback": {
@@ -204,10 +204,12 @@
       "companion_needs_addon": "Dit lijkt een telefoon met Android 11 of nieuwer die draadloos debuggen gebruikt; de directe verbinding hier kan daar niet mee overweg (dat is TLS + koppelen). Installeer de add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) en laat de companion daarnaar wijzen. Oudere telefoons (Android 10 of ouder) verbinden hier rechtstreeks.",
       "companion_app_not_found": "Verbonden met de telefoon, maar de merk-app is er niet op geïnstalleerd.",
       "companion_unknown_brand": "Voor dat merk is nog geen voorinstelling voor de reservetelefoon beschikbaar.",
-      "companion_agent_token_too_short": "Het agent-token is te kort. Plak het willekeurige token dat de agent-app heeft gegenereerd (minstens 32 tekens).",
+      "companion_agent_token_too_short": "The agent token is too short. Use a random token with at least 32 characters, such as the generated token.",
       "companion_host_required": "Voer het IP-adres van de telefoon in — of vink de agent-optie aan als de telefoon Home Assistant belt.",
       "missing_captcha": "Voer de tekens in die in de afbeelding hierboven worden getoond.",
-      "captcha_retry": "Los de captcha hierboven op om door te gaan."
+      "captcha_retry": "Los de captcha hierboven op om door te gaan.",
+      "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
     },
     "abort": {
       "already_configured": "Dit account is al geconfigureerd.",
@@ -240,7 +242,6 @@
           "fuel_tank_capacity": "Tankinhoud (liter, voor brandstof %)",
           "enable_reverse_geocoding": "Reverse geocoding (parkeeradres)",
           "read_only_mode": "Alleen-lezen modus",
-          "companion_read_charge_detail": "Companion: laaddoel lezen (navigeert in de app)",
           "companion_wake_sleep": "Companion: scherm wekken om op te halen, daarna weer in slaap",
           "companion_close_app": "Companion: auto-app na elke uitlezing sluiten",
           "force_ppe_climate": "Audi PPE/PPC klimaat-body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
@@ -265,9 +266,6 @@
           "vwde_cred_relogin": "Volkswagen.de: opnieuw inloggen met het opgeslagen wachtwoord als de websessie verloopt",
           "vweu_device_grant": "VW EU Two-Way toevoegen — commando's + live uitlezingen (BÈTA)",
           "remove_vweu_twoway": "VW EU Two-Way verwijderen (terug naar het vorige kanaal)",
-          "companion_read_vehicle_health": "Companion: kilometerstand en onderhoud uit de voertuigcheck lezen (navigeert in de app)",
-          "companion_read_climate_detail": "Companion: streef- en buitentemperatuur lezen (navigeert in de app)",
-          "companion_read_parking_position": "Companion: parkeerpositie uit de deellink van de app lezen (navigeert in de app)",
           "skoda_official_api_key": "Officiële Škoda API-sleutel — voegt de officiële fabrikant-API toe als live databron (en failover)",
           "clear_skoda_official_key": "Wis de opgeslagen officiële Škoda API-sleutel (er wordt automatisch een nieuwe aangemaakt als je login dit ondersteunt)",
           "skoda_official_mode": "Škoda officiële-API-bronmodus"
@@ -277,7 +275,6 @@
           "spin": "S-PIN voor deurvergrendeling.",
           "enable_reverse_geocoding": "Verzendt parkeer-GPS naar OpenStreetMap Nominatim om straat/stad te vinden. Standaard uit (privacy).",
           "read_only_mode": "Indien ingeschakeld worden alleen statussensoren aangemaakt — geen schakelaars, knoppen, sloten, klimaat of schuifregelaars die commando's verzenden. Handig als je voertuigtelemetrie wilt zonder risico op onbedoelde bediening. Herlaad de integratie na inschakelen.",
-          "companion_read_charge_detail": "Alleen voor Companion (ADB). Leest ook het laaddoel, het vermogen en de resterende tijd die achter het laaddetailscherm zitten. Hiervoor wordt er in de app GETIKT om daarheen te navigeren (ongeveer elke 15 minuten), dus schakel dit pas in als je hebt bevestigd dat dit op je telefoon werkt. Standaard uit. Herlaad de integratie na het wijzigen.",
           "companion_wake_sleep": "Alleen voor Companion (ADB). Wekt het scherm van de telefoon vóór elke opvraging en laat het daarna weer slapen, zodat een vergrendelde of slapende telefoon de app toont tijdens het lezen zonder het scherm permanent aan te laten staan. Standaard uit. Herlaad de integratie na het wijzigen.",
           "companion_close_app": "Alleen Companion (ADB). Stopt (sluit) de auto-app na elke uitlezing geforceerd, zodat de volgende uitlezing hem vers opstart in plaats van een in cache achtergebleven scherm te lezen. Nuttig op toestellen waar de app zijn waarden tussen uitlezingen bevriest. Standaard uit — een koude herstart is trager. Herlaad na wijziging.",
           "force_ppe_climate": "Alleen voor Audi. Forceert het nieuwe PPE/PPC body-formaat (climatisationMode verplicht, targetTemperature weggelaten) bij klimaat-start. Alleen inschakelen als je een Q6 e-tron, A6 e-tron, RS e-tron GT Facelift of A3 2024+ PHEV bezit — anders geeft de API 400 terug. Integratie herladen na inschakelen.",
@@ -639,11 +636,30 @@
       "departure_timer_3_time": {
         "name": "Vertrektimer 3"
       },
+      "departure_timer_1_weekdays": {
+        "name": "Vertrektimer 1 weekdagen"
+      },
+      "departure_timer_2_weekdays": {
+        "name": "Vertrektimer 2 weekdagen"
+      },
+      "departure_timer_3_weekdays": {
+        "name": "Vertrektimer 3 weekdagen"
+      },
       "last_updated_at": {
         "name": "Laatste update"
       },
       "last_seen_at": {
         "name": "Voertuig laatst gemeld"
+      },
+      "last_vehicle_sync": {
+        "name": "Laatste voertuigsynchronisatie"
+      },
+      "app_request_status": {
+        "name": "Status app-verzoeken",
+        "state": {
+          "available": "Beschikbaar",
+          "restricted": "Beperkt"
+        }
       },
       "adblue_range_km": {
         "name": "AdBlue bereik"
@@ -1088,6 +1104,13 @@
       },
       "climate_mode": {
         "name": "Klimaatmodus"
+      },
+      "climate_start_mode": {
+        "name": "Startmodus klimaatregeling",
+        "state": {
+          "air_conditioning": "Airconditioning",
+          "window_heating": "Ruitverwarming"
+        }
       },
       "active_target_soc": {
         "name": "Actief laaddoel"
@@ -1591,6 +1614,146 @@
       "alarm_reason": {
         "name": "Alarmreden"
       },
+      "companion_charge_mode": {
+        "name": "Laadmodus",
+        "state": {
+          "manual": "Handmatig",
+          "timer": "Timer",
+          "preferred_charging_times": "Voorkeurslaadtijden",
+          "only_own_current": "Alleen eigen stroom",
+          "immediate_discharging": "Nu ontladen",
+          "timer_charging_climatization": "Getimed laden met klimaatregeling"
+        }
+      },
+      "charging_location_count": {
+        "name": "Aantal laadlocaties"
+      },
+      "charging_location_current": {
+        "name": "Huidige laadlocatie",
+        "state": {
+          "none": "Geen"
+        }
+      },
+      "charging_location_1_name": {
+        "name": "Laadlocatie 1"
+      },
+      "charging_location_1_active_timers": {
+        "name": "Laadlocatie 1 actieve timers"
+      },
+      "charging_location_1_timer_1_time": {
+        "name": "Laadlocatie 1 timer 1 tijd"
+      },
+      "charging_location_1_timer_1_weekdays": {
+        "name": "Laadlocatie 1 timer 1 weekdagen"
+      },
+      "charging_location_1_timer_2_time": {
+        "name": "Laadlocatie 1 timer 2 tijd"
+      },
+      "charging_location_1_timer_2_weekdays": {
+        "name": "Laadlocatie 1 timer 2 weekdagen"
+      },
+      "charging_location_1_timer_3_time": {
+        "name": "Laadlocatie 1 timer 3 tijd"
+      },
+      "charging_location_1_timer_3_weekdays": {
+        "name": "Laadlocatie 1 timer 3 weekdagen"
+      },
+      "charging_location_2_name": {
+        "name": "Laadlocatie 2"
+      },
+      "charging_location_2_active_timers": {
+        "name": "Laadlocatie 2 actieve timers"
+      },
+      "charging_location_2_timer_1_time": {
+        "name": "Laadlocatie 2 timer 1 tijd"
+      },
+      "charging_location_2_timer_1_weekdays": {
+        "name": "Laadlocatie 2 timer 1 weekdagen"
+      },
+      "charging_location_2_timer_2_time": {
+        "name": "Laadlocatie 2 timer 2 tijd"
+      },
+      "charging_location_2_timer_2_weekdays": {
+        "name": "Laadlocatie 2 timer 2 weekdagen"
+      },
+      "charging_location_2_timer_3_time": {
+        "name": "Laadlocatie 2 timer 3 tijd"
+      },
+      "charging_location_2_timer_3_weekdays": {
+        "name": "Laadlocatie 2 timer 3 weekdagen"
+      },
+      "charging_location_3_name": {
+        "name": "Laadlocatie 3"
+      },
+      "charging_location_3_active_timers": {
+        "name": "Laadlocatie 3 actieve timers"
+      },
+      "charging_location_3_timer_1_time": {
+        "name": "Laadlocatie 3 timer 1 tijd"
+      },
+      "charging_location_3_timer_1_weekdays": {
+        "name": "Laadlocatie 3 timer 1 weekdagen"
+      },
+      "charging_location_3_timer_2_time": {
+        "name": "Laadlocatie 3 timer 2 tijd"
+      },
+      "charging_location_3_timer_2_weekdays": {
+        "name": "Laadlocatie 3 timer 2 weekdagen"
+      },
+      "charging_location_3_timer_3_time": {
+        "name": "Laadlocatie 3 timer 3 tijd"
+      },
+      "charging_location_3_timer_3_weekdays": {
+        "name": "Laadlocatie 3 timer 3 weekdagen"
+      },
+      "charging_location_4_name": {
+        "name": "Laadlocatie 4"
+      },
+      "charging_location_4_active_timers": {
+        "name": "Laadlocatie 4 actieve timers"
+      },
+      "charging_location_4_timer_1_time": {
+        "name": "Laadlocatie 4 timer 1 tijd"
+      },
+      "charging_location_4_timer_1_weekdays": {
+        "name": "Laadlocatie 4 timer 1 weekdagen"
+      },
+      "charging_location_4_timer_2_time": {
+        "name": "Laadlocatie 4 timer 2 tijd"
+      },
+      "charging_location_4_timer_2_weekdays": {
+        "name": "Laadlocatie 4 timer 2 weekdagen"
+      },
+      "charging_location_4_timer_3_time": {
+        "name": "Laadlocatie 4 timer 3 tijd"
+      },
+      "charging_location_4_timer_3_weekdays": {
+        "name": "Laadlocatie 4 timer 3 weekdagen"
+      },
+      "charging_location_5_name": {
+        "name": "Laadlocatie 5"
+      },
+      "charging_location_5_active_timers": {
+        "name": "Laadlocatie 5 actieve timers"
+      },
+      "charging_location_5_timer_1_time": {
+        "name": "Laadlocatie 5 timer 1 tijd"
+      },
+      "charging_location_5_timer_1_weekdays": {
+        "name": "Laadlocatie 5 timer 1 weekdagen"
+      },
+      "charging_location_5_timer_2_time": {
+        "name": "Laadlocatie 5 timer 2 tijd"
+      },
+      "charging_location_5_timer_2_weekdays": {
+        "name": "Laadlocatie 5 timer 2 weekdagen"
+      },
+      "charging_location_5_timer_3_time": {
+        "name": "Laadlocatie 5 timer 3 tijd"
+      },
+      "charging_location_5_timer_3_weekdays": {
+        "name": "Laadlocatie 5 timer 3 weekdagen"
+      },
       "tyre_sensor_life_fl": {
         "name": "Levensduur druksensor linksvoor"
       },
@@ -1715,6 +1878,15 @@
       },
       "departure_timer_3_enabled": {
         "name": "Vertrektimer 3 Actief"
+      },
+      "departure_timer_1_repeat": {
+        "name": "Vertrektimer 1 herhalen"
+      },
+      "departure_timer_2_repeat": {
+        "name": "Vertrektimer 2 herhalen"
+      },
+      "departure_timer_3_repeat": {
+        "name": "Vertrektimer 3 herhalen"
       },
       "alarm_active": {
         "name": "Alarm Actief"
@@ -1926,6 +2098,96 @@
       "connect_contract_active": {
         "name": "Connect-contract actief"
       },
+      "charging_location_1_active": {
+        "name": "Laadlocatie 1 actief"
+      },
+      "charging_location_1_reduced_ac_current": {
+        "name": "Laadlocatie 1 verminderde AC-laadstroom"
+      },
+      "charging_location_1_auto_release_connector": {
+        "name": "Laadlocatie 1 AC-stekker automatisch ontgrendelen"
+      },
+      "charging_location_1_timer_1_enabled": {
+        "name": "Laadlocatie 1 timer 1 ingeschakeld"
+      },
+      "charging_location_1_timer_2_enabled": {
+        "name": "Laadlocatie 1 timer 2 ingeschakeld"
+      },
+      "charging_location_1_timer_3_enabled": {
+        "name": "Laadlocatie 1 timer 3 ingeschakeld"
+      },
+      "charging_location_2_active": {
+        "name": "Laadlocatie 2 actief"
+      },
+      "charging_location_2_reduced_ac_current": {
+        "name": "Laadlocatie 2 verminderde AC-laadstroom"
+      },
+      "charging_location_2_auto_release_connector": {
+        "name": "Laadlocatie 2 AC-stekker automatisch ontgrendelen"
+      },
+      "charging_location_2_timer_1_enabled": {
+        "name": "Laadlocatie 2 timer 1 ingeschakeld"
+      },
+      "charging_location_2_timer_2_enabled": {
+        "name": "Laadlocatie 2 timer 2 ingeschakeld"
+      },
+      "charging_location_2_timer_3_enabled": {
+        "name": "Laadlocatie 2 timer 3 ingeschakeld"
+      },
+      "charging_location_3_active": {
+        "name": "Laadlocatie 3 actief"
+      },
+      "charging_location_3_reduced_ac_current": {
+        "name": "Laadlocatie 3 verminderde AC-laadstroom"
+      },
+      "charging_location_3_auto_release_connector": {
+        "name": "Laadlocatie 3 AC-stekker automatisch ontgrendelen"
+      },
+      "charging_location_3_timer_1_enabled": {
+        "name": "Laadlocatie 3 timer 1 ingeschakeld"
+      },
+      "charging_location_3_timer_2_enabled": {
+        "name": "Laadlocatie 3 timer 2 ingeschakeld"
+      },
+      "charging_location_3_timer_3_enabled": {
+        "name": "Laadlocatie 3 timer 3 ingeschakeld"
+      },
+      "charging_location_4_active": {
+        "name": "Laadlocatie 4 actief"
+      },
+      "charging_location_4_reduced_ac_current": {
+        "name": "Laadlocatie 4 verminderde AC-laadstroom"
+      },
+      "charging_location_4_auto_release_connector": {
+        "name": "Laadlocatie 4 AC-stekker automatisch ontgrendelen"
+      },
+      "charging_location_4_timer_1_enabled": {
+        "name": "Laadlocatie 4 timer 1 ingeschakeld"
+      },
+      "charging_location_4_timer_2_enabled": {
+        "name": "Laadlocatie 4 timer 2 ingeschakeld"
+      },
+      "charging_location_4_timer_3_enabled": {
+        "name": "Laadlocatie 4 timer 3 ingeschakeld"
+      },
+      "charging_location_5_active": {
+        "name": "Laadlocatie 5 actief"
+      },
+      "charging_location_5_reduced_ac_current": {
+        "name": "Laadlocatie 5 verminderde AC-laadstroom"
+      },
+      "charging_location_5_auto_release_connector": {
+        "name": "Laadlocatie 5 AC-stekker automatisch ontgrendelen"
+      },
+      "charging_location_5_timer_1_enabled": {
+        "name": "Laadlocatie 5 timer 1 ingeschakeld"
+      },
+      "charging_location_5_timer_2_enabled": {
+        "name": "Laadlocatie 5 timer 2 ingeschakeld"
+      },
+      "charging_location_5_timer_3_enabled": {
+        "name": "Laadlocatie 5 timer 3 ingeschakeld"
+      },
       "trailer_connected": {
         "name": "Aanhanger aangekoppeld"
       }
@@ -1967,8 +2229,44 @@
       "auto_unlock_plug_switch": {
         "name": "Laadstekker automatisch ontgrendelen"
       },
+      "climate_at_unlock_switch": {
+        "name": "Klimaat bij ontgrendelen"
+      },
+      "window_heating_auto_switch": {
+        "name": "Automatische ruitverwarming"
+      },
+      "climate_zone_front_left_switch": {
+        "name": "Klimaatzone linksvoor"
+      },
+      "climate_zone_front_right_switch": {
+        "name": "Klimaatzone rechtsvoor"
+      },
       "active_ventilation_switch": {
         "name": "Actieve ventilatie"
+      },
+      "companion_read_charge_detail": {
+        "name": "Laaddetails lezen"
+      },
+      "companion_read_vehicle_health": {
+        "name": "Voertuigstatus en instellingen lezen"
+      },
+      "companion_read_climate_detail": {
+        "name": "Klimaatdetails lezen"
+      },
+      "companion_read_climate_settings": {
+        "name": "Klimaatinstellingen lezen"
+      },
+      "companion_read_departure_times": {
+        "name": "Vertrektijden lezen"
+      },
+      "companion_read_driving_data": {
+        "name": "Rijgegevens lezen"
+      },
+      "companion_read_parking_position": {
+        "name": "Parkeerpositie lezen"
+      },
+      "companion_read_charging_locations": {
+        "name": "Laadlocaties lezen"
       }
     },
     "number": {
@@ -2001,6 +2299,17 @@
       },
       "scan_interval": {
         "name": "Pollinterval"
+      },
+      "app_sync_interval": {
+        "name": "Synchronisatie-interval voertuig (wekt het voertuig)",
+        "state_attributes": {
+          "note": {
+            "name": "Opmerking",
+            "state": {
+              "battery_protection": "Standaard uitgeschakeld. Elke synchronisatie maakt de auto wakker en verbruikt een deel van het verzoekenbudget. Te vaak synchroniseren kan de accubescherming van de auto activeren. De app blijft dan in de noodmodus totdat de auto opnieuw wordt gestart. Het kortste interval is 60 min; stel in op 0 om synchronisatie uit te schakelen."
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2019,13 +2328,27 @@
       "historical_export_button": {
         "name": "Historische export aanvragen"
       },
+      "companion_refresh_button": {
+        "name": "App-schermgegevens vernieuwen"
+      },
       "companion_reset_button": {
         "name": "Companion-verbinding resetten"
+      },
+      "companion_force_refresh_button": {
+        "name": "Voertuiggegevens vernieuwen"
       }
     },
     "climate": {
       "climate": {
-        "name": "Standklimatisering"
+        "name": "Standklimatisering",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "air_conditioning": "Airconditioning",
+              "window_heating": "Alleen ruitverwarming"
+            }
+          }
+        }
       }
     },
     "device_tracker": {
@@ -2050,6 +2373,13 @@
         "state": {
           "maximum": "Maximaal",
           "reduced": "Gereduceerd"
+        }
+      },
+      "companion_climate_start_mode": {
+        "name": "Gewenste startmodus klimaatregeling",
+        "state": {
+          "air_conditioning": "Airconditioning",
+          "window_heating": "Alleen ruitverwarming"
         }
       }
     },
@@ -2499,6 +2829,15 @@
     }
   },
   "exceptions": {
+    "companion_limit_language_unavailable": {
+      "message": "Schrijven en synchroniseren zijn uitgeschakeld: de vertaalbronnen van de app zijn niet beschikbaar en er kan niet worden bevestigd dat de huidige taal van de gebruikersinterface Engels, Duits of Spaans is. Gegevens kunnen nog steeds worden uitgelezen."
+    },
+    "companion_sync_refused": {
+      "message": "De app heeft het voertuig niet gesynchroniseerd. Elke synchronisatie wekt het voertuig, dus die wordt geweigerd zolang opdrachten gepauzeerd zijn of te kort na de vorige opdracht. Bekijk de sensor Status app-verzoeken."
+    },
+    "companion_app_version_unverified": {
+      "message": "Opdrachten staan uit: de app op de telefoon is versie {version}, die nog niet is geverifieerd voor opdrachten. Opdrachten, opslaan en synchroniseren blijven uit totdat deze versie is geverifieerd. Voertuiggegevens worden nog steeds bijgewerkt."
+    },
     "vehicle_not_found": {
       "message": "Voertuig met VIN {vin} niet gevonden."
     },
@@ -2523,6 +2862,9 @@
     "read_only_attestation_blocked": {
       "message": "VW blokkeert opdrachten op afstand voor SEAT/CUPRA achter een Google-apparaatcontrole (Play Integrity / App Check) die alleen de officiële app op een echte telefoon kan doorstaan. Vergrendeling, klimaat en laden kunnen daarom niet vanaf hier worden verstuurd. Dit is een permanente blokkering aan de serverkant van VW, geen instelling die je kunt uitschakelen. Voertuiggegevens worden nog steeds bijgewerkt via het EU Data Act-portaal."
     },
+    "departure_timer_enabled_required": {
+      "message": "Geef 'enabled' op voor de vertrektimer van dit voertuig: de verbinding heeft het nodig. Alleen het companion-kanaal (ADB) kan het weglaten."
+    },
     "export_file_not_allowed": {
       "message": "Home Assistant mag {path} niet lezen. Zet het exportbestand in de configuratiemap (of in een map die onder allowlist_external_dirs staat) en geef het pad opnieuw op."
     },
@@ -2540,6 +2882,15 @@
     },
     "historical_wedge_blocked": {
       "message": "Er loopt al een eenmalige export van de geschiedenis voor deze auto. Het portaal verwerkt maar één zo'n verzoek tegelijk, dus wacht tot het huidige klaar is (of een time-out krijgt) voordat je een nieuwe aanvraagt."
+    },
+    "hvac_mode_not_supported": {
+      "message": "De HVAC-modus {hvac_mode} wordt niet ondersteund; gebruik een van: {modes}. Er is niets verzonden."
+    },
+    "climate_preset_while_running": {
+      "message": "Stop eerst de klimaatregeling: de modus kan niet veranderen terwijl die loopt. Er is niets verzonden."
+    },
+    "climate_preset_not_supported": {
+      "message": "De modus {preset} wordt niet ondersteund; gebruik een van: {presets}. Er is niets verzonden."
     }
   },
   "selector": {

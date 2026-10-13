@@ -30,6 +30,9 @@ LOCKOUT = _dump(
     'text="" class="TextView" clickable="false" bounds="[0,0][500,80]" />'
 )
 CLEAN = _dump(
+    # The overview's identity anchor: commands and reads start only here.
+    '<node resource-id="rangeTile" content-desc="" text="" class="android.view.View" '
+    'clickable="false" bounds="[0,300][1080,480]" />'
     '<node content-desc="Ladezustand 74 %" text="" class="TextView" '
     'clickable="false" bounds="[0,0][100,50]" />'
     '<node content-desc="Klimatisierung starten" text="Klima" '
@@ -98,16 +101,16 @@ class TestRateLimitBackoff:
         assert ch.rate_limited_until > wall()
 
     @pytest.mark.asyncio
-    async def test_backoff_skips_subsequent_reads(self) -> None:
+    async def test_reads_continue_while_commands_stay_backed_off(self) -> None:
+        # #968 — a screen read never reaches the car, so the backoff pauses
+        # commands only; the data (and its age) keeps updating meanwhile.
         mono, wall, _, wall_d = _clocks()
         ch = _channel(_SeqTransport([LOCKOUT, CLEAN]), wall, mono)
         await ch.read()  # trips
-        # even though a clean screen is now available, we stay backed off
-        assert await ch.read() is None
-        wall_d["v"] += _RATE_LIMIT_BACKOFF_S + 1  # window elapsed
-        # a fresh transport with the clean screen now reads
-        ch._t = _SeqTransport([CLEAN])
         assert await ch.read()
+        assert ch._is_rate_limited() and ch.writes_enabled is False
+        wall_d["v"] += _RATE_LIMIT_BACKOFF_S + 1  # window elapsed
+        assert ch._is_rate_limited() is False
 
     @pytest.mark.asyncio
     async def test_writes_blocked_and_disabled_while_backed_off(self) -> None:
@@ -143,7 +146,8 @@ class TestRateLimitBackoff:
         # simulate a backoff persisted before an HA restart
         ch.restore_rate_limit(wall() + 3600)
         assert ch._is_rate_limited() is True
-        assert await ch.read() is None
+        assert await ch.read()  # #968 — reads go on; commands stay paused
+        assert ch.writes_enabled is False
 
     @pytest.mark.asyncio
     async def test_restore_ignores_an_expired_backoff(self) -> None:

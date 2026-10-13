@@ -32,6 +32,9 @@ NAG = _dump(
     'class="TextView" clickable="false" bounds="[0,0][500,80]" />'
 )
 CLEAN = _dump(
+    # The overview's identity anchor: commands and reads start only here.
+    '<node resource-id="rangeTile" content-desc="" text="" class="android.view.View" '
+    'clickable="false" bounds="[0,300][1080,480]" />'
     '<node content-desc="Ladezustand 74 %" text="" class="TextView" '
     'clickable="false" bounds="[0,0][100,50]" />'
     '<node content-desc="Klimatisierung starten" text="Klima" '

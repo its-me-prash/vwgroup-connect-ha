@@ -1,0 +1,278 @@
+{
+  "acc_common_hint_details": [
+    "Open details"
+  ],
+  "acc_range_modal_label_cta_start": [
+    "Start charging"
+  ],
+  "acc_range_modal_label_cta_stop": [
+    "Stop charging"
+  ],
+  "acc_range_modal_hint_cta_start_disabled": [
+    "Check charging status"
+  ],
+  "acc_range_modal_hint_cta_stop_disabled": [
+    "Target charge level reached. Currently not charging."
+  ],
+  "acc_range_modal_value_charging_capacity": [
+    "Charging capacity: %s kilowatt"
+  ],
+  "acc_range_modal_value_charging_target_charge_level": [
+    "Target charge level: %s per cent"
+  ],
+  "acc_range_modal_value_charging_speed_kilometres": [
+    "Charging speed: %s kilometres per hour"
+  ],
+  "acc_range_modal_value_charging_speed_miles": [
+    "Charging speed: %s miles per hour"
+  ],
+  "acc_range_modal_value_charge_level_reached": [
+    "Target charge level reached"
+  ],
+  "acc_range_modal_value_charge_stopped": [
+    "Charging stopped"
+  ],
+  "acc_range_modal_value_connect_charging_cable": [
+    "Connect charging cable"
+  ],
+  "acc_range_modal_value_waiting": [
+    "Waiting"
+  ],
+  "acc_range_modal_value_waiting_for_charging_time": [
+    "Waiting for charging time"
+  ],
+  "acc_range_modal_value_waiting_for_departure_time": [
+    "Waiting for departure time"
+  ],
+  "acc_range_modal_value_currently_charging": [
+    "Currently charging"
+  ],
+  "acc_range_modal_value_conservation_charging": [
+    "Conservation charging"
+  ],
+  "acc_vehicle_tab_range_tile_label": [
+    "Range overview"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_hours_pluralised_one": [
+    "One hour and"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_hours_pluralised_other": [
+    "%s hours and"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_hours_pluralised_zero": [
+    "Zero hours and"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_minutes_pluralised_one": [
+    "One minute of charging time left"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_minutes_pluralised_other": [
+    "%s minutes of charging time left"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_charging_time_minutes_pluralised_zero": [
+    "Zero minutes of charging time left"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_currently_charging": [
+    "Currently charging"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_level": [
+    "Battery charge level: %s per cent"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_range_km": [
+    "Battery range: %s kilometres"
+  ],
+  "acc_vehicle_tab_range_tile_value_battery_range_miles": [
+    "Battery range: %s miles"
+  ],
+  "acc_vehicle_tab_range_tile_value_fuel_range_km": [
+    "Fuel range: %s kilometres"
+  ],
+  "acc_vehicle_tab_range_tile_value_fuel_range_miles": [
+    "Fuel range: %s miles"
+  ],
+  "acc_vehicle_tab_range_tile_value_petrol_level": [
+    "Fuel level: %s per cent"
+  ],
+  "acc_vehicle_tab_range_tile_value_zero": [
+    "Range unavailable"
+  ],
+  "acc_vehicle_tab_label_settings": [
+    "Settings"
+  ],
+  "alert_daily_power_budget_title": [
+    "Too many requests sent to the vehicle"
+  ],
+  "dialog_maxrequests_headline": [
+    "Too many requests sent to the vehicle"
+  ],
+  "dialog_maxrequest_bff_error_headline": [
+    "Request limit reached"
+  ],
+  "clima_temperature_low": [
+    "LO"
+  ],
+  "clima_temperature_high": [
+    "HI"
+  ],
+  "air_conditioning_screen_active": [
+    "Active"
+  ],
+  "common_activated": [
+    "Activated"
+  ],
+  "vehiclescreen_airconditioning_deactivated": [
+    "Off"
+  ],
+  "common_automatic_abbreviation": [
+    "Autom."
+  ],
+  "duration_minutes": [
+    "%s min"
+  ],
+  "common_airconditioning": [
+    "Air Conditioning"
+  ],
+  "window_heating_abbreviation": [
+    "Window heating"
+  ],
+  "common_airconditionedzones": [
+    "Zones"
+  ],
+  "vehiclesettingsscreen_airconditionedzones_options_multiplezones": [
+    "%s zones"
+  ],
+  "vehiclesettingsscreen_airconditionedzones_options_driverszone": [
+    "Front left"
+  ],
+  "vehiclesettingsscreen_airconditionedzones_options_passengerzone": [
+    "Front right"
+  ],
+  "vehiclesettingsscreen_airconditionedzones_options_leftrearseatzone": [
+    "Rear left"
+  ],
+  "vehiclesettingsscreen_airconditionedzones_options_rightrearseatzone": [
+    "Rear right"
+  ],
+  "vehiclesettingsscreen_automaticplugunlock": [
+    "Automatically release AC connector"
+  ],
+  "screen_vehiclehealth_subhead_totaldistance": [
+    "Total distance"
+  ],
+  "screen_vehiclehealth_subhead_nextinspection": [
+    "Next service"
+  ],
+  "screen_vehiclehealth_subhead_oil_service": [
+    "Next oil service"
+  ],
+  "screen_vehiclehealth_subhead_adblue_level": [
+    "AdBlue remaining range"
+  ],
+  "screen_vehiclehealth_overview_no_issues": [
+    "No issues found"
+  ],
+  "screen_vehiclehealth_overview_issues_found_generic": [
+    "Issues found"
+  ],
+  "acc_vehicle_tab_label_lock_unlock_vehicle": [
+    "Vehicle"
+  ],
+  "acc_vehicle_tab_value_lock_unlock_vehicle_state_locked": [
+    "Locked"
+  ],
+  "acc_vehicle_tab_value_lock_unlock_vehicle_state_unlocked": [
+    "Unlocked"
+  ],
+  "acc_vehicle_tab_clima_tile_label": [
+    "Climate control"
+  ],
+  "acc_vehicle_tab_clima_tile_value_all_clima_on": [
+    "On"
+  ],
+  "acc_vehicle_tab_clima_tile_value_all_clima_off": [
+    "Off"
+  ],
+  "acc_range_modal_label_charge_mode": [
+    "Charging method"
+  ],
+  "acc_range_modal_value_charge_mode_immediate_charging": [
+    "Immediate charging"
+  ],
+  "acc_range_modal_value_charge_mode_departure_time": [
+    "Charge for departure time"
+  ],
+  "acc_range_modal_value_charge_mode_departure_time_charge_air_condition": [
+    "Charge/air condition for departure"
+  ],
+  "acc_range_modal_value_charge_mode_preferred_times": [
+    "Charge at preferred times"
+  ],
+  "acc_range_modal_value_charge_mode_solar_power": [
+    "Charge using solar power"
+  ],
+  "acc_range_modal_value_charge_mode_discharge": [
+    "Discharge"
+  ],
+  "acc_range_modal_value_charge_mode_bidirectional_charging": [
+    "Bidirectional charging"
+  ],
+  "acc_vehicle_tab_label_driving_data": [
+    "Driving data"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_lastSingleTripLabel": [
+    "Last single trip"
+  ],
+  "volkswagen_cat_snowshoe_rts_lastSingleTripTileTitle": [
+    "Last single trip"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_cyclicTripsScreenheaderLabelHybrid": [
+    "From charging or refuelling"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_cyclicTripsScreenheaderEV": [
+    "From charging"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_cyclicTripsScreenheaderCombustion": [
+    "From refuelling"
+  ],
+  "volkswagen_cat_snowshoe_rts_cyclicTripsHybrid": [
+    "From charging or refuelling"
+  ],
+  "volkswagen_cat_snowshoe_rts_cyclicTripsEV": [
+    "From charging"
+  ],
+  "volkswagen_cat_snowshoe_rts_cyclicTripsCombustion": [
+    "From refuelling"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_distanceDrivenLabel": [
+    "Distance travelled"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_consumptionLabel": [
+    "Consumption"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_averageSpeedLabel": [
+    "Average speed"
+  ],
+  "volkswagen_acc_cat_snowshoe_rts_drivingTimeLabel": [
+    "Driving time"
+  ],
+  "volkswagen_cat_snowshoe_rts_unitKm": [
+    "km"
+  ],
+  "volkswagen_cat_snowshoe_rts_unitMiles": [
+    "mi"
+  ],
+  "volkswagen_cat_snowshoe_rts_speedKmh": [
+    "km/h"
+  ],
+  "volkswagen_cat_snowshoe_rts_speedMph": [
+    "mph"
+  ],
+  "volkswagen_cat_snowshoe_rts_unitKwhPer100Km": [
+    "kWh/100 km"
+  ],
+  "volkswagen_cat_snowshoe_rts_unitLiterPer100Km": [
+    "l/100 km"
+  ],
+  "duration_hours": [
+    "%s h"
+  ]
+}

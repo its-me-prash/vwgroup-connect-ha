@@ -1,5 +1,8 @@
 # Companion agent protocol (v4.4.0, experimental)
 
+> Part of the Companion documentation; see the **[Companion design](COMPANION.md)** for how the transports fit together. This is the
+> protocol specification only: **no agent app exists yet.**
+
 The companion channel drives the manufacturer's own Android app on a spare
 phone and reads the values off the screen. Until now Home Assistant had to
 reach **into** the phone to do that — ADB over TCP directly, or the

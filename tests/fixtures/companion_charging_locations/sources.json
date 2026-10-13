@@ -1,0 +1,32 @@
+[
+  {
+    "fixture": "list_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/charging-locations/11-dep.xml",
+    "note": "Departure times list, 2026-10-10, @gszigethy (Tiguan eHybrid, app 4.6.4, English, 12-hour clock). Three climate timers, all off; Charging section with one charging location named 'Otthon' (Hungarian for 'home', a user label, not an address), '1 active departure time', 'Active' badge. Read-only capture; nothing tapped but navigation."
+  },
+  {
+    "fixture": "location_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/charging-locations/12-otthon.xml",
+    "note": "The 'Otthon' charging location page from the same walk: three charging timers, 07:00 AM Weekdays (on), 09:00 AM Weekends (off), 07:00 AM Every day (off). Toolbar title content-desc is the location name; the unlabelled clickable at the top right opens Charging settings."
+  },
+  {
+    "fixture": "settings_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/charging-locations/04-otthon-settings.xml",
+    "note": "Charging settings for 'Otthon' (opened from the location page's top-right icon): Direct charging up to (0-50%) and Charging up to (50-100%) sliders (values drawn on canvas, not in the tree), Reduced AC charging current off, Automatically release AC connector off. Left with BACK, nothing changed."
+  },
+  {
+    "fixture": "location_timer_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/charging-locations/13-loc-timer1.xml",
+    "note": "Set time page of Otthon's timer 1 (07:00 AM, Mo-Fr): same fragment as the climate timers (time_picker, cta_monday..cta_sunday) but no Repeat switch; location timers always repeat. Left with BACK, nothing saved."
+  },
+  {
+    "fixture": "list_empty_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/charging-locations/32-dep-later.xml",
+    "note": "Departure times list, 2026-10-10 ~21:30, same phone and car, while the companion reported a request-limit pause (App request status: restricted since 20:57). No climate timers and no charging locations: only the section headers, the climate footer and the 'First, create your charging locations' text, although 'Otthon' still exists in the car (it also vanished on the user's second phone). Read-only capture."
+  }
+]

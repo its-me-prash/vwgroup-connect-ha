@@ -22,6 +22,7 @@ import re
 import pytest
 
 from custom_components.vag_connect.companion.presets import PRESETS, coerce
+from custom_components.vag_connect.companion.screen import UiNode, read_selectors
 
 _ID4_RANGE = "Übersicht Reichweite. Batteriereichweite: 253 Kilometer. Details öffnen"
 _EUP_RANGE = "Übersicht Reichweite. Batteriereichweite: 41 Kilometer. Details öffnen"
@@ -80,3 +81,52 @@ class TestTheTripTileIsNotTheOdometer:
     def test_a_real_odometer_still_reads(self) -> None:
         match = _selector("odometer_km").search("Kilometerstand 12 345 km")
         assert match is not None and match.group(1).strip() == "12 345"
+
+
+# Verbatim from the VW 4.6.4 charge detail while charging (charging/01-range.xml).
+_464_CHARGE = (
+    "Charging details. One hour and. 40 minutes of charging time left. Charging "
+    "capacity: 1 kilowatt. Target charge level: 80 per cent"
+)
+
+
+def _charge_detail_node(desc: str):
+    return UiNode(
+        resource_id="", content_desc=desc, text="", clazz="android.view.View",
+        clickable=False, bounds=(0, 0, 100, 100),
+    )
+
+
+class TestRemainingChargeTimeSpelledOutHour:
+    """4.6.4 spells a count of one out, so only the minutes read: 40 not 100."""
+
+    def test_the_464_string_reads_hours_plus_minutes(self) -> None:
+        charge = next(nav for nav in PRESETS["volkswagen"].nav_reads if nav.name == "charge_detail")
+        fields = read_selectors([_charge_detail_node(_464_CHARGE)], charge.values)
+        assert fields["remaining_charge_time_min"] == 100
+
+    @pytest.mark.parametrize(("raw", "expected"), [
+        (_464_CHARGE, 100),
+        # The 4.3.2 forms the existing captures pin.
+        ("Charging details. 2 hours and. 15 minutes of charging time left", 135),
+        ("Charging details. Zero hours and. 55 minutes of charging time left. "
+         "Charging speed: 11 kilometres per hour", 55),
+        ("Ladedetails. 4 Stunden und. 5 Minuten Ladezeit verbleibend", 245),
+        # Singular/plural and spelled-out on either side.
+        ("One hour and. One minute of charging time left", 61),
+        ("3 hours and. Zero minutes of charging time left", 180),
+        ("Eine Stunde und. 20 Minuten Ladezeit verbleibend", 80),
+        # Hours-only and minutes-only.
+        ("2 hours", 120),
+        ("One hour", 60),
+        ("40 minutes of charging time left", 40),
+        ("One minute of charging time left", 1),
+        ("noch 90 min", 90),
+        ("1:45 h", 105),
+    ])
+    def test_hours_and_minutes_are_summed(self, raw: str, expected: int) -> None:
+        assert coerce("hm_minutes", raw) == expected
+
+    def test_a_speed_per_hour_is_not_an_hour_count(self) -> None:
+        assert coerce("hm_minutes", "Charging speed: 11 kilometres per hour") is None
+        assert coerce("hm_minutes", "Ladegeschwindigkeit: 62 Kilometer pro Stunde") is None

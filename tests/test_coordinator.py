@@ -178,6 +178,21 @@ class TestEnrich:
         result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "CHARGING"
 
+    def test_unknown_plug_does_not_cancel_a_companion_charging_session(self):
+        """Fix #32 resets is_charging only on a KNOWN disconnect on a companion
+        entry. The companion (ADB) channel never sees the plug, so
+        plug_connected stays None; that must not turn its "Currently charging"
+        reading into not charging."""
+        import asyncio
+        coord = self._make_coord()
+        coord.entry.data = {**coord.entry.data, "strategy": "companion_adb"}
+        data = {"is_online": True, "is_driving": False, "is_charging": True,
+                "latitude": None, "longitude": None}
+        assert asyncio.run(coord._enrich(data))["is_charging"] is True
+        data = {"is_online": True, "is_driving": False, "is_charging": True,
+                "plug_connected": False, "latitude": None, "longitude": None}
+        assert asyncio.run(coord._enrich(data))["is_charging"] is False
+
     def test_vehicle_state_unknown_online_is_not_offline(self):
         """#923: is_online=None means UNKNOWN, not offline. The vw.de authproxy
         and EU-Data-Act channels never set is_online, and to_dict()/asdict keeps
@@ -496,6 +511,23 @@ class TestIsChargingReset:
         data = {"is_charging": True, "plug_connected": True, "latitude": None, "longitude": None}
         result = asyncio.run(coord._enrich(data))
         assert result["is_charging"] is True
+
+    def test_is_charging_reset_when_plug_unknown_on_cloud(self):
+        """A cloud poll that leaves out the plug block keeps the original
+        Fix #32 rule: no plug reading, no charging."""
+        import asyncio
+        coord = self._make_coord()
+        data = {"is_charging": True, "latitude": None, "longitude": None}
+        assert asyncio.run(coord._enrich(data))["is_charging"] is False
+        data = {"is_charging": True, "plug_connected": None, "latitude": None, "longitude": None}
+        assert asyncio.run(coord._enrich(data))["is_charging"] is False
+
+    def test_is_charging_kept_when_plug_unknown_on_companion(self):
+        import asyncio
+        coord = self._make_coord()
+        coord.entry.data = {**coord.entry.data, "strategy": "companion_adb"}
+        data = {"is_charging": True, "plug_connected": None, "latitude": None, "longitude": None}
+        assert asyncio.run(coord._enrich(data))["is_charging"] is True
 
     def test_is_charging_false_stays_false(self):
         """is_charging=False → untouched."""

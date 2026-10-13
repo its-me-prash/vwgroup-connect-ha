@@ -23,7 +23,20 @@ enforces that; see ``BrandPreset.writable``.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Literal
+
+# The app's plural resources spell small counts out ("One hour and. 40 minutes
+# of charging time left", "Zero hours and", VW 4.6.4 / 4.3.2). Words map to
+# their value; anything else in a count slot must be digits.
+_COUNT_WORDS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "null": 0, "eine": 1, "einer": 1, "ein": 1, "eins": 1, "zwei": 2, "drei": 3,
+    "vier": 4, "fünf": 5, "sechs": 6, "sieben": 7, "acht": 8, "neun": 9,
+    "zehn": 10, "elf": 11, "zwölf": 12,
+}
+_COUNT_RE = r"(?:\d{1,4}|\b(?:" + "|".join(sorted(_COUNT_WORDS, key=len, reverse=True)) + r")\b)"
 
 
 @dataclass(frozen=True)
@@ -58,6 +71,13 @@ class FieldSelector:
     # switch's resource-id; the value resolves to the literal "true"/"false",
     # which ``bool_switch`` turns into a real boolean.
     checked_of_rid: str | None = None
+    # A control whose resource-id IS its state. The climate sheet's call to
+    # action is ``cta_start`` while idle and ``cta_stop`` while climatisation
+    # runs (#968, @plainmad idle/active Mk8 dumps; @gszigethy Tiguan), so the
+    # id's presence is the most language-independent state signal on the
+    # screen. Resolves to ``present_value`` when a node with this id exists.
+    present_rid: str | None = None
+    present_value: str = "true"
     # When matched via ``label_re``, where the value text comes from:
     #   "self"    → the label node's own text (e.g. "Ladung 74 %")
     #   "sibling" → the next sibling node's text (label and value are separate)
@@ -65,6 +85,51 @@ class FieldSelector:
     # Turns the raw on-screen text into the typed value. Defaults to a plain
     # string; the channel applies the field's own coercion on top.
     parse: str = "str"  # str, percent, int_km, range_km, bool_charging, kw, bool_locked, bool_ignition, hm_minutes
+
+
+def _version_key(version: str) -> tuple[int, ...] | None:
+    """"4.6.4" -> (4, 6, 4); None for a version that is not dotted numbers."""
+    try:
+        return tuple(int(part) for part in version.strip().split("."))
+    except ValueError:
+        return None
+
+
+def app_version_covered(
+    live: str | None, verified: str | tuple[str, ...] | None
+) -> bool:
+    """True when the live app is a verified build or newer than all of them.
+
+    2026-10-07 — an app update used to switch every tap off until someone
+    listed the new version. Nav reads find each control on screen by resource
+    id or the app's own label, and a missing one stops the walk instead of
+    tapping blind, so a newer build is allowed for READS; an unknown OLDER
+    build (or an unreadable version) stays blocked. Writes use
+    ``app_version_listed`` instead (maintainer rule 9).
+    """
+    if live is None or not verified:
+        return False
+    want = (verified,) if isinstance(verified, str) else tuple(verified)
+    if live in want:
+        return True
+    key = _version_key(live)
+    known = [k for k in (_version_key(v) for v in want) if k is not None]
+    return key is not None and bool(known) and key > max(known)
+
+
+def app_version_listed(
+    live: str | None, verified: str | tuple[str, ...] | None
+) -> bool:
+    """True only when the live app is one of the verified builds.
+
+    Maintainer rule 9: commands, Save taps and the sync are pinned to the
+    builds they were verified on. The charge slider and the climate dial are
+    walked with geometry measured on those builds, so a newer layout could put
+    the taps on the wrong step; a newer build keeps reads but not writes.
+    """
+    if live is None or not verified:
+        return False
+    return live in ((verified,) if isinstance(verified, str) else tuple(verified))
 
 
 @dataclass(frozen=True)
@@ -88,6 +153,11 @@ class ActionSelector:
     # all, so the only way to open it is to tap where the app draws it inside
     # the map view. A fraction is device-independent; a pixel is not.
     tap_fraction: tuple[float, float] | None = None
+    # A command may be behind a detail sheet. Reuse the nav-read group so
+    # commands and reads share the confirmed path and return depth.
+    nav_read: str | None = None
+    # Read compatibility does not establish command compatibility.
+    app_versions: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -126,6 +196,13 @@ class NavReadSelector:
     steps: tuple[ActionSelector, ...] = ()  # ordered taps, overview → detail
     back_presses: int = 1
     opt_in: str = "charge_detail"
+    # Values a resource reader supplies from this screen besides ``values``;
+    # counted when deciding whether the screen still has something to give.
+    resource_targets: tuple[str, ...] = ()
+    # When the walk runs: "poll" on every poll; "trip" when a trip has ended;
+    # "car_data" when the car has sent new data. The last two also run every
+    # 12 hours and after a manual refresh (``CompanionChannel._walk_reason``).
+    cadence: Literal["poll", "trip", "car_data"] = "poll"
 
     @property
     def path(self) -> tuple[ActionSelector, ...]:
@@ -147,6 +224,13 @@ class OverlaySelector:
     name: str  # for logging / diagnostics
     content_desc_re: str | None = None
     text_re: str | None = None
+    # 2026-10-07 — a screen BACK cannot clear (the Google Maps consent: BACK
+    # only leaves the map, and the parking read needs it) names the button to
+    # tap instead. BACK stays the fallback when that button is not on screen.
+    # The tap is made only on the walk of the opt-in named in ``tap_opt_in``,
+    # and only while the user has it on; every other read backs out instead.
+    tap: ActionSelector | None = None
+    tap_opt_in: str | None = None
 
 
 @dataclass(frozen=True)
@@ -215,13 +299,17 @@ _RATE_LIMIT_BANNER = OverlaySelector(
     name="rate_limited",
     content_desc_re=(
         r"(?:Zu\s*(?:viele|häufige)\s*Anfragen|Too\s*many\s*requests"
-        r"|vorübergehend\s*(?:gesperrt|blockiert|nicht\s*verfügbar)"
-        r"|temporarily\s*(?:blocked|unavailable)|Demasiadas\s*solicitudes)"
+        r"|vorübergehend\s*(?:gesperrt|blockiert)"
+        r"|temporarily\s*blocked|Demasiadas\s*solicitudes"
+        # VW 4.3.2 (dialog_maxrequest_bff_error_headline): the HTTP 429 form.
+        r"|Request\s*limit\s*reached)"
     ),
     text_re=(
         r"(?:Zu\s*(?:viele|häufige)\s*Anfragen|Too\s*many\s*requests"
-        r"|vorübergehend\s*(?:gesperrt|blockiert|nicht\s*verfügbar)"
-        r"|temporarily\s*(?:blocked|unavailable)|Demasiadas\s*solicitudes)"
+        r"|vorübergehend\s*(?:gesperrt|blockiert)"
+        r"|temporarily\s*blocked|Demasiadas\s*solicitudes"
+        # VW 4.3.2 (dialog_maxrequest_bff_error_headline): the HTTP 429 form.
+        r"|Request\s*limit\s*reached)"
     ),
 )
 
@@ -251,7 +339,12 @@ _VW = BrandPreset(
     # widening, not a selector rewrite. Accept the Play "4.3.2" and the internal
     # versionName forms ("3.64.0" / "3.63.2") that report the same UI, so a patch
     # bump no longer re-quarantines readers.
-    verified_app_version=("4.3.2", "3.64.0", "3.63.2", "4.2.1"),
+    # 2026-10-07 — 4.6.4 regression-tested live on the Tiguan: the overview,
+    # charge sheet, Vehicle Health, vehicle Settings (incl. Synchronise now),
+    # climate sheet and settings, driving data and departure times all read the
+    # same as on 4.3.2. The parking read needs the app's Google Maps consent,
+    # which the update resets; only the opted-in parking walk accepts it.
+    verified_app_version=("4.6.4", "4.3.2", "3.64.0", "3.63.2", "4.2.1"),
     # v2.26.0 — READ vocabulary re-grounded against ckomma/charge-app-connector-vw
     # (real-device VW app 4.2.x). The old words ("Ladezustand", "Reichweite",
     # "Zielladung") did NOT match what We Connect actually narrates in its
@@ -285,6 +378,16 @@ _VW = BrandPreset(
             ),
             label_re=r"^(?:Batteriereichweite|Battery range|Electric range|Reichweite|Range)$",
             value_from="sibling",
+            parse="range_km",
+        ),
+        FieldSelector(
+            # @gszigethy Tiguan and @plainmad Golf GTE, #968: the same
+            # narration contains BOTH ranges. Bind petrol to its own label.
+            target="combustion_range_km",
+            content_desc_re=(
+                r"(?:Fuel range|Kraftstoffreichweite)\D*"
+                r"(\d{1,4}\s*(?:km\b|[Kk]ilomet\w*|miles?\b|mi\b|[Mm]eilen?))"
+            ),
             parse="range_km",
         ),
         FieldSelector(
@@ -347,10 +450,16 @@ _VW = BrandPreset(
             content_desc_re=(
                 r"Charging\s*status\b.*?\.\s*"
                 r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
-                r"|Currently\s*charging"
+                r"|Currently\s*charging|Target\s*charge\s*level\s*reached"
                 r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
             ),
             parse="str",
+        ),
+        # @kgroshert ID.4/e-up! and @plainmad Golf GTE active overviews.
+        FieldSelector(
+            target="is_charging",
+            content_desc_re=r"(?:Range overview|Übersicht Reichweite)\.\s*(Currently charging|Lädt gerade)\b",
+            parse="bool_charging",
         ),
         # Lock state. #968 (plainmad, live 4.3.2 dump) — the tile narrates it as
         # "Vehicle. Locked. Open details", i.e. sentence fragments, NOT "Vehicle
@@ -388,25 +497,60 @@ _VW = BrandPreset(
             parse="bool_climate",
         ),
     ),
-    # v2.26.0 — WRITES QUARANTINED. The previous single-tap actions were wrong:
-    # ckomma proves We Connect needs a TWO-STEP nav (overview tile → detail
-    # screen → action button) that our do_action never did, so climate/charge
-    # commands could only ever fail with "control not found". Rather than ship
-    # command entities that never work, this preset carries NO actions (so
-    # ``writable`` is False and no command entities spawn) until the 2-step nav
-    # is confirmed on a real device. Reads are unaffected.
-    #
-    # #968 (plainmad, 4.3.2 "while charging" + "climate active" dumps) — the two
-    # write controls are now LOCATED (not yet wired, because a wrong tap is a
-    # physical action on the car — they move into ``actions`` only once confirmed
-    # on-device and the preset is marked ``verified``):
-    #   • charge stop/start = the detail-sheet control whose content-desc flips
-    #     "Start charging" ⇄ "Stop charging" (bounds [85,1278][635,1380]).
-    #   • climate stop/start = the CTA whose resource-id itself flips
-    #     ``cta_start`` (text "Start") ⇄ ``cta_stop`` (text "Stop").
-    # Both are reached via the existing open_charge_detail / open_climate_detail
-    # nav. NOT on the sheet at all on 4.3.2: charge target-% and live kW power.
-    actions=(),
+    # #968: @plainmad's idle/active Mk8 dumps and @gszigethy's Tiguan
+    # captures locate charge Start/Stop behind the range tile. The channel now
+    # walks that two-step path. Vehicle execution remains pending validation.
+    # Runtime APK resources supply localized labels; these are the legacy
+    # English fallback. Climate commands remain unmapped. Read compatibility
+    # with older builds does not arm their charge controls. 4.6.4 dumps show
+    # the same selectors (phone-ui-capture-4.6.4/charging, settings-save).
+    actions=(
+        ActionSelector(
+            action="start_charging",
+            content_desc_re=r"^Start charging(?:\.|$)",
+            nav_read="charge_detail",
+            app_versions=("4.6.4", "4.3.2"),
+        ),
+        ActionSelector(
+            action="stop_charging",
+            content_desc_re=r"^Stop charging(?:\.|$)",
+            nav_read="charge_detail",
+            app_versions=("4.6.4", "4.3.2"),
+        ),
+        # @gszigethy Tiguan, 4.3.2: the "Charging up to" slider on vehicle
+        # Settings. The slider has no node; companion/charge_target.py places
+        # the tap from its neighbours and sends with the toolbar's Save.
+        ActionSelector(
+            action="set_charge_target",
+            resource_id="vwd_save_button",
+            nav_read="vehicle_settings",
+            app_versions=("4.6.4", "4.3.2"),
+        ),
+        # @gszigethy Tiguan, 4.3.2: "Synchronise now" under Vehicle data, at the
+        # bottom of vehicle Settings, asks the car for fresh data. Matched by id
+        # only: "Delete vehicle" (delete_cta) sits just below it.
+        # @gszigethy Tiguan, 4.6.4 captures: a timer's switch on the
+        # Departure times list sends at once (same list on 4.3.2), and its
+        # page sets time, days and Repeat, sent with the toolbar's Save.
+        # companion/departure.py finds every control; matched by id there.
+        ActionSelector(
+            action="toggle_departure_timer",
+            nav_read="departure_times",
+            app_versions=("4.6.4", "4.3.2"),
+        ),
+        ActionSelector(
+            action="edit_departure_timer",
+            resource_id="time_picker",
+            nav_read="departure_times",
+            app_versions=("4.6.4",),
+        ),
+        ActionSelector(
+            action="sync_vehicle",
+            resource_id="subtitle_cta",
+            nav_read="vehicle_settings",
+            app_versions=("4.6.4", "4.3.2"),
+        ),
+    ),
     # v2.26.0 (C9) — charge target / power / remaining-time live behind the
     # range tile (ckomma's set_charging taps range_tile_center to reach the
     # charge detail, then reads exactly these). Gated like a write (verified +
@@ -455,16 +599,17 @@ _VW = BrandPreset(
                 FieldSelector(
                     target="charging_state",
                     content_desc_re=(
-                        r"Charging\s*status\b.*?\.\s*"
+                        r"(?:Charging\s*status|Ladestatus)\b.*?\.\s*"
                         r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
-                r"|Currently\s*charging"
+                        r"|Currently\s*charging|Target\s*charge\s*level\s*reached"
+                        r"|Lädt\s*gerade"
                         r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
                     ),
                     parse="str",
                 ),
                 FieldSelector(
                     target="is_charging",
-                    content_desc_re=r"(Charging\s*status\b.*)",
+                    content_desc_re=r"((?:Charging\s*status|Ladestatus)\b.*)",
                     parse="bool_charging",
                 ),
                 FieldSelector(
@@ -480,17 +625,26 @@ _VW = BrandPreset(
                     target="charging_power_kw",
                     content_desc_re=(
                         r"(?:Ladeleistung|Charging power|Charging capacity|Charge power)"
-                        r"\D*([\d.,]+)\s*kW"
+                        r"\D*([\d.,]+)\s*(?:kW\b|kilowatts?\b)"
                     ),
                     parse="kw",
                 ),
                 FieldSelector(
                     target="remaining_charge_time_min",
+                    # 4.6.4 spells the hour out: "One hour and. 40 minutes".
                     content_desc_re=(
-                        r"(?:\d{1,2}\s*(?:Stunden?|hours?)|\d{1,2}:\d{2}\s*h"
-                        r"|(?:noch|remaining)\s*\d)"
+                        r"(?:" + _COUNT_RE + r"\s*(?:Stunden?|hours?)\b|\d{1,2}:\d{2}\s*h"
+                        r"|(?:noch|remaining)\s*\d|" + _COUNT_RE + r"\s*(?:minutes?|Minuten?)\b)"
                     ),
                     parse="hm_minutes",
+                ),
+                FieldSelector(
+                    target="electric_range_km",
+                    content_desc_re=(
+                        r"(?:Batteriereichweite|Battery range|Electric range)\D*"
+                        r"(\d{1,4}\s*(?:km\b|[Kk]ilomet\w*|miles?\b|mi\b|[Mm]eilen?))"
+                    ),
+                    parse="range_km",
                 ),
             ),
         ),
@@ -541,6 +695,10 @@ _VW = BrandPreset(
             ),
             back_presses=1,
             opt_in="vehicle_health",
+            # Odometer and service move only with a trip, and a warning reaches
+            # the app only with car data, so a parked car's report is not
+            # re-read every poll.
+            cadence="car_data",
         ),
         NavReadSelector(
             name="vehicle_settings",
@@ -567,6 +725,7 @@ _VW = BrandPreset(
             ),
             back_presses=1,
             opt_in="vehicle_health",
+            resource_targets=("auto_unlock_when_charged",),
         ),
         NavReadSelector(
             name="climate_detail",
@@ -599,39 +758,219 @@ _VW = BrandPreset(
                     value_from="self",
                     parse="temp_c",
                 ),
-                # #968 — the switch state is read from two possible shapes, most
-                # reliable last (read_selectors keeps the last non-None). Older /
-                # other layouts expose a checkable ``*_toggle`` whose ``checked``
-                # is the state; but plainmad's live 4.3.2 "climate active" dump
-                # shows the toggle row is ``clima_``-prefixed, NOT checkable, and
-                # carries ``checked="false"`` even while air conditioning is on —
-                # there the real state is the sibling ``*_description`` text
-                # ("Active" / "Off"). Try ``checked`` first, then let the
-                # description win (bool_climate maps Active/On→True, Off→False), so
-                # both layouts read correctly.
+                # ── State. Every selector below reads what the sheet SHOWS, never
+                # what a toggle would start. From the installed 4.3.2 APK:
+                # ``air_conditioning_toggle`` / ``window_heating_toggle`` and the
+                # mode picker are local "what Start will start" choices; they are
+                # checked on an idle sheet (@plainmad's idle Mk8 dump: AC toggle
+                # checked, CTA ``Start``, overview tile "Off"). Reading them as
+                # state reported climate ON for a car that was off.
+                # read_selectors keeps the LAST selector that resolves.
+                #
+                # 1. The CTA's id is the language-independent baseline:
+                #    ``cta_start`` = nothing running, ``cta_stop`` = air
+                #    conditioning or window heating running (@plainmad Mk8
+                #    idle/active, @kgroshert ID.4/e-up!, @gszigethy Tiguan).
                 FieldSelector(
-                    target="window_heating_enabled",
-                    checked_of_rid="window_heating_toggle",
+                    target="climatisation_active",
+                    present_rid="cta_start",
+                    present_value="false",
                     parse="bool_switch",
-                ),
-                FieldSelector(
-                    target="window_heating_enabled",
-                    resource_id="window_heating_description",
-                    parse="bool_climate",
                 ),
                 FieldSelector(
                     target="climatisation_active",
-                    checked_of_rid="air_conditioning_toggle",
+                    present_rid="cta_stop",
+                    present_value="true",
                     parse="bool_switch",
                 ),
+                # 2. ``cta_stop`` is also shown for window heating alone. The Mk8
+                #    row says which: "Active" (+ " • N min") or "Off" (disabled
+                #    while window heating runs alone). The picker layout names the
+                #    running mode in the row title instead (@gszigethy Tiguan,
+                #    "Select mode": Air Conditioning / Window heating).
                 FieldSelector(
                     target="climatisation_active",
                     resource_id="air_conditioning_description",
-                    parse="bool_climate",
+                    parse="clima_function_state",
+                ),
+                FieldSelector(
+                    target="climatisation_active",
+                    resource_id="title",
+                    parse="clima_ac_mode",
+                ),
+                # Window heating switched on directly (the existing
+                # ``window_heating_front`` state the window heating switch shows).
+                # Running in the air conditioning mode means it is not on by
+                # itself; the window-heating mode title or the Mk8 row override.
+                FieldSelector(
+                    target="window_heating_front",
+                    present_rid="cta_stop",
+                    present_value="false",
+                    parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="window_heating_front",
+                    resource_id="title",
+                    parse="clima_mode_window_heating",
+                ),
+                FieldSelector(
+                    target="window_heating_front",
+                    present_rid="cta_start",
+                    present_value="false",
+                    parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="window_heating_front",
+                    resource_id="window_heating_description",
+                    parse="clima_function_state",
+                ),
+                # The automatic window heating SETTING (what the model's
+                # ``window_heating_enabled`` means): the row reads "Autom." when
+                # it is on and window heating is not running directly (@gszigethy
+                # Tiguan). The Settings sheet reads it definitively.
+                FieldSelector(
+                    target="window_heating_enabled",
+                    resource_id="window_heating_description",
+                    parse="clima_autom",
+                ),
+                # Remaining time: the APK appends " • N min" to the running
+                # function's description ("Active • 10 min"); the fallback layout
+                # uses ``clima_time_remaining``. Zero when nothing runs, so a
+                # stopped car does not keep the last countdown.
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    present_rid="cta_start",
+                    present_value="0",
+                    parse="clima_remaining_min",
+                ),
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    resource_id="air_conditioning_description",
+                    parse="clima_remaining_min",
+                ),
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    resource_id="description",
+                    parse="clima_remaining_min",
+                ),
+                FieldSelector(
+                    target="climate_remaining_time_min",
+                    resource_id="clima_time_remaining",
+                    parse="clima_remaining_min",
                 ),
             ),
             back_presses=1,
             opt_in="climate_detail",
+        ),
+        NavReadSelector(
+            name="climate_settings",
+            # One tap past the Air Conditioning sheet: its "Settings" row opens
+            # a Compose sheet whose switches carry their setting as test tags
+            # (@gszigethy Tiguan, live 4.3.2). The read never changes them;
+            # the app applies a change only on its explicit Save, which only
+            # ``set_climate_setting`` taps (CLIMATE_SETTING_ACTIONS below).
+            steps=(
+                ActionSelector(
+                    action="open_climate_detail",
+                    resource_id="climateTile",
+                    content_desc_re=(
+                        r"(?:Climate|Air\s*conditioning|Klima(?:tisierung)?)"
+                    ),
+                ),
+                ActionSelector(
+                    action="open_climate_settings",
+                    resource_id="clima_settings_compose_view",
+                ),
+            ),
+            values=(
+                FieldSelector(
+                    target="climate_at_unlock",
+                    checked_of_rid="ClimatisationAtUnlockEnabled",
+                    parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="window_heating_enabled",
+                    checked_of_rid="WindowHeatingEnabled",
+                    parse="bool_switch",
+                ),
+                # Shown only on cars that have the setting (APK ToggleItemType).
+                FieldSelector(
+                    target="climate_without_external_power",
+                    checked_of_rid="ClimatisationWithoutExternalPowerEnabled",
+                    parse="bool_switch",
+                ),
+            ),
+            back_presses=2,
+            opt_in="climate_settings",
+        ),
+        NavReadSelector(
+            name="driving_data",
+            # The overview's Driving data tile. Its trip cards sit side by
+            # side in a carousel: "Last single trip" first, then "From
+            # charging or refuelling". ``read_driving_data`` reads them by the
+            # app's own labels and units, swiping the carousel (sideways only,
+            # never a pull-to-refresh) to bring the second card on screen.
+            steps=(
+                ActionSelector(
+                    action="open_driving_data",
+                    content_desc_re=r"^(?:Driving\s*data|Fahrdaten)\b",
+                    scroll_first=True,
+                ),
+            ),
+            values=(),
+            back_presses=1,
+            opt_in="driving_data",
+            cadence="trip",  # the trip cards change only when a trip ends
+            resource_targets=(
+                "last_trip_distance_km", "last_trip_duration_min", "last_trip_avg_speed_kmh",
+                "refuel_trip_distance_km", "refuel_trip_duration_min", "refuel_trip_avg_speed_kmh",
+            ),
+        ),
+        NavReadSelector(
+            name="departure_times",
+            # The overview's Departure times tile. Each timer row shows its
+            # time and a switch whose ``checked`` state is the timer's on/off;
+            # this read never taps the switches (only the departure timer
+            # command does). ``read_departure_timers`` does the reading, by
+            # layout rather than words. Each row then opens its timer page for
+            # the days and Repeat (4.6.4 ids), and BACK returns to the list
+            # without saving anything.
+            steps=(
+                ActionSelector(
+                    action="open_departure_times",
+                    content_desc_re=r"^(?:Departure\s*times|Abfahrtszeiten)\b",
+                    scroll_first=True,
+                ),
+            ),
+            values=(),
+            back_presses=1,
+            opt_in="departure_times",
+            resource_targets=tuple(
+                f"departure_timer_{i}_{part}" for i in (1, 2, 3)
+                for part in ("enabled", "time", "weekdays", "repeat")
+            ),
+        ),
+        NavReadSelector(
+            name="charging_locations",
+            steps=(
+                ActionSelector(
+                    action="open_departure_times",
+                    content_desc_re=r"^(?:Departure\s*times|Abfahrtszeiten)\b",
+                    scroll_first=True,
+                ),
+            ),
+            values=(),
+            back_presses=1,
+            opt_in="charging_locations",
+            cadence="trip",
+            resource_targets=(
+                "charging_location_count", "charging_location_current",
+                *(f"charging_location_{slot}_{part}" for slot in range(1, 6) for part in (
+                    "name", "active", "active_timers", "reduced_ac_current", "auto_release_connector",
+                    *(f"timer_{timer}_{part}" for timer in range(1, 4)
+                      for part in ("enabled", "time", "weekdays")),
+                )),
+            ),
         ),
         NavReadSelector(
             name="parking_position",
@@ -683,6 +1022,7 @@ _VW = BrandPreset(
             ),
             back_presses=4,
             opt_in="parking_position",
+            cadence="trip",  # the car parks somewhere new only after a trip
         ),
     ),
     # v2.26.0 (ckomma #13, #8) — confirmed VW nag screens. BACK dismisses both.
@@ -697,6 +1037,29 @@ _VW = BrandPreset(
             content_desc_re=r"(?:verzögert\s*ausgeführt|executed\s*with\s*a\s*delay)",
             text_re=r"(?:verzögert\s*ausgeführt|executed\s*with\s*a\s*delay)",
         ),
+        # 2026-10-07 — app 4.6.4 asks again for the Google Maps consent
+        # (modal_google_maps_disclaimer_title) on the Map tab, which blocks the
+        # parking read. Agreed only on the parking walk, with its opt-in on
+        # (common_button_agree); any other screen backs out without agreeing.
+        OverlaySelector(
+            name="google_maps_consent",
+            text_re=r"^(?:This\s*app\s*uses|Diese\s*App\s*(?:nutzt|verwendet))\s*Google\s*Maps",
+            tap=ActionSelector(
+                action="agree_google_maps",
+                label_re=r"^(?:Agree|Zustimmen|Einverstanden|Akzeptieren)$",
+            ),
+            tap_opt_in="parking_position",
+        ),
+        # 2026-10-07 — the app's rating prompt (dialog_app_survey_prompt,
+        # layout dialog_app_rating_alert): thumbs down / thumbs up and no close
+        # button. BACK closes it without rating the app.
+        OverlaySelector(
+            name="app_rating",
+            text_re=(
+                r"How\s*do\s*you\s*like\s*the\s*(?:Volkswagen\s*)?app"
+                r"|Wie\s*gefällt\s*(?:Ihnen|dir)\s*die\s*(?:Volkswagen[-\s]*)?App"
+            ),
+        ),
     ),
     # v2.26.0 (ckomma #21) — SEEDED (unverified even for VW: the ckomma report
     # was a backend request-limit, not a confirmed on-screen banner). The
@@ -709,6 +1072,7 @@ _VW = BrandPreset(
         ActionSelector(action="up", resource_id="vwd_navigation_button"),
         ActionSelector(action="up", resource_id="vehicleHealthBack"),
         ActionSelector(action="up", resource_id="climatisationSettingsLeading"),
+        ActionSelector(action="up", resource_id="catRemoteTripStatisticsBack"),
         # #968 (plainmad, live 4.3.2 dump) — the charge detail is a bottom
         # sheet, and its way out is a described Close control rather than any
         # of the ids above.
@@ -722,6 +1086,45 @@ _VW = BrandPreset(
     # the wording exists); seeded German + English, number + unit.
     sync_age_re=_SYNC_AGE_RE,
 )
+
+# Climate commands on the Air Conditioning sheet, grounded in the 4.3.2 APK and
+# the #968 captures. Appended rather than written into the literal above so the
+# climate and charging command maps stay independent of each other. They are
+# executed by ``companion.climate.ClimateController``, which walks the sheet
+# and reads every step back; ``climate.CLIMATE_APP_VERSIONS`` arms them.
+_VW_CLIMATE_ACTIONS = (
+    ActionSelector(action="start_climate", resource_id="cta_start"),
+    ActionSelector(action="stop_climate", resource_id="cta_stop"),
+    ActionSelector(action="start_window_heating", resource_id="cta_start"),
+    ActionSelector(action="stop_window_heating", resource_id="cta_stop"),
+    ActionSelector(action="set_climate_temperature", resource_id="clima_compose_view"),
+)
+_VW = replace(_VW, actions=_VW.actions + _VW_CLIMATE_ACTIONS)
+
+# The Climate Settings page behind the sheet's Settings row: two switches and
+# the Zones row. Changing any of them only stages it; the page's own Save
+# (``climatisationSettingsTrailing``, shown while the page differs from what
+# is saved) sends. ``CompanionChannel.set_climate_setting`` walks it and reads
+# the saved state back. Mapped against the 4.6.4 captures; on 4.3.2 the page
+# itself is identical, but its Zones page and Save were never captured there.
+CLIMATE_SETTINGS_APP_VERSIONS: tuple[str, ...] = ("4.6.4",)
+# Setting (the VehicleData field the read fills) → its logical action.
+CLIMATE_SETTING_ACTIONS: dict[str, str] = {
+    "climate_at_unlock": "set_climate_at_unlock",
+    "window_heating_enabled": "set_window_heating_auto",
+    "climate_zone_front_left": "set_climate_zone_front_left",
+    "climate_zone_front_right": "set_climate_zone_front_right",
+}
+_VW_CLIMATE_SETTING_ACTIONS = tuple(
+    ActionSelector(
+        action=action,
+        resource_id="climatisationSettingsTrailing",
+        nav_read="climate_settings",
+        app_versions=CLIMATE_SETTINGS_APP_VERSIONS,
+    )
+    for action in CLIMATE_SETTING_ACTIONS.values()
+)
+_VW = replace(_VW, actions=_VW.actions + _VW_CLIMATE_SETTING_ACTIONS)
 
 # ── The four unverified brands — structure present, selectors best-effort ────
 #
@@ -953,11 +1356,14 @@ def coerce(parse: str, raw: str | None) -> object | None:
         if re.search(
             r"(?:Charging\s*(?:stopped|paused|complete[d]?)|Ladevorgang\s*"
             r"(?:beendet|gestoppt|pausiert)|Nicht\s*(?:geladen|verbunden)"
-            r"|Not\s*(?:charging|connected))",
+            r"|Not\s*(?:charging|connected)|Target\s*charge\s*level\s*reached"
+            r"|Zielladestand\s*erreicht|Fully\s*charged|Vollständig\s*geladen)",
             raw, re.I,
         ):
             return False
-        return bool(re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I))
+        if re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I):
+            return True
+        return None
     if parse == "days":
         # #968 (plainmad, live 4.3.2 dump) — the Vehicle Health report writes
         # the service countdown as "71 days / 12,100 mi": a day count AND a
@@ -988,6 +1394,28 @@ def coerce(parse: str, raw: str | None) -> object | None:
         if re.search(r"(?:\bon\b|running|active|\bein\b|läuft|aktiv)", raw, re.I):
             return True
         return None
+    if parse == "clima_function_state":
+        # A function row on the climate sheet: "Active", "Active • 10 min",
+        # "Activated" (request pending) are on; "Off" is off. "Autom." is the
+        # automatic setting, not a state, so it stays unknown here.
+        if re.match(r"\s*(?:Off|Aus)\b", raw, re.I):
+            return False
+        if re.match(r"\s*(?:Activ|Aktiv)", raw, re.I):
+            return True
+        return None
+    if parse == "clima_autom":
+        return True if re.match(r"\s*Auto(?:m\b|m\.|matic|matisch)", raw, re.I) else None
+    if parse in ("clima_mode_window_heating", "clima_ac_mode"):
+        # The picker row's title names the selected mode. Only the window
+        # heating mode is decisive: AC is then off and window heating on.
+        if re.fullmatch(r"\s*(?:Window\s*heating|(?:Front)?[Ss]cheibenheizung)\s*", raw, re.I):
+            return parse == "clima_mode_window_heating"
+        return None
+    if parse == "clima_remaining_min":
+        if raw.strip() == "0":
+            return 0
+        m = re.search(r"(\d{1,3})\s*min", raw, re.I)
+        return int(m.group(1)) if m else None
     if parse == "temp_c":
         # A temperature reading off a climate screen: "22°C", "21,5 °C", "70°F".
         m = re.search(r"(-?\d+(?:[.,]\d+)?)\s*°?\s*([CF])?", raw)
@@ -1015,20 +1443,24 @@ def coerce(parse: str, raw: str | None) -> object | None:
         # v2.26.0 (C9, ckomma-grounded) — the charge-detail remaining-time line:
         # "2 hours and 15 minutes" / "2 Stunden und 15 Minuten" / "1:45 h" /
         # "noch 90 min". Return whole minutes.
-        m = re.search(
-            r"(\d{1,2})\s*(?:Stunden?|hours?)\s*(?:und\s*|and\s*)?(\d{1,2})?\s*"
-            r"(?:Minuten?|minutes?)?",
-            raw, re.I,
-        )
-        if m and re.search(r"Stunden?|hours?", raw, re.I):
-            return int(m.group(1)) * 60 + int(m.group(2) or 0)
+        # 4.6.4 spells a count of one out ("One hour and. 40 minutes of charging
+        # time left"): reading only the digits gave 40 instead of 100. Hours and
+        # minutes are found separately and summed, each optional.
         m = re.search(r"(\d{1,2}):(\d{2})\s*h", raw, re.I)
         if m:
             return int(m.group(1)) * 60 + int(m.group(2))
-        m = re.search(r"(\d{1,4})\s*min", raw, re.I)
-        if m:
-            return int(m.group(1))
-        return None
+        hours = re.search(r"(" + _COUNT_RE + r")\s*(?:Stunden?|hours?)\b", raw, re.I)
+        minutes = re.search(r"(" + _COUNT_RE + r")\s*min", raw, re.I)
+        if hours is None and minutes is None:
+            return None
+
+        def _count(match: re.Match[str] | None) -> int:
+            if match is None:
+                return 0
+            word = match.group(1)
+            return int(word) if word.isdigit() else _COUNT_WORDS[word.casefold()]
+
+        return _count(hours) * 60 + _count(minutes)
     if parse == "bool_locked":
         # v2.26.0 (#968) — "Vehicle unlocked" / "Fahrzeug entriegelt" is False;
         # "Vehicle locked" / "verriegelt" / "geschlossen" is True. Check the
@@ -1051,8 +1483,21 @@ def coerce(parse: str, raw: str | None) -> object | None:
 # The logical write actions the channel understands, mapped to the coordinator
 # command names. Only actions listed here can ever be dispatched.
 ACTION_TO_COMMAND: dict[str, str] = {
+    "set_charge_target": "command_set_target_soc",
     "start_climate": "command_start_climate",
     "stop_climate": "command_stop_climate",
     "start_charging": "command_start_charging",
     "stop_charging": "command_stop_charging",
+    "start_window_heating": "command_start_window_heating",
+    "stop_window_heating": "command_stop_window_heating",
+    "set_climate_temperature": "command_set_climate_temperature",
+    "sync_vehicle": "command_sync_vehicle",
+    "set_climate_at_unlock": "command_set_climate_at_unlock",
+    "set_window_heating_auto": "command_set_window_heating_auto",
+    "set_climate_zone_front_left": "command_set_climate_zone_front_left",
+    "set_climate_zone_front_right": "command_set_climate_zone_front_right",
+    # Both halves of the one departure timer command: the list's switch and
+    # the timer page (time, days, Repeat).
+    "toggle_departure_timer": "command_set_departure_timer",
+    "edit_departure_timer": "command_set_departure_timer",
 }

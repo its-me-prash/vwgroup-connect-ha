@@ -1,0 +1,16 @@
+[
+  {
+    "fixture": "tiguan_health.xml",
+    "contributor": "gszigethy",
+    "source": "Local ADB capture, 2026-10-06, Tiguan Life 1.5 l eHybrid, VW app 4.3.2 (English)",
+    "note": "Vehicle Health Report, read-only navigation; no personal data on this screen."
+  },
+  {
+    "fixture": "gte_health.xml",
+    "contributor": "plainmad",
+    "original_file": "Golf.GTE.Mk8.App.4.3.2.Vehicle.Health.Report.xml",
+    "source": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/968",
+    "attachment": "https://github.com/user-attachments/files/31455914/Golf.GTE.Mk8.App.4.3.2.Vehicle.Health.Report.xml",
+    "note": "Golf GTE Mk8 on imperial units (mi)."
+  }
+]

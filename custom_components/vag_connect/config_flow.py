@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from typing import Any
 
 
@@ -721,8 +722,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             addon_token = (user_input.get(CONF_COMPANION_ADDON_TOKEN) or "").strip()
             # v4.4.0 (#968) — relay mode. The phone's agent app calls Home
             # Assistant, so there is nothing here to dial and nothing to probe:
-            # the token IS the binding, and setup succeeds as soon as it is long
-            # enough. The entry then waits for the agent to check in.
+            # the token IS the binding, so new entries require a long, diverse
+            # token. The entry then waits for the agent to check in.
             use_relay = bool(user_input.get(CONF_COMPANION_USE_RELAY))
             agent_token = (user_input.get(CONF_COMPANION_AGENT_TOKEN) or "").strip()
             # The add-on serves its API on its own port, so a user who ticked
@@ -739,8 +740,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             if use_relay:
                 valid = len(agent_token) >= COMPANION_MIN_TOKEN_LEN
                 reason = "companion_agent_token_too_short"
+                if valid and (
+                    len(set(agent_token)) < 16
+                    or max(agent_token.count(char) for char in set(agent_token))
+                    > len(agent_token) // 2
+                ):
+                    valid, reason = False, "companion_agent_token_weak"
             elif not host:
                 valid, reason = False, "companion_host_required"
+            elif use_addon and not addon_token:
+                # The bridge permits tokenless access, but new setups must
+                # authenticate its phone-shell endpoint. Existing entries keep
+                # the transport's optional-token contract on reload.
+                valid, reason = False, "companion_addon_token_required"
             else:
                 valid, reason = await self._companion_probe(
                     brand, host, port, use_addon=use_addon, addon_token=addon_token
@@ -771,6 +783,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     },
                 )
 
+        if not hasattr(self, "_companion_agent_token_default"):
+            self._companion_agent_token_default = secrets.token_urlsafe(32)
+        agent_token_default = (
+            user_input.get(CONF_COMPANION_AGENT_TOKEN, self._companion_agent_token_default)
+            if user_input is not None else self._companion_agent_token_default
+        )
         brands = {b: b.title() for b in PRESETS}
         schema = vol.Schema(
             {
@@ -792,10 +810,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # v4.4.0 (#968) — the third way to reach the phone, and the only
                 # one that needs nothing FROM Home Assistant's side of the
                 # network: an agent app on the phone long-polls HA. Tick this,
-                # paste the token the agent generated, and leave the host field
+                # copy the generated token into the agent, and leave the host field
                 # as anything (it is unused on this path).
                 vol.Optional(CONF_COMPANION_USE_RELAY, default=False): bool,
-                vol.Optional(CONF_COMPANION_AGENT_TOKEN, default=""): str,
+                vol.Optional(
+                    CONF_COMPANION_AGENT_TOKEN, default=agent_token_default,
+                ): str,
             }
         )
         return self.async_show_form(
@@ -3554,19 +3574,11 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
         # in only after confirming the flow on their own device).
         from .const import (  # noqa: PLC0415
             CONF_COMPANION_CLOSE_APP,
-            CONF_COMPANION_READ_CHARGE_DETAIL,
             CONF_COMPANION_WAKE_SLEEP,
             CONF_STRATEGY,
             STRATEGY_COMPANION_ADB,
         )
         if current_data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB:
-            schema[vol.Optional(
-                CONF_COMPANION_READ_CHARGE_DETAIL,
-                default=current_options.get(
-                    CONF_COMPANION_READ_CHARGE_DETAIL,
-                    current_data.get(CONF_COMPANION_READ_CHARGE_DETAIL, False),
-                ),
-            )] = _BOOL_SELECTOR
             schema[vol.Optional(
                 CONF_COMPANION_WAKE_SLEEP,
                 default=current_options.get(
@@ -3583,25 +3595,9 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
                     current_data.get(CONF_COMPANION_CLOSE_APP, False),
                 ),
             )] = _BOOL_SELECTOR
-            # v4.4.0 (#968) — the deeper nav-read opt-ins. Each walks further
-            # into the app than the charge-detail read, so each is its own
-            # toggle and each defaults to OFF.
-            from .const import (  # noqa: PLC0415
-                CONF_COMPANION_READ_CLIMATE_DETAIL,
-                CONF_COMPANION_READ_PARKING_POSITION,
-                CONF_COMPANION_READ_VEHICLE_HEALTH,
-            )
-            for _key in (
-                CONF_COMPANION_READ_VEHICLE_HEALTH,
-                CONF_COMPANION_READ_CLIMATE_DETAIL,
-                CONF_COMPANION_READ_PARKING_POSITION,
-            ):
-                schema[vol.Optional(
-                    _key,
-                    default=current_options.get(
-                        _key, current_data.get(_key, False)
-                    ),
-                )] = _BOOL_SELECTOR
+            # The companion nav reads (charge detail, Vehicle Health, climate,
+            # parking position, ...) are switches on the settings device, so
+            # they apply without a reload.
         # b17 — opt-in: auto-create monthly ``utility_meter`` helpers wired to
         # our TOTAL_INCREASING sensors (charged energy kWh, odometer km), so a
         # user gets monthly counters without hand-building them. Surfaced ONLY
@@ -3616,7 +3612,11 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
         from .const import CONF_AUTO_UTILITY_METERS  # noqa: PLC0415
         from .utility_meter import any_source_sensor_present  # noqa: PLC0415
         _um_vins = list(_vehicles) if isinstance(_vehicles, dict) else []
-        if _um_vins and any_source_sensor_present(self.hass, _um_vins):
+        from .const import is_companion_entry_data  # noqa: PLC0415
+        if _um_vins and any_source_sensor_present(
+            self.hass, _um_vins,
+            companion=is_companion_entry_data(self._config_entry.data),
+        ):
             schema[vol.Optional(
                 CONF_AUTO_UTILITY_METERS,
                 default=current_options.get(

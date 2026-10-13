@@ -163,9 +163,9 @@
           "adb_port": "Normalt 5555 for ADB over Wi-Fi.",
           "vin": "Bilens 17-tegns VIN, som vises i appen.",
           "companion_use_addon": "Sæt kryds her for en telefon med Android 11 eller nyere, som kun tilbyder trådløs fejlfinding. Indtast så TILFØJELSENS adresse ovenfor i stedet for telefonens.",
-          "companion_addon_token": "Kun nødvendigt, hvis du har angivet api_token i tilføjelsen.",
+          "companion_addon_token": "Required for new add-on connections. Set the same api_token in the add-on. The bridge uses plain HTTP; use a trusted network.",
           "companion_use_relay": "Sæt flueben her, hvis telefonen kører companion-agent-appen. Telefonen ringer så til Home Assistant, så hverken ADB, trådløs fejlfinding eller fast IP er nødvendig — lad adressefeltet stå tomt.",
-          "companion_agent_token": "Det tilfældige token, som agent-appen har genereret. Mindst 32 tegn, og et forskelligt for hvert køretøj."
+          "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
       "audi_mbb_fallback": {
@@ -204,10 +204,12 @@
       "companion_needs_addon": "Dette ligner en telefon med Android 11 eller nyere, der bruger trådløs fejlfinding, som den direkte forbindelse her ikke kan bruge (den kræver TLS + parring). Installér tilføjelsen 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge), og lad Companion forbinde til den. Ældre telefoner (Android 10 eller tidligere) forbinder direkte her.",
       "companion_app_not_found": "Der blev oprettet forbindelse til telefonen, men mærkets app er ikke installeret på den.",
       "companion_unknown_brand": "Det mærke har endnu ingen forudindstilling for hjælpetelefon.",
-      "companion_agent_token_too_short": "Agent-tokenet er for kort. Indsæt det tilfældige token, agent-appen har genereret (mindst 32 tegn).",
+      "companion_agent_token_too_short": "The agent token is too short. Use a random token with at least 32 characters, such as the generated token.",
       "companion_host_required": "Angiv telefonens IP-adresse — eller sæt flueben ved agent-muligheden, hvis telefonen ringer til Home Assistant.",
       "missing_captcha": "Indtast de tegn, der vises i billedet ovenfor.",
-      "captcha_retry": "Løs den viste captcha ovenfor for at fortsætte."
+      "captcha_retry": "Løs den viste captcha ovenfor for at fortsætte.",
+      "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
     },
     "abort": {
       "already_configured": "Denne konto er allerede konfigureret.",
@@ -240,7 +242,6 @@
           "fuel_tank_capacity": "Tankkapacitet (liter, for brændstof %)",
           "enable_reverse_geocoding": "Omvendt geokodning (parkeringsadresse)",
           "read_only_mode": "Skrivebeskyttet tilstand",
-          "companion_read_charge_detail": "Companion: læs lademål (navigerer i appen)",
           "companion_wake_sleep": "Companion: væk skærmen før hentning, sov bagefter",
           "companion_close_app": "Companion: luk bil-appen efter hver aflæsning",
           "force_ppe_climate": "Audi PPE/PPC-klimaformat (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
@@ -265,9 +266,6 @@
           "vwde_cred_relogin": "Volkswagen.de: log ind igen med den gemte adgangskode, når websessionen udløber",
           "vweu_device_grant": "Tilføj VW EU To-vejs — kommandoer + live-aflæsninger (BETA)",
           "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)",
-          "companion_read_vehicle_health": "Companion: læs kilometerstand og service fra køretøjstjek (navigerer i appen)",
-          "companion_read_climate_detail": "Companion: læs måltemperatur og udetemperatur (navigerer i appen)",
-          "companion_read_parking_position": "Companion: læs parkeringsposition fra appens delingslink (navigerer i appen)",
           "skoda_official_api_key": "Officiel Škoda API-nøgle — tilføjer den officielle producent-API som live datakilde (og failover)",
           "clear_skoda_official_key": "Ryd den gemte officielle Škoda API-nøgle (en ny oprettes automatisk, hvis dit login understøtter det)",
           "skoda_official_mode": "Škoda officiel API-kildetilstand"
@@ -277,7 +275,6 @@
           "spin": "S-PIN til dørlåsning. App → Sikkerhed → S-PIN.",
           "enable_reverse_geocoding": "Sender parkerings-GPS til OpenStreetMap Nominatim for at finde gade/by. Slået fra som standard af hensyn til privatliv.",
           "read_only_mode": "Når aktiveret, oprettes kun statussensorer — ingen kontakter, knapper, låse, klima eller skydere, der sender kommandoer. Nyttigt, hvis du vil have køretøjstelemetri uden nogen risiko for utilsigtet aktivering. Genindlæs integrationen efter ændring.",
-          "companion_read_charge_detail": "Kun Companion (ADB). Læser også lademål, ladeeffekt og resterende tid, som ligger bag ladedetalje-skærmen. Det kræver, at der TRYKKES i appen for at navigere derhen (cirka hvert 15. minut), så aktivér det først, når du har bekræftet, at flowet virker på din telefon. Slået fra som standard. Genindlæs efter ændring.",
           "companion_wake_sleep": "Kun Companion (ADB). Vækker telefonens skærm før hver hentning og lader den sove igen bagefter, så en låst eller sovende telefon viser appen under aflæsningen uden at have skærmen tændt permanent. Slået fra som standard. Genindlæs efter ændring.",
           "companion_close_app": "Kun Companion (ADB). Tvinger bil-appen til at lukke efter hver hentning, så næste aflæsning starter den forfra i stedet for at læse en skærm, appen har efterladt i cache. Hjælper på enheder, hvor appen fryser sine værdier mellem aflæsninger. Slået fra som standard — en kold genstart er langsommere. Genindlæs efter ændring.",
           "force_ppe_climate": "Kun Audi. Gennemtvinger det nye PPE/PPC-format (climatisationMode obligatorisk, targetTemperature udeladt) ved klimastart. Aktivér kun, hvis du ejer en Q6 e-tron, A6 e-tron, RS e-tron GT Facelift eller A3 2024+ PHEV — ellers returnerer klimastart 400. Genindlæs integrationen efter ændring.",
@@ -645,11 +642,30 @@
       "departure_timer_3_time": {
         "name": "Afgangstimer 3"
       },
+      "departure_timer_1_weekdays": {
+        "name": "Afgangstimer 1 ugedage"
+      },
+      "departure_timer_2_weekdays": {
+        "name": "Afgangstimer 2 ugedage"
+      },
+      "departure_timer_3_weekdays": {
+        "name": "Afgangstimer 3 ugedage"
+      },
       "last_updated_at": {
         "name": "Seneste opdatering"
       },
       "last_seen_at": {
         "name": "Køretøj sidst rapporteret"
+      },
+      "last_vehicle_sync": {
+        "name": "Seneste synkronisering af bil"
+      },
+      "app_request_status": {
+        "name": "Appens anmodningsstatus",
+        "state": {
+          "available": "Tilgængelig",
+          "restricted": "Begrænset"
+        }
       },
       "adblue_range_km": {
         "name": "AdBlue-rækkevidde"
@@ -1088,6 +1104,13 @@
       },
       "climate_mode": {
         "name": "Klimatilstand"
+      },
+      "climate_start_mode": {
+        "name": "Klima startmodus",
+        "state": {
+          "air_conditioning": "Klimaanlæg",
+          "window_heating": "Rudeopvarmning"
+        }
       },
       "active_target_soc": {
         "name": "Aktivt lademål"
@@ -1591,6 +1614,146 @@
       "alarm_reason": {
         "name": "Alarmårsag"
       },
+      "companion_charge_mode": {
+        "name": "Ladetilstand",
+        "state": {
+          "manual": "Manuel",
+          "timer": "Timer",
+          "preferred_charging_times": "Foretrukne ladetidspunkter",
+          "only_own_current": "Kun egen strøm",
+          "immediate_discharging": "Aflad nu",
+          "timer_charging_climatization": "Timer-opladning med klimaanlæg"
+        }
+      },
+      "charging_location_count": {
+        "name": "Antal ladesteder"
+      },
+      "charging_location_current": {
+        "name": "Aktuelt ladested",
+        "state": {
+          "none": "Intet"
+        }
+      },
+      "charging_location_1_name": {
+        "name": "Ladested 1"
+      },
+      "charging_location_1_active_timers": {
+        "name": "Ladested 1 aktive timere"
+      },
+      "charging_location_1_timer_1_time": {
+        "name": "Ladested 1 timer 1 tid"
+      },
+      "charging_location_1_timer_1_weekdays": {
+        "name": "Ladested 1 timer 1 ugedage"
+      },
+      "charging_location_1_timer_2_time": {
+        "name": "Ladested 1 timer 2 tid"
+      },
+      "charging_location_1_timer_2_weekdays": {
+        "name": "Ladested 1 timer 2 ugedage"
+      },
+      "charging_location_1_timer_3_time": {
+        "name": "Ladested 1 timer 3 tid"
+      },
+      "charging_location_1_timer_3_weekdays": {
+        "name": "Ladested 1 timer 3 ugedage"
+      },
+      "charging_location_2_name": {
+        "name": "Ladested 2"
+      },
+      "charging_location_2_active_timers": {
+        "name": "Ladested 2 aktive timere"
+      },
+      "charging_location_2_timer_1_time": {
+        "name": "Ladested 2 timer 1 tid"
+      },
+      "charging_location_2_timer_1_weekdays": {
+        "name": "Ladested 2 timer 1 ugedage"
+      },
+      "charging_location_2_timer_2_time": {
+        "name": "Ladested 2 timer 2 tid"
+      },
+      "charging_location_2_timer_2_weekdays": {
+        "name": "Ladested 2 timer 2 ugedage"
+      },
+      "charging_location_2_timer_3_time": {
+        "name": "Ladested 2 timer 3 tid"
+      },
+      "charging_location_2_timer_3_weekdays": {
+        "name": "Ladested 2 timer 3 ugedage"
+      },
+      "charging_location_3_name": {
+        "name": "Ladested 3"
+      },
+      "charging_location_3_active_timers": {
+        "name": "Ladested 3 aktive timere"
+      },
+      "charging_location_3_timer_1_time": {
+        "name": "Ladested 3 timer 1 tid"
+      },
+      "charging_location_3_timer_1_weekdays": {
+        "name": "Ladested 3 timer 1 ugedage"
+      },
+      "charging_location_3_timer_2_time": {
+        "name": "Ladested 3 timer 2 tid"
+      },
+      "charging_location_3_timer_2_weekdays": {
+        "name": "Ladested 3 timer 2 ugedage"
+      },
+      "charging_location_3_timer_3_time": {
+        "name": "Ladested 3 timer 3 tid"
+      },
+      "charging_location_3_timer_3_weekdays": {
+        "name": "Ladested 3 timer 3 ugedage"
+      },
+      "charging_location_4_name": {
+        "name": "Ladested 4"
+      },
+      "charging_location_4_active_timers": {
+        "name": "Ladested 4 aktive timere"
+      },
+      "charging_location_4_timer_1_time": {
+        "name": "Ladested 4 timer 1 tid"
+      },
+      "charging_location_4_timer_1_weekdays": {
+        "name": "Ladested 4 timer 1 ugedage"
+      },
+      "charging_location_4_timer_2_time": {
+        "name": "Ladested 4 timer 2 tid"
+      },
+      "charging_location_4_timer_2_weekdays": {
+        "name": "Ladested 4 timer 2 ugedage"
+      },
+      "charging_location_4_timer_3_time": {
+        "name": "Ladested 4 timer 3 tid"
+      },
+      "charging_location_4_timer_3_weekdays": {
+        "name": "Ladested 4 timer 3 ugedage"
+      },
+      "charging_location_5_name": {
+        "name": "Ladested 5"
+      },
+      "charging_location_5_active_timers": {
+        "name": "Ladested 5 aktive timere"
+      },
+      "charging_location_5_timer_1_time": {
+        "name": "Ladested 5 timer 1 tid"
+      },
+      "charging_location_5_timer_1_weekdays": {
+        "name": "Ladested 5 timer 1 ugedage"
+      },
+      "charging_location_5_timer_2_time": {
+        "name": "Ladested 5 timer 2 tid"
+      },
+      "charging_location_5_timer_2_weekdays": {
+        "name": "Ladested 5 timer 2 ugedage"
+      },
+      "charging_location_5_timer_3_time": {
+        "name": "Ladested 5 timer 3 tid"
+      },
+      "charging_location_5_timer_3_weekdays": {
+        "name": "Ladested 5 timer 3 ugedage"
+      },
       "tyre_sensor_life_fl": {
         "name": "Tryksensor levetid for venstre"
       },
@@ -1727,6 +1890,15 @@
       },
       "departure_timer_3_enabled": {
         "name": "Afgangstimer 3 aktiveret"
+      },
+      "departure_timer_1_repeat": {
+        "name": "Afgangstimer 1 gentag"
+      },
+      "departure_timer_2_repeat": {
+        "name": "Afgangstimer 2 gentag"
+      },
+      "departure_timer_3_repeat": {
+        "name": "Afgangstimer 3 gentag"
       },
       "alarm_active": {
         "name": "Alarm aktiv"
@@ -1926,6 +2098,96 @@
       "connect_contract_active": {
         "name": "Connect-kontrakt aktiv"
       },
+      "charging_location_1_active": {
+        "name": "Ladested 1 aktivt"
+      },
+      "charging_location_1_reduced_ac_current": {
+        "name": "Ladested 1 reduceret AC-ladestrøm"
+      },
+      "charging_location_1_auto_release_connector": {
+        "name": "Ladested 1 automatisk frigivelse af AC-stik"
+      },
+      "charging_location_1_timer_1_enabled": {
+        "name": "Ladested 1 timer 1 aktiveret"
+      },
+      "charging_location_1_timer_2_enabled": {
+        "name": "Ladested 1 timer 2 aktiveret"
+      },
+      "charging_location_1_timer_3_enabled": {
+        "name": "Ladested 1 timer 3 aktiveret"
+      },
+      "charging_location_2_active": {
+        "name": "Ladested 2 aktivt"
+      },
+      "charging_location_2_reduced_ac_current": {
+        "name": "Ladested 2 reduceret AC-ladestrøm"
+      },
+      "charging_location_2_auto_release_connector": {
+        "name": "Ladested 2 automatisk frigivelse af AC-stik"
+      },
+      "charging_location_2_timer_1_enabled": {
+        "name": "Ladested 2 timer 1 aktiveret"
+      },
+      "charging_location_2_timer_2_enabled": {
+        "name": "Ladested 2 timer 2 aktiveret"
+      },
+      "charging_location_2_timer_3_enabled": {
+        "name": "Ladested 2 timer 3 aktiveret"
+      },
+      "charging_location_3_active": {
+        "name": "Ladested 3 aktivt"
+      },
+      "charging_location_3_reduced_ac_current": {
+        "name": "Ladested 3 reduceret AC-ladestrøm"
+      },
+      "charging_location_3_auto_release_connector": {
+        "name": "Ladested 3 automatisk frigivelse af AC-stik"
+      },
+      "charging_location_3_timer_1_enabled": {
+        "name": "Ladested 3 timer 1 aktiveret"
+      },
+      "charging_location_3_timer_2_enabled": {
+        "name": "Ladested 3 timer 2 aktiveret"
+      },
+      "charging_location_3_timer_3_enabled": {
+        "name": "Ladested 3 timer 3 aktiveret"
+      },
+      "charging_location_4_active": {
+        "name": "Ladested 4 aktivt"
+      },
+      "charging_location_4_reduced_ac_current": {
+        "name": "Ladested 4 reduceret AC-ladestrøm"
+      },
+      "charging_location_4_auto_release_connector": {
+        "name": "Ladested 4 automatisk frigivelse af AC-stik"
+      },
+      "charging_location_4_timer_1_enabled": {
+        "name": "Ladested 4 timer 1 aktiveret"
+      },
+      "charging_location_4_timer_2_enabled": {
+        "name": "Ladested 4 timer 2 aktiveret"
+      },
+      "charging_location_4_timer_3_enabled": {
+        "name": "Ladested 4 timer 3 aktiveret"
+      },
+      "charging_location_5_active": {
+        "name": "Ladested 5 aktivt"
+      },
+      "charging_location_5_reduced_ac_current": {
+        "name": "Ladested 5 reduceret AC-ladestrøm"
+      },
+      "charging_location_5_auto_release_connector": {
+        "name": "Ladested 5 automatisk frigivelse af AC-stik"
+      },
+      "charging_location_5_timer_1_enabled": {
+        "name": "Ladested 5 timer 1 aktiveret"
+      },
+      "charging_location_5_timer_2_enabled": {
+        "name": "Ladested 5 timer 2 aktiveret"
+      },
+      "charging_location_5_timer_3_enabled": {
+        "name": "Ladested 5 timer 3 aktiveret"
+      },
       "trailer_connected": {
         "name": "Anhænger tilkoblet"
       }
@@ -1967,8 +2229,44 @@
       "auto_unlock_plug_switch": {
         "name": "Lås ladestikket op automatisk"
       },
+      "climate_at_unlock_switch": {
+        "name": "Klima ved oplåsning"
+      },
+      "window_heating_auto_switch": {
+        "name": "Automatisk rudevarme"
+      },
+      "climate_zone_front_left_switch": {
+        "name": "Klimazone foran venstre"
+      },
+      "climate_zone_front_right_switch": {
+        "name": "Klimazone foran højre"
+      },
       "active_ventilation_switch": {
         "name": "Aktiv ventilation"
+      },
+      "companion_read_charge_detail": {
+        "name": "Læs opladningsdetaljer"
+      },
+      "companion_read_vehicle_health": {
+        "name": "Læs køretøjets tilstand og indstillinger"
+      },
+      "companion_read_climate_detail": {
+        "name": "Læs klimadetaljer"
+      },
+      "companion_read_climate_settings": {
+        "name": "Læs klimaindstillinger"
+      },
+      "companion_read_departure_times": {
+        "name": "Læs afgangstider"
+      },
+      "companion_read_driving_data": {
+        "name": "Læs kørselsdata"
+      },
+      "companion_read_parking_position": {
+        "name": "Læs parkeringsposition"
+      },
+      "companion_read_charging_locations": {
+        "name": "Læs ladesteder"
       }
     },
     "number": {
@@ -2001,6 +2299,17 @@
       },
       "scan_interval": {
         "name": "Pollingsinterval"
+      },
+      "app_sync_interval": {
+        "name": "Interval for synkronisering af bil (vækker bilen)",
+        "state_attributes": {
+          "note": {
+            "name": "Bemærkning",
+            "state": {
+              "battery_protection": "Slået fra som standard. Hver synkronisering vækker bilen og bruger af dens anmodningsbudget. For hyppig synkronisering kan aktivere bilens batteribeskyttelse, og appen forbliver derefter i nødtilstand, indtil bilen startes næste gang. Det korteste interval er 60 min; indstil til 0 for at slå synkroniseringen fra."
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2019,13 +2328,27 @@
       "historical_export_button": {
         "name": "Anmod om historisk eksport"
       },
+      "companion_refresh_button": {
+        "name": "Opdater data fra app-skærmen"
+      },
       "companion_reset_button": {
         "name": "Nulstil companion-forbindelse"
+      },
+      "companion_force_refresh_button": {
+        "name": "Opdater køretøjsdata"
       }
     },
     "climate": {
       "climate": {
-        "name": "Klimaanlæg"
+        "name": "Klimaanlæg",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "air_conditioning": "Aircondition",
+              "window_heating": "Kun rudeopvarmning"
+            }
+          }
+        }
       }
     },
     "device_tracker": {
@@ -2050,6 +2373,13 @@
         "state": {
           "maximum": "Maksimum",
           "reduced": "Reduceret"
+        }
+      },
+      "companion_climate_start_mode": {
+        "name": "Ønsket starttilstand for klima",
+        "state": {
+          "air_conditioning": "Aircondition",
+          "window_heating": "Kun rudeopvarmning"
         }
       }
     },
@@ -2499,6 +2829,15 @@
     }
   },
   "exceptions": {
+    "companion_limit_language_unavailable": {
+      "message": "Skrivning og synkronisering er deaktiveret: appens oversættelsesressourcer er ikke tilgængelige, og det kan ikke bekræftes, at brugergrænsefladens aktuelle sprog er engelsk, tysk eller spansk. Data kan stadig læses."
+    },
+    "companion_sync_refused": {
+      "message": "Appen synkroniserede ikke bilen. Hver synkronisering vækker bilen, så den afvises, mens kommandoer er sat på pause, eller for kort tid efter den sidste kommando. Se sensoren Appens anmodningsstatus."
+    },
+    "companion_app_version_unverified": {
+      "message": "Kommandoer er slået fra: appen på telefonen er version {version}, som endnu ikke er verificeret til kommandoer. Kommandoer, gemning og synkronisering forbliver slået fra, indtil denne version er verificeret. Køretøjsdata opdateres stadig."
+    },
     "vehicle_not_found": {
       "message": "Køretøj med VIN {vin} blev ikke fundet. Tjek, at integrationen er startet."
     },
@@ -2523,6 +2862,9 @@
     "read_only_attestation_blocked": {
       "message": "VW blokerer fjernkommandoer til SEAT/CUPRA bag en Google-enhedskontrol (Play Integrity / App Check), som kun den officielle app på en rigtig telefon kan bestå. Lås, klima og opladning kan derfor ikke sendes herfra. Det er en permanent serverside-blokering fra VW, ikke en indstilling, du kan slå fra. Køretøjsdata opdateres stadig via EU Data Act-portalen."
     },
+    "departure_timer_enabled_required": {
+      "message": "Angiv 'enabled' for dette køretøjs afgangstimer: dets forbindelse kræver det. Kun companion-kanalen (ADB) kan udelade det."
+    },
     "export_file_not_allowed": {
       "message": "Home Assistant har ikke lov til at læse {path}. Læg eksportfilen i config-mappen (eller en mappe, der står under allowlist_external_dirs), og angiv stien igen."
     },
@@ -2540,6 +2882,15 @@
     },
     "historical_wedge_blocked": {
       "message": "Der er allerede en engangseksport af historikken i gang for denne bil. Portalen håndterer kun én sådan anmodning ad gangen, så vent, til den nuværende er færdig (eller får timeout), før du beder om en ny."
+    },
+    "hvac_mode_not_supported": {
+      "message": "HVAC-tilstanden {hvac_mode} understøttes ikke; brug en af: {modes}. Intet blev sendt."
+    },
+    "climate_preset_while_running": {
+      "message": "Stop klimaet først: tilstanden kan ikke ændres, mens det kører. Intet blev sendt."
+    },
+    "climate_preset_not_supported": {
+      "message": "Tilstanden {preset} understøttes ikke; brug en af: {presets}. Intet blev sendt."
     }
   },
   "selector": {

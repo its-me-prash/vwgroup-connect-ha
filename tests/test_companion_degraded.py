@@ -36,8 +36,13 @@ def _node(text: str) -> str:
     )
 
 
+# The overview's identity anchor: reads start only here.
+_ANCHOR = (
+    '<node resource-id="rangeTile" content-desc="" text="" class="android.view.View" '
+    'clickable="false" bounds="[0,300][1080,480]" />'
+)
 CLEAN = _dump(
-    _node("Ladezustand 74 %") + _node("Aktualisiert vor 5 Minuten")
+    _ANCHOR + _node("Ladezustand 74 %") + _node("Aktualisiert vor 5 Minuten")
 )
 
 

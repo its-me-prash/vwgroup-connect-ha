@@ -254,10 +254,25 @@ class CompanionRelayBroker:
             fut.set_result(result.get("value"))
         else:
             fut.set_exception(
-                CompanionTransportError(
-                    str(result.get("error") or "the companion agent reported a failure")
-                )
+                CompanionTransportError(_agent_error(result.get("error")))
             )
+
+
+_AGENT_ERROR_CODE = {
+    "no such node": "the companion agent reported a failure (no such node)",
+}
+
+
+def _agent_error(error: Any) -> str:
+    """The agent's failure, as a fixed message for a known code only.
+
+    The agent is a separate app, so free text from it may carry screen content
+    (places, notifications): only explicitly known codes may select a message.
+    """
+    reason = "the companion agent reported a failure"
+    if isinstance(error, str):
+        return _AGENT_ERROR_CODE.get(error, reason)
+    return reason
 
 
 # ── registry ────────────────────────────────────────────────────────────────
@@ -358,6 +373,12 @@ def ensure_relay_view(hass: "HomeAssistant") -> None:
         )
     from homeassistant.components.http import HomeAssistantView  # noqa: PLC0415
 
+    try:
+        from homeassistant.components.http.const import KEY_HASS  # noqa: PLC0415
+    except ImportError:
+        # Older HA releases stored the instance under a plain string key.
+        KEY_HASS = "hass"  # type: ignore[assignment]
+
     class CompanionAgentView(HomeAssistantView):  # type: ignore[misc]
         """The agent's long-poll endpoint. Open by necessity, token-gated in fact."""
 
@@ -366,7 +387,7 @@ def ensure_relay_view(hass: "HomeAssistant") -> None:
         requires_auth = False
 
         async def post(self, request: Any) -> Any:
-            status, body = await handle_agent_request(request.app["hass"], request)
+            status, body = await handle_agent_request(request.app[KEY_HASS], request)
             return self.json(body, status_code=status)
 
     hass.http.register_view(CompanionAgentView)

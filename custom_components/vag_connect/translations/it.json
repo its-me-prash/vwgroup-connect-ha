@@ -163,9 +163,9 @@
           "adb_port": "Di solito 5555 per ADB su Wi-Fi.",
           "vin": "Il VIN di 17 caratteri dell'auto mostrata nell'app.",
           "companion_use_addon": "Seleziona questa opzione per un telefono Android 11 o più recente, che offre solo il debug wireless. Inserisci quindi qui sopra l'indirizzo dell'ADD-ON anziché quello del telefono.",
-          "companion_addon_token": "Necessario solo se hai impostato api_token nell'add-on.",
+          "companion_addon_token": "Required for new add-on connections. Set the same api_token in the add-on. The bridge uses plain HTTP; use a trusted network.",
           "companion_use_relay": "Seleziona questa opzione se sul telefono gira l'app agent. Sarà il telefono a chiamare Home Assistant: niente ADB, niente debug wireless e nessun IP fisso — lascia vuoto il campo indirizzo.",
-          "companion_agent_token": "Il token casuale generato dall'app agent. Almeno 32 caratteri, e uno diverso per ogni veicolo."
+          "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
       "audi_mbb_fallback": {
@@ -204,10 +204,12 @@
       "companion_needs_addon": "Sembra un telefono con Android 11 o successivo che usa il debug wireless, che la connessione diretta qui non può utilizzare (richiede TLS + accoppiamento). Installa l'add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) e fai puntare il companion a quello. I telefoni più vecchi (Android 10 o precedenti) si collegano qui direttamente.",
       "companion_app_not_found": "Connessione al telefono riuscita, ma l'app della marca non è installata.",
       "companion_unknown_brand": "Questa marca non ha ancora un preset per il telefono di appoggio.",
-      "companion_agent_token_too_short": "Il token dell'agent è troppo corto. Incolla il token casuale generato dall'app agent (almeno 32 caratteri).",
+      "companion_agent_token_too_short": "The agent token is too short. Use a random token with at least 32 characters, such as the generated token.",
       "companion_host_required": "Inserisci l'indirizzo IP del telefono — oppure seleziona l'opzione agent se è il telefono a chiamare Home Assistant.",
       "missing_captcha": "Inserisci i caratteri mostrati nell'immagine qui sopra.",
-      "captcha_retry": "Risolvi il captcha mostrato qui sopra per continuare."
+      "captcha_retry": "Risolvi il captcha mostrato qui sopra per continuare.",
+      "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
     },
     "abort": {
       "already_configured": "Questo account è già configurato.",
@@ -240,7 +242,6 @@
           "fuel_tank_capacity": "Capacità serbatoio (litri, per % carburante)",
           "enable_reverse_geocoding": "Geocodifica inversa (indirizzo di parcheggio)",
           "read_only_mode": "Modalità sola lettura",
-          "companion_read_charge_detail": "Companion: leggi l'obiettivo di ricarica (naviga nell'app)",
           "companion_wake_sleep": "Companion: accendi lo schermo per l'interrogazione, poi rimettilo in stop",
           "companion_close_app": "Companion: chiudi l'app auto dopo ogni lettura",
           "force_ppe_climate": "Body clima Audi PPE/PPC (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
@@ -265,9 +266,6 @@
           "vwde_cred_relogin": "Volkswagen.de: accedi di nuovo con la password salvata quando la sessione web scade",
           "vweu_device_grant": "Aggiungi VW EU Two-Way — comandi + letture in tempo reale (BETA)",
           "remove_vweu_twoway": "Rimuovi VW EU Two-Way (torna al canale precedente)",
-          "companion_read_vehicle_health": "Companion: leggi contachilometri e tagliando da Vehicle Health (naviga nell'app)",
-          "companion_read_climate_detail": "Companion: leggi temperatura impostata ed esterna (naviga nell'app)",
-          "companion_read_parking_position": "Companion: leggi la posizione di parcheggio dal link di condivisione dell'app (naviga nell'app)",
           "skoda_official_api_key": "Chiave API ufficiale Škoda — aggiunge l'API ufficiale del costruttore come fonte dati in tempo reale (e failover)",
           "clear_skoda_official_key": "Cancella la chiave API ufficiale Škoda memorizzata (ne viene creata una nuova automaticamente se il tuo accesso lo consente)",
           "skoda_official_mode": "Modalità sorgente API ufficiale Škoda"
@@ -277,7 +275,6 @@
           "spin": "S-PIN per la chiusura delle porte. App → Sicurezza → S-PIN.",
           "enable_reverse_geocoding": "Invia le coordinate GPS del parcheggio a OpenStreetMap Nominatim per risolvere via/città. Disattivato per impostazione predefinita per motivi di privacy.",
           "read_only_mode": "Quando abilitata, vengono creati solo i sensori di stato — nessun interruttore, pulsante, blocco, clima o cursore che invii comandi. Utile se vuoi la telemetria del veicolo senza alcun rischio di attivazione accidentale. Ricarica l'integrazione dopo aver modificato l'impostazione.",
-          "companion_read_charge_detail": "Solo Companion (ADB). Legge anche l'obiettivo di ricarica, la potenza e il tempo rimanente che si trovano dietro la schermata di dettaglio della ricarica. Per arrivarci TOCCA l'app (circa ogni 15 minuti), quindi attivalo solo dopo aver verificato che la procedura funzioni sul tuo telefono. Disattivato per impostazione predefinita. Ricarica dopo aver modificato l'impostazione.",
           "companion_wake_sleep": "Solo Companion (ADB). Accende lo schermo del telefono prima di ogni interrogazione e lo rimette in stop subito dopo, così un telefono bloccato o in stop mostra l'app durante la lettura senza tenere il display sempre acceso. Disattivato per impostazione predefinita. Ricarica dopo aver modificato l'impostazione.",
           "companion_close_app": "Solo Companion (ADB). Forza l'arresto (chiude) dell'app auto dopo ogni lettura, così la lettura successiva la riavvia da zero invece di leggere una schermata rimasta in cache. Utile sui dispositivi dove l'app congela i valori tra una lettura e l'altra. Disattivato per impostazione predefinita — un riavvio a freddo è più lento. Ricarica dopo la modifica.",
           "force_ppe_climate": "Solo per Audi. Forza il nuovo formato body PPE/PPC (climatisationMode obbligatorio, targetTemperature omesso) all'avvio del clima. Abilita solo se possiedi un Q6 e-tron, A6 e-tron, RS e-tron GT Facelift o A3 2024+ PHEV — altrimenti l'avvio del clima restituisce 400. Ricarica l'integrazione dopo aver modificato l'impostazione.",
@@ -645,11 +642,30 @@
       "departure_timer_3_time": {
         "name": "Timer di partenza 3"
       },
+      "departure_timer_1_weekdays": {
+        "name": "Timer di partenza 1 giorni"
+      },
+      "departure_timer_2_weekdays": {
+        "name": "Timer di partenza 2 giorni"
+      },
+      "departure_timer_3_weekdays": {
+        "name": "Timer di partenza 3 giorni"
+      },
       "last_updated_at": {
         "name": "Ultimo aggiornamento"
       },
       "last_seen_at": {
         "name": "Veicolo ultimo report"
+      },
+      "last_vehicle_sync": {
+        "name": "Ultima sincronizzazione del veicolo"
+      },
+      "app_request_status": {
+        "name": "Stato richieste dell'app",
+        "state": {
+          "available": "Disponibile",
+          "restricted": "Limitato"
+        }
       },
       "adblue_range_km": {
         "name": "Autonomia AdBlue"
@@ -1088,6 +1104,13 @@
       },
       "climate_mode": {
         "name": "Modalità clima"
+      },
+      "climate_start_mode": {
+        "name": "Modalità di avvio climatizzazione",
+        "state": {
+          "air_conditioning": "Climatizzazione",
+          "window_heating": "Riscaldamento cristalli"
+        }
       },
       "active_target_soc": {
         "name": "Obiettivo di ricarica attivo"
@@ -1591,6 +1614,146 @@
       "alarm_reason": {
         "name": "Motivo dell'allarme"
       },
+      "companion_charge_mode": {
+        "name": "Modalità di ricarica",
+        "state": {
+          "manual": "Manuale",
+          "timer": "Timer",
+          "preferred_charging_times": "Orari di ricarica preferiti",
+          "only_own_current": "Solo energia propria",
+          "immediate_discharging": "Scarica ora",
+          "timer_charging_climatization": "Ricarica a timer con climatizzazione"
+        }
+      },
+      "charging_location_count": {
+        "name": "Numero di luoghi di ricarica"
+      },
+      "charging_location_current": {
+        "name": "Luogo di ricarica attuale",
+        "state": {
+          "none": "Nessuno"
+        }
+      },
+      "charging_location_1_name": {
+        "name": "Luogo di ricarica 1"
+      },
+      "charging_location_1_active_timers": {
+        "name": "Luogo di ricarica 1 timer attivi"
+      },
+      "charging_location_1_timer_1_time": {
+        "name": "Luogo di ricarica 1 timer 1 ora"
+      },
+      "charging_location_1_timer_1_weekdays": {
+        "name": "Luogo di ricarica 1 timer 1 giorni della settimana"
+      },
+      "charging_location_1_timer_2_time": {
+        "name": "Luogo di ricarica 1 timer 2 ora"
+      },
+      "charging_location_1_timer_2_weekdays": {
+        "name": "Luogo di ricarica 1 timer 2 giorni della settimana"
+      },
+      "charging_location_1_timer_3_time": {
+        "name": "Luogo di ricarica 1 timer 3 ora"
+      },
+      "charging_location_1_timer_3_weekdays": {
+        "name": "Luogo di ricarica 1 timer 3 giorni della settimana"
+      },
+      "charging_location_2_name": {
+        "name": "Luogo di ricarica 2"
+      },
+      "charging_location_2_active_timers": {
+        "name": "Luogo di ricarica 2 timer attivi"
+      },
+      "charging_location_2_timer_1_time": {
+        "name": "Luogo di ricarica 2 timer 1 ora"
+      },
+      "charging_location_2_timer_1_weekdays": {
+        "name": "Luogo di ricarica 2 timer 1 giorni della settimana"
+      },
+      "charging_location_2_timer_2_time": {
+        "name": "Luogo di ricarica 2 timer 2 ora"
+      },
+      "charging_location_2_timer_2_weekdays": {
+        "name": "Luogo di ricarica 2 timer 2 giorni della settimana"
+      },
+      "charging_location_2_timer_3_time": {
+        "name": "Luogo di ricarica 2 timer 3 ora"
+      },
+      "charging_location_2_timer_3_weekdays": {
+        "name": "Luogo di ricarica 2 timer 3 giorni della settimana"
+      },
+      "charging_location_3_name": {
+        "name": "Luogo di ricarica 3"
+      },
+      "charging_location_3_active_timers": {
+        "name": "Luogo di ricarica 3 timer attivi"
+      },
+      "charging_location_3_timer_1_time": {
+        "name": "Luogo di ricarica 3 timer 1 ora"
+      },
+      "charging_location_3_timer_1_weekdays": {
+        "name": "Luogo di ricarica 3 timer 1 giorni della settimana"
+      },
+      "charging_location_3_timer_2_time": {
+        "name": "Luogo di ricarica 3 timer 2 ora"
+      },
+      "charging_location_3_timer_2_weekdays": {
+        "name": "Luogo di ricarica 3 timer 2 giorni della settimana"
+      },
+      "charging_location_3_timer_3_time": {
+        "name": "Luogo di ricarica 3 timer 3 ora"
+      },
+      "charging_location_3_timer_3_weekdays": {
+        "name": "Luogo di ricarica 3 timer 3 giorni della settimana"
+      },
+      "charging_location_4_name": {
+        "name": "Luogo di ricarica 4"
+      },
+      "charging_location_4_active_timers": {
+        "name": "Luogo di ricarica 4 timer attivi"
+      },
+      "charging_location_4_timer_1_time": {
+        "name": "Luogo di ricarica 4 timer 1 ora"
+      },
+      "charging_location_4_timer_1_weekdays": {
+        "name": "Luogo di ricarica 4 timer 1 giorni della settimana"
+      },
+      "charging_location_4_timer_2_time": {
+        "name": "Luogo di ricarica 4 timer 2 ora"
+      },
+      "charging_location_4_timer_2_weekdays": {
+        "name": "Luogo di ricarica 4 timer 2 giorni della settimana"
+      },
+      "charging_location_4_timer_3_time": {
+        "name": "Luogo di ricarica 4 timer 3 ora"
+      },
+      "charging_location_4_timer_3_weekdays": {
+        "name": "Luogo di ricarica 4 timer 3 giorni della settimana"
+      },
+      "charging_location_5_name": {
+        "name": "Luogo di ricarica 5"
+      },
+      "charging_location_5_active_timers": {
+        "name": "Luogo di ricarica 5 timer attivi"
+      },
+      "charging_location_5_timer_1_time": {
+        "name": "Luogo di ricarica 5 timer 1 ora"
+      },
+      "charging_location_5_timer_1_weekdays": {
+        "name": "Luogo di ricarica 5 timer 1 giorni della settimana"
+      },
+      "charging_location_5_timer_2_time": {
+        "name": "Luogo di ricarica 5 timer 2 ora"
+      },
+      "charging_location_5_timer_2_weekdays": {
+        "name": "Luogo di ricarica 5 timer 2 giorni della settimana"
+      },
+      "charging_location_5_timer_3_time": {
+        "name": "Luogo di ricarica 5 timer 3 ora"
+      },
+      "charging_location_5_timer_3_weekdays": {
+        "name": "Luogo di ricarica 5 timer 3 giorni della settimana"
+      },
       "tyre_sensor_life_fl": {
         "name": "Durata sensore di pressione anteriore sinistro"
       },
@@ -1727,6 +1890,15 @@
       },
       "departure_timer_3_enabled": {
         "name": "Timer di partenza 3 abilitato"
+      },
+      "departure_timer_1_repeat": {
+        "name": "Timer di partenza 1 ripeti"
+      },
+      "departure_timer_2_repeat": {
+        "name": "Timer di partenza 2 ripeti"
+      },
+      "departure_timer_3_repeat": {
+        "name": "Timer di partenza 3 ripeti"
       },
       "alarm_active": {
         "name": "Allarme attivo"
@@ -1926,6 +2098,96 @@
       "connect_contract_active": {
         "name": "Contratto Connect attivo"
       },
+      "charging_location_1_active": {
+        "name": "Luogo di ricarica 1 attivo"
+      },
+      "charging_location_1_reduced_ac_current": {
+        "name": "Luogo di ricarica 1 corrente di ricarica CA ridotta"
+      },
+      "charging_location_1_auto_release_connector": {
+        "name": "Luogo di ricarica 1 sblocco automatico del connettore CA"
+      },
+      "charging_location_1_timer_1_enabled": {
+        "name": "Luogo di ricarica 1 timer 1 abilitato"
+      },
+      "charging_location_1_timer_2_enabled": {
+        "name": "Luogo di ricarica 1 timer 2 abilitato"
+      },
+      "charging_location_1_timer_3_enabled": {
+        "name": "Luogo di ricarica 1 timer 3 abilitato"
+      },
+      "charging_location_2_active": {
+        "name": "Luogo di ricarica 2 attivo"
+      },
+      "charging_location_2_reduced_ac_current": {
+        "name": "Luogo di ricarica 2 corrente di ricarica CA ridotta"
+      },
+      "charging_location_2_auto_release_connector": {
+        "name": "Luogo di ricarica 2 sblocco automatico del connettore CA"
+      },
+      "charging_location_2_timer_1_enabled": {
+        "name": "Luogo di ricarica 2 timer 1 abilitato"
+      },
+      "charging_location_2_timer_2_enabled": {
+        "name": "Luogo di ricarica 2 timer 2 abilitato"
+      },
+      "charging_location_2_timer_3_enabled": {
+        "name": "Luogo di ricarica 2 timer 3 abilitato"
+      },
+      "charging_location_3_active": {
+        "name": "Luogo di ricarica 3 attivo"
+      },
+      "charging_location_3_reduced_ac_current": {
+        "name": "Luogo di ricarica 3 corrente di ricarica CA ridotta"
+      },
+      "charging_location_3_auto_release_connector": {
+        "name": "Luogo di ricarica 3 sblocco automatico del connettore CA"
+      },
+      "charging_location_3_timer_1_enabled": {
+        "name": "Luogo di ricarica 3 timer 1 abilitato"
+      },
+      "charging_location_3_timer_2_enabled": {
+        "name": "Luogo di ricarica 3 timer 2 abilitato"
+      },
+      "charging_location_3_timer_3_enabled": {
+        "name": "Luogo di ricarica 3 timer 3 abilitato"
+      },
+      "charging_location_4_active": {
+        "name": "Luogo di ricarica 4 attivo"
+      },
+      "charging_location_4_reduced_ac_current": {
+        "name": "Luogo di ricarica 4 corrente di ricarica CA ridotta"
+      },
+      "charging_location_4_auto_release_connector": {
+        "name": "Luogo di ricarica 4 sblocco automatico del connettore CA"
+      },
+      "charging_location_4_timer_1_enabled": {
+        "name": "Luogo di ricarica 4 timer 1 abilitato"
+      },
+      "charging_location_4_timer_2_enabled": {
+        "name": "Luogo di ricarica 4 timer 2 abilitato"
+      },
+      "charging_location_4_timer_3_enabled": {
+        "name": "Luogo di ricarica 4 timer 3 abilitato"
+      },
+      "charging_location_5_active": {
+        "name": "Luogo di ricarica 5 attivo"
+      },
+      "charging_location_5_reduced_ac_current": {
+        "name": "Luogo di ricarica 5 corrente di ricarica CA ridotta"
+      },
+      "charging_location_5_auto_release_connector": {
+        "name": "Luogo di ricarica 5 sblocco automatico del connettore CA"
+      },
+      "charging_location_5_timer_1_enabled": {
+        "name": "Luogo di ricarica 5 timer 1 abilitato"
+      },
+      "charging_location_5_timer_2_enabled": {
+        "name": "Luogo di ricarica 5 timer 2 abilitato"
+      },
+      "charging_location_5_timer_3_enabled": {
+        "name": "Luogo di ricarica 5 timer 3 abilitato"
+      },
       "trailer_connected": {
         "name": "Rimorchio collegato"
       }
@@ -1967,8 +2229,44 @@
       "auto_unlock_plug_switch": {
         "name": "Sblocco automatico della presa di ricarica"
       },
+      "climate_at_unlock_switch": {
+        "name": "Clima allo sblocco"
+      },
+      "window_heating_auto_switch": {
+        "name": "Riscaldamento automatico dei vetri"
+      },
+      "climate_zone_front_left_switch": {
+        "name": "Zona clima anteriore sinistra"
+      },
+      "climate_zone_front_right_switch": {
+        "name": "Zona clima anteriore destra"
+      },
       "active_ventilation_switch": {
         "name": "Ventilazione attiva"
+      },
+      "companion_read_charge_detail": {
+        "name": "Leggi dettagli ricarica"
+      },
+      "companion_read_vehicle_health": {
+        "name": "Leggi stato veicolo e impostazioni"
+      },
+      "companion_read_climate_detail": {
+        "name": "Leggi dettagli clima"
+      },
+      "companion_read_climate_settings": {
+        "name": "Leggi impostazioni clima"
+      },
+      "companion_read_departure_times": {
+        "name": "Leggi orari di partenza"
+      },
+      "companion_read_driving_data": {
+        "name": "Leggi dati di guida"
+      },
+      "companion_read_parking_position": {
+        "name": "Leggi posizione di parcheggio"
+      },
+      "companion_read_charging_locations": {
+        "name": "Leggi luoghi di ricarica"
       }
     },
     "number": {
@@ -2001,6 +2299,17 @@
       },
       "scan_interval": {
         "name": "Intervallo di polling"
+      },
+      "app_sync_interval": {
+        "name": "Intervallo di sincronizzazione del veicolo (sveglia il veicolo)",
+        "state_attributes": {
+          "note": {
+            "name": "Nota",
+            "state": {
+              "battery_protection": "Disattivato per impostazione predefinita. Ogni sincronizzazione risveglia il veicolo e consuma parte della sua quota di richieste. Una sincronizzazione troppo frequente può attivare la protezione della batteria del veicolo e l’app rimane quindi in modalità di sicurezza fino al successivo avviamento del veicolo. L’intervallo minimo è di 60 min; impostare 0 per disattivare la sincronizzazione."
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2019,13 +2328,27 @@
       "historical_export_button": {
         "name": "Richiedi esportazione storica"
       },
+      "companion_refresh_button": {
+        "name": "Aggiorna dati della schermata dell'app"
+      },
       "companion_reset_button": {
         "name": "Reimposta connessione companion"
+      },
+      "companion_force_refresh_button": {
+        "name": "Aggiorna dati del veicolo"
       }
     },
     "climate": {
       "climate": {
-        "name": "Climatizzazione"
+        "name": "Climatizzazione",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "air_conditioning": "Aria condizionata",
+              "window_heating": "Solo riscaldamento cristalli"
+            }
+          }
+        }
       }
     },
     "device_tracker": {
@@ -2050,6 +2373,13 @@
         "state": {
           "maximum": "Massima",
           "reduced": "Ridotta"
+        }
+      },
+      "companion_climate_start_mode": {
+        "name": "Modalità di avvio clima desiderata",
+        "state": {
+          "air_conditioning": "Aria condizionata",
+          "window_heating": "Solo riscaldamento cristalli"
         }
       }
     },
@@ -2499,6 +2829,15 @@
     }
   },
   "exceptions": {
+    "companion_limit_language_unavailable": {
+      "message": "La scrittura e la sincronizzazione sono disabilitate: le risorse di traduzione dell’app non sono disponibili e non è possibile confermare che la lingua attuale dell’interfaccia sia l’inglese, il tedesco o lo spagnolo. La lettura dei dati continua a funzionare."
+    },
+    "companion_sync_refused": {
+      "message": "L'app non ha sincronizzato il veicolo. Ogni sincronizzazione sveglia il veicolo, quindi viene rifiutata mentre i comandi sono in pausa o troppo presto dopo l'ultimo comando. Controlla il sensore Stato richieste dell'app."
+    },
+    "companion_app_version_unverified": {
+      "message": "I comandi sono disattivati: l'app sul telefono è la versione {version}, che non è ancora stata verificata per i comandi. Comandi, salvataggi e sincronizzazioni restano disattivati finché questa versione non viene verificata. I dati del veicolo continuano ad aggiornarsi."
+    },
     "vehicle_not_found": {
       "message": "Veicolo con VIN {vin} non trovato. Verifica che l'integrazione sia avviata."
     },
@@ -2523,6 +2862,9 @@
     "read_only_attestation_blocked": {
       "message": "VW blocca i comandi a distanza per SEAT/CUPRA dietro una verifica del dispositivo di Google (Play Integrity / App Check) che solo l'app ufficiale su un telefono reale può superare. Blocco porte, climatizzazione e ricarica non possono quindi essere inviati da qui. È un blocco permanente lato server di VW, non un'impostazione disattivabile. I dati del veicolo continuano ad aggiornarsi tramite il portale EU Data Act."
     },
+    "departure_timer_enabled_required": {
+      "message": "Imposta 'enabled' per il timer di partenza di questo veicolo: la sua connessione lo richiede. Solo il canale companion (ADB) può ometterlo."
+    },
     "export_file_not_allowed": {
       "message": "Home Assistant non è autorizzato a leggere {path}. Sposta il file di esportazione nella cartella di configurazione (o in una cartella elencata in allowlist_external_dirs) e indica di nuovo il suo percorso."
     },
@@ -2540,6 +2882,15 @@
     },
     "historical_wedge_blocked": {
       "message": "È già in corso un'esportazione una tantum dello storico per questo veicolo. Il portale gestisce una sola richiesta di questo tipo alla volta, quindi attendi che quella in corso si concluda (o vada in timeout) prima di richiederne un'altra."
+    },
+    "hvac_mode_not_supported": {
+      "message": "La modalità HVAC {hvac_mode} non è supportata; usa una tra: {modes}. Non è stato inviato nulla."
+    },
+    "climate_preset_while_running": {
+      "message": "Arresta prima la climatizzazione: la modalità non può cambiare mentre è attiva. Non è stato inviato nulla."
+    },
+    "climate_preset_not_supported": {
+      "message": "La modalità {preset} non è supportata; usa una tra: {presets}. Non è stato inviato nulla."
     }
   },
   "selector": {

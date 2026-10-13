@@ -266,19 +266,22 @@ class TestLiveClimateSheet:
         fields = read_selectors(parse_ui_dump(CLIMATE_SHEET), self._nav_values())
         assert fields["outside_temp"] == 22.0
 
-    def test_switch_states_come_from_checked_not_from_their_labels(self) -> None:
+    def test_idle_sheet_is_off_although_the_ac_toggle_is_checked(self) -> None:
+        # The Mk8 toggles choose what Start will start (UserInput in the 4.3.2
+        # APK); on this idle sheet the AC toggle is checked and the CTA is
+        # Start. The car is off, as the overview tile says.
         from custom_components.vag_connect.companion.screen import read_selectors
 
         fields = read_selectors(parse_ui_dump(CLIMATE_SHEET), self._nav_values())
-        assert fields["climatisation_active"] is True    # air conditioning on
-        assert fields["window_heating_enabled"] is False  # window heating off
+        assert fields["climatisation_active"] is False
+        assert fields["window_heating_front"] is False
+        assert fields["climate_remaining_time_min"] == 0
+        # A "what to start" toggle is not the automatic window heating setting.
+        assert "window_heating_enabled" not in fields
 
-    def test_switch_state_reads_from_description_when_toggle_is_not_checkable(self) -> None:
-        # #968 (plainmad, real 4.3.2 "climate active" dump) — the live toggle row
-        # is ``clima_``-prefixed, NOT checkable, and reads ``checked="false"`` even
-        # while air conditioning is ON. The real state is the sibling
-        # ``*_description`` text; reading only ``checked`` would call an active
-        # car's AC off.
+    def test_running_sheet_reads_its_descriptions(self) -> None:
+        # #968 (plainmad, real 4.3.2 "climate active" dump) — while running the
+        # toggles are replaced by descriptions and the CTA id flips to Stop.
         from custom_components.vag_connect.companion.screen import read_selectors
 
         real = _dump(
@@ -304,21 +307,11 @@ class TestLiveClimateSheet:
                 text="Off",
                 bounds="[595,1006][634,1039]",
             )
+            + _n(rid="cta_stop", text="Stop", clickable="true", bounds="[85,1278][635,1380]")
         )
         fields = read_selectors(parse_ui_dump(real), self._nav_values())
         assert fields["climatisation_active"] is True
-        assert fields["window_heating_enabled"] is False
-
-    def test_a_container_sharing_a_switch_id_cannot_read_as_off(self) -> None:
-        from custom_components.vag_connect.companion.screen import read_selectors
-
-        # The row wrapper is not checkable; only the switch itself is.
-        rowed = CLIMATE_SHEET.replace(
-            '<node index="0" text="" resource-id="air_conditioning_toggle"',
-            '<node index="0" text="" resource-id="air_conditioning_toggle_row"',
-        )
-        fields = read_selectors(parse_ui_dump(rowed), self._nav_values())
-        assert fields.get("climatisation_active") is None
+        assert fields["window_heating_front"] is False
 
     def test_the_sheet_offers_its_own_up_control(self) -> None:
         from custom_components.vag_connect.companion.screen import find_node_for

@@ -354,6 +354,9 @@ _OPTIMISTIC_HOLD_SECONDS = 150.0
 
 # Minimum interval enforced by Audi/VW connector (Sekunden)
 _CC_MIN_INTERVAL_S = 180
+# #968 — after "Synchronise now", wait this long before re-reading the app: the
+# app says the car takes "a few minutes" to answer.
+_APP_SYNC_READBACK_S = 180.0
 
 # Capabilities are mostly static (subscription tier, vehicle features) but
 # can change when a user renews/cancels online services. 24h is a balance
@@ -1478,6 +1481,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 CONF_COMPANION_CLOSE_APP,
                 CONF_COMPANION_READ_CHARGE_DETAIL,
                 CONF_COMPANION_READ_CLIMATE_DETAIL,
+                CONF_COMPANION_READ_CLIMATE_SETTINGS,
+                CONF_COMPANION_READ_DEPARTURE_TIMES,
+                CONF_COMPANION_READ_CHARGING_LOCATIONS,
+                CONF_COMPANION_READ_DRIVING_DATA,
                 CONF_COMPANION_READ_PARKING_POSITION,
                 CONF_COMPANION_READ_VEHICLE_HEALTH,
                 CONF_COMPANION_USE_ADDON,
@@ -1500,6 +1507,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     ("charge_detail", CONF_COMPANION_READ_CHARGE_DETAIL),
                     ("vehicle_health", CONF_COMPANION_READ_VEHICLE_HEALTH),
                     ("climate_detail", CONF_COMPANION_READ_CLIMATE_DETAIL),
+                    ("climate_settings", CONF_COMPANION_READ_CLIMATE_SETTINGS),
+                    ("departure_times", CONF_COMPANION_READ_DEPARTURE_TIMES),
+                    ("charging_locations", CONF_COMPANION_READ_CHARGING_LOCATIONS),
+                    ("driving_data", CONF_COMPANION_READ_DRIVING_DATA),
                     ("parking_position", CONF_COMPANION_READ_PARKING_POSITION),
                 )
                 if _companion_opt(key)
@@ -1546,10 +1557,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # v2.26.0 (ckomma #21) — re-apply a rate-limit backoff persisted
             # before a restart, so an account lockout is not cleared just by
             # restarting HA.
-            from .const import CONF_COMPANION_RATE_LIMIT_UNTIL  # noqa: PLC0415
+            from .const import (  # noqa: PLC0415
+                CONF_COMPANION_LAST_WRITE_AT,
+                CONF_COMPANION_RATE_LIMIT_UNTIL,
+            )
             _rl = self.entry.data.get(CONF_COMPANION_RATE_LIMIT_UNTIL)
             if _rl and hasattr(self._cariad_client, "restore_rate_limit"):
                 self._cariad_client.restore_rate_limit(float(_rl))
+            # Likewise the last command time, so a restart cannot shorten the
+            # minimum gap between commands.
+            _lw = self.entry.data.get(CONF_COMPANION_LAST_WRITE_AT)
+            if _lw and hasattr(self._cariad_client, "restore_last_write"):
+                self._cariad_client.restore_last_write(float(_lw))
         else:
             session = async_get_clientsession(self.hass)
             # #1774 (@kalwados) — one jar-isolated session per config entry, for
@@ -1713,6 +1732,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # a restart instead of blanking every entity, even though a valid
             # cached snapshot is loaded (entity_base requires last_good).
             self._seed_last_good_from_snapshot(cached.get("saved_at"), _restored_vins)
+            self._seed_companion_synced_at(_restored_vins)
             _LOGGER.debug(
                 "VW Group Connect portal-safety: restored %d cached vehicle(s) "
                 "for %s", len(self.vehicles), brand,
@@ -2057,47 +2077,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug(
                     "Škoda official auto-enroll skipped (%s)", type(exc).__name__
                 )
-            # Fetch status for all vehicles
-            self._push_official_mode()  # #1286 — official_only routing before read
-            results = await asyncio.gather(
-                *[self._cariad_client.get_status(vin) for vin in vins],
-                return_exceptions=True,
-            )
-
-            # v2.18.0 (A1) — merge + enrich BEFORE taking the lock, then only
-            # assign while holding it.
-            #
-            # Two reasons. (1) This path never merged at all: the poll loop
-            # unions the armed supplementary channels onto the primary, this
-            # one stored the raw primary, so the first snapshot after every
-            # setup/restart was primary-only and supplementary fields stayed
-            # blank until the first poll tick. (2) ``_vehicles_lock`` is a
-            # threading.Lock, and awaiting while holding one parks the whole
-            # event loop for any other task that tries to acquire it — the
-            # merge does network I/O, so it must not run inside.
-            prepared: list[tuple[str, dict[str, Any] | None, bool, bool]] = []
-            for vin, result in zip(vins, results):
-                if isinstance(result, Exception):
-                    # class + plain status only — a raw aiohttp error's str()
-                    # carries the VIN-path URL; APIError is already redacted.
-                    _rstatus = getattr(result, "status", None)
-                    _LOGGER.warning(
-                        "Could not fetch status for %s: %s%s",
-                        mask_vin(vin), type(result).__name__,
-                        f" (HTTP {_rstatus})" if _rstatus else "",
-                    )
-                    prepared.append((vin, None, True, False))
-                    continue
-                if isinstance(result, VehicleData):
-                    merged = await self._merge_supplementary(vin, result)
-                    data = merged.to_dict()
-                    data["_client"] = self._cariad_client
-                    prepared.append((
-                        vin,
-                        await self._enrich(data),
-                        False,
-                        bool(getattr(merged, "no_data", False)),
-                    ))
+            # #968 companion startup — a companion read is a full app-screen walk
+            # (plus every enabled nav-read opt-in), so awaiting it here held
+            # config-entry setup, and HA startup, open for minutes. Setup only
+            # connects + enumerates; the restored snapshot (or a bare placeholder
+            # on a first-ever setup) stands until the poll loop's immediate first
+            # read in the background. Every other strategy still reads inline.
+            if self.is_companion():
+                self._seed_companion_placeholders(vins)
+                prepared: list[tuple[str, dict[str, Any] | None, bool, bool]] = []
+            else:
+                prepared = await self._setup_initial_reads(vins)
 
             # v2.24.1 (#702) — the poll loop has guarded this since v2.15.0a10
             # (line ~1994) and this path never did, which made the fix only half
@@ -2188,9 +2178,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         type(exc).__name__,
                     )
                 # Start background polling — after the prefetches, as it was inline.
+                # #968 companion startup — a companion's first read was skipped
+                # in setup, so its first tick runs at once (others sleep first).
                 self.hass.async_create_background_task(
-                    self._poll_loop(), f"{DOMAIN}_poll"
+                    self._poll_loop(first_immediate=self.is_companion()),
+                    f"{DOMAIN}_poll",
                 )
+                # #968 — a companion entry also asks the car itself for fresh
+                # data, on its own clock (the poll above only re-reads the app).
+                if self.is_companion():
+                    self._companion_background_task(
+                        self._companion_app_sync_loop(), f"{DOMAIN}_app_sync"
+                    )
 
             self.hass.async_create_background_task(
                 _bg_finish(), f"{DOMAIN}_setup_finish"
@@ -3297,8 +3296,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         The primary is the command-capable (or first-configured) channel; it
         stays highest priority in the merge so read-only supplementary channels
         only ever fill gaps."""
-        from .const import CONF_WEBSITE_AUTHPROXY  # noqa: PLC0415
+        from .const import CONF_WEBSITE_AUTHPROXY, is_companion_entry_data  # noqa: PLC0415
         data = self.entry.data
+        if is_companion_entry_data(data):
+            # The companion reads the brand's app, not its cloud: name the
+            # transport (ADB / relay) the client reports, never the brand.
+            token = getattr(self._cariad_client, "_source_channel", None)
+            return token if isinstance(token, str) and token else "companion_adb"
         if data.get(CONF_WEBSITE_AUTHPROXY):
             return "website_authproxy"
         dag = data.get("dag_initial_tokens") or {}
@@ -3610,12 +3614,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if not isinstance(cs, dict) or not cs:
                     continue  # valid set unknown for this VIN → prune nothing
                 valid = {f"connectivity_{token}" for token in cs}
-                prefix = f"{vin}_connectivity_"
+                from .const import vehicle_unique_id  # noqa: PLC0415
+
+                base = vehicle_unique_id(vin, "", companion=self.is_companion())
+                prefix = f"{base}connectivity_"
                 for entry in entries:
                     uid = entry.unique_id or ""
                     if not uid.startswith(prefix):
                         continue
-                    key = uid[len(vin) + 1:]  # "{vin}_" → "connectivity_{token}"
+                    key = uid[len(base):]  # "{vin}_" → "connectivity_{token}"
                     if key in valid:
                         continue
                     _LOGGER.info(
@@ -4410,7 +4417,76 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 merged, mask_vin(vin),
             )
 
-    async def _poll_loop(self) -> None:
+    async def _setup_initial_reads(
+        self, vins: list[str]
+    ) -> list[tuple[str, dict[str, Any] | None, bool, bool]]:
+        """Fetch + merge + enrich the first status of every VIN during setup.
+
+        Returns ``(vin, data, failed, no_data)`` per VIN for the reconcile pass
+        in ``async_setup``. Not used for a companion entry (#968 companion
+        startup): its first read runs in the background poll loop instead.
+        """
+        self._push_official_mode()  # #1286 — official_only routing before read
+        results = await asyncio.gather(
+            *[self._cariad_client.get_status(vin) for vin in vins],
+            return_exceptions=True,
+        )
+
+        # v2.18.0 (A1) — merge + enrich BEFORE taking the lock, then only
+        # assign while holding it.
+        #
+        # Two reasons. (1) This path never merged at all: the poll loop
+        # unions the armed supplementary channels onto the primary, this
+        # one stored the raw primary, so the first snapshot after every
+        # setup/restart was primary-only and supplementary fields stayed
+        # blank until the first poll tick. (2) ``_vehicles_lock`` is a
+        # threading.Lock, and awaiting while holding one parks the whole
+        # event loop for any other task that tries to acquire it — the
+        # merge does network I/O, so it must not run inside.
+        prepared: list[tuple[str, dict[str, Any] | None, bool, bool]] = []
+        for vin, result in zip(vins, results):
+            if isinstance(result, Exception):
+                # class + plain status only — a raw aiohttp error's str()
+                # carries the VIN-path URL; APIError is already redacted.
+                _rstatus = getattr(result, "status", None)
+                _LOGGER.warning(
+                    "Could not fetch status for %s: %s%s",
+                    mask_vin(vin), type(result).__name__,
+                    f" (HTTP {_rstatus})" if _rstatus else "",
+                )
+                prepared.append((vin, None, True, False))
+                continue
+            if isinstance(result, VehicleData):
+                merged = await self._merge_supplementary(vin, result)
+                data = merged.to_dict()
+                data["_client"] = self._cariad_client
+                prepared.append((
+                    vin,
+                    await self._enrich(data),
+                    False,
+                    bool(getattr(merged, "no_data", False)),
+                ))
+        return prepared
+
+    def _seed_companion_placeholders(self, vins: list[str]) -> None:
+        """#968 companion startup — give every companion VIN a vehicle dict by
+        the time setup returns, without reading the phone.
+
+        A restored last-known-good snapshot is left untouched. On a first-ever
+        setup (no cache) a bare placeholder carrying only the VIN is seeded so
+        setup does not raise NotReady; data-gated entities simply spawn on the
+        first poll. ``vehicle_success`` is deliberately not set: nothing was read.
+        """
+        with self._vehicles_lock:
+            for vin in vins:
+                if not self.vehicles.get(vin):
+                    self.vehicles[vin] = {
+                        "vin": vin,
+                        "_client": self._cariad_client,
+                        "_poll_failed": False,
+                    }
+
+    async def _poll_loop(self, first_immediate: bool = False) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
         Re-reads scan_interval from entry.options on every iteration so that
@@ -4421,7 +4497,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         v2.8.0 — pre-flight `_maybe_run_stale_watchdog()` runs before
         each poll attempt. See that method's docstring.
+
+        #968 companion startup — ``first_immediate`` skips the sleep before the
+        first iteration only (companion entries, whose setup read is deferred).
         """
+        self._bind_companion_poll_to_entry()
         while self._started:
             # Re-read interval every iteration — picks up Options-Flow changes live
             interval_s = max(
@@ -4479,7 +4559,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     "EU Data Act portal 5xx streak %d → backing off, next poll "
                     "in %.0fs", self._consecutive_portal_5xx, sleep_s,
                 )
-            await asyncio.sleep(sleep_s)
+            # #968 companion startup — setup skipped the inline read, so the
+            # first tick reads now instead of an interval after the restart.
+            if first_immediate:
+                first_immediate = False
+            else:
+                await asyncio.sleep(sleep_s)
             if not self._started:
                 break
             # v2.8.0 — pre-flight watchdog. If we are on the
@@ -5085,6 +5170,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_shutdown(self) -> None:
         """Stop polling loop and release resources."""
         self._started = False
+        self._shutting_down = True
         # v2.0.0 (Big-Bang) — stop push managers before dropping client.
         await self.async_stop_push_managers()
         # v2.15.0b1 (C1) — close the dedicated supplementary vw.de session so
@@ -5932,6 +6018,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         client = getattr(self, "_cariad_client", None)
         if client is None:
             return True
+        supports = getattr(client, "supports_command", None)
+        if callable(supports):
+            return bool(supports(command_id))
         return hasattr(client, command_id)
 
     def command_capability_supported(
@@ -6731,6 +6820,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         once when coming back online — never fills logs with repeated errors.
         Also removes stale devices when vehicles disappear from the account.
         """
+        if getattr(self, "_shutting_down", False):
+            # A poll the unload let finish: HA removes this entry's listeners
+            # only after the unload, so a push here would spawn entities on the
+            # cleared platform, tied to this dead coordinator (stuck values, and
+            # the reloaded entry's twins rejected as duplicate unique ids). The
+            # read is already in the vehicle cache the reloaded entry restores.
+            return
         if success:
             if not self._was_available:
                 _LOGGER.info(
@@ -7311,7 +7407,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Fix #32: Defensive is_charging reset.
         # When plug is disconnected, charging MUST be False regardless of API state.
         # Prevents is_charging staying stuck on "True" after charging ends.
-        if not data.get("plug_connected") and data.get("is_charging"):
+        # On a companion entry only a KNOWN disconnect counts: the app screens
+        # never show the plug, so it stays None there, and a None used to force
+        # a live charging session to "not charging". Cloud channels keep the
+        # original rule, so a poll without the plug block still clears a stuck
+        # is_charging.
+        _plug = data.get("plug_connected")
+        _unplugged = _plug is False if self.is_companion() else not _plug
+        if _unplugged and data.get("is_charging"):
             data["is_charging"] = False
             _LOGGER.debug(
                 "is_charging reset to False — plug not connected (defensive fix #32)"
@@ -7461,6 +7564,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             address = locality or (display[:60] if display else "")
 
         return {"address": address or None, "city": locality or None}
+
+    def _seed_companion_synced_at(self, vins: list[str]) -> None:
+        """#968 — start the companion's car sync time from the snapshot.
+
+        The time only moves forward within a run, so starting from the
+        restored value keeps a restart or reload from putting it back.
+        """
+        restore = getattr(self._cariad_client, "restore_synced_at", None)
+        if restore is None:
+            return
+        from homeassistant.util import dt as dt_util  # noqa: PLC0415
+        for vin in vins:
+            raw = self.vehicles.get(vin, {}).get("companion_app_synced_at")
+            seen = raw if isinstance(raw, datetime) else (
+                dt_util.parse_datetime(raw) if isinstance(raw, str) else None
+            )
+            if seen is not None:
+                restore(seen)
 
     def _save_vehicle_cache(self) -> None:
         """Persist the last-known-good vehicle snapshot (debounced 30s).
@@ -7933,6 +8054,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
     async def async_set_climatisation_temperature(self, vin: str, temp_c: float) -> None:
+        # Companion (ADB): the app's sheet has no Save, Start applies the dial.
+        # With the climate off the temperature is only stored for the next
+        # Start, so it skips the command lock and the post-command refresh (a
+        # refresh reads the phone). While it runs, the dial is moved now: a
+        # command like any other, which costs one car request.
+        store = getattr(self._cariad_client, "store_climate_target_temperature", None)
+        if self.is_companion() and callable(store):
+            store(temp_c)
+            self.async_update_listeners()
+            if not (self.data or {}).get(vin, {}).get("climatisation_active"):
+                return
         await self._cariad_cmd(vin, "command_set_climate_temperature", temp_c=temp_c)
 
     async def async_update_charging_settings(
@@ -8019,7 +8151,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self,
         vin: str,
         timer_id: int,
-        enabled: bool,
+        enabled: bool | None,
         departure_time: str | None,
         recurring_on: list[str] | None = None,
         charging: bool | None = None,
@@ -8040,7 +8172,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         / ``one_off_day``. Only the CARIAD (vw.de/BFF) client sends them, and
         only for opted-in test-cohort entries (the BFF write field names are
         inferred from the read DTO); the other brand clients accept and ignore
-        them so the cross-brand signature stays uniform.
+        them so the cross-brand signature stays uniform. The companion (ADB)
+        client refuses the charging, climatisation and target SoC fields and
+        honours ``one_off_day``. ``enabled`` is None only on the companion,
+        to leave the switch alone.
         """
         await self._cariad_cmd(
             vin,
@@ -8374,9 +8509,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """v2.26.0 (ckomma #21) — persist the companion (ADB) rate-limit backoff.
 
         So an account lockout survives an HA restart. No-op unless this is a
-        companion entry and the value actually changed (avoids churn).
+        companion entry and the value actually changed (avoids churn). The last
+        command time goes with it, so a restart keeps the gap between commands.
         """
         from .const import (  # noqa: PLC0415
+            CONF_COMPANION_LAST_WRITE_AT,
             CONF_COMPANION_RATE_LIMIT_UNTIL,
             CONF_STRATEGY,
             STRATEGY_COMPANION_ADB,
@@ -8387,15 +8524,46 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         client = getattr(self, "_cariad_client", None)
         until = float(getattr(client, "companion_rate_limited_until", 0.0) or 0.0)
         current = float(self.entry.data.get(CONF_COMPANION_RATE_LIMIT_UNTIL) or 0.0)
-        if until == current:
+        data = {**self.entry.data, CONF_COMPANION_RATE_LIMIT_UNTIL: until}
+        last = getattr(client, "companion_last_write_at", 0.0)
+        last = float(last) if isinstance(last, (int, float)) else 0.0
+        # 0 means no command this run: keep what an earlier run stored.
+        written = last and last != float(
+            self.entry.data.get(CONF_COMPANION_LAST_WRITE_AT) or 0.0
+        )
+        if written:
+            data[CONF_COMPANION_LAST_WRITE_AT] = last
+        if until == current and not written:
             return
         try:
-            _self_update_entry(
-                self,
-                data={**self.entry.data, CONF_COMPANION_RATE_LIMIT_UNTIL: until},
-            )
+            _self_update_entry(self, data=data)
         except Exception:  # noqa: BLE001
             pass
+
+    def set_companion_read(self, opt_in: str, enabled: bool) -> None:
+        """Apply a companion nav-read switch to the running channel."""
+        setter = getattr(self._cariad_client, "set_nav_opt_in", None)
+        if callable(setter):
+            setter(opt_in, enabled)
+
+    async def _apply_companion_transport_flags(self) -> None:
+        """Push the wake/sleep and close-app options to the live transport.
+
+        Applied under the channel's screen lock, without rebuilding the channel,
+        so the write min-interval and cooldown state are preserved.
+        """
+        setter = getattr(self._cariad_client, "set_transport_flags", None)
+        if not self.is_companion() or not callable(setter):
+            return
+        from .const import (  # noqa: PLC0415
+            CONF_COMPANION_CLOSE_APP,
+            CONF_COMPANION_WAKE_SLEEP,
+        )
+
+        await setter(
+            wake_sleep=bool(self.entry.data.get(CONF_COMPANION_WAKE_SLEEP, False)),
+            close_app=bool(self.entry.data.get(CONF_COMPANION_CLOSE_APP, False)),
+        )
 
     def is_companion(self) -> bool:
         """v2.26.0 — True if this entry reads via the companion (ADB) channel."""
@@ -8422,6 +8590,230 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         )
         return not wake_sleep
+
+    def companion_app_sync_interval_s(self) -> float:
+        """#968 — the "Synchronise now" interval in seconds, 0 when off.
+
+        Options THEN data, as for the poll interval.
+        """
+        from .const import (  # noqa: PLC0415
+            COMPANION_APP_SYNC_OFF,
+            CONF_COMPANION_APP_SYNC_INTERVAL,
+            DEFAULT_COMPANION_APP_SYNC_INTERVAL,
+            MAX_COMPANION_APP_SYNC_INTERVAL,
+            MIN_COMPANION_APP_SYNC_INTERVAL,
+        )
+
+        raw = self.entry.options.get(CONF_COMPANION_APP_SYNC_INTERVAL)
+        if raw is None:
+            raw = self.entry.data.get(
+                CONF_COMPANION_APP_SYNC_INTERVAL, DEFAULT_COMPANION_APP_SYNC_INTERVAL
+            )
+        try:
+            minutes = int(raw)
+        except (TypeError, ValueError):
+            minutes = DEFAULT_COMPANION_APP_SYNC_INTERVAL
+        if minutes <= COMPANION_APP_SYNC_OFF:
+            return 0.0
+        minutes = max(
+            MIN_COMPANION_APP_SYNC_INTERVAL,
+            min(minutes, MAX_COMPANION_APP_SYNC_INTERVAL),
+        )
+        return float(minutes * 60)
+
+    async def _companion_app_sync_loop(self) -> None:
+        """#968 — tap the app's "Synchronise now" every sync interval.
+
+        Independent of ``_poll_loop``: that one re-reads the app screen, this
+        one makes the car send fresh data, then polls once the app has had time
+        to receive it. Wakes at least once a minute so a slider change applies
+        without a reload. The interval counts from the newest of: the last
+        sync attempt (the Force vehicle refresh button's included, so the two
+        never wake the car minutes apart), the car's last data (a car that
+        sent data on its own, say while driven, needs no tap) and the last
+        command tap. The last two survive a restart, so a restart neither
+        delays an overdue sync by a full interval nor wakes the car when the
+        last sync is recent. With neither known, the first sync waits a full
+        interval. Turning the slider from 0 back on starts a fresh interval.
+
+        Every attempt is followed by a screen read, so the App request status
+        sensor shows its outcome: after an accepted sync once the car has had
+        time to answer, otherwise straight away.
+        """
+        import time  # noqa: PLC0415
+
+        # A restart counts as a sync only when nothing tells when the car
+        # last sent data or was last asked.
+        self._companion_last_sync_mono = (
+            time.monotonic() if self._companion_sync_basis_age_s() is None else None
+        )
+        while self._started:
+            interval = self.companion_app_sync_interval_s()
+            if interval <= 0:
+                self._companion_last_sync_mono = time.monotonic()
+                await asyncio.sleep(60.0)
+                continue
+            since = [
+                age for age in (
+                    None if self._companion_last_sync_mono is None
+                    else time.monotonic() - self._companion_last_sync_mono,
+                    self._companion_sync_basis_age_s(),
+                ) if age is not None
+            ]
+            remaining = interval - min(since, default=interval)
+            if remaining > 0:
+                await asyncio.sleep(min(remaining, 60.0))
+                continue
+            # Stamp here too: a skipped attempt (Read-only Mode, no sync
+            # command) returns before the sync stamps the clock, and must
+            # still wait a full interval instead of spinning the event loop.
+            self._companion_last_sync_mono = time.monotonic()
+            outcome = await self.async_companion_sync_vehicle()
+            if outcome is None:
+                continue
+            if outcome:
+                await asyncio.sleep(_APP_SYNC_READBACK_S)
+            if self._started:
+                await self.async_request_refresh()
+
+    def _companion_sync_basis_age_s(self) -> float | None:
+        """#968 — seconds since the car last sent data or was last tapped.
+
+        From what survives a restart: the car's sync time in the snapshot (kept
+        current by every read) and the persisted last command time, which every
+        *Synchronise now* tap sets. None when neither is known. A time in the
+        future (a clock step) counts as just now.
+        """
+        from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+        from .const import CONF_COMPANION_LAST_WRITE_AT  # noqa: PLC0415
+
+        newest: float | None = None
+        for vehicle in self.vehicles.values():
+            raw = vehicle.get("companion_app_synced_at") if isinstance(vehicle, dict) else None
+            seen = raw if isinstance(raw, datetime) else (
+                dt_util.parse_datetime(raw) if isinstance(raw, str) else None
+            )
+            if seen is not None and seen.tzinfo is not None:
+                newest = max(newest or 0.0, seen.timestamp())
+        client = getattr(self, "_cariad_client", None)
+        written = getattr(client, "companion_last_write_at", 0.0)
+        if not isinstance(written, (int, float)) or not written:
+            written = self.entry.data.get(CONF_COMPANION_LAST_WRITE_AT) or 0.0
+        if isinstance(written, (int, float)) and written:
+            newest = max(newest or 0.0, float(written))
+        if newest is None:
+            return None
+        import time  # noqa: PLC0415
+
+        return max(0.0, time.time() - newest)
+
+    async def async_companion_sync_vehicle(self) -> bool | None:
+        """#968 — one "Synchronise now".
+
+        True when the app is syncing, False when the attempt was refused (the
+        car's request limit, version gate, button not found), None when no
+        attempt was made (not a companion entry, Read-only Mode). Never raises:
+        the loop tries again next interval, and while the car's power budget is
+        used up each try is the probe that notices it is back.
+        """
+        if not self.is_companion() or self.is_read_only():
+            return None
+        client = getattr(self, "_cariad_client", None)
+        sync = getattr(client, "command_sync_vehicle", None)
+        supports = getattr(client, "supports_command", None)
+        if sync is None or not callable(supports) or not supports("command_sync_vehicle"):
+            return None
+        import time  # noqa: PLC0415
+
+        # One clock for the loop and the button: every attempt, tapped or
+        # refused, restarts the sync interval.
+        self._companion_last_sync_mono = time.monotonic()
+        try:
+            started = await sync(getattr(client, "_vin", ""))
+        except Exception as err:  # noqa: BLE001 - a background sync must not die
+            restricted = getattr(getattr(client, "_channel", None), "request_state", None)
+            _LOGGER.log(
+                logging.INFO if restricted == "restricted" else logging.WARNING,
+                "VW Group Connect: companion vehicle sync skipped: %s", err,
+            )
+            return False
+        finally:
+            self._persist_companion_rate_limit()
+        _LOGGER.debug(
+            "VW Group Connect: companion vehicle sync %s",
+            "requested" if started else "already running in the app",
+        )
+        return True
+
+    async def async_companion_force_refresh(self) -> None:
+        """#968 — Force vehicle refresh button: one "Synchronise now", then a read.
+
+        Like one turn of ``_companion_app_sync_loop``: an accepted sync is read
+        back once the car has had time to answer, in the background so the
+        press returns after the tap. A refused sync is read at once, so the App
+        request status sensor shows why, and the press fails with that reason.
+        """
+        from homeassistant.exceptions import HomeAssistantError  # noqa: PLC0415
+
+        outcome = await self.async_companion_sync_vehicle()
+        if outcome:
+            self._companion_background_task(
+                self._companion_sync_readback(), f"{DOMAIN}_app_sync_readback"
+            )
+            return
+        await self.async_request_refresh()
+        if outcome is False:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="companion_sync_refused",
+            )
+
+    async def _companion_sync_readback(self) -> None:
+        """Re-read the app once the car has had time to answer a sync.
+
+        The press asked for fresh data, so every detail screen is read, also
+        those that otherwise wait for a trip or new car data.
+        """
+        await asyncio.sleep(_APP_SYNC_READBACK_S)
+        if self._started:
+            self.companion_walk_details_next()
+            await self.async_request_refresh()
+
+    def companion_walk_details_next(self) -> None:
+        """#968 — have the next companion read walk every detail it reads.
+
+        Driving data, the parking position and Vehicle Health are otherwise
+        read only after a trip or new car data. No-op for a cloud client.
+        """
+        walk = getattr(self._cariad_client, "walk_details_next_read", None)
+        if walk is not None:
+            walk()
+
+    def _companion_background_task(self, coro: Any, name: str) -> None:
+        """Start a companion background task tied to this config entry, so HA
+        cancels it on unload instead of leaving it to tap the phone under the
+        reloaded entry."""
+        self.entry.async_create_background_task(self.hass, coro, name)
+
+    def _bind_companion_poll_to_entry(self) -> None:
+        """Have HA cancel this companion entry's poll loop on unload.
+
+        The loop is started from the hass-scoped setup finish, so it is tied to
+        the entry from inside: the running task cancels with the entry's other
+        background tasks. Other strategies keep their loop as it was.
+        """
+        if not self.is_companion():
+            return
+        task = asyncio.current_task()
+        on_unload = getattr(self.entry, "async_on_unload", None)
+        if task is None or not callable(on_unload):
+            return
+
+        def _cancel() -> None:
+            task.cancel()
+
+        on_unload(_cancel)
 
     async def async_reset_companion_cooldown(self) -> None:
         """v2.26.0 (ckomma #22) — user-initiated clear of a stuck companion
@@ -9036,9 +9428,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "in progress"
             ) from None
         try:
+            # Read-only Mode applies without a reload, so a control created
+            # before it was switched on (or a command queued on this lock)
+            # still lands here: refuse it at the last step before the car.
+            if self.is_read_only():
+                raise ServiceValidationError(
+                    "Read-only mode is enabled. Disable it in the integration "
+                    "options to send vehicle commands.",
+                    translation_domain=DOMAIN,
+                    translation_key="read_only_mode_active",
+                )
             await self._dispatch_cmd_locked(vin, method, **kwargs)
         finally:
             lock.release()
+            # A companion command can trip the request-limit pause and stamps
+            # the command gap; persist both now, not on the next poll, so a
+            # restart in between keeps them. No-op for other channels.
+            self._persist_companion_rate_limit()
         # b7 — refresh AFTER the command completes, OUTSIDE the lock and the
         # command's own error scope. A refresh/portal error must never be recorded as
         # a command failure (P2-twin) nor surfaced as a failed button press, and the
@@ -9186,6 +9592,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # not available on this vehicle"). A refusal we can explain in one
             # sentence should not look to the user like the integration crashed.
             if isinstance(err, VehicleCommandError):
+                # Companion: a refusal that carries its own translation (rule 9,
+                # an app build not verified for commands) keeps it.
+                cause = err.__cause__
+                key = getattr(cause, "translation_key", None)
+                if isinstance(key, str) and self.is_companion():
+                    raise ServiceValidationError(
+                        str(err),
+                        translation_domain=DOMAIN,
+                        translation_key=key,
+                        translation_placeholders=getattr(cause, "translation_placeholders", None),
+                    ) from err
                 raise ServiceValidationError(str(err)) from err
             if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
                 raise
@@ -9451,4 +9868,3 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             pass
         await self._cariad_cmd(vin, "command_wake")
-

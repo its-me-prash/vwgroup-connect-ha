@@ -48,6 +48,10 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "fuel_tank_capacity_liters",
     "service_km", "oil_service_km", "service_due_in_days", "oil_service_due_in_days",
     "last_seen_at",
+    # #968 — companion: the app's sync time and the sync flow's last finding.
+    # A read that cannot see the sync line (a sync in progress) or a poll
+    # without a sync must not blank them.
+    "companion_app_synced_at", "companion_request_state",
     # #1310 (indigomejor) — equipment_count comes and goes with a richer/leaner
     # payload but doesn't actually change poll-to-poll; blanking it to "unknown"
     # every time a poll omitted the block made it useless in automations/history.
@@ -580,6 +584,17 @@ def reconcile(
             "held over from a finished run while climatisation reads off; zeroed (#1231)"
         )
         merged["climate_remaining_time_min"] = 0
+    # Companion nav-read times travel with the values they date: a value carried
+    # forward from the snapshot (e.g. restored after a restart) keeps its recorded
+    # read time, so it still ages out. Fresh stamps always win, and a stamp is
+    # never kept for a value this poll supplied itself.
+    prev_stamps = previous.get("companion_nav_read_at") or {}
+    if prev_stamps:
+        stamps = dict(merged.get("companion_nav_read_at") or {})
+        for key, at in prev_stamps.items():
+            if key not in stamps and fresh.get(key) is None and merged.get(key) is not None:
+                stamps[key] = at
+        merged["companion_nav_read_at"] = stamps
 
     # #1403 — re-derive the drivetrain flags from the evidence that SURVIVED
     # this merge, because the flags themselves do not survive it.

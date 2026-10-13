@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<hierarchy rotation="0">
+  <node index="2" text="" resource-id="rangeTile" class="android.view.View" package="com.volkswagen.weconnect" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[53,54][508,500]" />
+  <node index="0" text="" resource-id="" class="android.view.View" package="com.volkswagen.weconnect" content-desc="Range overview. Currently charging. Battery range: 88 kilometres. Fuel range: 410 kilometres. Open details" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[53,54][508,500]" />
+</hierarchy>

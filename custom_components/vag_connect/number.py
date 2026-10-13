@@ -3,6 +3,7 @@
 """Number entities for VW Group Connect (target SOC, climatisation temperature)."""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from homeassistant.components.number import (
     NumberDeviceClass,
@@ -23,13 +24,24 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    COMPANION_APP_SYNC_OFF,
+    COMPANION_APP_SYNC_STEP,
+    CONF_BRAND,
+    CONF_COMPANION_APP_SYNC_INTERVAL,
     CONF_SCAN_INTERVAL,
+    DEFAULT_COMPANION_APP_SYNC_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MAX_COMPANION_APP_SYNC_INTERVAL,
+    MIN_COMPANION_APP_SYNC_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
+from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
+
+if TYPE_CHECKING:
+    pass
 
 
 @dataclass(frozen=True)
@@ -183,6 +195,11 @@ async def async_setup_entry(
     # v1.12.0 (#63) — Read-only Mode: number sliders send commands, skip.
     if coordinator.is_read_only():
         return
+    # #968 — a companion entry whose preset maps "Synchronise now" also gets a
+    # vehicle-sync slider on the same settings device. It sits after the
+    # read-only gate because a sync wakes the car.
+    if _companion_can_sync(coordinator, entry):
+        async_add_entities([VagConnectAppSyncIntervalNumber(coordinator, entry)])
 
     _CMD_ID = {
         "target_soc": "command_set_target_soc",
@@ -206,6 +223,7 @@ async def async_setup_entry(
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
+        drop_retired_climate(hass, coordinator, "number", vin)
         has_battery = vehicle.get("has_battery", False)
         for desc in NUMBER_DESCRIPTIONS:
             if desc.condition == "electric" and not has_battery:
@@ -234,6 +252,10 @@ async def async_setup_entry(
             # raises AttributeError on set (companion/ADB has no target-SoC etc.).
             if cmd_id and not coordinator.command_method_available(cmd_id):
                 continue
+            if desc.key == "target_temperature" and coordinator.is_companion():
+                # Companion: the climate entity holds the temperature for the
+                # next Start; see entity_twins.
+                continue
             entities.append(VagConnectNumber(coordinator, vin, desc))
         return entities
 
@@ -246,6 +268,8 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
     def __init__(self, coordinator: VagConnectCoordinator, vin: str, description: VagNumberDescription) -> None:
         super().__init__(coordinator, vin, description.key)
         self.entity_description = description
+        if description.key == "target_soc" and coordinator.is_companion():
+            self._attr_entity_category = None
 
     # v2.8.0 - default values for the aux heating sliders when the user
     # has not picked one yet. Mirrors the coordinator-side fallbacks in
@@ -254,6 +278,30 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
         "auxheat_duration": 30.0,
         "auxheat_target_temp": 21.0,
     }
+
+    def _client_bounds(self) -> tuple[float, float, float] | None:
+        """(min, max, step) when the client's control is narrower than the
+        description's, e.g. the companion's 50 … 100 % slider in 10 % steps."""
+        if self.entity_description.key != "target_soc":
+            return None
+        client = getattr(self.coordinator, "_cariad_client", None)
+        bounds = getattr(client, "target_soc_bounds", None)
+        return bounds if isinstance(bounds, tuple) and len(bounds) == 3 else None
+
+    @property
+    def native_min_value(self) -> float:
+        bounds = self._client_bounds()
+        return bounds[0] if bounds else super().native_min_value
+
+    @property
+    def native_max_value(self) -> float:
+        bounds = self._client_bounds()
+        return bounds[1] if bounds else super().native_max_value
+
+    @property
+    def native_step(self) -> float | None:
+        bounds = self._client_bounds()
+        return bounds[2] if bounds else super().native_step
 
     @property
     def native_value(self) -> float | None:
@@ -388,6 +436,86 @@ class VagConnectScanIntervalNumber(NumberEntity):
         clamped = max(MIN_SCAN_INTERVAL, min(int(value), int(self._attr_native_max_value)))
         current = dict(self._entry.options or {})
         current[CONF_SCAN_INTERVAL] = clamped
+        self._coordinator.hass.config_entries.async_update_entry(
+            self._entry, options=current,
+        )
+        self.async_write_ha_state()
+
+
+def _settings_device(entry: ConfigEntry) -> DeviceInfo:
+    """The account-level settings device both interval sliders live on."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_settings")},
+        name="VW Group Connect Settings",
+        manufacturer="VW Group",
+        entry_type=DeviceEntryType.SERVICE,
+    )
+
+
+def _companion_can_sync(coordinator: VagConnectCoordinator, entry: ConfigEntry) -> bool:
+    """True for a companion entry whose brand preset maps "Synchronise now"."""
+    if not coordinator.is_companion():
+        return False
+    from .companion.app_sync import preset_can_sync  # noqa: PLC0415
+
+    return preset_can_sync(str(entry.data.get(CONF_BRAND, "")))
+
+
+class VagConnectAppSyncIntervalNumber(NumberEntity):
+    """How often the companion taps the app's "Synchronise now", in minutes.
+
+    #968 — separate from the poll interval, which only re-reads the app screen.
+    This one makes the car send fresh data (vehicle Settings → Synchronise now),
+    so it runs on its own, slower clock; the coordinator's sync loop re-reads it
+    at least once a minute, so a change applies without a reload. 0 is off.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "app_sync_interval"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_native_min_value = COMPANION_APP_SYNC_OFF
+    _attr_native_max_value = MAX_COMPANION_APP_SYNC_INTERVAL
+    _attr_native_step = COMPANION_APP_SYNC_STEP
+    _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:car-clock"
+
+    def __init__(
+        self, coordinator: VagConnectCoordinator, entry: ConfigEntry
+    ) -> None:
+        self._coordinator = coordinator
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_app_sync_interval"
+        self._attr_device_info = _settings_device(entry)
+        # Home Assistant translates this value in the more-info dialog.
+        self._attr_extra_state_attributes = {"note": "battery_protection"}
+
+    @property
+    def native_value(self) -> float:
+        # Options THEN data, as for the poll interval: the update-listener folds
+        # options into data.
+        options = dict(getattr(self._entry, "options", None) or {})
+        data = dict(getattr(self._entry, "data", None) or {})
+        val = options.get(CONF_COMPANION_APP_SYNC_INTERVAL)
+        if val is None:
+            val = data.get(CONF_COMPANION_APP_SYNC_INTERVAL)
+        try:
+            return float(val) if val is not None else float(DEFAULT_COMPANION_APP_SYNC_INTERVAL)
+        except (TypeError, ValueError):
+            return float(DEFAULT_COMPANION_APP_SYNC_INTERVAL)
+
+    async def async_set_native_value(self, value: float) -> None:
+        # Clamp and snap: a raw number.set_value call can bypass the slider, and
+        # a too-short interval is exactly what trips the battery protection.
+        # 0 stays 0 (off); anything else is at least the 60 min floor.
+        step = COMPANION_APP_SYNC_STEP
+        snapped = int(round(float(value) / step)) * step
+        clamped = COMPANION_APP_SYNC_OFF if snapped <= COMPANION_APP_SYNC_OFF else max(
+            MIN_COMPANION_APP_SYNC_INTERVAL,
+            min(snapped, MAX_COMPANION_APP_SYNC_INTERVAL),
+        )
+        current = dict(self._entry.options or {})
+        current[CONF_COMPANION_APP_SYNC_INTERVAL] = clamped
         self._coordinator.hass.config_entries.async_update_entry(
             self._entry, options=current,
         )

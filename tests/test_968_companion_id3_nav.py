@@ -166,6 +166,9 @@ class TestMapsCoordinates:
         assert coerce("maps_lon", url) == pytest.approx(-151.20929)
 
 
+_UP_RIDS = {"vehicleHealthBack", "vwd_navigation_button"}
+
+
 class _WalkTransport:
     """A phone that changes screen when something is tapped or swiped.
 
@@ -202,6 +205,13 @@ class _WalkTransport:
 
     async def tap(self, x: int, y: int) -> None:
         self.taps.append((x, y))
+        # The app's own up control steps back like BACK does.
+        for node in parse_ui_dump(await self.dump_ui()):
+            if node.resource_id in _UP_RIDS and node.bounds is not None:
+                left, top, right, bottom = node.bounds
+                if left <= x <= right and top <= y <= bottom:
+                    self._at = max(0, self._at - 1)
+                    return
         self._at += 1
 
     async def swipe(
@@ -455,7 +465,7 @@ class TestNavWalk:
 
     @pytest.mark.asyncio
     async def test_a_missing_first_step_taps_nothing_at_all(self) -> None:
-        transport = _WalkTransport([_dump(_node("Charging status. 50 per cent."))])
+        transport = _WalkTransport([_overview()])
         await _channel(transport, {"vehicle_health", "parking_position"}).read()
         assert transport.taps == []
         assert transport.backs == 0
@@ -486,10 +496,10 @@ class TestNavWalk:
     async def test_an_app_version_the_preset_does_not_know_disables_the_walk(
         self,
     ) -> None:
-        # Same gate as a write: a drifted layout means a stale map, and a tap on
-        # a stale map is a tap on the wrong control.
+        # Same gate as a write. Newer builds are allowed (each control is found
+        # on screen); an unknown OLDER build is not.
         transport = _WalkTransport(
-            [_overview(), _overview(scrolled=True), HEALTH_SCREEN], version="9.9.9"
+            [_overview(), _overview(scrolled=True), HEALTH_SCREEN], version="1.0.0"
         )
         await _channel(transport, {"vehicle_health"}).read()
         assert transport.taps == []
@@ -508,19 +518,29 @@ class TestNavWalk:
         assert transport.taps == []
 
     @pytest.mark.asyncio
-    async def test_nav_values_are_cached_between_the_15_minute_walks(self) -> None:
+    async def test_a_due_walk_starts_from_the_overview_again(self) -> None:
         transport = _WalkTransport(
             [_overview(), _overview(scrolled=True), HEALTH_SCREEN]
         )
         channel = _channel(transport, {"vehicle_health"})
         first = await channel.read()
         assert first is not None and first["odometer_km"] == 27886
-        taps_after_first = len(transport.taps)
+        health_tile = transport.taps[0]
+        first_taps = list(transport.taps)
+        # Nothing new from the car: the report is not walked again, and the
+        # value stays from the last walk. Vehicle Settings, under the same
+        # switch, is still read every poll.
         second = await channel.read()
-        assert second is not None
-        # Second poll is inside the cadence window: no new taps, value retained.
-        assert second["odometer_km"] == 27886
-        assert len(transport.taps) == taps_after_first
+        assert second is not None and second["odometer_km"] == 27886
+        assert health_tile not in transport.taps[len(first_taps):]
+        # A requested refresh walks it again, starting from the overview
+        # (#1552; this once passed with no taps only because the poll read
+        # the overview selectors off the Health screen it was left on).
+        before = len(transport.taps)
+        channel.walk_details_next_read()
+        third = await channel.read()
+        assert third is not None and third["odometer_km"] == 27886
+        assert transport.taps[before:] == first_taps
 
 
 class TestPresetShape:
@@ -531,8 +551,37 @@ class TestPresetShape:
                 assert nav.opt_in, f"{preset.brand}/{nav.name} has no opt-in"
                 assert nav.back_presses >= len(nav.path) or nav.back_presses >= 1
 
-    def test_no_write_action_was_inferred_from_the_unconfirmed_4_3_2_tree(self) -> None:
-        # Reads seeded from a reported dump are recoverable if wrong; a tap is
-        # not. VW stays read-only until a real device confirms the tap map.
-        assert _VW.actions == ()
-        assert _VW.writable is False
+    def test_only_grounded_commands_are_mapped(self) -> None:
+        # Charging (#968 Golf GTE / Tiguan charge sheets), the charge limit on
+        # vehicle Settings, and the climate sheet (#968 captures + 4.3.2 APK)
+        # are grounded; nothing else is mapped.
+        from custom_components.vag_connect.companion.climate import CLIMATE_APP_VERSIONS
+
+        battery = {a for a in _VW.actions if a.nav_read in ("charge_detail", "vehicle_settings")}
+        assert {a.action: a.nav_read for a in battery} == {
+            "start_charging": "charge_detail",
+            "stop_charging": "charge_detail",
+            "set_charge_target": "vehicle_settings",
+            "sync_vehicle": "vehicle_settings",
+        }
+        assert all(a.app_versions == ("4.6.4", "4.3.2") for a in battery)
+        # The Climate Settings switches and zones: grounded in the 4.6.4
+        # captures (settings-save and the zone round trips), pinned to 4.6.4.
+        settings = {a for a in _VW.actions if a.nav_read == "climate_settings"}
+        assert {a.action for a in settings} == {
+            "set_climate_at_unlock", "set_window_heating_auto",
+            "set_climate_zone_front_left", "set_climate_zone_front_right",
+        }
+        assert all(a.app_versions == ("4.6.4",) for a in settings)
+        # Departure timers: the list switch (4.6.4 and 4.3.2 captures) and the
+        # timer page (4.6.4 captures only).
+        departure = {a.action: a.app_versions for a in _VW.actions if a.nav_read == "departure_times"}
+        assert departure == {
+            "toggle_departure_timer": ("4.6.4", "4.3.2"),
+            "edit_departure_timer": ("4.6.4",),
+        }
+        assert {a.action for a in _VW.actions} - {a.action for a in battery | settings} - set(departure) == {
+            "start_climate", "stop_climate", "start_window_heating",
+            "stop_window_heating", "set_climate_temperature",
+        }
+        assert CLIMATE_APP_VERSIONS == ("4.6.4", "4.3.2")

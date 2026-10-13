@@ -1476,6 +1476,89 @@ class VehicleData:
     departure_timer_2_time: str | None = None
     departure_timer_3_enabled: bool = False
     departure_timer_3_time: str | None = None
+    # Companion only — charging locations in the VW app, never cloud profiles.
+    charging_location_count: int | None = None
+    charging_location_current: str | None = None
+    charging_location_1_name: str | None = None
+    charging_location_1_active: bool | None = None
+    charging_location_1_active_timers: int | None = None
+    charging_location_1_reduced_ac_current: bool | None = None
+    charging_location_1_auto_release_connector: bool | None = None
+    charging_location_1_timer_1_enabled: bool | None = None
+    charging_location_1_timer_1_time: str | None = None
+    charging_location_1_timer_1_weekdays: str | None = None
+    charging_location_1_timer_2_enabled: bool | None = None
+    charging_location_1_timer_2_time: str | None = None
+    charging_location_1_timer_2_weekdays: str | None = None
+    charging_location_1_timer_3_enabled: bool | None = None
+    charging_location_1_timer_3_time: str | None = None
+    charging_location_1_timer_3_weekdays: str | None = None
+    charging_location_2_name: str | None = None
+    charging_location_2_active: bool | None = None
+    charging_location_2_active_timers: int | None = None
+    charging_location_2_reduced_ac_current: bool | None = None
+    charging_location_2_auto_release_connector: bool | None = None
+    charging_location_2_timer_1_enabled: bool | None = None
+    charging_location_2_timer_1_time: str | None = None
+    charging_location_2_timer_1_weekdays: str | None = None
+    charging_location_2_timer_2_enabled: bool | None = None
+    charging_location_2_timer_2_time: str | None = None
+    charging_location_2_timer_2_weekdays: str | None = None
+    charging_location_2_timer_3_enabled: bool | None = None
+    charging_location_2_timer_3_time: str | None = None
+    charging_location_2_timer_3_weekdays: str | None = None
+    charging_location_3_name: str | None = None
+    charging_location_3_active: bool | None = None
+    charging_location_3_active_timers: int | None = None
+    charging_location_3_reduced_ac_current: bool | None = None
+    charging_location_3_auto_release_connector: bool | None = None
+    charging_location_3_timer_1_enabled: bool | None = None
+    charging_location_3_timer_1_time: str | None = None
+    charging_location_3_timer_1_weekdays: str | None = None
+    charging_location_3_timer_2_enabled: bool | None = None
+    charging_location_3_timer_2_time: str | None = None
+    charging_location_3_timer_2_weekdays: str | None = None
+    charging_location_3_timer_3_enabled: bool | None = None
+    charging_location_3_timer_3_time: str | None = None
+    charging_location_3_timer_3_weekdays: str | None = None
+    charging_location_4_name: str | None = None
+    charging_location_4_active: bool | None = None
+    charging_location_4_active_timers: int | None = None
+    charging_location_4_reduced_ac_current: bool | None = None
+    charging_location_4_auto_release_connector: bool | None = None
+    charging_location_4_timer_1_enabled: bool | None = None
+    charging_location_4_timer_1_time: str | None = None
+    charging_location_4_timer_1_weekdays: str | None = None
+    charging_location_4_timer_2_enabled: bool | None = None
+    charging_location_4_timer_2_time: str | None = None
+    charging_location_4_timer_2_weekdays: str | None = None
+    charging_location_4_timer_3_enabled: bool | None = None
+    charging_location_4_timer_3_time: str | None = None
+    charging_location_4_timer_3_weekdays: str | None = None
+    charging_location_5_name: str | None = None
+    charging_location_5_active: bool | None = None
+    charging_location_5_active_timers: int | None = None
+    charging_location_5_reduced_ac_current: bool | None = None
+    charging_location_5_auto_release_connector: bool | None = None
+    charging_location_5_timer_1_enabled: bool | None = None
+    charging_location_5_timer_1_time: str | None = None
+    charging_location_5_timer_1_weekdays: str | None = None
+    charging_location_5_timer_2_enabled: bool | None = None
+    charging_location_5_timer_2_time: str | None = None
+    charging_location_5_timer_2_weekdays: str | None = None
+    charging_location_5_timer_3_enabled: bool | None = None
+    charging_location_5_timer_3_time: str | None = None
+    charging_location_5_timer_3_weekdays: str | None = None
+
+    # Companion (ADB) only: each timer's days as Home Assistant weekday codes
+    # ("mon,tue,wed,thu,fri") and its Repeat switch, read from the VW app's
+    # timer page. No cloud parser fills these.
+    departure_timer_1_weekdays: str | None = None
+    departure_timer_1_repeat: bool | None = None
+    departure_timer_2_weekdays: str | None = None
+    departure_timer_2_repeat: bool | None = None
+    departure_timer_3_weekdays: str | None = None
+    departure_timer_3_repeat: bool | None = None
 
     # Window heating
     window_heating_front: bool | None = None
@@ -1677,6 +1760,10 @@ class VehicleData:
     # (``climatisationSettings.value.climatisationMode``, "comfort" in the
     # wild). Read-only diagnostic; None for cars that don't ship it.
     climate_mode: str | None = None
+    # What the companion app's Start will start (VW 4.3.2 "Select mode"):
+    # "air_conditioning" or "window_heating". A local choice in the app, so
+    # read-only here; None where the sheet has no mode picker.
+    climate_start_mode: str | None = None
 
     # v1.14.0 (#24) — Trip Statistics from CARIAD-BFF
     # ``GET /vehicle/v1/vehicles/{vin}/tripstatistics?type={shortTerm|longTerm}``.
@@ -1802,12 +1889,26 @@ class VehicleData:
     # actions) are currently allowed. None for every network channel. Lets the
     # entity layer show whether the experimental two-way path is live.
     companion_writes_enabled: bool | None = None
+    # Companion (ADB) channel only: the app version last read from the phone,
+    # shown next to the App request status so a build that is not verified
+    # for commands (rule 9) explains why commands are off. None elsewhere.
+    companion_app_version: str | None = None
     # v2.26.0 — companion (ADB) channel only. Age in seconds of the CAR's data
     # as the app itself reports it ("synchronised N ago"), distinct from how
     # fresh OUR read is. None for every network channel and when the app shows
     # no sync line. Surfaced as a diagnostic so a stale car (working connector,
     # old backend data) is visible.
     companion_source_age_s: float | None = None
+    # Per-field app-screen read times (epoch seconds), including expired reads.
+    companion_nav_read_at: dict[str, float] = field(default_factory=dict)
+    # #968 — companion (ADB) channel only, and separate from ``last_seen_at``,
+    # which belongs to the cloud streams: when the car last sent the app data,
+    # from the overview's "Synchronised … ago" (earliest time it can mean).
+    companion_app_synced_at: Any | None = None
+    # #968 — what the vehicle sync flow last found: "available" when the app
+    # accepted Synchronise now, "restricted" when it answered with the car's
+    # power-budget alert (capability status 1010, PowerBudgetReached).
+    companion_request_state: str | None = None
     # v2.18.0 (A2) — per-FIELD provenance: {field_name: channel} for every
     # field that actually carries a value, recorded by the channel-merge layer.
     # ``source_channel`` answers "which channels fed this car"; this answers

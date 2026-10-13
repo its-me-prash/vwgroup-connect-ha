@@ -49,6 +49,9 @@ class UiNode:
     checkable: bool = False
     checked: bool = False
     enabled: bool = True
+    # The departure timer's weekday buttons (``cta_monday`` …) say whether a
+    # day is on only through ``selected``.
+    selected: bool = False
 
     @property
     def tap_point(self) -> tuple[int, int] | None:
@@ -56,6 +59,8 @@ class UiNode:
         if self.bounds is None:
             return None
         left, top, right, bottom = self.bounds
+        if right <= left or bottom <= top:
+            return None  # clipped off screen: [0,0][0,0] is not a target
         return ((left + right) // 2, (top + bottom) // 2)
 
 
@@ -80,6 +85,10 @@ def parse_ui_dump(xml: str) -> list[UiNode]:
     """
     if not xml or not xml.strip():
         return []
+    # Device and relay dumps are untrusted. UI dumps need no DTD or entities;
+    # refuse declarations before ElementTree can expand an internal entity.
+    if "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():
+        return []
     try:
         root = ET.fromstring(xml)
     except ET.ParseError:
@@ -98,6 +107,7 @@ def parse_ui_dump(xml: str) -> list[UiNode]:
                 checkable=a.get("checkable", "false") == "true",
                 checked=a.get("checked", "false") == "true",
                 enabled=a.get("enabled", "true") == "true",
+                selected=a.get("selected", "false") == "true",
             )
         )
     return out
@@ -153,6 +163,11 @@ def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
             if _rid_matches(n.resource_id, sel.checked_of_rid) and n.checkable:
                 yield "true" if n.checked else "false"
                 break
+
+    # 0a') a control whose id is its state (e.g. ``cta_start`` / ``cta_stop``).
+    if sel.present_rid:
+        if any(_rid_matches(n.resource_id, sel.present_rid) for n in nodes):
+            yield sel.present_value
 
     # 0b) geometric — a value with no label of any kind (v4.4.0).
     if sel.centre_of_rid:
@@ -322,6 +337,14 @@ def has_anchor(nodes: list[UiNode], preset: BrandPreset) -> bool:
     """
     if preset.screen_anchor is None:
         return True
+    # An anchor is about WHICH screen this is, not a value: the node's id is
+    # enough. On live 4.3.2 overviews (@gszigethy Tiguan, @plainmad Mk8) the
+    # ``rangeTile`` container has neither text nor description of its own, so
+    # requiring a value never recognised the overview, and the return walk
+    # could press BACK past it and out of the app.
+    anchor_rid = preset.screen_anchor.resource_id
+    if anchor_rid and any(_rid_matches(n.resource_id, anchor_rid) for n in nodes):
+        return True
     return _match_field_raw(nodes, preset.screen_anchor) is not None
 
 
@@ -384,7 +407,7 @@ def tap_point_for(node: UiNode, fraction: tuple[float, float] | None) -> tuple[i
     """
     if fraction is None:
         return node.tap_point
-    if node.bounds is None:
+    if node.tap_point is None or node.bounds is None:
         return None
     left, top, right, bottom = node.bounds
     frac_x, frac_y = fraction

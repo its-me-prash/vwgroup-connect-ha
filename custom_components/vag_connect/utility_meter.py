@@ -20,7 +20,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import DOMAIN
+from .const import DOMAIN, is_companion_entry_data, vehicle_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +34,8 @@ class _MeterSpec:
 
 
 # Keyed to our existing TOTAL_INCREASING sensors (sensor.py). Their unique_id is
-# ``{vin}_{data_key}`` (entity_base.py), which we resolve to an entity_id below.
+# ``{vin}_{data_key}``, or ``{vin}_companion_{data_key}`` on a companion entry
+# (const.vehicle_unique_id), which we resolve to an entity_id below.
 _SPECS: tuple[_MeterSpec, ...] = (
     _MeterSpec("total_charged_energy_kwh", "Monthly charged energy"),
     _MeterSpec("odometer_km", "Monthly mileage"),
@@ -43,7 +44,9 @@ _SPECS: tuple[_MeterSpec, ...] = (
 _CYCLE = "monthly"
 
 
-def any_source_sensor_present(hass: HomeAssistant, vins: list[str]) -> bool:
+def any_source_sensor_present(
+    hass: HomeAssistant, vins: list[str], *, companion: bool = False
+) -> bool:
     """True if at least one utility_meter-eligible source sensor is registered.
 
     The options flow uses this to surface the auto-provision toggle ONLY when
@@ -55,7 +58,9 @@ def any_source_sensor_present(hass: HomeAssistant, vins: list[str]) -> bool:
     try:
         registry = er.async_get(hass)
         return any(
-            registry.async_get_entity_id("sensor", DOMAIN, f"{vin}_{spec.suffix}")
+            registry.async_get_entity_id(
+                "sensor", DOMAIN, vehicle_unique_id(vin, spec.suffix, companion=companion)
+            )
             is not None
             for vin in vins
             for spec in _SPECS
@@ -87,6 +92,7 @@ async def async_ensure_utility_meters(
         from homeassistant.const import CONF_NAME  # noqa: PLC0415
 
         registry = er.async_get(hass)
+        companion = is_companion_entry_data(entry.data)
         # Existing (source_entity_id, cycle) pairs, so we never double-provision.
         existing: set[tuple[str, str]] = set()
         for ce in hass.config_entries.async_entries("utility_meter"):
@@ -98,7 +104,7 @@ async def async_ensure_utility_meters(
         for vin in vins:
             for spec in _SPECS:
                 source_eid = registry.async_get_entity_id(
-                    "sensor", DOMAIN, f"{vin}_{spec.suffix}"
+                    "sensor", DOMAIN, vehicle_unique_id(vin, spec.suffix, companion=companion)
                 )
                 if source_eid is None:
                     continue  # source sensor not present for this car

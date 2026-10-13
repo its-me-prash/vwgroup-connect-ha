@@ -393,7 +393,12 @@ set_climatisation_temperature:
 
 set_departure_timer:
   name: Abfahrtstimer setzen
-  description: Aktiviert, deaktiviert oder setzt die Abfahrtszeit eines Departure Timers (1–3). Nur bei EVs und PHEVs mit CARIAD-Backend (Audi, VW, Škoda, SEAT/CUPRA).
+  description: >-
+    Aktiviert, deaktiviert oder setzt die Abfahrtszeit eines Departure Timers
+    (1–3). Bei EVs und PHEVs mit CARIAD-Backend (Audi, VW, Škoda, SEAT/CUPRA)
+    und beim VW Companion-Kanal (ADB, App 4.6.4). Der Companion stellt Zeit,
+    Wochentage und Wiederholen auf der Timer-Seite der App ein und speichert
+    sie dort; das Speichern schaltet den Timer ein (so speichert die App).
   fields:
     vin:
       name: VIN
@@ -411,8 +416,12 @@ set_departure_timer:
           step: 1
     enabled:
       name: Aktiviert
-      description: Timer ein- oder ausschalten.
-      required: true
+      description: >-
+        Timer ein- oder ausschalten. Pflicht, außer beim Companion-Kanal
+        (ADB): dort leer lassen, um nur Zeit oder Tage zu ändern. Der
+        Companion lehnt "aus" zusammen mit einer Zeit- oder Tagesänderung ab,
+        weil das Speichern den Timer einschaltet.
+      required: false
       selector:
         boolean:
     departure_time:
@@ -430,7 +439,7 @@ set_departure_timer:
         und feuert an jedem genannten Tag. Akzeptiert MONDAY–SUNDAY in
         beliebiger Schreibweise. Wird von Porsche ignoriert (PPA hat keinen
         Weekday-Field). VW NA + Audi/VW EU + (perspektivisch) Skoda
-        unterstützen das Feld.
+        unterstützen das Feld, ebenso der Companion-Kanal (ADB).
       required: false
       selector:
         select:
@@ -447,8 +456,9 @@ set_departure_timer:
       name: Laden
       description: >-
         v4.7.11 Optional. Ob der Timer das Laden auslöst. Wird derzeit nur für
-        die Test-Kohorte (CARIAD/vw.de) übermittelt; andere Marken ignorieren
-        das Feld.
+        die Test-Kohorte (CARIAD/vw.de) übermittelt. Der Companion-Kanal (ADB)
+        lehnt das Feld mit einem Fehler ab (die Timer-Seite der App hat es
+        nicht); andere Marken ignorieren es.
       required: false
       selector:
         boolean:
@@ -456,8 +466,9 @@ set_departure_timer:
       name: Klimatisierung
       description: >-
         v4.7.11 Optional. Ob der Timer den Innenraum vorklimatisiert. Wird
-        derzeit nur für die Test-Kohorte (CARIAD/vw.de) übermittelt; andere
-        Marken ignorieren das Feld.
+        derzeit nur für die Test-Kohorte (CARIAD/vw.de) übermittelt. Der
+        Companion-Kanal (ADB) lehnt das Feld mit einem Fehler ab; andere
+        Marken ignorieren es.
       required: false
       selector:
         boolean:
@@ -466,7 +477,8 @@ set_departure_timer:
       description: >-
         v4.7.11 Optional. Ziel-Batteriestand in Prozent (10–100), auf den der
         Timer lädt. Wird derzeit nur für die Test-Kohorte (CARIAD/vw.de)
-        übermittelt.
+        übermittelt. Der Companion-Kanal (ADB) lehnt das Feld mit einem Fehler
+        ab.
       required: false
       selector:
         number:
@@ -478,8 +490,10 @@ set_departure_timer:
       name: Einmaliger Tag
       description: >-
         v4.7.11 Optional. Datum (JJJJ-MM-TT). Wenn gesetzt, feuert der Timer
-        einmalig an diesem Tag statt wiederkehrend. Wird derzeit nur für die
-        Test-Kohorte (CARIAD/vw.de) übermittelt.
+        einmalig an diesem Tag statt wiederkehrend. Wird für die Test-Kohorte
+        (CARIAD/vw.de) übermittelt. Der Companion-Kanal (ADB) setzt einen
+        einmaligen Timer (Wiederholen aus) am Wochentag des Datums; nur heute
+        bis in sechs Tagen.
       required: false
       selector:
         date:

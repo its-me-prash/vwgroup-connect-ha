@@ -67,7 +67,7 @@ PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,  # noqa: ARG001
+    hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -75,6 +75,16 @@ async def async_setup_entry(
     coordinator: VagConnectCoordinator = entry.runtime_data
     brand = str(entry.data.get(CONF_BRAND, "")).strip().lower()
     if brand not in PUSH_CAPABLE_BRANDS:
+        return
+    from .companion.entity_twins import is_cloud_only, remove_twin  # noqa: PLC0415
+
+    if is_cloud_only(coordinator, "event", "push_event"):
+        # A companion entry has no push stream: drop an earlier version's entity.
+        def _remove_for_vin(vin: str, _vehicle: dict) -> list[Any]:
+            remove_twin(hass, "event", vin, "push_event")
+            return []
+
+        register_dynamic_spawner(entry, coordinator, async_add_entities, _remove_for_vin)
         return
 
     event_types = [*_BRAND_EVENT_TYPES[brand], EVENT_TYPE_OTHER]

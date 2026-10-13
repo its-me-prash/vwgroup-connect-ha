@@ -37,6 +37,9 @@ from .cariad._util import mask_vin
 from .const import (
     CONF_ABRP_API_KEY,
     CONF_ABRP_USER_TOKEN,
+    CONF_ADB_HOST,
+    CONF_COMPANION_ADDON_TOKEN,
+    CONF_COMPANION_AGENT_TOKEN,
     CONF_BRAND,
     CONF_DATA_ACT_IDENTIFIERS,
     CONF_DATA_ACT_KICKOFF_TS,
@@ -91,6 +94,15 @@ _REDACT_KEYS = frozenset({
     "license_plate",
     "vehicle_nickname",
     "image_urls",
+    # Companion: the VW app's charging-location labels are the owner's own
+    # names for where the car habitually charges ("Home", a street, an
+    # employer), the same class as parking_city and vehicle_nickname above.
+    "charging_location_1_name",
+    "charging_location_2_name",
+    "charging_location_3_name",
+    "charging_location_4_name",
+    "charging_location_5_name",
+    "charging_location_current",
     # v1.13.0 (#62) — explicit token field names. Defensive registration:
     # today these only live in coordinator's in-memory cache, but if a
     # future change adds them to entry.data they'll automatically
@@ -118,14 +130,10 @@ _REDACT_KEYS = frozenset({
     CONF_VWEU_TWOWAY_EMAIL,
     CONF_VWEU_TWOWAY_TOKENS,
     CONF_VWEU_TWOWAY_COOKIES,
-    # Companion agent/add-on tokens. The agent token is the ENTIRE binding for
-    # the open relay endpoint — anyone holding it can bind a phone to the car's
-    # app — and the add-on token authenticates the ADB-bridge add-on. Both live
-    # in entry.data, so without this they land in the diagnostics download users
-    # attach to GitHub issues. Raw string keys (not the CONF_* constants) so the
-    # redaction is independent of the companion module's own const import order.
-    "companion_agent_token",
-    "companion_addon_token",
+    # Companion credentials and the phone/add-on LAN hostname or IP.
+    CONF_COMPANION_AGENT_TOKEN,
+    CONF_COMPANION_ADDON_TOKEN,
+    CONF_ADB_HOST,
     # #1286 — the Škoda official public-API key IS a credential: it grants read
     # (and charge-control) access to the car's official API. The single manual key
     # (CONF_SKODA_OFFICIAL_API_KEY) leaked in PLAINTEXT in the diagnostics download

@@ -11,7 +11,8 @@ charging_rate_kmh uses SensorDeviceClass.SPEED so HA auto-converts km/h ↔ mph
 based on the user's unit system preference.
 """
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -857,6 +858,343 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:car-brake-pad",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Companion only — charging locations, in the app's list order.
+    VagSensorDescription(
+        key="charging_location_count",
+        translation_key="charging_location_count",
+        data_key="charging_location_count",
+        condition="electric",
+        icon="mdi:map-marker-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_current",
+        translation_key="charging_location_current",
+        data_key="charging_location_current",
+        condition="electric",
+        icon="mdi:map-marker-check",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_name",
+        translation_key="charging_location_1_name",
+        data_key="charging_location_1_name",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_active_timers",
+        translation_key="charging_location_1_active_timers",
+        data_key="charging_location_1_active_timers",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_timer_1_time",
+        translation_key="charging_location_1_timer_1_time",
+        data_key="charging_location_1_timer_1_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_timer_1_weekdays",
+        translation_key="charging_location_1_timer_1_weekdays",
+        data_key="charging_location_1_timer_1_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_timer_2_time",
+        translation_key="charging_location_1_timer_2_time",
+        data_key="charging_location_1_timer_2_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_timer_2_weekdays",
+        translation_key="charging_location_1_timer_2_weekdays",
+        data_key="charging_location_1_timer_2_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_timer_3_time",
+        translation_key="charging_location_1_timer_3_time",
+        data_key="charging_location_1_timer_3_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_1_timer_3_weekdays",
+        translation_key="charging_location_1_timer_3_weekdays",
+        data_key="charging_location_1_timer_3_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_name",
+        translation_key="charging_location_2_name",
+        data_key="charging_location_2_name",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_active_timers",
+        translation_key="charging_location_2_active_timers",
+        data_key="charging_location_2_active_timers",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_timer_1_time",
+        translation_key="charging_location_2_timer_1_time",
+        data_key="charging_location_2_timer_1_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_timer_1_weekdays",
+        translation_key="charging_location_2_timer_1_weekdays",
+        data_key="charging_location_2_timer_1_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_timer_2_time",
+        translation_key="charging_location_2_timer_2_time",
+        data_key="charging_location_2_timer_2_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_timer_2_weekdays",
+        translation_key="charging_location_2_timer_2_weekdays",
+        data_key="charging_location_2_timer_2_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_timer_3_time",
+        translation_key="charging_location_2_timer_3_time",
+        data_key="charging_location_2_timer_3_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_2_timer_3_weekdays",
+        translation_key="charging_location_2_timer_3_weekdays",
+        data_key="charging_location_2_timer_3_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_name",
+        translation_key="charging_location_3_name",
+        data_key="charging_location_3_name",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_active_timers",
+        translation_key="charging_location_3_active_timers",
+        data_key="charging_location_3_active_timers",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_timer_1_time",
+        translation_key="charging_location_3_timer_1_time",
+        data_key="charging_location_3_timer_1_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_timer_1_weekdays",
+        translation_key="charging_location_3_timer_1_weekdays",
+        data_key="charging_location_3_timer_1_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_timer_2_time",
+        translation_key="charging_location_3_timer_2_time",
+        data_key="charging_location_3_timer_2_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_timer_2_weekdays",
+        translation_key="charging_location_3_timer_2_weekdays",
+        data_key="charging_location_3_timer_2_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_timer_3_time",
+        translation_key="charging_location_3_timer_3_time",
+        data_key="charging_location_3_timer_3_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_3_timer_3_weekdays",
+        translation_key="charging_location_3_timer_3_weekdays",
+        data_key="charging_location_3_timer_3_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_name",
+        translation_key="charging_location_4_name",
+        data_key="charging_location_4_name",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_active_timers",
+        translation_key="charging_location_4_active_timers",
+        data_key="charging_location_4_active_timers",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_timer_1_time",
+        translation_key="charging_location_4_timer_1_time",
+        data_key="charging_location_4_timer_1_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_timer_1_weekdays",
+        translation_key="charging_location_4_timer_1_weekdays",
+        data_key="charging_location_4_timer_1_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_timer_2_time",
+        translation_key="charging_location_4_timer_2_time",
+        data_key="charging_location_4_timer_2_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_timer_2_weekdays",
+        translation_key="charging_location_4_timer_2_weekdays",
+        data_key="charging_location_4_timer_2_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_timer_3_time",
+        translation_key="charging_location_4_timer_3_time",
+        data_key="charging_location_4_timer_3_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_4_timer_3_weekdays",
+        translation_key="charging_location_4_timer_3_weekdays",
+        data_key="charging_location_4_timer_3_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_name",
+        translation_key="charging_location_5_name",
+        data_key="charging_location_5_name",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_active_timers",
+        translation_key="charging_location_5_active_timers",
+        data_key="charging_location_5_active_timers",
+        condition="electric",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_timer_1_time",
+        translation_key="charging_location_5_timer_1_time",
+        data_key="charging_location_5_timer_1_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_timer_1_weekdays",
+        translation_key="charging_location_5_timer_1_weekdays",
+        data_key="charging_location_5_timer_1_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_timer_2_time",
+        translation_key="charging_location_5_timer_2_time",
+        data_key="charging_location_5_timer_2_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_timer_2_weekdays",
+        translation_key="charging_location_5_timer_2_weekdays",
+        data_key="charging_location_5_timer_2_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_timer_3_time",
+        translation_key="charging_location_5_timer_3_time",
+        data_key="charging_location_5_timer_3_time",
+        condition="electric",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_location_5_timer_3_weekdays",
+        translation_key="charging_location_5_timer_3_weekdays",
+        data_key="charging_location_5_timer_3_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.31.0 (8.15.0 APK) — Škoda departure-timer times (read-only).
     VagSensorDescription(
         key="departure_timer_1_time",
@@ -880,6 +1218,32 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         data_key="departure_timer_3_time",
         condition="electric",
         icon="mdi:clock-time-four-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Companion (ADB) only — each timer's days from the VW app's timer page,
+    # as Home Assistant weekday codes ("mon,tue,wed,thu,fri").
+    VagSensorDescription(
+        key="departure_timer_1_weekdays",
+        translation_key="departure_timer_1_weekdays",
+        data_key="departure_timer_1_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="departure_timer_2_weekdays",
+        translation_key="departure_timer_2_weekdays",
+        data_key="departure_timer_2_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="departure_timer_3_weekdays",
+        translation_key="departure_timer_3_weekdays",
+        data_key="departure_timer_3_weekdays",
+        condition="electric",
+        icon="mdi:calendar-week",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
 
@@ -3505,6 +3869,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # Companion (VW app): the Air Conditioning sheet's mode, i.e. what Start
+    # starts. In the window heating mode the app disables the temperature dial.
+    VagSensorDescription(
+        key="climate_start_mode",
+        translation_key="climate_start_mode",
+        data_key="climate_start_mode",
+        icon="mdi:air-conditioner",
+        device_class=SensorDeviceClass.ENUM,
+        options=["air_conditioning", "window_heating"],
+    ),
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All LOW,
     # diagnostic, disabled-by-default. Data-present gated (see
@@ -4107,6 +4481,50 @@ _REPORTER_KEYS: frozenset[str] = frozenset({
 # legitimately start as None and populate later, so they should NOT be
 # gated this way.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
+    # Companion only: unread location slots must not create entities.
+    "charging_location_count",
+    "charging_location_current",
+    "charging_location_1_name",
+    "charging_location_1_active_timers",
+    "charging_location_1_timer_1_time",
+    "charging_location_1_timer_1_weekdays",
+    "charging_location_1_timer_2_time",
+    "charging_location_1_timer_2_weekdays",
+    "charging_location_1_timer_3_time",
+    "charging_location_1_timer_3_weekdays",
+    "charging_location_2_name",
+    "charging_location_2_active_timers",
+    "charging_location_2_timer_1_time",
+    "charging_location_2_timer_1_weekdays",
+    "charging_location_2_timer_2_time",
+    "charging_location_2_timer_2_weekdays",
+    "charging_location_2_timer_3_time",
+    "charging_location_2_timer_3_weekdays",
+    "charging_location_3_name",
+    "charging_location_3_active_timers",
+    "charging_location_3_timer_1_time",
+    "charging_location_3_timer_1_weekdays",
+    "charging_location_3_timer_2_time",
+    "charging_location_3_timer_2_weekdays",
+    "charging_location_3_timer_3_time",
+    "charging_location_3_timer_3_weekdays",
+    "charging_location_4_name",
+    "charging_location_4_active_timers",
+    "charging_location_4_timer_1_time",
+    "charging_location_4_timer_1_weekdays",
+    "charging_location_4_timer_2_time",
+    "charging_location_4_timer_2_weekdays",
+    "charging_location_4_timer_3_time",
+    "charging_location_4_timer_3_weekdays",
+    "charging_location_5_name",
+    "charging_location_5_active_timers",
+    "charging_location_5_timer_1_time",
+    "charging_location_5_timer_1_weekdays",
+    "charging_location_5_timer_2_time",
+    "charging_location_5_timer_2_weekdays",
+    "charging_location_5_timer_3_time",
+    "charging_location_5_timer_3_weekdays",
+
     # b1/A6 — raw-discovery sensor only spawns when the portal actually
     # delivered unmapped fields (empty dict on every other brand/channel).
     "raw_api_fields",
@@ -4233,6 +4651,10 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "departure_timer_1_time",
     "departure_timer_2_time",
     "departure_timer_3_time",
+    # Companion (ADB) only: the departure-times read fills them.
+    "departure_timer_1_weekdays",
+    "departure_timer_2_weekdays",
+    "departure_timer_3_weekdays",
     "battery_temp_max",             # VW EU + Audi only (CARIAD-BFF)
     # v2.2.0 Phase 7 PR #2 — VW EU + Audi only (CARIAD-BFF
     # departureTimers block). Other brands' parsers don't populate
@@ -4327,6 +4749,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.16.2 (#671) — climatisationMode readback (data-present gated so
     # cars that don't ship the field never get a phantom "unknown" entity).
     "climate_mode",
+    "climate_start_mode",
     # v2.1.0 — Skoda climate-ready-at (Scout #186/#188). Field is
     # only populated during active climate run; gating prevents a
     # phantom "unknown" entity for non-Skoda + idle climates.
@@ -4674,10 +5097,105 @@ class VagWindowPositionSensor(VagConnectEntity, SensorEntity):
         return val if isinstance(val, (int, float)) and not isinstance(val, bool) else None
 
 
+class VagLastVehicleSyncSensor(VagConnectEntity, SensorEntity):
+    """#968 — when the car last sent the Volkswagen app data, for any reason.
+
+    From the companion overview's "Synchronised … ago" line, read on every
+    screen poll (the earliest time it can mean). Companion stream only: the
+    cloud streams keep their own ``last_seen_at`` (Vehicle last reported).
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "last_vehicle_sync"
+    _attr_icon = "mdi:car-clock"
+    _stay_available_on_poll_failure = True
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "last_vehicle_sync")
+
+    @property
+    def native_value(self) -> datetime | None:
+        raw = self._vehicle.get("companion_app_synced_at")
+        if isinstance(raw, str):  # a restored snapshot carries ISO text
+            try:
+                raw = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        if not isinstance(raw, datetime):
+            return None
+        return raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+
+
+class VagAppRequestStatusSensor(VagConnectEntity, SensorEntity):
+    """#968 — whether the app can send requests to the car, as the sync found.
+
+    "available" when the app accepted Synchronise now, "restricted" when it
+    answered with the car's power-budget alert (start the car to reset it).
+    A pause still running from the last run shows as restricted until the
+    first sync; unknown before any sync of this entry.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["available", "restricted"]
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "app_request_status"
+    _attr_icon = "mdi:car-connected"
+    _stay_available_on_poll_failure = True
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "app_request_status")
+
+    @property
+    def native_value(self) -> str | None:
+        state = self._vehicle.get("companion_request_state")
+        return state if state in self._attr_options else None
+
+    def _platform_attributes(self) -> dict[str, Any] | None:
+        # Rule 9: commands run only on an app build verified for them.
+        return {
+            "app_version": self._vehicle.get("companion_app_version"),
+            "commands_enabled": self._vehicle.get("companion_writes_enabled"),
+        }
+
+
+class VagCompanionChargeModeSensor(VagConnectEntity, SensorEntity):
+    """The charge mode the Volkswagen app shows, read-only (companion).
+
+    The range sheet's "Charging method" row, mapped to the same ``charge_mode``
+    value the VW cloud reports. Cloud entries show it on the Charging Mode
+    select; the companion cannot set the mode, so it gets this sensor instead.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_translation_key = "companion_charge_mode"
+    _attr_icon = "mdi:ev-plug-type2"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "charge_mode")
+
+    @property
+    def options(self) -> list[str]:
+        from .select import _CHARGE_MODE_OPTIONS  # noqa: PLC0415
+
+        return list(_CHARGE_MODE_OPTIONS)
+
+    @property
+    def native_value(self) -> str | None:
+        from .select import _normalise_raw_mode  # noqa: PLC0415
+
+        mode = _normalise_raw_mode(self._vehicle.get("charge_mode"))
+        return mode if mode in self.options else None
+
+
 # b13 — platinum parallel-updates rule: the coordinator's background poll
 # loop owns every API request, so entity updates need no throttling. HA reads
 # this MODULE-level constant (an entity attr is a no-op).
 PARALLEL_UPDATES = 0
+
+# Companion: the app dial's reading next to the temperature the climate entity
+# holds for the next Start.
+_COMPANION_READ_OF_HELD = frozenset({"target_temperature"})
 
 
 async def async_setup_entry(
@@ -4703,6 +5221,22 @@ async def async_setup_entry(
         CONF_HIDE_EMPTY_ENTITIES,
         entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True),
     ))
+    # #968 — the companion's own sync sensors. Last vehicle sync is a plain read
+    # (any Volkswagen companion entry); App request status goes with the sync
+    # slider (the preset maps "Synchronise now", outside Read-only Mode).
+    from .companion.app_sync import preset_can_sync  # noqa: PLC0415
+    from .companion.entity_twins import (  # noqa: PLC0415
+        RETIRED_COMPANION_CLIMATE,
+        has_control_twin,
+        is_cloud_only,
+        remove_twin,
+    )
+    reads_sync_line = coordinator.is_companion() and brand == "volkswagen"
+    syncs_vehicle = (
+        coordinator.is_companion()
+        and not coordinator.is_read_only()
+        and preset_can_sync(brand)
+    )
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
@@ -4714,6 +5248,20 @@ async def async_setup_entry(
                 continue
             if desc.condition == "combustion" and not has_combustion:
                 continue
+            if is_cloud_only(coordinator, "sensor", desc.key) or has_control_twin(
+                coordinator, vin, vehicle, "sensor", desc.key,
+            ) or (
+                # The climate entity's preset shows it; without one (Read-only
+                # Mode) the sensor stays, like any twin.
+                coordinator.is_companion() and not coordinator.is_read_only()
+                and ("sensor", desc.key) in RETIRED_COMPANION_CLIMATE
+            ):
+                remove_twin(hass, "sensor", vin, desc.key)
+                continue
+            if coordinator.is_companion() and desc.key in _COMPANION_READ_OF_HELD:
+                # What the app shows next to the value HA holds for the next
+                # Start (the number / select): a diagnostic, not a second control.
+                desc = replace(desc, entity_category=EntityCategory.DIAGNOSTIC)
             # v4.0.0 grounding wave — soft capability gate. Only descriptions
             # that opt in via ``desc.capability`` are affected; a sensor is
             # hidden ONLY when the capabilities document is loaded and the cap
@@ -4786,6 +5334,14 @@ async def async_setup_entry(
         # Per-window opening position (%), self-gating on populated slots.
         for window_id in vehicle.get("windows_position", {}):
             entities.append(VagWindowPositionSensor(coordinator, vin, window_id))
+        if reads_sync_line:
+            entities.append(VagLastVehicleSyncSensor(coordinator, vin))
+        if syncs_vehicle:
+            entities.append(VagAppRequestStatusSensor(coordinator, vin))
+        if reads_sync_line and vehicle.get("has_battery") and not (
+            coordinator.command_method_available("command_set_charge_mode")
+        ):
+            entities.append(VagCompanionChargeModeSensor(coordinator, vin))
         return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)

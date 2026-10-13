@@ -1,0 +1,38 @@
+[
+  {
+    "fixture": "tiguan_departure.xml",
+    "contributor": "gszigethy",
+    "original_file": "07-departure.xml",
+    "note": "Local read-only ADB capture of the Departure times screen, 2026-10-06, @gszigethy (Tiguan eHybrid, app 4.3.2, English, 12-hour clock). Nothing tapped on the screen."
+  },
+  {
+    "fixture": "list_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/departure/02-departure-list.xml",
+    "note": "Departure times list, 2026-10-08, @gszigethy (Tiguan eHybrid, app 4.6.4, English, 12-hour clock). Three climate timers, all off. No place names on screen; nothing redacted."
+  },
+  {
+    "fixture": "slot1_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/departure/03-slot1.xml",
+    "note": "Timer 1's Set time page from the same walk: 07:25 AM, Mo-Fr selected, Repeat on. Left with BACK, nothing changed."
+  },
+  {
+    "fixture": "slot2_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/departure/05-slot2.xml",
+    "note": "Timer 2's Set time page from the same walk: 12:00 AM, Sa selected, Repeat off."
+  },
+  {
+    "fixture": "list_onetime_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/departure-trace/t1045-1-list.xml",
+    "note": "Departure times list, 2026-10-08 10:45, app 4.6.4: timer 2 switched on as a one-time timer (10:50 AM, Thursday)."
+  },
+  {
+    "fixture": "slot_onetime_464.xml",
+    "contributor": "gszigethy",
+    "original_file": "phone-ui-capture-4.6.4/departure-trace/t1045-2-slot2.xml",
+    "note": "Timer 2's Set time page from the same trace: 10:50 AM, Th selected, Repeat off."
+  }
+]

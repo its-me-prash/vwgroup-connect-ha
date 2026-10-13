@@ -2,11 +2,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Switches for VW Group Connect (lock/unlock, charging)."""
 
+from typing import Any
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
 
@@ -24,6 +28,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up switch entities. v1.25.0 PR-C: dynamic listener spawn."""
     coordinator: VagConnectCoordinator = entry.runtime_data
+    # The companion's nav reads only read the app, so they are offered in
+    # Read-only Mode too.
+    async_add_entities(_companion_read_switches(coordinator, entry))
     # v1.12.0 (#63) — Read-only Mode: switches send commands, skip all.
     if coordinator.is_read_only():
         return
@@ -31,17 +38,27 @@ async def async_setup_entry(
 
     def _supported(vin: str, command_id: str) -> bool:
         cap_supported = coordinator.command_capability_supported(vin, command_id) is not False
-        client_has_method = client is not None and hasattr(client, command_id)
+        # Same guard as the other command platforms: a companion client maps
+        # only the controls its brand preset confirms.
+        client_has_method = (
+            client is not None
+            and hasattr(client, command_id)
+            and coordinator.command_method_available(command_id)
+        )
         return cap_supported and client_has_method
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
         if _supported(vin, "command_lock"):
             entities.append(VagLockSwitch(coordinator, vin))
-        if _supported(vin, "command_start_climate"):
-            entities.append(VagClimatisationSwitch(coordinator, vin))
-        if _supported(vin, "command_start_window_heating"):
-            entities.append(VagWindowHeatingSwitch(coordinator, vin))
+        if coordinator.is_companion():
+            # The climate entity runs both (its presets); see entity_twins.
+            drop_retired_climate(hass, coordinator, "switch", vin)
+        else:
+            if _supported(vin, "command_start_climate"):
+                entities.append(VagClimatisationSwitch(coordinator, vin))
+            if _supported(vin, "command_start_window_heating"):
+                entities.append(VagWindowHeatingSwitch(coordinator, vin))
         if _supported(vin, "command_start_ventilation"):
             entities.append(VagVentilationSwitch(coordinator, vin))
         # Aux heating (fuel-fired Standheizung). Gated like every other switch:
@@ -90,6 +107,14 @@ async def async_setup_entry(
                 and vehicle.get("auto_unlock_when_charged") is not None
             ):
                 entities.append(VagAutoUnlockPlugSwitch(coordinator, vin))
+        # Companion: the Air Conditioning Settings page. Only the companion
+        # client has these commands; each switch appears once the climate
+        # settings read has shown the value, so a car without it gets none.
+        for key, field, command_id, icon in COMPANION_CLIMATE_SETTINGS:
+            if _supported(vin, command_id) and vehicle.get(field) is not None:
+                entities.append(VagCompanionClimateSettingSwitch(
+                    coordinator, vin, key, field, command_id, icon,
+                ))
         return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)
@@ -163,7 +188,18 @@ class VagChargingSwitch(VagConnectEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
+        # Same rule as the climatisation switch: the parser-computed boolean is
+        # the source of truth; the raw state list is only a fallback for a
+        # channel that leaves it unset ("Currently charging" or "Target charge
+        # level reached" on the companion would otherwise read wrongly).
+        # Conservation charging is charging even where a cloud parser sets
+        # is_charging False for it, as the power sensor and evcc export do.
         state = self._vehicle.get("charging_state")
+        if str(state).lower() == "conservationcharging":
+            return True
+        active = self._vehicle.get("is_charging")
+        if active is not None:
+            return bool(active)
         if state is None:
             return None
         return str(state).lower() in ("charging", "conservationcharging")
@@ -413,3 +449,150 @@ class VagAuxHeatingSwitch(VagConnectEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: object) -> None:
         await self.coordinator.async_stop_aux_heating(self._vin)
+
+
+# Companion Air Conditioning Settings switches: (entity key, VehicleData field
+# the climate settings read fills, client command, icon). The fields are the
+# ones the read-only binary sensors show; these keys keep the unique ids apart.
+COMPANION_CLIMATE_SETTINGS: tuple[tuple[str, str, str, str], ...] = (
+    ("climate_at_unlock_switch", "climate_at_unlock",
+     "command_set_climate_at_unlock", "mdi:car-electric"),
+    ("window_heating_auto_switch", "window_heating_enabled",
+     "command_set_window_heating_auto", "mdi:car-defrost-front"),
+    ("climate_zone_front_left_switch", "climate_zone_front_left",
+     "command_set_climate_zone_front_left", "mdi:car-seat"),
+    ("climate_zone_front_right_switch", "climate_zone_front_right",
+     "command_set_climate_zone_front_right", "mdi:car-seat"),
+)
+
+
+_COMPANION_CLIMATE_CONTROL_KEYS = frozenset({
+    "window_heating_auto_switch",
+    "climate_at_unlock_switch",
+    "climate_zone_front_left_switch",
+    "climate_zone_front_right_switch",
+})
+
+
+class VagCompanionClimateSettingSwitch(VagConnectEntity, SwitchEntity):
+    """One switch of the app's Air Conditioning Settings page (companion).
+
+    The companion switches it in the app, taps the page's Save and opens the
+    page again to read the saved value back; a value already in place sends
+    nothing. The state is the climate settings read.
+    """
+
+    _attr_entity_category: EntityCategory | None = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: VagConnectCoordinator, vin: str,
+        key: str, field: str, command_id: str, icon: str,
+    ) -> None:
+        super().__init__(coordinator, vin, key)
+        if key in _COMPANION_CLIMATE_CONTROL_KEYS:
+            self._attr_entity_category = None
+        self._attr_translation_key = key
+        self._attr_icon = icon
+        self._field = field
+        self._command_id = command_id
+        self._command = command_id  # non-optional copy for the command call
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._vehicle.get(self._field)
+        return bool(val) if val is not None else None
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await self._set(False)
+
+    async def _set(self, enabled: bool) -> None:
+        await self.coordinator._cariad_cmd_optimistic(
+            self._vin, self._command,
+            optimistic={self._field: enabled},
+            enabled=enabled,
+        )
+
+
+# The companion's nav reads, each a CONFIG switch on the settings device next
+# to the interval sliders: (nav opt-in, entry option it is stored under, icon).
+COMPANION_READS: tuple[tuple[str, str, str], ...] = (
+    ("charge_detail", "companion_read_charge_detail", "mdi:ev-station"),
+    ("vehicle_health", "companion_read_vehicle_health", "mdi:car-wrench"),
+    ("climate_detail", "companion_read_climate_detail", "mdi:thermometer"),
+    ("climate_settings", "companion_read_climate_settings", "mdi:air-conditioner"),
+    ("departure_times", "companion_read_departure_times", "mdi:timer-outline"),
+    ("charging_locations", "companion_read_charging_locations", "mdi:ev-plug-type2"),
+    ("driving_data", "companion_read_driving_data", "mdi:map-marker-distance"),
+    ("parking_position", "companion_read_parking_position", "mdi:map-marker"),
+)
+
+
+def _companion_read_switches(
+    coordinator: VagConnectCoordinator, entry: ConfigEntry,
+) -> list[SwitchEntity]:
+    """One switch per nav read the entry's brand preset has."""
+    if not coordinator.is_companion():
+        return []
+    from .companion.presets import PRESETS  # noqa: PLC0415
+    from .const import CONF_BRAND  # noqa: PLC0415
+
+    preset = PRESETS.get(str(entry.data.get(CONF_BRAND, "")))
+    available = {nav.opt_in for nav in preset.nav_reads} if preset else set()
+    return [
+        VagCompanionReadSwitch(coordinator, entry, opt_in, option, icon)
+        for opt_in, option, icon in COMPANION_READS
+        if opt_in in available
+    ]
+
+
+class VagCompanionReadSwitch(SwitchEntity):
+    """Whether the companion walks the app to one detail screen.
+
+    Each read taps through the app about every 15 minutes, so all are off by
+    default. The setting is stored in the entry options as before and applied
+    to the running channel at once: switching on reads the screen on the next
+    poll, switching off drops the values that read supplied.
+    """
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: VagConnectCoordinator, entry: ConfigEntry,
+        opt_in: str, option: str, icon: str,
+    ) -> None:
+        from .number import _settings_device  # noqa: PLC0415
+
+        self._coordinator = coordinator
+        self._entry = entry
+        self._opt_in = opt_in
+        self._option = option
+        self._attr_translation_key = option
+        self._attr_icon = icon
+        self._attr_unique_id = f"{entry.entry_id}_{option}"
+        self._attr_device_info = _settings_device(entry)
+
+    @property
+    def is_on(self) -> bool:
+        # Options THEN data: the update listener folds options into data.
+        options = dict(getattr(self._entry, "options", None) or {})
+        data = dict(getattr(self._entry, "data", None) or {})
+        return bool(options.get(self._option, data.get(self._option, False)))
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._set(False)
+
+    async def _set(self, enabled: bool) -> None:
+        self._coordinator.set_companion_read(self._opt_in, enabled)
+        current = dict(self._entry.options or {})
+        current[self._option] = enabled
+        self._coordinator.hass.config_entries.async_update_entry(
+            self._entry, options=current,
+        )
+        self.async_write_ha_state()

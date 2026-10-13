@@ -3,14 +3,27 @@
 """Base entity class for all VW Group Connect entities."""
 
 from __future__ import annotations
+import time
+from datetime import datetime, timezone
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .cariad.api.graphql import VehicleImageFetcher
-from .const import DOMAIN
+from .const import (
+    COMPANION_NAME_TAG,
+    COMPANION_NAV_MAX_AGE_S,
+    DOMAIN,
+    is_companion_entry_data,
+    vehicle_unique_id,
+)
 from .coordinator import VagConnectCoordinator
+
+# Added in Home Assistant 2025.x; older cores (hacs.json allows 2024.4) lack it,
+# and there no state can match it.
+_UNLOAD_IN_PROGRESS = getattr(ConfigEntryState, "UNLOAD_IN_PROGRESS", None)
 
 
 # #1316 — brands whose slug title-cases badly (underscores / mixed case). This
@@ -90,7 +103,21 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         self._vin = vin
         self._key = key
 
-        self._attr_unique_id = f"{vin}_{key}"
+        entry = getattr(coordinator, "entry", None)
+        self._companion_entry = is_companion_entry_data(getattr(entry, "data", None))
+        self._attr_unique_id = vehicle_unique_id(
+            vin, key, companion=self._companion_entry
+        )
+
+    @property
+    def suggested_object_id(self) -> str | None:
+        # A companion entry and a cloud entry can read the same car, each on
+        # its own device: tag the entity ids HA derives for the companion's new
+        # entities (sensor.tiguan_adb_battery_level), not their names.
+        object_id = super().suggested_object_id
+        if getattr(self, "_companion_entry", False) and object_id:
+            return f"{COMPANION_NAME_TAG} {object_id}"
+        return object_id
 
     @property
     def _vehicle(self) -> dict[str, Any]:
@@ -138,6 +165,9 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
             if last_good is None:
                 return False
         if not self.coordinator.is_vehicle_available(self._vin):
+            return False
+        read_at = self._companion_read_at
+        if read_at is not None and time.time() - read_at >= COMPANION_NAV_MAX_AGE_S:
             return False
         if self._command_id is not None:
             try:
@@ -254,6 +284,26 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         return VehicleImageFetcher.best_url(image_urls) if image_urls else None
 
     @property
+    def _companion_read_at(self) -> float | None:
+        """Oldest nav read backing this entity, only on the companion channel."""
+        if not getattr(self.coordinator, "is_companion", lambda: False)():
+            return None
+        desc = getattr(self, "entity_description", None)
+        key = str(getattr(desc, "data_key", None) or getattr(self, "_field", None)
+                  or getattr(self, "_key", "") or "")
+        keys = {
+            "position": ("latitude", "longitude"),
+            "climate": ("climatisation_active",),
+            "charging_switch": ("is_charging",),
+            "climatisation_switch": ("climatisation_active",),
+            "auto_unlock_plug_switch": ("auto_unlock_when_charged",),
+            "window_heating_switch": ("window_heating_front",),
+        }.get(key, (key.removesuffix("_set").replace("_switch", "_enabled"),))
+        stamps = self._vehicle.get("companion_nav_read_at") or {}
+        times = [stamps[k] for k in keys if k in stamps]
+        return min(times) if times else None
+
+    @property
     def _field_source(self) -> str | None:
         """Which read channel produced THIS entity's value.
 
@@ -334,6 +384,10 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
             from ._channel_labels import channel_display_name  # noqa: PLC0415
             attrs["source"] = channel_display_name(source)
 
+        read_at = self._companion_read_at
+        if read_at is not None:
+            attrs["companion_read_at"] = datetime.fromtimestamp(read_at, tz=timezone.utc).isoformat()
+
         own = self._platform_attributes()
         if own:
             attrs.update(own)
@@ -392,6 +446,10 @@ def register_dynamic_spawner(
     added: set[str] = set()
 
     def _spawn() -> None:
+        # The entry's listeners outlive its unload, so data pushed meanwhile
+        # must not add entities to the platform HA has just cleared.
+        if entry.state is _UNLOAD_IN_PROGRESS:
+            return
         new_entities: list[Any] = []
         for vin, vehicle in coordinator.vehicles.items():
             for ent in build_for_vin(vin, vehicle):
