@@ -609,6 +609,16 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.DOOR,
         icon="mdi:car-cog",
     ),
+    # #1798/#1802 — the trailer-hitch module's verdict. Gated by
+    # _DATA_PRESENT_REQUIRED: only cars that actually report it get the entity,
+    # and an unrecognised enum value leaves it None rather than claiming False.
+    VagBinarySensorDescription(
+        key="trailer_connected",
+        translation_key="trailer_connected",
+        data_key="trailer_connected",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        icon="mdi:truck-trailer",
+    ),
     VagBinarySensorDescription(
         key="trunk_open",
         translation_key="trunk_open",
@@ -894,6 +904,7 @@ _CLOSED_INVERT_KEYS: frozenset[str] = frozenset({
 
 # v1.11.0 — same phantom-entity-prevention pattern as sensor.py.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
+    "trailer_connected",             # #1798 — Audi trailer hitch only
     # v2.8.1 #306 — 6 P1 boolean OLA-field gap entries. SEAT/CUPRA OLA
     # primarily; vehicles without the underlying field stay None so
     # no phantom binary sensor surfaces.

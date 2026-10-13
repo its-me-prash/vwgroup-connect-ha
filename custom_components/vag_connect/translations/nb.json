@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Connect-kontrakt aktiv"
+      },
+      "trailer_connected": {
+        "name": "Tilhenger tilkoblet"
       }
     },
     "switch": {

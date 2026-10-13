@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Connect-contract actief"
+      },
+      "trailer_connected": {
+        "name": "Aanhanger aangekoppeld"
       }
     },
     "switch": {

@@ -43,6 +43,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Hinzugefügt / Added
+- **Your car can tell you when a trailer is hooked up.** Two Audis reported the tow-hitch
+  module's own verdict on whether something is attached, and there was nowhere for it to go:
+  the integration had no trailer field at all, so this is a new reading rather than one that
+  was being dropped. Both cars happened to report "nothing attached", so the wording for the
+  opposite case is taken from the pair rather than seen on a car, and anything the module
+  says that is neither of the two leaves the sensor unknown instead of telling you the
+  trailer is off. People build automations on this one, and a confident wrong "no trailer"
+  is worse than no reading. The sensor appears only on cars that report the field. Thanks
+  @heldenbariton-ship-it and @marcus-stem (#1798, #1802).
 - **Four new readings for the remaining life of each wheel's tyre pressure sensor.** Five
   Audi owners reported the same four diagnostic values on every poll, the largest group in
   the backlog, and not one of them was ever read. The reason was the shape of the payload:

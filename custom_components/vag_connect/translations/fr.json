@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Contrat Connect actif"
+      },
+      "trailer_connected": {
+        "name": "Remorque attelée"
       }
     },
     "switch": {

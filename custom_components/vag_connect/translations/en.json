@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Connect Contract Active"
+      },
+      "trailer_connected": {
+        "name": "Trailer connected"
       }
     },
     "switch": {

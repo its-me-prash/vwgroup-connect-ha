@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Umowa Connect aktywna"
+      },
+      "trailer_connected": {
+        "name": "Przyczepa podłączona"
       }
     },
     "switch": {

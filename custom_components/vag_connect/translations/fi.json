@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Connect-sopimus aktiivinen"
+      },
+      "trailer_connected": {
+        "name": "Peräkärry kytketty"
       }
     },
     "switch": {

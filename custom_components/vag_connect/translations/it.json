@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Contratto Connect attivo"
+      },
+      "trailer_connected": {
+        "name": "Rimorchio collegato"
       }
     },
     "switch": {

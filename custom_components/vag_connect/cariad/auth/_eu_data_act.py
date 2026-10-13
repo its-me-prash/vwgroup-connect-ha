@@ -3743,6 +3743,20 @@ def map_dataset_to_vehicle_data(
     if _hh is not None and d.hood_open is None:
         d.hood_open = _hh
 
+    # #1798/#1802 — trailer detection, straight from the hitch module. Two Audis
+    # report it and both sample the NEGATIVE spelling, so the positive one is
+    # inferred from the pair rather than observed. ``_hist_state`` is reused for
+    # exactly the reason stated at its definition: only the two documented
+    # tokens are believed, and an unrecognised value stays unknown instead of
+    # becoming a confident "nothing hooked up" the car never claimed. People
+    # automate on a trailer, so a wrong False here is worse than no reading.
+    if d.trailer_connected is None:
+        d.trailer_connected = _hist_state(
+            first("AAG_Anhaenger_erkannt"),
+            "ANHAENGER_ERKANNT",
+            "KEIN_ANHAENGER_ERKANNT",
+        )
+
     # trip statistics (short-term → last trip, long-term → lifetime). Units from
     # the dictionary: mileage km, travel_time min, speed km/h. Consumption fields
     # (l/1000km, kWh/1000km) are deferred — current values look like sentinels;

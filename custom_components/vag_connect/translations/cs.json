@@ -1925,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Smlouva Connect aktivní"
+      },
+      "trailer_connected": {
+        "name": "Přívěs připojen"
       }
     },
     "switch": {

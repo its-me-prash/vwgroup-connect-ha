@@ -1526,6 +1526,12 @@ class VehicleData:
     trunk_open: bool | None = None
     trunk_locked: bool | None = None
     sunroof_open: bool | None = None
+    # #1798/#1802 — the trailer-hitch module's own verdict on whether something
+    # is hooked up (portal field ``AAG_Anhaenger_erkannt``). A new capability
+    # rather than a missed spelling: there was no trailer field at all. Only the
+    # two spellings of that enum are believed, so an unrecognised value stays
+    # None instead of reporting "nothing hooked up" the car never claimed.
+    trailer_connected: bool | None = None
 
     # v1.17.1 (Bruno seq 10/11) — SEAT/CUPRA Battery Care.
     # Two read-only fields populated from the new OLA endpoints:
