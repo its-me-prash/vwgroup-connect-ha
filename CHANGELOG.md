@@ -43,6 +43,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Hinzugefügt / Added
+- **Four new readings for the remaining life of each wheel's tyre pressure sensor.** Five
+  Audi owners reported the same four diagnostic values on every poll, the largest group in
+  the backlog, and not one of them was ever read. The reason was the shape of the payload:
+  it arrives encoded, and the decoder expected a document inside it, while these four send
+  a plain number. They are decoded now, one per wheel. On four of the five cars the value
+  the car sends is the byte that means "not available", so those cars get no sensor at all
+  rather than four sensors reading 255, and the one car that sends a real value gets its
+  four. The portal documents neither a unit nor a meaning for them, so they are unitless
+  and off by default, exactly like the other tyre values whose unit the portal leaves open.
+  Thanks @zdimic1, @N85UK, @derschneewolf, @heldenbariton-ship-it and @marcus-stem (#1767).
 - **A charge level and an electric range from a one time export now reach your car.** The
   15 minute feed and the one time export name the same readings differently, and the
   integration only ever knew the feed's names: of the seventeen charge level names it looks
@@ -60,6 +70,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **An error report now says what the backend actually answered.** A report reached the
+  tracker saying only that a request had failed with a 400, which is not something anyone
+  can act on: a 400 can mean an expired subscription, a passing backend problem, or a
+  mistake in what the integration sent, and only the answer's own text separates those. The
+  text was being read and then dropped, because the part of the code that writes the report
+  deliberately keeps it out of the message to avoid putting a VIN in a log. It is now
+  included in the report, masked the same way as everything else in it. A failure that
+  repeats is also no longer twenty copies of itself: the report keeps one entry with a count
+  of how often it happened, so the rest of the history survives and anyone reading it can
+  see how persistent the problem is. Thanks @moltke69 (#1808).
+- **Three cars stop reporting the same three fields on every poll.** A VW and two CUPRA
+  sent a companion value that says whether a reading next to it can be trusted. It is not a
+  reading itself, so it was never going to become a sensor showing you the word "VALID",
+  but nothing used it either, which is why it kept being offered as something new. It is
+  used now for what it is: it decides whether the reading beside it counts, it is kept in
+  the diagnostics so nothing is hidden, and it no longer comes back on the next poll. Every
+  value seen so far says the reading is valid, so nothing changes on your car unless the
+  portal itself ever says otherwise. Thanks @tertius1, @StoneH74 and @Thunderhawk2001
+  (#1797, #1803, #1795).
 - **A value filled in from a one time export now says when the car captured it.** The sensors
   fed by the 15 minute feed carry the car's own capture time and whether that time belongs to
   the reading or to the file it came in. The ones filled in by the import carried neither, so
