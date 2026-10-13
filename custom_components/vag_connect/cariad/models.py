@@ -1526,6 +1526,12 @@ class VehicleData:
     trunk_open: bool | None = None
     trunk_locked: bool | None = None
     sunroof_open: bool | None = None
+    # #1798/#1802 — the trailer-hitch module's own verdict on whether something
+    # is hooked up (portal field ``AAG_Anhaenger_erkannt``). A new capability
+    # rather than a missed spelling: there was no trailer field at all. Only the
+    # two spellings of that enum are believed, so an unrecognised value stays
+    # None instead of reporting "nothing hooked up" the car never claimed.
+    trailer_connected: bool | None = None
 
     # v1.17.1 (Bruno seq 10/11) — SEAT/CUPRA Battery Care.
     # Two read-only fields populated from the new OLA endpoints:
@@ -1822,6 +1828,13 @@ class VehicleData:
     # rather than suppressed, and the leaves are consumed so they stop flooding the
     # Vehicle Data Scout. Keyed by control point ("speed_ratio_x2_y2") -> {leaf: value}.
     speed_ratio_calibration: dict[str, dict[str, str]] = field(default_factory=dict)
+    # Scout #1797/#1803/#1795 — some portal containers ship a VALIDITY COMPANION
+    # beside their reading (``trunk.state``, ``enginehood.state``,
+    # ``estimatedcruisingrangeprimary.state``), valued VALID or INVALID. It is
+    # not a reading and gets no entity: it decides whether its sibling counts.
+    # Kept here (and so in to_dict()/diagnostics) rather than suppressed, keyed
+    # by container name -> the state word as the portal spelled it.
+    validity_companions: dict[str, str] = field(default_factory=dict)
     # Fields the export delivered MORE THAN ONCE under one capture time with
     # different values. The append order is then the only thing separating
     # them, which is not evidence, so the parser records every candidate here
@@ -1988,6 +2001,17 @@ class VehicleData:
     tyre_pressure_required_rl: int | None = None
     tyre_pressure_required_rr: int | None = None
     tyre_pressure_required_spare: int | None = None
+    # Tyres — remaining operation time of each wheel's PRESSURE SENSOR, from the
+    # UDS DIDs 0x4E94-97 (#1767, the largest Scout family: five Audis). Not a
+    # pressure: the portal names it "<corner> tire pressure sensor remaining
+    # operation time". The catalogue gives these four no unit and no meaning, so
+    # unitless diagnostic like the two pressure families above; 255 is the CAN
+    # "signal not available" byte (four of the five reporting cars send it) and
+    # is dropped at the parser. LOW — disabled-by-default. sensor, diagnostic.
+    tyre_sensor_life_fl: int | None = None
+    tyre_sensor_life_fr: int | None = None
+    tyre_sensor_life_rl: int | None = None
+    tyre_sensor_life_rr: int | None = None
     # #528/#538 — TPMS system-type. Indirect/ABS-based TPMS ships the whole
     # actual-pressure family as "1" (dict 1=invalid: system present, no numeric
     # bar), which the sentinel filter drops — so the per-wheel pressure sensors

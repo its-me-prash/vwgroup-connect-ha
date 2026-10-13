@@ -488,34 +488,34 @@ def _porsche_coord(brand: str = "porsche") -> SimpleNamespace:
     return SimpleNamespace(entry=SimpleNamespace(data={CONF_BRAND: brand}))
 
 
-def test_porsche_auth_dead_needs_two_consecutive_polls() -> None:
+def test_entry_auth_dead_needs_two_consecutive_polls() -> None:
     me = _porsche_coord()
     dead = [api_mod.AuthenticationError("x"), api_mod.AuthenticationError("y")]
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1", "V2"], dead) is False
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1", "V2"], dead) is True
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1", "V2"], dead) is False
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1", "V2"], dead) is True
 
 
-def test_porsche_auth_dead_resets_on_any_success() -> None:
+def test_entry_auth_dead_resets_on_any_success() -> None:
     me = _porsche_coord()
     dead = [api_mod.AuthenticationError("x")]
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1"], dead) is False
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1"], [VehicleData(vin="V1")]) is False
-    assert me._porsche_auth_fail_polls == 0
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1"], dead) is False  # counts from 1 again
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1"], dead) is False
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1"], [VehicleData(vin="V1")]) is False
+    assert me._auth_fail_polls == 0
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1"], dead) is False  # counts from 1 again
 
 
-def test_porsche_auth_dead_ignores_non_auth_and_partial_failures() -> None:
+def test_entry_auth_dead_ignores_non_auth_and_partial_failures() -> None:
     me = _porsche_coord()
     mixed = [api_mod.AuthenticationError("x"), RuntimeError("net")]
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1", "V2"], mixed) is False
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1", "V2"], mixed) is False
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1", "V2"], mixed) is False
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1", "V2"], mixed) is False
 
 
-def test_porsche_auth_dead_is_brand_gated() -> None:
+def test_entry_auth_dead_is_brand_gated() -> None:
     me = _porsche_coord("skoda")
     dead = [api_mod.AuthenticationError("x")]
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1"], dead) is False
-    assert VagConnectCoordinator._porsche_auth_dead(me, ["V1"], dead) is False
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1"], dead) is False
+    assert VagConnectCoordinator._entry_auth_dead(me, ["V1"], dead) is False
 
 
 def test_direct_body_wall_names_the_screen() -> None:

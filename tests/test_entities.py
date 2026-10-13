@@ -661,7 +661,14 @@ class TestRepairs:
             clear_auth_issues(hass, "entry_123")
         # v2.2.0 PR #7/20 — added ``email_two_factor_required`` →
         # 7 issue types total (was 6 pre-Phase-2).
-        assert mock_del.call_count == 7
+        # #1813 — added ``device_login_expired`` and ``portal_interaction_required``
+        # → 9. The second had been raisable but not clearable since it was
+        # introduced, so its repair outlived the login that fixed it. The count
+        # is kept hardcoded on purpose: it is the tripwire that makes adding a
+        # raisable reason without a matching clear fail loudly, which is exactly
+        # how it caught this change. The rule behind the number is asserted in
+        # tests/test_1813_passwordless_entry_reauth.py.
+        assert mock_del.call_count == 9
 
     def test_unknown_reason_uses_auth_failed(self):
         from custom_components.vag_connect.repairs import raise_issue_auth_required

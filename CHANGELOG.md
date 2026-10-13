@@ -73,6 +73,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 
 ### Hinzugefügt / Added
+- **Your car can tell you when a trailer is hooked up.** Two Audis reported the tow-hitch
+  module's own verdict on whether something is attached, and there was nowhere for it to go:
+  the integration had no trailer field at all, so this is a new reading rather than one that
+  was being dropped. Both cars happened to report "nothing attached", so the wording for the
+  opposite case is taken from the pair rather than seen on a car, and anything the module
+  says that is neither of the two leaves the sensor unknown instead of telling you the
+  trailer is off. People build automations on this one, and a confident wrong "no trailer"
+  is worse than no reading. The sensor appears only on cars that report the field. Thanks
+  @heldenbariton-ship-it and @marcus-stem (#1798, #1802).
+- **Four new readings for the remaining life of each wheel's tyre pressure sensor.** Five
+  Audi owners reported the same four diagnostic values on every poll, the largest group in
+  the backlog, and not one of them was ever read. The reason was the shape of the payload:
+  it arrives encoded, and the decoder expected a document inside it, while these four send
+  a plain number. They are decoded now, one per wheel. On four of the five cars the value
+  the car sends is the byte that means "not available", so those cars get no sensor at all
+  rather than four sensors reading 255, and the one car that sends a real value gets its
+  four. The portal documents neither a unit nor a meaning for them, so they are unitless
+  and off by default, exactly like the other tyre values whose unit the portal leaves open.
+  Thanks @zdimic1, @N85UK, @derschneewolf, @heldenbariton-ship-it and @marcus-stem (#1767).
 - **A charge level and an electric range from a one time export now reach your car.** The
   15 minute feed and the one time export name the same readings differently, and the
   integration only ever knew the feed's names: of the seventeen charge level names it looks
@@ -90,6 +109,51 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **An entry you set up by scanning the sign-in code now asks you to scan it again, instead of
+  guessing at a password it never had.** A UK Audi Q4 e-tron was set up that way in July and ran
+  for 87 days. Then its session stopped renewing, and the integration spent the next seven hours
+  doing the wrong thing once an hour: it fell back to signing in with an email and a password,
+  and because that kind of entry stores no password, it put the account's internal id into the
+  email field. The identity service answered that this is not an email, which the integration
+  read as "the EU Data Act portal needs a one-time action" and said so, to an owner in the UK
+  whose car cannot use that portal at all. Meanwhile nothing offered him the one thing that
+  would have fixed it, so the entities stayed unavailable and the log filled up.
+  Such an entry now stops before sending anything, says that the sign-in session expired, and
+  gets the Reauthenticate button, which has routed these entries to the sign-in code since
+  v2.x. The retry also stops after two failed rounds rather than continuing hourly, which is
+  the same rule Porsche entries have had since 4.7.8. Thanks @ratclma, whose report named the
+  cause and the fix (#1813).
+- **Your car is no longer told it is a model it isn't.** An Audi e-tron 55 from 2019 was
+  informed by the integration that it is "an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born,
+  Q4)". It is not one, and its owner said so. The notice was built from the backend's
+  refusal and not from any check of the car: when the durable Car-Net login answers
+  "Unknown user", the integration concluded the car must be an ID. That answer only says
+  the car is not registered in the old Car-Net system, which is the expected case for ID
+  and MEB models and equally what an older car answers once the brand has moved it off
+  that system. The outcome was right, since the refusal is real and commands genuinely
+  cannot be sent, but the explanation sent people looking for an answer that does not
+  exist. The notice and the setup message now say what the refusal actually tells us.
+  German and English are corrected; the other languages still carry the old wording until
+  a native speaker gets to them. Thanks @jocke-w (#1809).
+- **An error report now says what the backend actually answered.** A report reached the
+  tracker saying only that a request had failed with a 400, which is not something anyone
+  can act on: a 400 can mean an expired subscription, a passing backend problem, or a
+  mistake in what the integration sent, and only the answer's own text separates those. The
+  text was being read and then dropped, because the part of the code that writes the report
+  deliberately keeps it out of the message to avoid putting a VIN in a log. It is now
+  included in the report, masked the same way as everything else in it. A failure that
+  repeats is also no longer twenty copies of itself: the report keeps one entry with a count
+  of how often it happened, so the rest of the history survives and anyone reading it can
+  see how persistent the problem is. Thanks @moltke69 (#1808).
+- **Three cars stop reporting the same three fields on every poll.** A VW and two CUPRA
+  sent a companion value that says whether a reading next to it can be trusted. It is not a
+  reading itself, so it was never going to become a sensor showing you the word "VALID",
+  but nothing used it either, which is why it kept being offered as something new. It is
+  used now for what it is: it decides whether the reading beside it counts, it is kept in
+  the diagnostics so nothing is hidden, and it no longer comes back on the next poll. Every
+  value seen so far says the reading is valid, so nothing changes on your car unless the
+  portal itself ever says otherwise. Thanks @tertius1, @StoneH74 and @Thunderhawk2001
+  (#1797, #1803, #1795).
 - **A value filled in from a one time export now says when the car captured it.** The sensors
   fed by the 15 minute feed carry the car's own capture time and whether that time belongs to
   the reading or to the file it came in. The ones filled in by the import carried neither, so

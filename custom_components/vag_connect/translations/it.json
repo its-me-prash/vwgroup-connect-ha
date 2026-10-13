@@ -1590,6 +1590,18 @@
       },
       "alarm_reason": {
         "name": "Motivo dell'allarme"
+      },
+      "tyre_sensor_life_fl": {
+        "name": "Durata sensore di pressione anteriore sinistro"
+      },
+      "tyre_sensor_life_fr": {
+        "name": "Durata sensore di pressione anteriore destro"
+      },
+      "tyre_sensor_life_rl": {
+        "name": "Durata sensore di pressione posteriore sinistro"
+      },
+      "tyre_sensor_life_rr": {
+        "name": "Durata sensore di pressione posteriore destro"
       }
     },
     "binary_sensor": {
@@ -1913,6 +1925,9 @@
       },
       "connect_contract_active": {
         "name": "Contratto Connect attivo"
+      },
+      "trailer_connected": {
+        "name": "Rimorchio collegato"
       }
     },
     "switch": {
@@ -2289,6 +2304,10 @@
     "skoda_official_multi_integration": {
       "title": "API ufficiale Škoda — la sta usando anche un'altra integrazione",
       "description": "Sul tuo account Škoda abbiamo trovato più chiavi API ufficiali di quante ne abbia create questa integrazione — di solito è il segno che una seconda integrazione o app sta leggendo anch'essa l'API ufficiale di Škoda. Va benissimo tenerle attive, ma condividono lo stesso piccolo budget di richieste per veicolo, quindi il traffico combinato può raggiungere prima il limite di frequenza di Škoda e, nel peggiore dei casi, portare al blocco temporaneo — o col tempo definitivo — dell'account. Se non ti servono entrambe, rimuovi la chiave API ufficiale che non usi nell'app MyŠkoda (Impostazioni → Chiavi API). Puoi ignorare questo avviso."
+    },
+    "device_login_expired": {
+      "title": "Accedi di nuovo per ripristinare {brand}",
+      "description": "The sign-in session for this entry has expired and could not be renewed on its own.\n\nThis entry was set up by scanning the sign-in code, so there are no stored credentials to retry with and nothing to correct. Choose **Reauthenticate** on the integration and scan the code again; the vehicle data returns as soon as the new session is in.\n\nUntil then the entities stay unavailable. This is not a wrong-password problem and it is nothing you did wrong."
     }
   },
   "services": {

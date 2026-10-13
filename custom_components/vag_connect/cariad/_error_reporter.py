@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import re
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -72,6 +72,9 @@ class ErrorRecord:
             after running through ``_redact``. Skipped if not available.
         endpoint: Optional URL or logical endpoint name (e.g.
             ``"/v1/vehicles/{vin}/access/lock"``) — VIN already masked.
+        repeat_count: How many times this identical error arrived in a row.
+            ``1`` for a one-off. ``timestamp`` stays at the FIRST occurrence,
+            so a persistent failure reads as "started then, seen N times".
     """
 
     timestamp: str
@@ -84,6 +87,27 @@ class ErrorRecord:
     traceback_masked: str
     endpoint: str = ""
     model: str | None = None
+    repeat_count: int = 1
+
+
+# Fields that identify "this same failure happened again": everything except
+# the timestamp, which differs by definition, and the counter itself.
+_IDENTITY_FIELDS = (
+    "brand",
+    "vin_masked",
+    "model",
+    "model_year",
+    "firmware",
+    "exception_type",
+    "message_masked",
+    "traceback_masked",
+    "endpoint",
+)
+
+
+def _is_same_error(a: ErrorRecord, b: ErrorRecord) -> bool:
+    """True when two records describe the same failure, ignoring when."""
+    return all(getattr(a, f) == getattr(b, f) for f in _IDENTITY_FIELDS)
 
 
 @dataclass
@@ -100,7 +124,26 @@ class ErrorRingBuffer:
     max_size: int = _MAX_ERRORS
 
     def append(self, record: ErrorRecord) -> None:
-        """Append a record, evicting the oldest if the buffer is full."""
+        """Append a record, evicting the oldest if the buffer is full.
+
+        A record identical to the newest one is collapsed into it, raising its
+        ``repeat_count`` and keeping the first occurrence's timestamp. #1808: a
+        car that fails the same way on every poll used to push 20 copies of one
+        error through the buffer within hours, evicting every unrelated record,
+        so the report that reached the tracker showed a single error and no
+        history at all. Collapsing keeps the signal, including how persistent
+        the failure is, rather than either spamming or silencing it.
+
+        Only CONSECUTIVE repeats collapse. Merging across an intervening
+        different error would make the order of the buffer lie, so an
+        alternating A-B-A pattern is deliberately left as three records.
+        """
+        prev = self.records[-1] if self.records else None
+        if prev is not None and _is_same_error(prev, record):
+            self.records[-1] = replace(
+                prev, repeat_count=prev.repeat_count + 1,
+            )
+            return
         self.records.append(record)
         if len(self.records) > self.max_size:
             # Drop oldest — index 0
@@ -136,6 +179,35 @@ def _redact(text: str | None, *, max_len: int = 500) -> str:
     return s
 
 
+# The response body gets its own budget rather than sharing the message's, so
+# a long body cannot push the status line out of the record.
+_BODY_MAX_LEN = 600
+
+
+def _exception_body(exception: BaseException) -> str:
+    """The HTTP response body an ``APIError`` carries, or ``""``.
+
+    ``base._request`` reads the body and passes it to
+    ``APIError(status, url, body)``, where #1355 deliberately keeps it out of
+    ``__str__``, so that any call site logging or re-raising the exception
+    cannot leak a VIN or a token through the message. The body stays on the
+    exception as an attribute "for classification".
+
+    That is also why #1808 arrived unactionable: this reporter recorded
+    ``str(exception)`` and nothing else, so an Audi's repeated ``400`` on
+    ``selectivestatus`` reached the tracker as a bare "API error 400 for
+    <url>". The integration's own note in ``exceptions.py`` calls a 400
+    ambiguous (expired subscription, transient backend error, or our own
+    payload), and the body is the only thing that separates those. Here the
+    body is wanted, and it goes through ``_redact`` like every other captured
+    string, so masking still happens before anything is shown.
+    """
+    body = getattr(exception, "body", None)
+    if not isinstance(body, str):
+        return ""
+    return body.strip()
+
+
 def record_error(
     buffer: ErrorRingBuffer,
     *,
@@ -161,6 +233,12 @@ def record_error(
         )
         # Keep last 12 lines (≈ 3 frames + headers)
         tb_text = "".join(tb_lines[-12:])
+        # The message, plus the response body when the exception carries one
+        # that is not already part of the message (#1808).
+        message = _redact(str(exception))
+        body_text = _redact(_exception_body(exception), max_len=_BODY_MAX_LEN)
+        if body_text and body_text not in message:
+            message = f"{message}\nresponse body: {body_text}"
         record = ErrorRecord(
             timestamp=datetime.now(tz=timezone.utc).isoformat(),
             brand=brand,
@@ -169,7 +247,7 @@ def record_error(
             model_year=model_year,
             firmware=firmware,
             exception_type=type(exception).__name__,
-            message_masked=_redact(str(exception)),
+            message_masked=message,
             traceback_masked=_redact(tb_text, max_len=2000),
             endpoint=_redact(endpoint, max_len=200) if endpoint else "",
         )
@@ -210,6 +288,7 @@ def serialise_for_diagnostics(buffer: ErrorRingBuffer) -> list[dict[str, Any]]:
             "message": r.message_masked,
             "traceback": r.traceback_masked,
             "endpoint": r.endpoint,
+            "repeat_count": r.repeat_count,
         }
         for r in buffer.records
     ]
