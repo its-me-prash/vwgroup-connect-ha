@@ -2304,6 +2304,10 @@
     "skoda_official_multi_integration": {
       "title": "API officielle Škoda — une autre intégration l'utilise aussi",
       "description": "Nous avons trouvé sur votre compte Škoda plus de clés d'API officielle que cette intégration n'en a créé — c'est en général le signe qu'une deuxième intégration ou application lit elle aussi l'API officielle de Škoda. Rien ne vous empêche de garder les deux, mais elles se partagent le même petit budget de requêtes par voiture ; le trafic cumulé peut donc atteindre plus vite la limite de Škoda et, dans le pire des cas, faire bloquer le compte temporairement — voire un jour définitivement. Si vous n'avez pas besoin des deux, supprimez la clé d'API officielle que vous n'utilisez pas dans l'application MyŠkoda (Paramètres → Clés d'API). Vous pouvez ignorer cet avis."
+    },
+    "device_login_expired": {
+      "title": "Reconnectez-vous pour rétablir {brand}",
+      "description": "The sign-in session for this entry has expired and could not be renewed on its own.\n\nThis entry was set up by scanning the sign-in code, so there are no stored credentials to retry with and nothing to correct. Choose **Reauthenticate** on the integration and scan the code again; the vehicle data returns as soon as the new session is in.\n\nUntil then the entities stay unavailable. This is not a wrong-password problem and it is nothing you did wrong."
     }
   },
   "services": {

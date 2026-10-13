@@ -79,6 +79,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+- **An entry you set up by scanning the sign-in code now asks you to scan it again, instead of
+  guessing at a password it never had.** A UK Audi Q4 e-tron was set up that way in July and ran
+  for 87 days. Then its session stopped renewing, and the integration spent the next seven hours
+  doing the wrong thing once an hour: it fell back to signing in with an email and a password,
+  and because that kind of entry stores no password, it put the account's internal id into the
+  email field. The identity service answered that this is not an email, which the integration
+  read as "the EU Data Act portal needs a one-time action" and said so, to an owner in the UK
+  whose car cannot use that portal at all. Meanwhile nothing offered him the one thing that
+  would have fixed it, so the entities stayed unavailable and the log filled up.
+  Such an entry now stops before sending anything, says that the sign-in session expired, and
+  gets the Reauthenticate button, which has routed these entries to the sign-in code since
+  v2.x. The retry also stops after two failed rounds rather than continuing hourly, which is
+  the same rule Porsche entries have had since 4.7.8. Thanks @ratclma, whose report named the
+  cause and the fix (#1813).
 - **Your car is no longer told it is a model it isn't.** An Audi e-tron 55 from 2019 was
   informed by the integration that it is "an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born,
   Q4)". It is not one, and its owner said so. The notice was built from the backend's

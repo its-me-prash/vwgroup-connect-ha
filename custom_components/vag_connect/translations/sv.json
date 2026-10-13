@@ -2304,6 +2304,10 @@
     "skoda_official_multi_integration": {
       "title": "Škodas officiella API — en annan integration använder det också",
       "description": "Vi hittade fler officiella API-nycklar på ditt Škoda-konto än den här integrationen skapade — oftast ett tecken på att en andra integration eller app också läser Škodas officiella API. Det är helt okej att köra, men de delar samma lilla förfrågningsbudget per bil, så den sammanlagda trafiken kan nå Škodas hastighetsgräns snabbare och i värsta fall få kontot tillfälligt — eller till slut permanent — blockerat. Om du inte behöver båda, ta bort den officiella API-nyckel du inte använder i MyŠkoda-appen (Inställningar → API-nycklar). Du kan avfärda det här meddelandet."
+    },
+    "device_login_expired": {
+      "title": "Logga in igen för att återställa {brand}",
+      "description": "The sign-in session for this entry has expired and could not be renewed on its own.\n\nThis entry was set up by scanning the sign-in code, so there are no stored credentials to retry with and nothing to correct. Choose **Reauthenticate** on the integration and scan the code again; the vehicle data returns as soon as the new session is in.\n\nUntil then the entities stay unavailable. This is not a wrong-password problem and it is nothing you did wrong."
     }
   },
   "services": {

@@ -2304,6 +2304,10 @@
     "skoda_official_multi_integration": {
       "title": "Škodan virallinen API — myös toinen integraatio käyttää sitä",
       "description": "Škoda-tililtäsi löytyi enemmän virallisen API:n avaimia kuin tämä integraatio on luonut — yleensä se on merkki siitä, että myös jokin toinen integraatio tai sovellus lukee Škodan virallista API:a. Se ei sinänsä haittaa, mutta ne jakavat saman pienen, autokohtaisen pyyntömäärän, joten yhteinen liikenne voi saavuttaa Škodan pyyntörajan aiemmin ja pahimmassa tapauksessa johtaa tilin väliaikaiseen — tai lopulta pysyvään — estoon. Jos et tarvitse molempia, poista virallisen API:n avain, jota et käytä, MyŠkoda-sovelluksessa (Asetukset → API-avaimet). Voit sulkea tämän ilmoituksen."
+    },
+    "device_login_expired": {
+      "title": "Kirjaudu uudelleen palauttaaksesi {brand}",
+      "description": "The sign-in session for this entry has expired and could not be renewed on its own.\n\nThis entry was set up by scanning the sign-in code, so there are no stored credentials to retry with and nothing to correct. Choose **Reauthenticate** on the integration and scan the code again; the vehicle data returns as soon as the new session is in.\n\nUntil then the entities stay unavailable. This is not a wrong-password problem and it is nothing you did wrong."
     }
   },
   "services": {

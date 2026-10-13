@@ -379,6 +379,29 @@ class CariadBaseClient:
         # standard IDKAuth.authenticate path and "data_act_portal" for the
         # last-resort read-only fallback.
         strategies: list[tuple[str, dict[str, bool]]] = []
+        # #1813 (ratclma) — an entry created by scanning the sign-in code stores
+        # no password: its username is the BrandID ``sub`` UUID. Every strategy
+        # below is an email+password login, so once such an entry's tokens stop
+        # renewing, all of them are doomed, and the LAST one put that UUID into
+        # the identity service's email field. The answer came back
+        # ``validator.email.invalid``, which the portal classifier reads as a
+        # portal-interaction problem, so a UK owner whose car cannot use the EU
+        # Data Act portal at all was told to go and act in it, once an hour.
+        #
+        # Gated on BOTH halves on purpose: no password AND a token set that came
+        # from a device login. A first-ever login has no tokens yet and must
+        # still be allowed through, and an entry that does have a password can
+        # legitimately retry, so neither is touched here.
+        if not self._password and getattr(self._tokens, "strategy", "") in (
+            "device_grant",
+            "device_grant_portal",
+            "mbb",
+        ):
+            from ..exceptions import DeviceLoginExpiredError  # noqa: PLC0415
+
+            raise DeviceLoginExpiredError(
+                f"strategy={getattr(self._tokens, 'strategy', '')}"
+            )
         # v2.14.0 — when authenticate() is re-driven with an OTP code (e.g. a
         # coordinator reauth for the website-authproxy channel), feed it to the
         # connector so the email-challenge step can complete.

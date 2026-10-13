@@ -117,6 +117,12 @@ def raise_issue_auth_required(
             ir.IssueSeverity.WARNING,
             "email_two_factor_required",
         ),
+        # #1813 — a passwordless device-login entry: the only fix is a new
+        # sign-in, which the reauth flow already routes to the QR step.
+        "device_login_expired": (
+            ir.IssueSeverity.ERROR,
+            "device_login_expired",
+        ),
         "terms_and_conditions": (
             ir.IssueSeverity.ERROR,
             "terms_and_conditions",

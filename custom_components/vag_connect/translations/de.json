@@ -2304,6 +2304,10 @@
     "skoda_official_multi_integration": {
       "title": "Škoda Offizielle API — eine andere Integration nutzt sie auch",
       "description": "Wir haben auf deinem Škoda-Konto mehr Offizielle-API-Schlüssel gefunden, als diese Integration erstellt hat — meist ein Zeichen, dass eine zweite Integration oder App ebenfalls die offizielle Škoda-API liest. Das ist grundsätzlich in Ordnung, aber beide teilen sich dasselbe kleine Anfrage-Budget pro Fahrzeug, sodass die kombinierte Nutzung das Rate-Limit von Škoda schneller erreichen und im schlimmsten Fall das Konto vorübergehend — oder irgendwann dauerhaft — sperren kann. Wenn du nicht beide brauchst, entferne den nicht genutzten Offizielle-API-Schlüssel in der MyŠkoda-App (Einstellungen → API-Schlüssel). Du kannst diesen Hinweis schließen."
+    },
+    "device_login_expired": {
+      "title": "Neu anmelden, um {brand} wiederherzustellen",
+      "description": "Die Anmelde-Sitzung dieses Eintrags ist abgelaufen und konnte sich nicht von selbst erneuern.\n\nDieser Eintrag wurde per Anmelde-Code eingerichtet, es sind also keine Zugangsdaten gespeichert, mit denen ein neuer Versuch möglich wäre, und es gibt nichts zu korrigieren. Wähle bei der Integration **Neu authentifizieren** und scanne den Code erneut; die Fahrzeugdaten kommen zurück, sobald die neue Sitzung steht.\n\nBis dahin bleiben die Entitäten nicht verfügbar. Es ist kein Passwort-Problem und du hast nichts falsch gemacht."
     }
   },
   "selector": {

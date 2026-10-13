@@ -112,6 +112,16 @@ _SETUP_ERRORS: dict[str, str] = {
     "marketing_consent": (
         "New privacy consent required. App → Profile → Consents."
     ),
+    # #1813 (ratclma) — an entry created by scanning the sign-in code has no
+    # stored credentials, so the credential catch-all could never fix it. Name
+    # the sign-in, and nothing about a portal: the reporter was in the UK, where
+    # the EU Data Act portal is not available for his car at all.
+    "device_login_expired": (
+        "The sign-in session for this entry has expired and could not be "
+        "renewed. This entry was set up by scanning the sign-in code, so there "
+        "is nothing stored to retry with: choose Reauthenticate and scan the "
+        "code again. Your vehicle data returns once the new session is in."
+    ),
     "too_many_requests": (
         "Account temporarily blocked (rate limit). Wait 15 minutes, then restart HA."
     ),
@@ -137,6 +147,7 @@ _SETUP_ERRORS: dict[str, str] = {
 # resolves it. ``too_many_requests`` is deliberately NOT here: a rate limit does
 # clear by itself, so it stays a retry.
 _HARD_AUTH_SETUP_ERRORS: frozenset[str] = frozenset({
+    "device_login_expired",   # #1813 — only a new sign-in can fix it
     "terms_and_conditions",
     "marketing_consent",
     "two_factor_required",

@@ -562,6 +562,41 @@ class PortalSessionExpiredError(AuthenticationError):
         self.reason = reason
 
 
+class DeviceLoginExpiredError(AuthenticationError):
+    """#1813 (ratclma, Audi Q4 e-tron UK) — the entry was created through the
+    app device-login and stores no password, its tokens can no longer be
+    renewed, and so no login strategy in the chain can possibly succeed.
+
+    Distinct from ``AuthenticationError`` for the same reason
+    ``PortalSessionExpiredError`` is: the credential catch-all would tell the
+    user to fix a password. Here that is not merely unhelpful but impossible,
+    because the entry has no password to fix (its username is the BrandID
+    ``sub`` UUID). The recovery is to re-run the sign-in, which
+    ``config_flow`` already routes these entries to (#845/#835).
+
+    Raised BEFORE any request goes out. Previously such an entry ran all three
+    email+password strategies on every attempt, which put the account UUID into
+    the identity service's email field, earned a ``validator.email.invalid``
+    that the classifier read as a portal-interaction problem, and told a UK
+    owner to go and act in a portal his car cannot use.
+    """
+
+    def __init__(self, reason: str = "") -> None:
+        msg = (
+            "The device-login session for this entry has expired and cannot be "
+            "renewed on its own"
+        )
+        if reason:
+            msg += f" ({reason})"
+        msg += (
+            ". This entry was created by scanning the sign-in code, so there "
+            "are no stored credentials to retry with: open the integration and "
+            "sign in again to restore it."
+        )
+        super().__init__(msg)
+        self.reason = reason
+
+
 class RateLimitError(CariadError):
     """Account temporarily blocked by VAG rate limiter."""
 

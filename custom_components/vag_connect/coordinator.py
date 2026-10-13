@@ -1397,6 +1397,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .cariad import CariadClientFactory  # noqa: PLC0415
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
+            DeviceLoginExpiredError,
             EmailTwoFactorRequiredError,
             PortalInteractionRequiredError,
             PortalSessionExpiredError,
@@ -2232,6 +2233,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "The EU Data Act portal signed you in but then refused the "
                 "vehicle list (session not authorised) — see the repair notice."
             ) from err
+        except DeviceLoginExpiredError as err:
+            # #1813 — also a subclass of AuthenticationError, so it MUST sit
+            # above the catch-all for the same reason the two branches above do.
+            # Here the catch-all is not just unhelpful but impossible to act on:
+            # the entry has no password, so a credential form can never fix it.
+            # Its own reason routes to the QR sign-in that config_flow already
+            # offers for this entry shape.
+            raise ValueError("device_login_expired") from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
@@ -2257,23 +2266,48 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             return False
 
-    def _porsche_auth_dead(self, vins: list[str], results: list[Any]) -> bool:
-        """v4.7.8 (#1337) — True when EVERY Porsche car read failed
-        authentication on two consecutive polls. One poll is not enough: a
-        token-endpoint hiccup surfaces as APIError (not auth) since 4.7.8, but
-        a single all-auth-fail poll can still be a blip; two in a row means the
-        refresh token is really dead and re-authentication is the only way out.
-        Brand-gated on purpose: other brands have their own auth paths.
+    def _entry_auth_dead(self, vins: list[str], results: list[Any]) -> bool:
+        """True when EVERY car's read failed authentication on two consecutive
+        polls AND this entry has no way to recover on its own.
+
+        One poll is not enough: a token-endpoint hiccup surfaces as APIError
+        (not auth) since 4.7.8, but a single all-auth-fail poll can still be a
+        blip; two in a row means re-authentication is the only way out.
+
+        Two entry shapes qualify, and the gate stays narrow on purpose because
+        stopping the poll loop leaves every entity unavailable until the user
+        acts. Brands whose auth path can still come back on its own are not
+        included.
+
+        - Porsche (v4.7.8, #1337): the refresh token is dead and the client's
+          own fallback, a full interactive login, is failing on captcha or
+          changed credentials.
+        - A passwordless device-login entry (#1813, ratclma): the entry stores
+          no password at all, so NO login strategy can succeed, which makes the
+          failure provably permanent rather than merely likely. Before this,
+          the per-VIN failures were only counted, so an Audi re-ran three
+          doomed logins once an hour for seven hours with no reauth prompt,
+          which is the same symptom #1337 fixed for Porsche and explicitly
+          left open elsewhere. ``config_flow`` already routes exactly this
+          entry shape to the QR sign-in, so the prompt lands somewhere useful.
         """
         from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
 
-        if not vins or self.entry.data.get(CONF_BRAND) != "porsche":
+        if not vins:
+            return False
+        # The same predicate config_flow uses to route a reauth to the QR step:
+        # tokens that came from a device login, and no password to retry with.
+        _passwordless = bool(
+            self.entry.data.get("dag_initial_tokens")
+            and not self.entry.data.get(CONF_PASSWORD)
+        )
+        if self.entry.data.get(CONF_BRAND) != "porsche" and not _passwordless:
             return False
         if results and all(isinstance(r, AuthenticationError) for r in results):
-            n = getattr(self, "_porsche_auth_fail_polls", 0) + 1
-            self._porsche_auth_fail_polls = n
+            n = getattr(self, "_auth_fail_polls", 0) + 1
+            self._auth_fail_polls = n
             return n >= 2
-        self._porsche_auth_fail_polls = 0
+        self._auth_fail_polls = 0
         return False
 
     def _trigger_reauth(self, reason: str) -> None:
@@ -4492,14 +4526,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     *[_client.get_status(vin) for vin in vins],
                     return_exceptions=True,
                 )
-                # v4.7.8 (#1337) — Porsche: when EVERY car's read failed with an
-                # auth error, the refresh token is dead and the client's own
-                # fallback (a full interactive login) is failing on captcha /
-                # changed credentials. Before this the per-VIN failures were only
-                # counted, so the entry re-ran that interactive login up to 3x per
-                # hour indefinitely with no reauth prompt. Escalate to reauth.
-                # Brand-gated on purpose: other brands have their own auth paths.
-                if self._porsche_auth_dead(vins, list(results)):
+                # v4.7.8 (#1337) — when EVERY car's read failed with an auth
+                # error, re-authentication is the only way out: the per-VIN
+                # failures below are only counted, so without this the entry
+                # re-runs its doomed login up to 3x per hour indefinitely with
+                # no reauth prompt. #1813 widened it from Porsche-only to
+                # include a passwordless device-login entry, where the failure
+                # is provably permanent because there is no password to retry
+                # with. See _entry_auth_dead for why the gate stays narrow.
+                if self._entry_auth_dead(vins, list(results)):
                     self._trigger_reauth(
                         "every vehicle read failed authentication on two "
                         "consecutive polls (refresh token dead)"
