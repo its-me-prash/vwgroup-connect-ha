@@ -32,10 +32,12 @@ body has to be visible first.
 
 from __future__ import annotations
 
-# A real-shaped VIN and a JWT-shaped token, used to prove the body is masked
-# on its way into the record. Neither belongs to anyone: the VIN is the
-# documentation example used across this suite.
-_VIN = "WVWZZZ1KZAW000123"
+# A VIN-shaped and a JWT-shaped string, used to prove the body is masked on its
+# way into the record. The VIN is one of the suite's self-evidently synthetic
+# ones (SYNTHET), not a plausible-looking number that could belong to a real
+# car: the point of the test is the masking, so the input should not itself be
+# something worth masking.
+_VIN = "WVWZZZSYNTHET0001"
 _JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r"
 
 
@@ -131,7 +133,7 @@ class TestBodyIsRedacted:
         rec = _record(_raised(_api_error(body=f'{{"vin":"{_VIN}"}}')))
         assert _VIN not in rec.message_masked
         # and the masked form did land, so the body was carried, not dropped
-        assert "***000123" in rec.message_masked
+        assert "***ET0001" in rec.message_masked
 
     def test_email_in_the_body_is_masked(self):
         rec = _record(_raised(_api_error(body="owner: someone@example.com")))
@@ -216,7 +218,7 @@ class TestRepeatCollapsing:
     def test_a_different_vehicle_does_not_collapse(self):
         buf = self._buf()
         self._put(buf, _raised(_api_error(body="x")), vin=_VIN)
-        self._put(buf, _raised(_api_error(body="x")), vin="WVWZZZ1KZAW999888")
+        self._put(buf, _raised(_api_error(body="x")), vin="WVWZZZSYNTHET0002")
         assert len(buf.records) == 2
 
     def test_only_consecutive_repeats_collapse(self):
