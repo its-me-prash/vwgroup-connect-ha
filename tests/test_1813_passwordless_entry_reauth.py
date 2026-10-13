@@ -311,6 +311,43 @@ class TestTheUserFacingSide:
         src = inspect.getsource(repairs.raise_issue_auth_required)
         assert "device_login_expired" in src
 
+    def test_a_successful_sign_in_clears_the_repair(self):
+        """A repair that outlives its own fix is worse than no repair.
+
+        ``raise_issue_auth_required`` registers the issue as
+        ``f"{entry_id}_{reason}"``, so a reason missing from
+        ``clear_auth_issues`` leaves the notice standing after the sign-in that
+        fixed it. Checking this found the same gap in
+        ``portal_interaction_required``, which has had it since it was added.
+        """
+        import inspect
+
+        from custom_components.vag_connect import repairs
+
+        src = inspect.getsource(repairs.clear_auth_issues)
+        assert "device_login_expired" in src
+        assert "portal_interaction_required" in src
+
+    def test_every_raisable_auth_reason_is_also_clearable(self):
+        """The general rule behind the test above, so the next one cannot slip."""
+        import inspect
+        import re
+
+        from custom_components.vag_connect import repairs
+
+        # Only the keys of the issue_map literal itself: the surrounding function
+        # mentions other quoted names (a "brand" placeholder among them) and a
+        # looser pattern picks those up and makes the test lie.
+        fn = inspect.getsource(repairs.raise_issue_auth_required)
+        start = fn.index("issue_map = {")
+        table = fn[start : fn.index("\n    }", start)]
+        raised = set(re.findall(r'^\s{8}"([a-z_]+)":\s*\(', table, re.M))
+        cleared = set(
+            re.findall(r'"([a-z_]+)"', inspect.getsource(repairs.clear_auth_issues))
+        )
+        assert raised, "the reason table was not found, so this test proves nothing"
+        assert not (raised - cleared), sorted(raised - cleared)
+
     def test_the_repair_text_exists_in_every_language(self):
         """HA does not fall back to English for a custom integration."""
         import json

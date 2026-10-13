@@ -177,10 +177,16 @@ def raise_issue_auth_required(
 
 def clear_auth_issues(hass: HomeAssistant, entry_id: str) -> None:
     """Alle Auth-Issues für diesen Entry löschen (nach erfolgreichem Login)."""
+    # The issue id is f"{entry_id}_{reason}" (see raise_issue_auth_required), so a
+    # reason missing from this list leaves its repair standing after the login
+    # that fixed it. #1813 added device_login_expired and found
+    # portal_interaction_required had the same gap since it was introduced: both
+    # are raised by raise_issue_auth_required and so both must be cleared here.
     for reason in ["two_factor_required", "email_two_factor_required",
                    "terms_and_conditions",
                    "marketing_consent", "too_many_requests",
-                   "invalid_credentials", "auth_failed"]:
+                   "invalid_credentials", "auth_failed",
+                   "device_login_expired", "portal_interaction_required"]:
         ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_{reason}")
 
 
