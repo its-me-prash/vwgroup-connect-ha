@@ -90,6 +90,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   `mbb_eudp_oplist`, and the debug log names the host each service points to (#1766).
 
 ### Behoben / Fixed
+- **A car whose service list comes from the read-only host keeps its remote commands blocked
+  even right after a restart.** That block was already there and already correct, but it was
+  checked a moment too early: the integration looked at its own note of which cars are affected
+  before the step that writes that note, so on the first command after a restart the note was
+  still empty and the block did not catch. The entity for the command stays hidden either way,
+  so this only mattered to someone calling the service directly from an automation, and only
+  until the first data refresh of that session. It is checked again at the right moment now.
+  The reason it is worth a separate fix rather than a footnote: what gets lost when the block
+  misses is an attempt at your vehicle PIN, and the car locks the PIN after a few wrong ones.
+  Groundwork and the original block are @fschulte2812's (#1807).
 
 - **Your tyre pressures show their decimal again.** The portal sends a value like 2.8 bar, and
   every tyre-pressure sensor was showing 2. The number was being read as a whole number and the
