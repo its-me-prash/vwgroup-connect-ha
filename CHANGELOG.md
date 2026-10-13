@@ -42,37 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-### Behoben / Fixed
-- **The privacy note on an automatic report no longer reads as covering the file you attach
-  yourself.** What the integration generates is masked, and that has not changed: the vehicle
-  identifier in a report is cut to its last six characters and a model name that turns out to be
-  an identifier is left out entirely. But that promise prints directly above the box you drag a
-  file into, and a data export downloaded from the portal is named with your full vehicle
-  identifier, so people have been attaching one without realising. Six of the open reports carry
-  one that way. The note now says plainly that your own attachments are not covered, and suggests
-  renaming the file first.
-
-- **A refused lock or unlock now explains itself, like a refused climate command already did.**
-  The last release added a clear message for a command the car's gateway turns down on its final
-  step, and credited the reporter who worked it out. His own command was locking, and that path
-  never received the message: it had no handler on that step at all, so he would have seen the
-  same bare error a third time. Both paths now share one classification, so they cannot disagree
-  about what you are told, and the specific code his car returns is recognised as well, which
-  means we no longer have to ask anyone for a description the integration does not print. Thanks
-  @panther7 for testing the release and saying it still failed, and @Joassens, whose instrumented
-  logs are what made the messages possible in the first place (#584).
-
-- **The stale-data warning no longer tells you to re-request your data sharing.** The portal's
-  operator has asked that nobody file further data requests while they work through a backlog,
-  because it does not speed anything up and can put you further back in the queue. Our warning
-  had been advising exactly that, in all twelve languages. It now points at re-adding the channel
-  instead, and in English it says plainly that empty or unchanged downloads are a hold-up on the
-  portal's side rather than yours. The other eleven languages have the bad advice removed; the
-  added explanation follows in a later pass rather than being machine-translated into an
-  instruction nobody here can check.
-
-
 ### Hinzugefügt / Added
+
 - **Your car can tell you when a trailer is hooked up.** Two Audis reported the tow-hitch
   module's own verdict on whether something is attached, and there was nowhere for it to go:
   the integration had no trailer field at all, so this is a new reading rather than one that
@@ -109,6 +80,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   this down (#1403).
 
 ### Behoben / Fixed
+
 - **An entry you set up by scanning the sign-in code now asks you to scan it again, instead of
   guessing at a password it never had.** A UK Audi Q4 e-tron was set up that way in July and ran
   for 87 days. Then its session stopped renewing, and the integration spent the next seven hours
@@ -221,7 +193,33 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **The charge limit from a one time export is read again.** The field name we were looking for
   had a capital letter that the portal's own catalogue never uses, so no real export could
   match it.
+- **The privacy note on an automatic report no longer reads as covering the file you attach
+  yourself.** What the integration generates is masked, and that has not changed: the vehicle
+  identifier in a report is cut to its last six characters and a model name that turns out to be
+  an identifier is left out entirely. But that promise prints directly above the box you drag a
+  file into, and a data export downloaded from the portal is named with your full vehicle
+  identifier, so people have been attaching one without realising. Six of the open reports carry
+  one that way. The note now says plainly that your own attachments are not covered, and suggests
+  renaming the file first.
 
+- **A refused lock or unlock now explains itself, like a refused climate command already did.**
+  The last release added a clear message for a command the car's gateway turns down on its final
+  step, and credited the reporter who worked it out. His own command was locking, and that path
+  never received the message: it had no handler on that step at all, so he would have seen the
+  same bare error a third time. Both paths now share one classification, so they cannot disagree
+  about what you are told, and the specific code his car returns is recognised as well, which
+  means we no longer have to ask anyone for a description the integration does not print. Thanks
+  @panther7 for testing the release and saying it still failed, and @Joassens, whose instrumented
+  logs are what made the messages possible in the first place (#584).
+
+- **The stale-data warning no longer tells you to re-request your data sharing.** The portal's
+  operator has asked that nobody file further data requests while they work through a backlog,
+  because it does not speed anything up and can put you further back in the queue. Our warning
+  had been advising exactly that, in all twelve languages. It now points at re-adding the channel
+  instead, and in English it says plainly that empty or unchanged downloads are a hold-up on the
+  portal's side rather than yours. The other eleven languages have the bad advice removed; the
+  added explanation follows in a later pass rather than being machine-translated into an
+  instruction nobody here can check.
 
 ## [4.13.0] - 2026-10-10 — Six reporters' diagnostic readings, and two accounts that read the same car
 
