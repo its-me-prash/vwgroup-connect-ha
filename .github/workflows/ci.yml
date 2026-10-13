@@ -152,7 +152,7 @@ jobs:
       # SHA-pinned per supply-chain-hardening (v1.24.1, 2026-05-08).
       # home-assistant/actions has no semver tags — pin to commit SHA.
       # Bump manually when upstream announces breaking changes.
-      - uses: "home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3"
+      - uses: "home-assistant/actions/hassfest@50baf3a307f87100cf550d4ae127746595030d5d"
 
   hacs:
     name: HACS Validation
