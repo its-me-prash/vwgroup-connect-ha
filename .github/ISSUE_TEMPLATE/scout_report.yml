@@ -11,7 +11,7 @@ body:
         This template is normally **auto-filled** when you click "Mehr erfahren" on the HA Repair-Notification.
         If you're filing it manually, paste the report content from the notification body below.
 
-        💡 **Privacy:** VINs are masked to last 6 chars, GPS rounded to 1 decimal, JWTs/UUIDs/Emails stripped. Nothing leaves your HA without explicit click.
+        💡 **Privacy:** VINs are masked to last 6 chars, GPS rounded to 1 decimal, JWTs/UUIDs/Emails stripped. Nothing leaves your HA without explicit click. A file you attach yourself is not covered: a portal export is named with your full VIN, so rename it first if you would rather not publish it.
 
   - type: input
     id: brand

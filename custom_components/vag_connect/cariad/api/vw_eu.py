@@ -314,11 +314,66 @@ def leg3_refusal_kind(err: Exception) -> str | None:
     if not body:
         return None
     if ("xid_app_vw" in body or "rolesandrights.unauthorized" in body
-            or "auth.forbidden" in body):
+            or "auth.forbidden" in body
+            # #584 (@panther7) — his lock refusal carries this code and
+            # nothing else we were matching. It is the same wall: the wake
+            # handler in this file has matched "security.9007" alongside
+            # xid_app_vw since v4.7.x for exactly this grant gap, so the
+            # code alone is enough and we never have to ask a reporter for
+            # a description our own logging deliberately does not print.
+            or "security.9007" in body):
         return "client-identity"
     if "gw.error.validation" in body:
         return "schema"
     return None
+
+
+def raise_if_leg3_refusal(err: Exception, command_name: str) -> None:
+    """Raise a :class:`VehicleCommandError` naming what the gateway refused.
+
+    Returns without raising when the body is one we have NOT measured, so the
+    caller must re-raise. Hiding an unmeasured failure behind a reassuring
+    sentence would turn a new fault into a silent one.
+
+    Both MBB command paths call this. v4.13.0 put the classification inline in
+    ``_command_mbb_op`` only, which covers climate, charge and the timers, while
+    the lock and unlock path in ``_command_rlu_mbb`` had no handler on its leg-3
+    action at all. So the reporter whose lock was refused got the same raw 403 a
+    third time, in a release that credited him for the fix. One function, two
+    call sites, rather than the prose duplicated next door (#584).
+    """
+    kind = leg3_refusal_kind(err)
+    if kind == "client-identity":
+        # The gateway accepted the S-PIN and then refused the client identity.
+        # Nothing the owner can change: the licence was ACTIVATED, the
+        # operationList granted the operation, and the S-PIN handshake
+        # completed. A capture of the official app (4.6.4) shows it
+        # authenticating purely as a CARIAD/BFF client with an attested token
+        # and no MBB scope, so for such a car the command most likely never
+        # travels this plane at all, and there is no setting that opens it.
+        raise VehicleCommandError(
+            command_name,
+            "the car's gateway accepted your S-PIN and then refused "
+            "this integration's client identity for commands. This is "
+            "not your password, your S-PIN or your subscription \u2014 all "
+            "three checked out. Some cars only accept commands from the "
+            "manufacturer's own app, which authenticates in a way an "
+            "open-source client cannot reproduce. Reads are unaffected.",
+        ) from err
+    if kind == "schema":
+        # Observed on a 2017 car for setSettings carrying
+        # targetStateOfChargeInPercent: the gateway validates the body against
+        # this service's (older) schema BEFORE the permission check, so this
+        # says the field is not in that car's schema, NOT that the operation is
+        # forbidden. That reporter's operationList lists P_SETTINGS as granted,
+        # which is why we do not hide the control.
+        raise VehicleCommandError(
+            command_name,
+            "the car rejected the request as invalid rather than "
+            "forbidden \u2014 this model's service version most likely does "
+            "not accept this setting at all, even though your account "
+            "is allowed to send it. Other commands are unaffected.",
+        ) from err
 
 
 def body_has_marker(err: Exception, marker: str) -> bool:
@@ -2535,13 +2590,24 @@ class VWEUClient(CariadBaseClient):
             raise VehicleCommandError(verb, "MBB SPIN completion returned no token")
 
         # Leg 3 — the action (empty body) + poll
-        action_resp = await self._mbb_post_rlu(
-            build_mbb_rlu_action_url(
-                read_base, brand_name, country, vin, lock=lock,
-            ),
-            sec_token,
-            for_command=True,
-        )
+        #
+        # #584 (@panther7) — this call had NO handler. Legs 1 and 2 above
+        # each guard their own APIError, so a refusal there is explained,
+        # but the action itself propagated raw: his lock attempt surfaced as
+        # a bare 403 traceback while the identical refusal on the climate
+        # path produced a sentence. Same classifier, same wording, so the
+        # two paths stop disagreeing about what the user is told.
+        try:
+            action_resp = await self._mbb_post_rlu(
+                build_mbb_rlu_action_url(
+                    read_base, brand_name, country, vin, lock=lock,
+                ),
+                sec_token,
+                for_command=True,
+            )
+        except APIError as _e:
+            raise_if_leg3_refusal(_e, verb)
+            raise
         request_id = parse_mbb_rlu_request_id(action_resp)
         _LOGGER.info(
             "MBB %s sent for ***%s (request_id=%s)",
@@ -2741,39 +2807,7 @@ class VWEUClient(CariadBaseClient):
             # HERE, after legs 1 and 2 have already succeeded, and that used to
             # surface as a raw 403/400 traceback. Both are measured, not guessed:
             # he instrumented all three legs and then captured the official app.
-            _kind = leg3_refusal_kind(_e)
-            if _kind == "client-identity":
-                # The gateway accepted the S-PIN and then refused the client
-                # identity. Nothing the owner can change: the licence was
-                # ACTIVATED, the operationList granted the operation, and the
-                # S-PIN handshake completed. His capture of the official app
-                # (4.6.4) shows it authenticating purely as a CARIAD/BFF client
-                # with an attested token and no MBB scope — so for such a car
-                # the command most likely never travels this plane at all, and
-                # there is no setting that opens it.
-                raise VehicleCommandError(
-                    command_name,
-                    "the car's gateway accepted your S-PIN and then refused "
-                    "this integration's client identity for commands. This is "
-                    "not your password, your S-PIN or your subscription — all "
-                    "three checked out. Some cars only accept commands from the "
-                    "manufacturer's own app, which authenticates in a way an "
-                    "open-source client cannot reproduce. Reads are unaffected.",
-                ) from _e
-            if _kind == "schema":
-                # Observed on a 2017 car for setSettings carrying
-                # targetStateOfChargeInPercent: the gateway validates the body
-                # against this service's (older) schema BEFORE the permission
-                # check, so this says the field is not in that car's schema —
-                # NOT that the operation is forbidden. His operationList lists
-                # P_SETTINGS as granted, which is why we do not hide the control.
-                raise VehicleCommandError(
-                    command_name,
-                    "the car rejected the request as invalid rather than "
-                    "forbidden — this model's service version most likely does "
-                    "not accept this setting at all, even though your account "
-                    "is allowed to send it. Other commands are unaffected.",
-                ) from _e
+            raise_if_leg3_refusal(_e, command_name)
             raise
         request_id = parse_mbb_action_request_id(resp)
         # NOTE: we deliberately do NOT poll for confirmation on the climater/

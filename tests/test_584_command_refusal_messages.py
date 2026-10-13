@@ -176,3 +176,80 @@ def test_vehicle_command_error_is_an_api_error_subclass_or_not() -> None:
     other, and if VehicleCommandError were an APIError subclass the leg-3
     handler would re-enter its own except block on a retry."""
     assert not issubclass(VehicleCommandError, APIError)
+
+
+# ── The lock path, which the first fix did not reach ─────────────────────────
+#
+# v4.13.0 put the classification inline in `_command_mbb_op`, which serves
+# climate, charge and the timers. The reporter whose command was refused was
+# locking, and `_command_rlu_mbb` had no handler on its leg-3 action at all, so
+# he would have received the byte-identical bare 403 a third time, in a release
+# whose changelog credited him by name. The classification now lives in one
+# function both paths call.
+
+
+@pytest.mark.parametrize("body,expected", [
+    # His own code, which nothing in the classifier was matching. The wake
+    # handler in the same module has matched it since v4.7.x for this exact
+    # grant gap, so the code alone is enough and we never have to ask a
+    # reporter for a description our logging deliberately does not print.
+    ('{"error":{"errorCode":"security.9007"}}', "client-identity"),
+    (SYSTEMID_403, "client-identity"),
+    (VALIDATION_400, "schema"),
+])
+def test_the_classifier_covers_the_lock_refusals(body: str, expected: str) -> None:
+    assert leg3_refusal_kind(_err(body)) == expected
+
+
+def test_the_shared_raiser_names_the_command_it_was_given() -> None:
+    """Both paths pass their own verb, so the message says "lock" for a lock."""
+    from custom_components.vag_connect.cariad.api.vw_eu import (
+        raise_if_leg3_refusal,
+    )
+
+    with pytest.raises(VehicleCommandError) as caught:
+        raise_if_leg3_refusal(_err('{"error":{"errorCode":"security.9007"}}'), "lock")
+    assert "lock" in str(caught.value)
+    assert "not your password, your S-PIN or your subscription" in str(caught.value)
+
+
+def test_an_unmeasured_body_is_not_swallowed_by_the_raiser() -> None:
+    """Returning without raising is the contract: the caller re-raises.
+
+    Hiding a failure mode we have never seen behind a reassuring sentence would
+    turn a new fault into a silent one.
+    """
+    from custom_components.vag_connect.cariad.api.vw_eu import (
+        raise_if_leg3_refusal,
+    )
+
+    assert raise_if_leg3_refusal(_err('{"errorCode":"gw.error.notFound"}'), "lock") is None
+
+
+def test_the_lock_path_actually_calls_the_raiser() -> None:
+    """The structural guard, and the one the first fix needed.
+
+    A test of the classifier alone passed while the lock path never called it.
+    So this pins the wiring: the leg-3 action in `_command_rlu_mbb` must sit
+    inside a try whose handler calls the shared raiser. Checking for the absence
+    of an unguarded call is the kind of check that catches this; asserting the
+    classifier exists is not.
+    """
+    import inspect
+    import re
+
+    from custom_components.vag_connect.cariad.api import vw_eu
+
+    src = inspect.getsource(vw_eu.VWEUClient._command_rlu_mbb)
+    assert "raise_if_leg3_refusal" in src, "the lock path does not classify at all"
+    # The action call and the handler must be in the same try block, which means
+    # the call is indented under a try and an except follows it.
+    assert re.search(r"try:\s*\n\s+action_resp = await self\._mbb_post_rlu\(", src), (
+        "the leg-3 action call is not inside a try block"
+    )
+    # And the climate path must still use the same function rather than its own copy.
+    op_src = inspect.getsource(vw_eu.VWEUClient._command_mbb_op)
+    assert "raise_if_leg3_refusal" in op_src
+    assert "client-identity" not in op_src, (
+        "the climate path still carries its own copy of the classification"
+    )

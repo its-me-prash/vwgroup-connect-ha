@@ -10,7 +10,7 @@ body:
 
         This template is normally **auto-filled** when you click "Mehr erfahren" on the Error Reporter Repair-Notification.
 
-        💡 **Privacy:** VINs masked, Bearer/JWT/UUID/Email tokens stripped from messages and tracebacks. No credentials are included.
+        💡 **Privacy:** VINs masked, Bearer/JWT/UUID/Email tokens stripped from messages and tracebacks. No credentials are included. A file you attach yourself is not covered: a portal export is named with your full VIN, so rename it first if you would rather not publish it.
 
   - type: input
     id: brand
