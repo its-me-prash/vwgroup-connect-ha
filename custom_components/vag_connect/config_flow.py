@@ -53,6 +53,7 @@ from .const import (
     CONF_MBB_COMMAND_CHANNEL,
     CONF_CAPTCHA_CODE,
     CONF_MBB_COMMAND_FALLBACK,
+    CONF_MBB_COMMANDS_BLOCKED_REASON,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_MBB_COMMAND_CLIENT_ID,
     CONF_MBB_COMMAND_TOKENS,
@@ -439,6 +440,53 @@ def _is_grant_retired(err: object) -> bool:
     return "unauthorized_client" in text or "not allowed" in text
 
 
+# #1809 — the ONLY positive proof that a car/account has no legacy Car-Net
+# enrolment. Live-measured against the MBB token endpoint (Audi e-tron 50
+# quattro MY2022, an MLB-evo car): ``error=invalid_grant`` plus
+# ``error_description="Unknown user <account-uuid>"``. The marker lives in the
+# description, which is why #1355's redaction had to start carrying it as an
+# attribute (see ``CariadError.oauth_error_description``).
+_MBB_NOT_ENROLLED_MARKERS: tuple[str, ...] = ("unknown user",)
+
+
+def classify_mbb_mint_failure(err: object) -> str:
+    """Why did the durable-MBB mint fail?
+
+    Returns ``"grant_retired"``, ``"not_enrolled"`` or ``"unknown"``.
+
+    #1809 fixed the repair text so it no longer calls a backend refusal an
+    MEB/ID car. What it now says instead is narrower and checkable: "the durable
+    Car-Net login answered ``Unknown user`` for this car". The rule that decides
+    when to say it was left as it was — ``"unknown user" in low or
+    "invalid_grant" in low`` — and on that rule the sentence reaches users whose
+    login never answered it. ``invalid_grant`` is the generic OAuth2 rejection:
+    the register/exchange chain returns it for an account with no MBB enrolment,
+    for an audience mismatch (#464) and for a failed register alike, and the
+    second write site fires on ANY mint failure, a 5xx or a timeout included.
+
+    So: only a POSITIVE marker may claim "no MBB enrolment" — and the marker
+    lives in ``error_description``, which the #1355 redaction dropped before the
+    flow could read it, so the claim could not be substantiated even when true.
+    Measured on an MLB-evo Audi e-tron 50 quattro (MY2022): the live rejection
+    is ``error=invalid_grant`` with ``error_description="Unknown user <uuid>"``.
+    A retired grant is recognised by the existing ``_is_grant_retired`` rule
+    (reused rather than restated, for the reason #1733 extracted it); everything
+    else stays ``"unknown"``, so the notice says what we actually know.
+
+    Reads the description via the ``CariadError`` attribute and ``APIError.body``
+    — never echoes either, because the live description embeds an account UUID.
+    """
+    description = str(getattr(err, "oauth_error_description", "") or "")
+    if _is_grant_retired(err) or _is_grant_retired(description):
+        return "grant_retired"
+    haystack = " ".join(
+        (str(err), description, str(getattr(err, "body", "") or ""))
+    ).lower()
+    if any(marker in haystack for marker in _MBB_NOT_ENROLLED_MARKERS):
+        return "not_enrolled"
+    return "unknown"
+
+
 def _extract_user_id_from_id_token(id_token: str, fallback: str) -> str:
     """v2.7.0 — Decode the ``sub`` claim from an OIDC id_token.
 
@@ -594,9 +642,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_mbb_tokens: Any = None
         self._dag_mbb_client_id: str = ""
         # v2.15.0a8 — set when the MBB exchange says "Unknown user" (account/car
-        # has no legacy Car-Net/MBB enrolment → newer ID/MEB car). Aborts the
-        # flow with a clear "not eligible, use EU Data Act" message.
+        # has no legacy Car-Net/MBB enrolment). Aborts the flow with a clear
+        # "not eligible, use EU Data Act" message.
+        # #1809 — this no longer implies an MEB/ID car: an MLB car whose account
+        # was never Car-Net-enrolled answers exactly the same way.
         self._dag_mbb_ineligible: bool = False
+        # #1809 — ``classify_mbb_mint_failure`` verdict of the last MBB mint
+        # attempt, so the entry records WHY commands are unavailable instead of
+        # asserting a platform nobody checked.
+        self._dag_mbb_failure_reason: str = ""
         # b12 — MBB COMMAND-CHANNEL setup: the Portal (email/pw) login can tick
         # "enable MBB commands" → after the portal validates, chain to the MBB
         # QR; the finish then creates a PORTAL-primary entry (reads) WITH the
@@ -1585,10 +1639,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         # what we actually know; the key name stays as it is
                         # because it is persisted in entry.data and renaming it
                         # would silently drop the flag for existing entries.
+                        #
+                        # Reaching here now REQUIRES the positive "Unknown user"
+                        # marker (``classify_mbb_mint_failure`` → not_enrolled),
+                        # so the notice's claim about what the login answered is
+                        # backed by the answer. The reason is recorded alongside
+                        # it so the coordinator need not re-derive it.
                         return await self._create_or_update_portal_entry(
                             title=self._pending_portal_title,
                             data={**self._pending_portal_data,
-                                  CONF_MEB_COMMANDS_UNAVAILABLE: True},
+                                  CONF_MEB_COMMANDS_UNAVAILABLE: True,
+                                  CONF_MBB_COMMANDS_BLOCKED_REASON:
+                                      self._dag_mbb_failure_reason
+                                      or "not_enrolled"},
                         )
                     return self.async_abort(reason="mbb_not_eligible")
                 # Poll/mint completed with error — reset state and route
@@ -1866,19 +1929,29 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self._dag_error = str(err)
             # v2.15.0a8 — the MBB token exchange returns
             # ``invalid_grant: "Unknown user"`` when the account/vehicle has no
-            # legacy Car-Net/MBB enrolment — i.e. a newer ID/MEB car. That's
-            # not a transient failure: MBB (durable login + commands) simply
-            # doesn't cover MEB cars. Flag it so the flow aborts with a clear
-            # "use EU Data Act instead" message rather than looping the VIN form.
-            # Read the marker from message AND the raw body attribute: APIError's
-            # message is now redacted (body stripped, #1355), so an MBB exchange
-            # that raises APIError would otherwise hide "invalid_grant" here.
-            low = (str(err) + " " + str(getattr(err, "body", ""))).lower()
-            if self._dag_mbb and ("unknown user" in low or "invalid_grant" in low):
-                self._dag_mbb_ineligible = True
+            # legacy Car-Net/MBB enrolment. That's not a transient failure, so
+            # flag it and abort with a clear "use EU Data Act instead" message
+            # rather than looping the VIN form.
+            # #1809 — it also flagged that on a BARE ``invalid_grant``, so the
+            # notice's "the durable Car-Net login answered Unknown user" reached
+            # users whose login never answered it. Measured on an MLB-evo Audi
+            # e-tron 50 quattro (MY2022): the real rejection is
+            # ``invalid_grant`` + ``error_description="Unknown user <uuid>"``.
+            # Classify on that marker and record WHY, so a retired grant
+            # (#1364), an audience mismatch (#464), a failed register and a 5xx
+            # each get their own honest answer instead of borrowing this one.
+            reason = classify_mbb_mint_failure(err)
+            self._dag_mbb_failure_reason = reason
+            if self._dag_mbb:
+                if reason == "not_enrolled":
+                    self._dag_mbb_ineligible = True
+                elif reason == "grant_retired":
+                    # Phase 1 sets this for the app client; the MBB client can
+                    # be retired independently, and only Phase 2 ever sees that.
+                    self._dag_grant_disabled = True
             _LOGGER.warning(
-                "Browser login Phase 2 failed for %s: %s",
-                self._dag_brand, type(err).__name__,
+                "Browser login Phase 2 failed for %s: %s (%s)",
+                self._dag_brand, type(err).__name__, reason,
             )
         finally:
             sess = getattr(self, "_dag_session", None)
@@ -1990,7 +2063,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # surfaces a clear "commands unavailable" repair. #1809 — this
                 # says the mint failed, NOT that the car is MEB/ID; see the
                 # other call site for the e-tron that was told it was an ID.
-                entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True
+                #
+                # #1809 follow-up — but it must not borrow the "Unknown user"
+                # explanation either. This branch is reached by EVERY mint
+                # failure: a 5xx, a timeout, a ClientError, an audience mismatch
+                # (#464), a refused register. Record which one it was, and only
+                # claim the Car-Net verdict when the backend actually gave it.
+                reason = self._dag_mbb_failure_reason or "unknown"
+                entry_data[CONF_MBB_COMMANDS_BLOCKED_REASON] = reason
+                if reason == "not_enrolled":
+                    entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True
             return await self._create_or_update_portal_entry(
                 title=self._pending_portal_title, data=entry_data,
             )

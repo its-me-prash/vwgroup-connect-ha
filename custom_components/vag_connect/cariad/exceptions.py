@@ -326,7 +326,21 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
 
 
 class CariadError(Exception):
-    """Base exception for all CARIAD client errors."""
+    """Base exception for all CARIAD client errors.
+
+    #1809 — ``oauth_error``/``oauth_error_description`` carry the OAuth2 error
+    fields of a token-endpoint rejection when the raiser could parse them.
+    Same contract as ``APIError.body`` below: the MESSAGE stays redacted and
+    these are ATTRIBUTES for classification only (#1355). They matter because
+    ``error`` alone is ambiguous — a bare ``invalid_grant`` is produced by an
+    account with no MBB enrolment, by an audience mismatch (#464), by a failed
+    register and by a 5xx alike, and only ``error_description`` separates them.
+    Never interpolate the description into a message, a log line or a
+    user-facing string: it can embed an account UUID.
+    """
+
+    oauth_error: str = ""
+    oauth_error_description: str = ""
 
 
 class AuthenticationError(CariadError):

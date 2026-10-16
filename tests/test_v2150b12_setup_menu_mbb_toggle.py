@@ -17,6 +17,7 @@ from custom_components.vag_connect.const import (
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MBB_COMMAND_CLIENT_ID,
     CONF_MBB_COMMAND_TOKENS,
+    CONF_MBB_COMMANDS_BLOCKED_REASON,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
@@ -135,16 +136,42 @@ def test_finish_builds_portal_plus_command_channel() -> None:
     assert data[CONF_BRAND] == "volkswagen"  # portal data preserved
 
 
-def test_finish_meb_ineligible_keeps_portal_without_commands() -> None:
-    # MBB mint failed (MEB car) → portal entry created, no command channel.
+def test_finish_mint_failure_keeps_portal_without_commands() -> None:
+    # MBB mint failed → portal entry created, no command channel.
+    #
+    # #1809 — this used to assert CONF_MEB_COMMANDS_UNAVAILABLE on ANY mint
+    # failure, which is how the repair notice came to tell a user whose login
+    # hit a 5xx or a timeout that "the durable Car-Net login answered Unknown
+    # user". The entry now records WHY, and claims that verdict only when the
+    # backend actually gave it (see the GUARD below).
     flow = _flow()
     flow.async_create_entry = MagicMock(return_value={"type": "create_entry"})
     flow._dag_mbb_command = True
     flow._pending_portal_data = {CONF_BRAND: "volkswagen", "username": "u@t.de"}
     flow._pending_portal_title = "Volkswagen EU — u@t.de"
     flow._dag_tokens = _tok("portal-id")
-    flow._dag_mbb_tokens = None  # mint failed
+    flow._dag_mbb_tokens = None  # mint failed, reason undetermined
     asyncio.run(flow.async_step_browser_login_finish())
     data = flow.async_create_entry.call_args.kwargs["data"]
     assert CONF_MBB_COMMAND_CHANNEL not in data  # reads still work, no commands
-    assert data[CONF_MEB_COMMANDS_UNAVAILABLE] is True  # b13: flagged for the repair
+    assert data[CONF_MBB_COMMANDS_BLOCKED_REASON] == "unknown"  # flagged, honestly
+    assert CONF_MEB_COMMANDS_UNAVAILABLE not in data  # no Car-Net verdict claimed
+
+
+def test_finish_not_enrolled_still_flags_the_carnet_verdict() -> None:
+    # GUARD for the above: when the backend DID answer "Unknown user", the
+    # original flag must still be written, so the notice is unchanged for the
+    # case it was written for.
+    flow = _flow()
+    flow.async_create_entry = MagicMock(return_value={"type": "create_entry"})
+    flow._dag_mbb_command = True
+    flow._pending_portal_data = {CONF_BRAND: "volkswagen", "username": "u@t.de"}
+    flow._pending_portal_title = "Volkswagen EU — u@t.de"
+    flow._dag_tokens = _tok("portal-id")
+    flow._dag_mbb_tokens = None
+    flow._dag_mbb_failure_reason = "not_enrolled"
+    asyncio.run(flow.async_step_browser_login_finish())
+    data = flow.async_create_entry.call_args.kwargs["data"]
+    assert CONF_MBB_COMMAND_CHANNEL not in data
+    assert data[CONF_MEB_COMMANDS_UNAVAILABLE] is True
+    assert data[CONF_MBB_COMMANDS_BLOCKED_REASON] == "not_enrolled"

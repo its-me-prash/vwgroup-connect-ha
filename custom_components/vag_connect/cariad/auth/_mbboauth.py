@@ -54,20 +54,35 @@ def _refresh_error(status: int, body: str, retryable: bool) -> Exception:
     exchange (``retryable=False``) keeps ``AuthenticationError``. The HTTP status +
     body are preserved in the message (callers/tests match on it)."""
     err_code = ""
+    err_desc = ""
     try:
         if body:
-            err_code = str(json.loads(body).get("error", ""))
+            parsed = json.loads(body)
+            err_code = str(parsed.get("error", ""))
+            err_desc = str(parsed.get("error_description", ""))
     except (ValueError, AttributeError):
         err_code = ""
+        err_desc = ""
     # Redaction (#1355): NEVER interpolate the raw token-endpoint body — a
     # response body can carry credential material. Surface the HTTP status plus
     # the parsed OAuth ``error`` code only.
     msg = f"MBB token exchange HTTP {status}"
     if err_code:
         msg += f" (error={err_code})"
+    exc: AuthenticationError | TokenRefreshRetryError
     if retryable and err_code not in _HARD_REFRESH_ERRORS:
-        return TokenRefreshRetryError(msg)
-    return AuthenticationError(msg)
+        exc = TokenRefreshRetryError(msg)
+    else:
+        exc = AuthenticationError(msg)
+    # #1809 — carry the OAuth fields as ATTRIBUTES (the ``APIError.body``
+    # contract) so a caller can tell WHY the exchange was refused. The message
+    # deliberately still omits ``error_description``: a live MBB rejection
+    # answers ``invalid_grant`` + ``"Unknown user <account-uuid>"``, so putting
+    # the description in the message would push an account UUID into every log
+    # line that prints this exception.
+    exc.oauth_error = err_code
+    exc.oauth_error_description = err_desc
+    return exc
 
 # ── Endpoints (DEX + live-probe confirmed 2026-06) ──────────────────────────
 MBB_OAUTH_BASE = "https://mbboauth-1d.prd.ece.vwg-connect.com/mbbcoauth"

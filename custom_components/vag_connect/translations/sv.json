@@ -216,7 +216,7 @@
       "already_configured": "Det här kontot är redan konfigurerat.",
       "reauth_successful": "Omautentisering lyckades.",
       "reconfigure_successful": "Konfigurationen uppdaterades.",
-      "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller).",
+      "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen: backend returnerade \"Unknown user\", vilket betyder att bilen inte är registrerad i det gamla Car-Net/MBB-systemet. Det är det förväntade svaret för ID- och MEB-modeller, och det är också vad en äldre bil svarar när märket har flyttat den ut ur systemet — det identifierar alltså inte modellklassen. Använd EU Data Act-portalkanalen (eller inloggning med e-post och lösenord) för sådana fordon.",
       "mbb_fallback_armed": "Reservanslutningen är inställd. Om din Audis vanliga anslutning någon gång slutar ta emot fjärrkommandon växlar lås/lås upp, klimat och laddning automatiskt till reserven. Ingenting ändras i vardagen.",
       "no_devicegrant_audi": "Ingen matchande Audi hittades. Den här reserven gäller bara en Audi som du lagt till med QR-/app-inloggningen och som inte redan har den. Lägg till din Audi på det sättet först och kom sedan tillbaka hit.",
       "porsche_login_wall": "Dina inloggningsuppgifter är korrekta — inloggningen tog sig förbi lösenordssteget, men stannade vid en Porsche captcha-/samtyckesskärm som den inte kan slutföra automatiskt (sedd på my.porsche.com). Det här är en spärr på Porsches sida, spårad i #1337, inte ett fel lösenord. Försök inte igen i en loop — upprepade försök har låst Porsche-konton. Om du kan, rapportera det gärna så att vi kan åtgärda det (bifoga diagnostik): {report_url}",
@@ -2602,7 +2602,15 @@
     },
     "meb_commands_unavailable": {
       "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
-      "description": "Du aktiverade MBB-fjärrkommandon när du konfigurerade {brand}, men det här är en bil i MEB-/ID-familjen (ID.3/4/5/7, Enyaq, Born, Q4). VW:s MEB-backend stöder inte den hållbara Car-Net-kommandovägen — den hållbara inloggningen svarade \"Unknown user\" — så lås-, klimat- och laddningskommandon kan inte skickas.\n\nPosten behålls som **skrivskyddad**: fordonsdata kommer fortfarande via EU Data Act-portalen, du ser bara inga kommandoentiteter. Det här är en känd begränsning i VW:s MEB-plattform, inte ett konfigurationsfel — du kan stänga det här meddelandet."
+      "description": "Du slog på MBB-fjärrkommandon när du ställde in {brand}, men den varaktiga Car-Net-inloggningen svarade \"Unknown user\" för den här bilen, så lås, klimat och laddning kan inte skickas den vägen.\n\nSvaret betyder att bilen inte är registrerad i VW:s gamla Car-Net-system. Det är det förväntade svaret för ID- och MEB-modeller, som aldrig var registrerade där, och det är också vad en äldre bil svarar när märket har flyttat den ut ur systemet. Svaret i sig säger inte vilket av de två fallen din bil är.\n\nPosten hålls **skrivskyddad**: fordonsdata kommer fortfarande in via EU Data Act-portalen, bara kommando-entiteterna saknas. Du kan stänga det här meddelandet."
+    },
+    "mbb_grant_retired": {
+      "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
+      "description": "Du slog på MBB-fjärrkommandon när du ställde in {brand}, men {brand} har dragit in den enhetskodsinloggning som den varaktiga Car-Net-kanalen behöver, så kommandotoken kunde inte hämtas.\n\nVarken ditt konto eller din bil kan ändra det: tillverkaren stängde av den inloggningen, och ersättaren ligger bakom en enhetskontroll i tillverkarens app som Home Assistant inte kan uppfylla.\n\nPosten hålls **skrivskyddad**: fordonsdata kommer fortfarande in via EU Data Act-portalen, bara kommando-entiteterna saknas. Du kan stänga det här meddelandet."
+    },
+    "mbb_mint_failed": {
+      "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
+      "description": "Du slog på MBB-fjärrkommandon när du ställde in {brand}, men den varaktiga Car-Net-inloggningen kunde inte slutföras, och backend sa inte varför.\n\nTill skillnad från fallet \"Unknown user\" betyder det **inte** att din bil är oregistrerad — det kan vara ett tillfälligt backend-fel. Det är värt att försöka igen senare.\n\nTills dess hålls posten **skrivskyddad**: fordonsdata kommer fortfarande in via EU Data Act-portalen, bara kommando-entiteterna saknas. Du kan stänga det här meddelandet."
     },
     "refresh_interval_too_frequent": {
       "title": "{brand}: uppdateringsintervallet är för tätt",
