@@ -212,8 +212,8 @@ async def _validate_credentials(
     from .cariad.api.porsche import PorscheClient  # noqa: PLC0415
     from .cariad.exceptions import (  # noqa: PLC0415
         AuthenticationError,
-        MarketingConsentError,
         EuropeAttestationError,
+        MarketingConsentError,
         NorthAmericaAttestationError,
         PorscheCaptchaRequiredError,
         PorscheLoginWallError,

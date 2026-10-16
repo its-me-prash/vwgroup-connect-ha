@@ -196,7 +196,6 @@
       "portal_interaction_required": "EU Data Act-portalen kräver en engångsåtgärd i din webbläsare eller varumärkesapp (t.ex. godkänna villkor, bekräfta samtycke, slutföra onboarding/regionval) innan huvudlös åtkomst fungerar. Detta är INTE ett lösenordsproblem — öppna portalen en gång i en webbläsare, slutför uppmaningen och försök igen.",
       "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen.",
       "na_signin_attestation": "Din e-postadress och ditt lösenord är korrekta — Volkswagen North America blockerar nu den här inloggningen bakom en enhetsattesteringskontroll från Google (Play Integrity) som bara den officiella appen på en äkta telefon kan passera. Att ange lösenordet igen hjälper inte; det här är en serverspärr hos VW, inte ett problem med inloggningsuppgifterna. (Spåras: #1165.)",
-      "eu_signin_attestation": "Din e-post och ditt lösenord är korrekta — själva inloggningen fungerade och auktoriseringskoden kom tillbaka. Volkswagen vägrar nu det sista steget, att byta den koden mot en token, eftersom de kräver ett Google-signerat enhetsintyg (Play Integrity) som bara den officiella appen på en äkta telefon kan skapa. Att skriva lösenordet igen hjälper inte, och inte heller att försöka igen. Fordonsdata kommer fortfarande in via den skrivskyddade EU Data Act-portalen, där den finns. (Spåras: #1712.)",
       "porsche_login_wall": "Din e-post och ditt lösenord är korrekta — inloggningen tog sig förbi lösenordssteget, men hamnade sedan på en Porsche captcha-/samtyckesskärm (sedd på vissa konton på my.porsche.com) som en headless inloggning inte kan ta sig förbi. Att ange lösenordet igen hjälper inte; det här är en spärr på Porsches sida, inte ett problem med inloggningsuppgifterna. Försök högst en gång — upprepade försök har låst Porsche-konton. (Spåras: #1337.)",
       "brand_not_dag_eligible": "Det valda märket stöder inte webbläsarinloggning. Använd flödet för e-post + lösenord i stället.",
       "skoda_qr_retired": "Škodas lösenordsfria inloggning (QR) inaktiverades av Volkswagen och fungerar inte längre. Gå tillbaka och välj ”E-post + lösenord (äldre metod)”, välj sedan Škoda där och logga in med din MyŠkoda-e-post och ditt lösenord.",
@@ -211,7 +210,8 @@
       "missing_captcha": "Skriv in tecknen som visas i bilden ovan.",
       "captcha_retry": "Lös den captcha som visas ovan för att fortsätta.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Din e-post och ditt lösenord är korrekta — själva inloggningen fungerade och auktoriseringskoden kom tillbaka. Volkswagen vägrar nu det sista steget, att byta den koden mot en token, eftersom de kräver ett Google-signerat enhetsintyg (Play Integrity) som bara den officiella appen på en äkta telefon kan skapa. Att skriva lösenordet igen hjälper inte, och inte heller att försöka igen. Den skrivskyddade EU Data Act-portalen, som normalt tar över i det här fallet, fungerade inte heller för det här kontot: kontrollera i portalen att datadelning är påslagen för din bil. (Spåras: #1712.)"
     },
     "abort": {
       "already_configured": "Det här kontot är redan konfigurerat.",
@@ -2648,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "Återställ {brand} med e-post och lösenord",
       "description": "The sign-in session for this entry has expired and cannot be renewed.\n\nThis entry was set up with the code sign-in, and that route is closed: the manufacturer switched off the app sign-in this brand used, so a new code can no longer be requested. This is not a wrong-password problem and it is nothing you did wrong.\n\nChoose **Repair** and sign in with your email and password. The entry keeps its history, its settings and its entity names, so nothing has to be removed and added again.\n\nUntil then the entities stay unavailable."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen blockerar inloggningen för {brand}",
+      "description": "Din e-post och ditt lösenord är korrekta — själva inloggningen fungerade och auktoriseringskoden kom tillbaka. Volkswagen vägrar nu det sista steget, att byta den koden mot en token, eftersom de kräver ett Google-signerat enhetsintyg (Play Integrity) som bara den officiella appen på en äkta telefon kan skapa. Att skriva lösenordet igen hjälper inte, och inte heller att försöka igen. Den skrivskyddade EU Data Act-portalen, som normalt tar över i det här fallet, fungerade inte heller för det här kontot: kontrollera i portalen att datadelning är påslagen för din bil. (Spåras: #1712.)"
     }
   },
   "services": {

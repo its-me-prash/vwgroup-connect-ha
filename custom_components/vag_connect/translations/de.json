@@ -196,7 +196,6 @@
       "portal_interaction_required": "Das EU-Data-Act-Portal benötigt eine einmalige Aktion in deinem Browser oder der Marken-App (z. B. AGB akzeptieren, Einwilligung bestätigen, Onboarding/Region-Auswahl abschließen), bevor der headless-Zugriff funktioniert. Das ist KEIN Passwort-Problem — öffne das Portal einmal im Browser, schließe die Abfrage ab und versuche es erneut.",
       "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren.",
       "na_signin_attestation": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — Volkswagen North America blockiert diese Anmeldung inzwischen hinter einer Google-Geräte-Attestierung (Play Integrity), die nur die offizielle App auf einem echten Smartphone bestehen kann. Das Passwort erneut einzugeben hilft nicht; das ist eine serverseitige Sperre von VW, kein Problem mit deinen Zugangsdaten. (Verfolgt unter #1165.)",
-      "eu_signin_attestation": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Die Fahrzeugdaten kommen weiterhin über das nur lesende EU-Data-Act-Portal, soweit verfügbar. (Verfolgt: #1712.)",
       "porsche_login_wall": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung kam am Passwort-Schritt vorbei, landete danach aber auf einem Porsche-Captcha-/Zustimmungs-Bildschirm (bei manchen Konten auf my.porsche.com), den eine automatische Anmeldung nicht überwinden kann. Das Passwort erneut einzugeben hilft nicht; das ist eine Porsche-seitige Sperre, kein Problem mit deinen Zugangsdaten. Höchstens einmal versuchen — wiederholte Versuche haben schon zu Porsche-Konto-Sperrungen geführt. (Verfolgt unter #1337.)",
       "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort.",
       "skoda_qr_retired": "Škodas passwortloser (QR-)Login wurde von Volkswagen abgeschaltet und funktioniert nicht mehr. Geh zurück und wähle „E-Mail + Passwort (Legacy)“, dort dann Škoda auswählen und mit deiner MyŠkoda-E-Mail und deinem Passwort anmelden.",
@@ -211,7 +210,8 @@
       "missing_captcha": "Bitte gib die im Bild oben gezeigten Zeichen ein.",
       "captcha_retry": "Bitte löse das oben gezeigte Captcha, um fortzufahren.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat für dieses Konto ebenfalls nicht funktioniert: prüfe im Portal, ob die Datenfreigabe für dein Auto aktiv ist. (Verfolgt: #1712.)"
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
@@ -2648,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "{brand} mit E-Mail und Passwort wiederherstellen",
       "description": "Die Anmelde-Sitzung dieses Eintrags ist abgelaufen und lässt sich nicht erneuern.\n\nDieser Eintrag wurde über die Code-Anmeldung eingerichtet, und dieser Weg ist zu: Der Hersteller hat die App-Anmeldung dieser Marke abgeschaltet, ein neuer Code kann also nicht mehr angefordert werden. Das ist kein Passwort-Problem und du hast nichts falsch gemacht.\n\nWähle **Reparieren** und melde dich mit E-Mail und Passwort an. Der Eintrag behält seine Historie, seine Einstellungen und seine Entitätsnamen, es muss also nichts gelöscht und neu angelegt werden.\n\nBis dahin bleiben die Entitäten nicht verfügbar."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen blockiert die Anmeldung für {brand}",
+      "description": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat für dieses Konto ebenfalls nicht funktioniert: prüfe im Portal, ob die Datenfreigabe für dein Auto aktiv ist. (Verfolgt: #1712.)"
     }
   },
   "selector": {

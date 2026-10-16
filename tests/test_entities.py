@@ -686,7 +686,13 @@ class TestRepairs:
         # #1813 follow-up — ``device_login_grant_retired`` → 10. The tripwire
         # fired again on exactly the change it exists for, which is the reason
         # to keep updating the number rather than deriving it from the list.
-        assert mock_del.call_count == 10
+        # #1712 — added ``eu_signin_attestation``, on top of #1813's
+        # ``device_login_grant_retired`` which 5.0.0 already shipped → 11. Both
+        # PRs were written against a base where the count was 9 and each said
+        # "→ 10"; merged, it is 11. The tripwire is what caught that, after an
+        # earlier resolution of this same merge dropped the clear-list line and
+        # made it pass at 10 while the code was incomplete.
+        assert mock_del.call_count == 11
 
     def test_unknown_reason_uses_auth_failed(self):
         from custom_components.vag_connect.repairs import raise_issue_auth_required

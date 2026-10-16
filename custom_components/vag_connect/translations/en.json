@@ -195,7 +195,6 @@
       "website_login_failed": "Your email and password are not the problem — the volkswagen.de login got past that and then failed at a later step (for example an expired session, a redirect loop, or a page it did not recognise). The reason is in the Home Assistant log. Changing your password will not help; if it keeps happening, please open an issue and include that log line.",
       "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, NOT a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
       "na_signin_attestation": "Your email and password are fine — Volkswagen North America now blocks this sign-in behind a Google device-attestation check (Play Integrity) that only the official app on a genuine phone can pass. Re-entering your password will not help; this is a VW server-side lock, not a credentials problem. (Tracked: #1165.)",
-      "eu_signin_attestation": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. Vehicle data still flows through the read-only EU Data Act portal where available. (Tracked: #1712.)",
       "porsche_login_wall": "Your email and password are fine — the login got past the password step but then landed on a Porsche captcha/consent screen (seen on some accounts at my.porsche.com) that a headless login can't clear. Re-entering your password won't help; this is a Porsche-side wall, not a credentials problem. Try at most once — repeated attempts have locked Porsche accounts. (Tracked: #1337.)",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "skoda_qr_retired": "Škoda's passwordless (QR) login was switched off by Volkswagen and no longer works. Go back and choose “Email + Password (legacy)”, then pick Škoda there and sign in with your MyŠkoda email and password.",
@@ -211,7 +210,8 @@
       "missing_captcha": "Please type the characters shown in the image above.",
       "captcha_retry": "Please solve the captcha shown above to continue.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. The read-only EU Data Act portal, which normally takes over in this case, did not work for this account either: check in the portal that data sharing is enabled for your car. (Tracked: #1712.)"
     },
     "abort": {
       "already_configured": "This account is already configured.",
@@ -2648,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "Restore {brand} with email and password",
       "description": "The sign-in session for this entry has expired and cannot be renewed.\n\nThis entry was set up with the code sign-in, and that route is closed: the manufacturer switched off the app sign-in this brand used, so a new code can no longer be requested. This is not a wrong-password problem and it is nothing you did wrong.\n\nChoose **Repair** and sign in with your email and password. The entry keeps its history, its settings and its entity names, so nothing has to be removed and added again.\n\nUntil then the entities stay unavailable."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen blocks the sign-in for {brand}",
+      "description": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. The read-only EU Data Act portal, which normally takes over in this case, did not work for this account either: check in the portal that data sharing is enabled for your car. (Tracked: #1712.)"
     }
   },
   "services": {

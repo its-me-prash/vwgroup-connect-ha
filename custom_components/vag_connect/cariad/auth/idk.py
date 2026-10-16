@@ -1924,6 +1924,12 @@ class IDKAuth:
             attempts = [(cid, "", "") for cid in client_id_chain]
 
         last_error: AuthenticationError | None = None
+        # #1712 — the qmauth secrets that have drawn the attestation answer.
+        # The chain carries the PRIOR qmauth pair on purpose (VW re-rotations),
+        # and a stale secret plausibly earns the same answer, so one hit is not
+        # yet proof of the wall. Every secret in the chain refused is.
+        _qm_secrets = {qm_s for (_cid, qm_s, _qmc) in attempts}
+        _attested_qm: set[str] = set()
         for idx, (client_id, qm_secret, qm_client_id) in enumerate(attempts):
             data: dict[str, str] = {
                 "client_id": client_id,
@@ -2039,17 +2045,22 @@ class IDKAuth:
                         )
                     # #1712 — the EU twin of the wall above. The login
                     # succeeded (code in hand); the exchange rejects the
-                    # headers we sign it with. Same reasoning as NA: no
-                    # client_id × qmauth retry beats an attestation wall, and
-                    # here the walk is provably futile — the shipping app no
-                    # longer carries the qmauth scheme at all (see
-                    # ``EuropeAttestationError``). Spending the chain anyway
-                    # costs six rejected sign-ins per login and per refresh.
+                    # headers we sign it with. Only Audi/VW sign assertion
+                    # headers, so only they are judged by this answer. The
+                    # shipping app no longer carries the qmauth scheme at all
+                    # (see ``EuropeAttestationError``), so once every qmauth
+                    # secret has drawn this answer the remaining client_id
+                    # candidates cannot change it: stop there instead of
+                    # spending the whole chain (six rejected sign-ins per
+                    # login, and a refresh that fails falls back to a login).
                     if (
-                        resp.status in (400, 401)
+                        self._brand.name in ("audi", "volkswagen")
+                        and resp.status in (400, 401)
                         and oauth_error_code(body).lower()
                         == _EU_ATTESTATION_ERROR
                     ):
+                        _attested_qm.add(qm_secret)
+                    if _attested_qm and _attested_qm >= _qm_secrets:
                         _LOGGER.warning(
                             "Token exchange (%s): sign-in blocked by VW device "
                             "attestation (HTTP %d, %s). The login itself "

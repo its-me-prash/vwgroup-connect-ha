@@ -195,7 +195,6 @@
       "website_login_failed": "Sähköpostiosoitteesi ja salasanasi eivät ole ongelma — volkswagen.de-kirjautuminen pääsi niistä ohi ja kaatui vasta myöhemmässä vaiheessa (esimerkiksi vanhentunut istunto, uudelleenohjaussilmukka tai sivu jota ei tunnistettu). Syy löytyy Home Assistantin lokista. Salasanan vaihtaminen ei auta; jos tämä jatkuu, avaa issue ja liitä kyseinen lokirivi.",
       "upstream_unavailable": "VW-taustajärjestelmä tilapäisesti tavoittamattomissa. Tämä on palvelinpuolen ongelma VW:llä, EI kirjautumistieto-ongelma. Odota 5–15 minuuttia ja yritä uudelleen. ÄLÄ määritä integraatiota uudelleen.",
       "na_signin_attestation": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — Volkswagen North America estää nyt tämän kirjautumisen Googlen laitevahvistustarkistuksen (Play Integrity) taakse, jonka vain virallinen sovellus aidossa puhelimessa pystyy läpäisemään. Salasanan syöttäminen uudelleen ei auta; kyseessä on VW:n palvelinpuolen lukitus, ei kirjautumistieto-ongelma. (Seuranta: #1165.)",
-      "eu_signin_attestation": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Ajoneuvon tiedot tulevat edelleen vain luku -tilassa olevan EU Data Act -portaalin kautta, missä se on saatavilla. (Seurataan: #1712.)",
       "porsche_login_wall": "Sähköpostisi ja salasanasi ovat kunnossa — kirjautuminen pääsi salasanavaiheen ohi, mutta päätyi sitten Porschen captcha-/suostumusnäyttöön (havaittu joillakin tileillä osoitteessa my.porsche.com), jota headless-kirjautuminen ei pysty ohittamaan. Salasanan syöttäminen uudelleen ei auta; kyseessä on Porschen puolen este, ei tunnistetieto-ongelma. Yritä enintään kerran — toistuvat yritykset ovat johtaneet Porsche-tilien lukitukseen. (Seuranta: #1337.)",
       "brand_not_dag_eligible": "Valittu merkki ei tue selainkirjautumista. Käytä sen sijaan sähköposti + salasana -kirjautumista.",
       "skoda_qr_retired": "Volkswagen sammutti Škodan salasanattoman (QR) kirjautumisen, eikä se toimi enää. Palaa takaisin ja valitse ”Sähköposti + salasana (vanha tapa)”, valitse siellä Škoda ja kirjaudu MyŠkoda-sähköpostillasi ja -salasanallasi.",
@@ -211,7 +210,8 @@
       "missing_captcha": "Kirjoita yllä olevassa kuvassa näkyvät merkit.",
       "captcha_retry": "Ratkaise yllä näkyvä captcha jatkaaksesi.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toiminut myöskään tällä tilillä: tarkista portaalista, että tietojen jakaminen on käytössä autollesi. (Seurataan: #1712.)"
     },
     "abort": {
       "already_configured": "Tämä tili on jo määritetty.",
@@ -2648,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "Palauta {brand} sähköpostilla ja salasanalla",
       "description": "The sign-in session for this entry has expired and cannot be renewed.\n\nThis entry was set up with the code sign-in, and that route is closed: the manufacturer switched off the app sign-in this brand used, so a new code can no longer be requested. This is not a wrong-password problem and it is nothing you did wrong.\n\nChoose **Repair** and sign in with your email and password. The entry keeps its history, its settings and its entity names, so nothing has to be removed and added again.\n\nUntil then the entities stay unavailable."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen estää kirjautumisen: {brand}",
+      "description": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toiminut myöskään tällä tilillä: tarkista portaalista, että tietojen jakaminen on käytössä autollesi. (Seurataan: #1712.)"
     }
   },
   "services": {

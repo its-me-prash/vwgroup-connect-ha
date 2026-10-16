@@ -1407,6 +1407,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             AuthenticationError,
             DeviceLoginExpiredError,
             EmailTwoFactorRequiredError,
+            EuropeAttestationError,
             PortalInteractionRequiredError,
             PortalSessionExpiredError,
             TermsAndConditionsError,
@@ -2267,6 +2268,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # Its own reason routes to the QR sign-in that config_flow already
             # offers for this entry shape.
             raise ValueError("device_login_expired") from err
+        except EuropeAttestationError as err:
+            # #1712 — also a subclass of AuthenticationError, so it MUST sit
+            # above the catch-all: the sign-in worked and only the token
+            # exchange was refused, so "invalid credentials" (and a reauth
+            # prompt for a password that is already right) would be wrong.
+            raise ValueError("eu_signin_attestation") from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
