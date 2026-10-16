@@ -67,6 +67,34 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   ID/MEB model" wording in this same notice and in the setup abort — `en` and `de` were fixed,
   the other ten were not caught by the translation-parity test because the keys still existed,
   just with the old text — so this PR carries the correction and the two new notices to all of
+  them. Setting up the EU Data Act portal with MBB commands no longer loses the portal when the
+  command channel fails for any other reason: every mint failure now keeps the read-only
+  portal entry with the reason recorded, a refusal already at register is classified like one
+  at the token exchange, a Reconfigure no longer carries an earlier verdict into the next
+  attempt, and the previous notice is taken down when the reason changes. Measured on, and the
+  fix contributed by, @woifh's own Audi e-tron.
+
+- **The "Unknown user" notice now only says that when the login actually answered it.**
+  `17eab6f9` (#1809) stopped the repair notice and the setup abort from calling a backend
+  refusal "an MEB / ID-family car" — an Audi e-tron 55 quattro, a GE-platform car from 2019,
+  had been told it was an ID.3/ID.4/Enyaq/Born/Q4. What replaced that claim was narrower and
+  checkable: "the durable Car-Net login answered Unknown user for this car". The rule deciding
+  when to say that was left exactly as it was, and on that rule the sentence reaches people
+  whose login never answered it. A bare `invalid_grant` — the generic OAuth2 rejection, also
+  produced by an audience mismatch (#464) and by a refused register — was read as the same
+  verdict, and the entry's *other* write site flagged it on ANY mint failure at all, a 5xx or a
+  timeout included. The one field that would have told the two apart, `error_description`,
+  carries the actual "Unknown user" text, but the #1355 redaction dropped it before the setup
+  flow ever saw it, so even a true claim could not have been substantiated. Measured live
+  against an Audi e-tron 50 quattro, MY2022 — MLB-evo, not MEB: `HTTP 400`, `error=invalid_grant`,
+  `error_description="Unknown user <account-uuid>"`. The description is now carried on the
+  exception as an attribute (never in its message — it embeds an account UUID), and a new
+  classifier decides on it: a retired device-code grant (#1364) and an undetermined failure
+  each get their own honest notice, and only a confirmed "Unknown user" keeps the Car-Net
+  wording. Ten of the twelve shipped languages still carried the pre-`17eab6f9` "this is an
+  ID/MEB model" wording in this same notice and in the setup abort — `en` and `de` were fixed,
+  the other ten were not caught by the translation-parity test because the keys still existed,
+  just with the old text — so this PR carries the correction and the two new notices to all of
   them. Measured on, and the fix contributed by, @woifh's own Audi e-tron.
 
 

@@ -106,7 +106,12 @@ def test_neither_flag_site_checks_the_platform() -> None:
     pretend to know the model class.
     """
     src = (_ROOT / "config_flow.py").read_text(encoding="utf-8")
-    assert src.count("CONF_MEB_COMMANDS_UNAVAILABLE: True") == 1
+    # #1809 follow-up — one write site left: the approve step now routes every
+    # mint failure on the portal + command path through finish, which writes
+    # the flag only for the backend's own "Unknown user" verdict.
+    assert src.count("CONF_MEB_COMMANDS_UNAVAILABLE: True") == 0
     assert src.count("entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True") == 1
+    site = src.index("entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True")
+    assert 'if reason == "not_enrolled":' in src[site - 200:site]
     # and both sites carry the note explaining what the flag does NOT mean
     assert src.count("#1809") >= 2

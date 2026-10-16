@@ -154,3 +154,50 @@ def test_classifier_tolerates_a_plain_object() -> None:
     # raise on something that carries neither attribute.
     assert classify_mbb_mint_failure(object()) == "unknown"
     assert classify_mbb_mint_failure(None) == "unknown"
+
+
+# ── register() carries the fields too ───────────────────────────────────────
+
+
+def _session_answering(status: int, body: str) -> object:
+    from unittest.mock import AsyncMock, MagicMock
+
+    resp = AsyncMock()
+    resp.__aenter__ = AsyncMock(return_value=resp)
+    resp.__aexit__ = AsyncMock(return_value=False)
+    resp.status = status
+    resp.text = AsyncMock(return_value=body)
+    session = MagicMock()
+    session.post = MagicMock(return_value=resp)
+    return session
+
+
+def test_a_register_refusal_is_classifiable() -> None:
+    # An account refused already at /mobile/register/v1 must not read as an
+    # undetermined failure just because register raised without the fields.
+    import asyncio
+
+    import pytest
+
+    from custom_components.vag_connect.cariad.auth._mbboauth import register
+
+    with pytest.raises(AuthenticationError) as err:
+        asyncio.run(register(_session_answering(400, _UNKNOWN_USER_BODY), "id-token"))
+    assert classify_mbb_mint_failure(err.value) == "not_enrolled"
+    assert "Unknown user" not in str(err.value)  # still redacted (#1355)
+
+
+# ── the coordinator takes the previous notice down ──────────────────────────
+
+
+def test_the_coordinator_deletes_the_notices_of_the_other_reasons() -> None:
+    from pathlib import Path
+
+    src = (
+        Path(__file__).parents[1] / "custom_components" / "vag_connect" / "coordinator.py"
+    ).read_text(encoding="utf-8")
+    block = src[src.index("_blocked_reason = str("):]
+    block = block[: block.index("translation_key=_issue_key")]
+    assert "async_delete_issue" in block
+    for key in ("meb_commands_unavailable", "mbb_grant_retired", "mbb_mint_failed"):
+        assert f'"{key}"' in block

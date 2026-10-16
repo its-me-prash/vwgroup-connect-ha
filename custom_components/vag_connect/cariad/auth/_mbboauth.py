@@ -366,14 +366,24 @@ async def register(
                 # Redaction (#1355): never echo the register body — surface the
                 # status plus the parsed error code only.
                 err_code = ""
+                err_desc = ""
                 try:
-                    err_code = str(json.loads(text).get("error", ""))
+                    parsed = json.loads(text)
+                    err_code = str(parsed.get("error", ""))
+                    err_desc = str(parsed.get("error_description", ""))
                 except (ValueError, AttributeError):
                     err_code = ""
+                    err_desc = ""
                 msg = f"MBB register HTTP {resp.status}"
                 if err_code:
                     msg += f" (error={err_code})"
-                raise AuthenticationError(msg)
+                # #1809 — same attribute contract as ``_refresh_error``: an
+                # account refused at register must be classifiable too, or its
+                # "Unknown user" answer reads as an undetermined failure.
+                reg_err = AuthenticationError(msg)
+                reg_err.oauth_error = err_code
+                reg_err.oauth_error_description = err_desc
+                raise reg_err
             try:
                 payload = json.loads(text)
             except ValueError as exc:

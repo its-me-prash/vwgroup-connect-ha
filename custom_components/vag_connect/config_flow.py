@@ -1027,6 +1027,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._dag_mbb_tokens = None
                     self._dag_mbb_client_id = ""
                     self._dag_mbb_ineligible = False
+                    self._dag_mbb_failure_reason = ""
                     self._dag_user_id = ""
                     self._dag_error = ""
                     return await self.async_step_browser_login_pending()
@@ -1320,6 +1321,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self._dag_mbb_tokens = None
             self._dag_mbb_client_id = ""
             self._dag_mbb_ineligible = False
+            self._dag_mbb_failure_reason = ""
             self._dag_user_id = ""
             self._dag_error = ""
             return await self.async_step_browser_login_pending()
@@ -1381,6 +1383,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self._dag_mbb_tokens = None
             self._dag_mbb_client_id = ""
             self._dag_mbb_ineligible = False
+            self._dag_mbb_failure_reason = ""
             self._dag_user_id = ""
             self._dag_error = ""
             self._dag_user_input = dict(user_input)
@@ -1615,44 +1618,37 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 )
                 if minted_ok:
                     return await self.async_step_browser_login_finish()
-                # v2.15.0a8 — MBB exchange said "Unknown user": this car is a
-                # newer ID/MEB model with no legacy Car-Net/MBB enrolment, so
-                # MBB will never work for it. Abort with a clear pointer to the
-                # EU Data Act / email-password channels rather than looping.
+                # #1809 follow-up — on the portal + MBB-command path EVERY mint
+                # failure keeps the read-only portal entry, not just the
+                # confirmed "Unknown user" one: the portal reads were validated
+                # before the QR, and a 5xx or a bare invalid_grant on the
+                # command channel is no reason to lose them. The finish step
+                # records WHY (CONF_MBB_COMMANDS_BLOCKED_REASON) so the
+                # coordinator picks the matching notice. A Phase-1 failure (no
+                # app tokens) still routes back to retry below.
+                if (
+                    self._dag_mbb_command
+                    and self._pending_portal_data
+                    and self._dag_tokens is not None
+                    and not self._reauth_qr
+                    and not self._dag_mbb_fallback
+                ):
+                    return await self.async_step_browser_login_finish()
+                # v2.15.0a8 — MBB exchange said "Unknown user": no legacy
+                # Car-Net/MBB enrolment, so MBB will never work for this
+                # account. Abort with a clear pointer to the EU Data Act /
+                # email-password channels rather than looping.
                 if self._dag_mbb and self._dag_mbb_ineligible:
-                    # b12 — when MBB was an add-on command channel on a portal
-                    # entry, an MBB-ineligible (MEB/ID) car must NOT lose the
-                    # portal reads: create the portal entry without commands.
-                    if self._dag_mbb_command and self._pending_portal_data:
-                        # b13 — flag the read-only fallback so the coordinator
-                        # raises a clear "commands unavailable" repair instead
-                        # of silently missing the command entities the user
-                        # ticked the box for.
-                        #
-                        # #1809 (jocke-w, Audi e-tron 55 MY2019) — the flag is
-                        # set from the backend REFUSAL, not from any platform or
-                        # model check, so it must not be read as "this is an MEB
-                        # car". An original e-tron is a GE-platform car and was
-                        # told it was an ID/MEB model, because "Unknown user" is
-                        # also what an older car answers once the brand has
-                        # migrated it off Car-Net. The user-facing texts now say
-                        # what we actually know; the key name stays as it is
-                        # because it is persisted in entry.data and renaming it
-                        # would silently drop the flag for existing entries.
-                        #
-                        # Reaching here now REQUIRES the positive "Unknown user"
-                        # marker (``classify_mbb_mint_failure`` → not_enrolled),
-                        # so the notice's claim about what the login answered is
-                        # backed by the answer. The reason is recorded alongside
-                        # it so the coordinator need not re-derive it.
-                        return await self._create_or_update_portal_entry(
-                            title=self._pending_portal_title,
-                            data={**self._pending_portal_data,
-                                  CONF_MEB_COMMANDS_UNAVAILABLE: True,
-                                  CONF_MBB_COMMANDS_BLOCKED_REASON:
-                                      self._dag_mbb_failure_reason
-                                      or "not_enrolled"},
-                        )
+                    # b12/b13 — the portal + command case is handled above
+                    # (read-only portal entry, reason recorded). A pure MBB
+                    # entry has nothing to fall back to.
+                    #
+                    # #1809 (jocke-w, Audi e-tron 55 MY2019) — reaching here
+                    # REQUIRES the positive "Unknown user" marker
+                    # (``classify_mbb_mint_failure`` → not_enrolled). It says
+                    # the car is not enrolled in Car-Net, NOT that it is an
+                    # MEB/ID car: an older car answers the same once the brand
+                    # has migrated it off that system.
                     return self.async_abort(reason="mbb_not_eligible")
                 # Poll/mint completed with error — reset state and route
                 # back to the right brand/MBB picker so user can retry.
@@ -1943,12 +1939,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             reason = classify_mbb_mint_failure(err)
             self._dag_mbb_failure_reason = reason
             if self._dag_mbb:
-                if reason == "not_enrolled":
-                    self._dag_mbb_ineligible = True
-                elif reason == "grant_retired":
-                    # Phase 1 sets this for the app client; the MBB client can
-                    # be retired independently, and only Phase 2 ever sees that.
-                    self._dag_grant_disabled = True
+                # The flag is derived from the reason, never set on its own.
+                # (``_dag_grant_disabled`` is deliberately NOT set for a
+                # ``grant_retired`` verdict here: it describes the APP client,
+                # only the browser-login step reads it, and the MBB paths would
+                # neither show it nor clear it.)
+                self._dag_mbb_ineligible = reason == "not_enrolled"
             _LOGGER.warning(
                 "Browser login Phase 2 failed for %s: %s (%s)",
                 self._dag_brand, type(err).__name__, reason,
@@ -2046,7 +2042,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # (reads) as a command channel. The portal's unique_id was already set +
         # de-duped in async_step_email_password, so don't touch it here.
         if self._dag_mbb_command:
-            entry_data = dict(self._pending_portal_data)
+            # #1809 follow-up — Reconfigure seeds _pending_portal_data from the
+            # existing entry.data, so a verdict from an EARLIER attempt would
+            # survive this one: a later 5xx would still show "Unknown user", and
+            # a successful re-approval would keep "commands unavailable". Each
+            # attempt states its own outcome.
+            entry_data = {
+                k: v for k, v in self._pending_portal_data.items()
+                if k not in (CONF_MEB_COMMANDS_UNAVAILABLE,
+                             CONF_MBB_COMMANDS_BLOCKED_REASON)
+            }
             if self._dag_mbb_tokens is not None:
                 entry_data[CONF_MBB_COMMAND_CHANNEL] = True
                 entry_data[CONF_MBB_COMMAND_TOKENS] = {
@@ -2183,6 +2188,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._dag_mbb_tokens = None
                     self._dag_mbb_client_id = ""
                     self._dag_mbb_ineligible = False
+                    self._dag_mbb_failure_reason = ""
                     self._dag_user_id = ""
                     self._dag_error = ""
                     return await self.async_step_browser_login_pending()
@@ -2752,6 +2758,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_mbb_tokens = None
         self._dag_mbb_client_id = ""
         self._dag_mbb_ineligible = False
+        self._dag_mbb_failure_reason = ""
         self._dag_user_id = ""
         self._dag_error = ""
         return await self.async_step_browser_login_pending()
@@ -2935,6 +2942,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._dag_mbb_tokens = None
                     self._dag_mbb_client_id = ""
                     self._dag_mbb_ineligible = False
+                    self._dag_mbb_failure_reason = ""
                     self._dag_user_id = ""
                     self._dag_error = ""
                     return await self.async_step_browser_login_pending()

@@ -1739,10 +1739,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "for %s", len(self.vehicles), brand,
             )
 
-        # b13 — MEB/ID known-limitation. Setup flags an entry when the user
-        # asked for MBB commands but the car is MEB-ineligible (the portal
-        # entry was created read-only). Surface a clear repair so it's a known
-        # limit, not a silent missing-command-entities failure.
+        # b13 — setup flags an entry when the user asked for MBB commands but
+        # the command channel could not be minted (the portal entry was created
+        # read-only). Surface a clear repair so it's a known limit, not a
+        # silent missing-command-entities failure.
         # #1809 — pick the notice by the RECORDED reason. The Car-Net verdict
         # ("the durable login answered Unknown user") is only told when the
         # backend actually answered it; a retired grant and an undetermined
@@ -1759,8 +1759,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _issue_key = "mbb_grant_retired"
         elif _blocked_reason == "unknown":
             _issue_key = "mbb_mint_failed"
+        from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+        # The issue id follows the reason, so a Reconfigure that changes the
+        # reason (or arms the channel) must take the previous notice down,
+        # or two contradictory notices stand side by side for one entry.
+        for _other in ("meb_commands_unavailable", "mbb_grant_retired",
+                       "mbb_mint_failed"):
+            if _other != _issue_key:
+                ir.async_delete_issue(
+                    self.hass, DOMAIN, f"{_other}_{self.entry.entry_id}"
+                )
         if _issue_key:
-            from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
