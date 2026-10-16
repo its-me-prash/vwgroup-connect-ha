@@ -77,6 +77,36 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   attempt, and the previous notice is taken down when the reason changes. Measured on, and the
   fix contributed by, @woifh's own Audi e-tron.
 
+- **A sign-in Volkswagen has walled off no longer costs six rejected attempts and a wrong
+  explanation.** On VW EU and Audi the primary login reaches the very last step — right page,
+  right POST, `authenticated`, authorization code in hand — and then the exchange of that code
+  for a token is refused with `400 invalid assertion headers`. Nothing about the account is
+  wrong, but the integration treated it as one more rejection to retry: it walked the whole
+  `client_id × qmauth` candidate chain, **six rejected sign-ins per login** (and a refresh that
+  fails falls back to a login), and ended on "all candidates exhausted" — a message that reads
+  like a credentials problem, which is what sent people re-entering a password that was already
+  correct. It now stops once every qmauth secret has drawn that answer (two attempts, not six;
+  one refused secret alone does not stop it, because the chain keeps the prior pair for VW
+  re-rotations), and only for Audi and VW, the brands that sign those headers. This is the same
+  wall as #1165 on VW North America, which has failed fast with its own honest error since
+  July; the European side simply had no equivalent, so it now gets one — in the config flow,
+  and also at setup and on re-login, where the read-only portal fallback used to hide it: if
+  the portal fails too, the entry now stops with this reason and its own repair notice instead
+  of "invalid credentials", and it stops for good rather than re-running the login on every
+  retry tick. Why retrying
+  cannot help was settled against the shipping app rather than assumed: myAudi 5.8.1 carries no
+  `qmauth` symbol in any of its six DEX files or its native libraries, nor the HMAC secret the
+  integration signs `x-qmauth` with, while it does carry the Play Integrity client
+  (`StandardIntegrityManager`, `requestIntegrityToken`) and still sends `x-assertion`. The app
+  has moved from the HMAC scheme to a Google-signed attestation bound to VW's package and
+  signing certificate, which no open-source client can mint — so there is no candidate left for
+  the chain to find. That also answers the question #1712 left open, and not in the hoped-for
+  direction: the credentials have not merely rotated. What changes for you is honesty and cost,
+  not access — the primary login stays blocked, vehicle data keeps flowing through the
+  read-only EU Data Act portal where that works for your car, and where it does not, the
+  integration now says so in every shipped language instead of blaming your password. Measured on an Audi e-tron 50 quattro, MY2022, and
+  contributed by @woifh (#1712).
+
 ## [5.0.0] - 2026-10-16 — Two doors the manufacturer closed / Zwei Türen, die der Hersteller zugemacht hat
 
 - **Volkswagen Companion (ADB): VW app 4.6.4 mapping, controls, more reads and safety gates.** Developed against a Tiguan eHybrid (reads verified on the car) in [gszigethy/vwgroup-connect-ha](https://github.com/gszigethy/vwgroup-connect-ha) (fork releases 4.11.0-1 to 4.13.0-4, plus the fixes from this PR's review; PR numbers below refer to that repository). Thanks @gszigethy; app captures from @plainmad (Mk8 Golf GTE), @kgroshert (ID.4, e-up!) and @WEZANGO (CUPRA Born) ([#968](https://github.com/its-me-prash/vwgroup-connect-ha/issues/968)). Functional and technical design: [docs/COMPANION.md](docs/COMPANION.md).

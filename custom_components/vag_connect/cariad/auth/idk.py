@@ -36,6 +36,7 @@ from ._auth_config_resolver import AuthConfigResolver
 from ..exceptions import (
     AuthenticationError,
     EmailTwoFactorRequiredError,
+    EuropeAttestationError,
     MarketingConsentError,
     NorthAmericaAttestationError,
     TermsAndConditionsError,
@@ -105,6 +106,12 @@ def _token_exchange_detail(status: int, body: str) -> str:
     base = f"Token exchange failed HTTP {status} (body {len(body)} chars)"
     return f"{base} — {code}" if code else base
 
+
+# #1712 — the OAuth error the CARIAD BFF token endpoint answers when the
+# assertion headers do not satisfy it. Lower-case because ``oauth_error_code``
+# returns the backend's own casing and this is compared case-insensitively;
+# it is the one SPACED value in the archive (see ``safe_error_token``).
+_EU_ATTESTATION_ERROR = "invalid assertion headers"
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
 # v2.12.4 (#438) — token-endpoint statuses that mean "VW backend is having a
@@ -2029,6 +2036,30 @@ class IDKAuth:
                         raise NorthAmericaAttestationError(
                             "VW North America sign-in blocked by device "
                             f"attestation (HTTP {resp.status})"
+                        )
+                    # #1712 — the EU twin of the wall above. The login
+                    # succeeded (code in hand); the exchange rejects the
+                    # headers we sign it with. Same reasoning as NA: no
+                    # client_id × qmauth retry beats an attestation wall, and
+                    # here the walk is provably futile — the shipping app no
+                    # longer carries the qmauth scheme at all (see
+                    # ``EuropeAttestationError``). Spending the chain anyway
+                    # costs six rejected sign-ins per login and per refresh.
+                    if (
+                        resp.status in (400, 401)
+                        and oauth_error_code(body).lower()
+                        == _EU_ATTESTATION_ERROR
+                    ):
+                        _LOGGER.warning(
+                            "Token exchange (%s): sign-in blocked by VW device "
+                            "attestation (HTTP %d, %s). The login itself "
+                            "succeeded — this is not a credentials issue, and "
+                            "no retry can pass it.",
+                            self._brand.name, resp.status, _EU_ATTESTATION_ERROR,
+                        )
+                        raise EuropeAttestationError(
+                            "Sign-in blocked by VW device attestation "
+                            f"(HTTP {resp.status}, {_EU_ATTESTATION_ERROR})"
                         )
                     # 4xx → try next (client_id, qmauth) attempt.
                     if 400 <= resp.status < 500 and idx < len(attempts) - 1:

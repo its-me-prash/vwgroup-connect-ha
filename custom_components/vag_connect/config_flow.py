@@ -213,6 +213,7 @@ async def _validate_credentials(
     from .cariad.exceptions import (  # noqa: PLC0415
         AuthenticationError,
         MarketingConsentError,
+        EuropeAttestationError,
         NorthAmericaAttestationError,
         PorscheCaptchaRequiredError,
         PorscheLoginWallError,
@@ -311,6 +312,16 @@ async def _validate_credentials(
                 "device attestation (not a credentials problem): %s", brand, err,
             )
             raise ValueError("na_signin_attestation") from err
+        except EuropeAttestationError as err:
+            # #1712 — the EU twin. The login worked and an authorization code
+            # came back; the token exchange refused the assertion headers. Also
+            # a subclass of AuthenticationError, so it must precede that catch,
+            # or VW EU and Audi owners are told their password is wrong.
+            _LOGGER.warning(
+                "VW Group Connect (%s): sign-in blocked by VW device "
+                "attestation (not a credentials problem): %s", brand, err,
+            )
+            raise ValueError("eu_signin_attestation") from err
         except PorscheLoginWallError as err:
             # b23 (#1337) — login got past credentials but hit a captcha/consent
             # wall in the redirect chain. NOT a wrong password (both reporters
@@ -415,6 +426,7 @@ def _map_error(err_code: str) -> str:
         "brand_not_dag_eligible",  # v2.7.0 — user picked non-DAG brand for browser login
         "portal_interaction_required",  # v2.15.4 (#527) — non-credential portal stop
         "na_signin_attestation",  # #1165/#659 — VW NA Play-Integrity sign-in wall
+        "eu_signin_attestation",  # #1712 — the same wall on the CARIAD BFF (EU)
         "porsche_login_wall",  # b23 #1337 — Porsche captcha/consent wall past password
         "website_login_failed",  # #1679/#1313 — vw.de login failed, but NOT on the password
     } else "cannot_connect"
