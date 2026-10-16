@@ -142,9 +142,9 @@ CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client
 CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: the durable Car-Net login answered "Unknown user"
 # #1809 — WHY the durable-MBB mint failed, as classified by
 # ``config_flow.classify_mbb_mint_failure``: "not_enrolled" (the backend said
-# "Unknown user" — the only answer that supports the Car-Net verdict),
-# "grant_retired" (the manufacturer took the device-code grant down, #1364) or
-# "unknown" (a 5xx, a timeout, an audience mismatch #464, a refused register).
+# "Unknown user" — the only answer that supports the Car-Net verdict) or
+# "unknown" (a 5xx, a timeout, an audience mismatch #464, unauthorized_client,
+# a refused register).
 # CONF_MEB_COMMANDS_UNAVAILABLE keeps its name and its meaning, so an entry
 # written before this key existed still renders exactly as it does today.
 CONF_MBB_COMMANDS_BLOCKED_REASON = "mbb_commands_blocked_reason"  # str: see above

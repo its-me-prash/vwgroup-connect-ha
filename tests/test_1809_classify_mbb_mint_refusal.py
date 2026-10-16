@@ -94,17 +94,19 @@ def test_unknown_user_in_an_apierror_body_still_classifies() -> None:
     assert classify_mbb_mint_failure(err) == "not_enrolled"
 
 
-def test_retired_grant_is_recognised_in_phase_two() -> None:
-    # #1364 — Phase 1 already recognised this; Phase 2 never consulted the
-    # rule, so a retired MBB client was classified as an enrolment verdict.
+def test_unauthorized_client_is_not_called_a_retired_grant() -> None:
+    # In Phase 1 this text means the manufacturer withdrew the device-code
+    # grant (#1364). On the MBB register/exchange it far more plausibly means a
+    # client-id / audience mismatch (#464), so it must not earn the
+    # "switched off by the manufacturer" story — it stays undetermined.
     err = AuthenticationError(
         "Device grant: /device_authorization HTTP 403 (unauthorized_client): "
         "client is not allowed to use the device_code grant"
     )
-    assert classify_mbb_mint_failure(err) == "grant_retired"
+    assert classify_mbb_mint_failure(err) == "unknown"
 
 
-def test_retired_grant_is_recognised_from_the_description_too() -> None:
+def test_unauthorized_client_in_the_description_is_unknown_too() -> None:
     err = _refresh_error(
         403,
         json.dumps(
@@ -112,7 +114,7 @@ def test_retired_grant_is_recognised_from_the_description_too() -> None:
         ),
         False,
     )
-    assert classify_mbb_mint_failure(err) == "grant_retired"
+    assert classify_mbb_mint_failure(err) == "unknown"
 
 
 # ── the redaction contract ──────────────────────────────────────────────────
@@ -199,5 +201,5 @@ def test_the_coordinator_deletes_the_notices_of_the_other_reasons() -> None:
     block = src[src.index("_blocked_reason = str("):]
     block = block[: block.index("translation_key=_issue_key")]
     assert "async_delete_issue" in block
-    for key in ("meb_commands_unavailable", "mbb_grant_retired", "mbb_mint_failed"):
+    for key in ("meb_commands_unavailable", "mbb_mint_failed"):
         assert f'"{key}"' in block

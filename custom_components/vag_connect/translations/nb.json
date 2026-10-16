@@ -2604,10 +2604,6 @@
       "title": "Fjernkommandoer er ikke tilgjengelige for denne bilen ({brand})",
       "description": "Du slo på MBB-fjernkommandoer da du satte opp {brand}, men den varige Car-Net-påloggingen svarte «Unknown user» for denne bilen, så låsing, klima og lading kan ikke sendes den veien.\n\nSvaret betyr at bilen ikke er registrert i VWs gamle Car-Net-system. Det er det forventede svaret for ID- og MEB-modeller, som aldri var registrert der, og det er også hva en eldre bil svarer når merket har flyttet den ut av det systemet. Svaret alene sier ikke hvilket av de to tilfellene bilen din er.\n\nOppføringen holdes **skrivebeskyttet**: kjøretøydata kommer fortsatt inn via EU Data Act-portalen, bare kommando-entitetene mangler. Du kan lukke denne meldingen."
     },
-    "mbb_grant_retired": {
-      "title": "Fjernkommandoer er ikke tilgjengelige for denne bilen ({brand})",
-      "description": "Du slo på MBB-fjernkommandoer da du satte opp {brand}, men {brand} har trukket tilbake enhetskode-påloggingen som den varige Car-Net-kanalen trenger, så kommando-tokenet kunne ikke hentes.\n\nDet kan verken kontoen din eller bilen din endre: produsenten stengte den påloggingen, og erstatningen ligger bak en enhetssjekk i produsentens app som Home Assistant ikke kan oppfylle.\n\nOppføringen holdes **skrivebeskyttet**: kjøretøydata kommer fortsatt inn via EU Data Act-portalen, bare kommando-entitetene mangler. Du kan lukke denne meldingen."
-    },
     "mbb_mint_failed": {
       "title": "Fjernkommandoer er ikke tilgjengelige for denne bilen ({brand})",
       "description": "Du slo på MBB-fjernkommandoer da du satte opp {brand}, men den varige Car-Net-påloggingen kunne ikke fullføres, og baksystemet sa ikke hvorfor.\n\nI motsetning til «Unknown user»-tilfellet betyr dette **ikke** at bilen din er uregistrert — det kan være en midlertidig feil i baksystemet. Det er verdt å prøve oppsettet på nytt senere.\n\nI mellomtiden holdes oppføringen **skrivebeskyttet**: kjøretøydata kommer fortsatt inn via EU Data Act-portalen, bare kommando-entitetene mangler. Du kan lukke denne meldingen."

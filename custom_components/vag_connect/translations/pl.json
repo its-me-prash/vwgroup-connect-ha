@@ -2604,10 +2604,6 @@
       "title": "Polecenia zdalne nie są dostępne dla tego samochodu ({brand})",
       "description": "Podczas konfiguracji {brand} włączono polecenia zdalne MBB, ale trwałe logowanie Car-Net zwróciło dla tego samochodu „Unknown user”, więc zamykania, klimatyzacji ani ładowania nie można przez nie wysłać.\n\nTa odpowiedź oznacza, że samochód nie jest zarejestrowany w starym systemie Car-Net firmy VW. Jest to oczekiwana odpowiedź dla modeli ID i MEB, które nigdy tam nie były zarejestrowane, i jest to również to, co odpowiada starszy samochód, gdy marka przeniosła go z tego systemu. Sama odpowiedź nie mówi, który z tych dwóch przypadków dotyczy twojego samochodu.\n\nWpis pozostał **tylko do odczytu**: dane pojazdu nadal przychodzą przez portal EU Data Act, brakuje tylko encji poleceń. To powiadomienie można zamknąć."
     },
-    "mbb_grant_retired": {
-      "title": "Polecenia zdalne nie są dostępne dla tego samochodu ({brand})",
-      "description": "Podczas konfiguracji {brand} włączono polecenia zdalne MBB, ale {brand} wycofała logowanie kodem urządzenia, którego potrzebuje trwały kanał Car-Net, więc nie udało się uzyskać tokenu poleceń.\n\nNie zmieni tego ani twoje konto, ani twój samochód: producent wyłączył to logowanie, a jego następca jest chroniony kontrolą urządzenia w aplikacji producenta, której Home Assistant nie może spełnić.\n\nWpis pozostał **tylko do odczytu**: dane pojazdu nadal przychodzą przez portal EU Data Act, brakuje tylko encji poleceń. To powiadomienie można zamknąć."
-    },
     "mbb_mint_failed": {
       "title": "Polecenia zdalne nie są dostępne dla tego samochodu ({brand})",
       "description": "Podczas konfiguracji {brand} włączono polecenia zdalne MBB, ale trwałego logowania Car-Net nie udało się ukończyć, a backend nie podał powodu.\n\nInaczej niż w przypadku „Unknown user”, **nie** oznacza to, że twój samochód nie jest zarejestrowany — może to być chwilowa awaria backendu. Warto ponowić konfigurację później.\n\nDo tego czasu wpis pozostał **tylko do odczytu**: dane pojazdu nadal przychodzą przez portal EU Data Act, brakuje tylko encji poleceń. To powiadomienie można zamknąć."

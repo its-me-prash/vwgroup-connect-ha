@@ -1745,8 +1745,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # silent missing-command-entities failure.
         # #1809 — pick the notice by the RECORDED reason. The Car-Net verdict
         # ("the durable login answered Unknown user") is only told when the
-        # backend actually answered it; a retired grant and an undetermined
-        # mint failure get their own wording rather than borrowing that one.
+        # backend actually answered it; an undetermined mint failure gets its
+        # own wording rather than borrowing that one.
         # An entry written before the reason key existed has no reason, and
         # falls through to the behaviour it already had.
         _blocked_reason = str(
@@ -1755,16 +1755,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         _issue_key = ""
         if self.entry.data.get(CONF_MEB_COMMANDS_UNAVAILABLE):
             _issue_key = "meb_commands_unavailable"
-        elif _blocked_reason == "grant_retired":
-            _issue_key = "mbb_grant_retired"
         elif _blocked_reason == "unknown":
             _issue_key = "mbb_mint_failed"
         from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
         # The issue id follows the reason, so a Reconfigure that changes the
         # reason (or arms the channel) must take the previous notice down,
         # or two contradictory notices stand side by side for one entry.
-        for _other in ("meb_commands_unavailable", "mbb_grant_retired",
-                       "mbb_mint_failed"):
+        for _other in ("meb_commands_unavailable", "mbb_mint_failed"):
             if _other != _issue_key:
                 ir.async_delete_issue(
                     self.hass, DOMAIN, f"{_other}_{self.entry.entry_id}"

@@ -200,7 +200,7 @@ def _approved_flow(reason: str) -> VagConnectConfigFlow:
     return flow
 
 
-@pytest.mark.parametrize("reason", ["unknown", "grant_retired", "not_enrolled"])
+@pytest.mark.parametrize("reason", ["unknown", "not_enrolled"])
 def test_every_mint_failure_keeps_the_portal_entry(reason: str) -> None:
     # The finish-only tests above could not see this: approve used to reach
     # finish ONLY on a successful mint, and kept the read-only portal entry only

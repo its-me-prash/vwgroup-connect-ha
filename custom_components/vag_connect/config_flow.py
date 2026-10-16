@@ -452,7 +452,7 @@ _MBB_NOT_ENROLLED_MARKERS: tuple[str, ...] = ("unknown user",)
 def classify_mbb_mint_failure(err: object) -> str:
     """Why did the durable-MBB mint fail?
 
-    Returns ``"grant_retired"``, ``"not_enrolled"`` or ``"unknown"``.
+    Returns ``"not_enrolled"`` or ``"unknown"``.
 
     #1809 fixed the repair text so it no longer calls a backend refusal an
     MEB/ID car. What it now says instead is narrower and checkable: "the durable
@@ -469,16 +469,18 @@ def classify_mbb_mint_failure(err: object) -> str:
     flow could read it, so the claim could not be substantiated even when true.
     Measured on an MLB-evo Audi e-tron 50 quattro (MY2022): the live rejection
     is ``error=invalid_grant`` with ``error_description="Unknown user <uuid>"``.
-    A retired grant is recognised by the existing ``_is_grant_retired`` rule
-    (reused rather than restated, for the reason #1733 extracted it); everything
-    else stays ``"unknown"``, so the notice says what we actually know.
+    Everything else stays ``"unknown"``, so the notice says what we actually
+    know. That includes ``unauthorized_client`` / "not allowed": in Phase 1
+    ``_is_grant_retired`` reads those as the manufacturer withdrawing the
+    device-code grant (#1364), but on the MBB register/exchange they far more
+    plausibly mean a client-id / audience mismatch (#464). Telling the user
+    "the manufacturer switched this off" on that evidence would be the same
+    kind of unbacked claim this classifier exists to stop.
 
     Reads the description via the ``CariadError`` attribute and ``APIError.body``
     — never echoes either, because the live description embeds an account UUID.
     """
     description = str(getattr(err, "oauth_error_description", "") or "")
-    if _is_grant_retired(err) or _is_grant_retired(description):
-        return "grant_retired"
     haystack = " ".join(
         (str(err), description, str(getattr(err, "body", "") or ""))
     ).lower()
@@ -1933,17 +1935,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # users whose login never answered it. Measured on an MLB-evo Audi
             # e-tron 50 quattro (MY2022): the real rejection is
             # ``invalid_grant`` + ``error_description="Unknown user <uuid>"``.
-            # Classify on that marker and record WHY, so a retired grant
-            # (#1364), an audience mismatch (#464), a failed register and a 5xx
-            # each get their own honest answer instead of borrowing this one.
+            # Classify on that marker and record WHY, so an audience mismatch
+            # (#464), unauthorized_client, a failed register and a 5xx get an
+            # honest "undetermined" instead of borrowing this one.
             reason = classify_mbb_mint_failure(err)
             self._dag_mbb_failure_reason = reason
             if self._dag_mbb:
                 # The flag is derived from the reason, never set on its own.
-                # (``_dag_grant_disabled`` is deliberately NOT set for a
-                # ``grant_retired`` verdict here: it describes the APP client,
-                # only the browser-login step reads it, and the MBB paths would
-                # neither show it nor clear it.)
                 self._dag_mbb_ineligible = reason == "not_enrolled"
             _LOGGER.warning(
                 "Browser login Phase 2 failed for %s: %s (%s)",

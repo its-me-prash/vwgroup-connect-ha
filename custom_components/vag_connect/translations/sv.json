@@ -2604,10 +2604,6 @@
       "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
       "description": "Du slog på MBB-fjärrkommandon när du ställde in {brand}, men den varaktiga Car-Net-inloggningen svarade \"Unknown user\" för den här bilen, så lås, klimat och laddning kan inte skickas den vägen.\n\nSvaret betyder att bilen inte är registrerad i VW:s gamla Car-Net-system. Det är det förväntade svaret för ID- och MEB-modeller, som aldrig var registrerade där, och det är också vad en äldre bil svarar när märket har flyttat den ut ur systemet. Svaret i sig säger inte vilket av de två fallen din bil är.\n\nPosten hålls **skrivskyddad**: fordonsdata kommer fortfarande in via EU Data Act-portalen, bara kommando-entiteterna saknas. Du kan stänga det här meddelandet."
     },
-    "mbb_grant_retired": {
-      "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
-      "description": "Du slog på MBB-fjärrkommandon när du ställde in {brand}, men {brand} har dragit in den enhetskodsinloggning som den varaktiga Car-Net-kanalen behöver, så kommandotoken kunde inte hämtas.\n\nVarken ditt konto eller din bil kan ändra det: tillverkaren stängde av den inloggningen, och ersättaren ligger bakom en enhetskontroll i tillverkarens app som Home Assistant inte kan uppfylla.\n\nPosten hålls **skrivskyddad**: fordonsdata kommer fortfarande in via EU Data Act-portalen, bara kommando-entiteterna saknas. Du kan stänga det här meddelandet."
-    },
     "mbb_mint_failed": {
       "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
       "description": "Du slog på MBB-fjärrkommandon när du ställde in {brand}, men den varaktiga Car-Net-inloggningen kunde inte slutföras, och backend sa inte varför.\n\nTill skillnad från fallet \"Unknown user\" betyder det **inte** att din bil är oregistrerad — det kan vara ett tillfälligt backend-fel. Det är värt att försöka igen senare.\n\nTills dess hålls posten **skrivskyddad**: fordonsdata kommer fortfarande in via EU Data Act-portalen, bara kommando-entiteterna saknas. Du kan stänga det här meddelandet."

@@ -2604,10 +2604,6 @@
       "title": "Vzdálené příkazy nejsou pro toto auto k dispozici ({brand})",
       "description": "Při nastavování {brand} jste zapnuli vzdálené příkazy MBB, ale trvalé přihlášení Car-Net u tohoto auta odpovědělo „Unknown user“, takže zamykání, klimatizaci ani nabíjení přes něj poslat nelze.\n\nTa odpověď znamená, že auto není registrováno ve starém systému Car-Net od VW. Je to očekávaná odpověď u modelů ID a MEB, které tam nikdy registrované nebyly, a je to také to, co odpoví starší auto, jakmile ho značka z tohoto systému vyřadila. Samotná odpověď neříká, který z obou případů je ten váš.\n\nPoložka zůstala **jen pro čtení**: data vozidla dál přicházejí přes portál EU Data Act, chybí jen entity příkazů. Toto upozornění můžete zavřít."
     },
-    "mbb_grant_retired": {
-      "title": "Vzdálené příkazy nejsou pro toto auto k dispozici ({brand})",
-      "description": "Při nastavování {brand} jste zapnuli vzdálené příkazy MBB, ale {brand} zrušila přihlášení kódem zařízení, které trvalý kanál Car-Net potřebuje, takže token pro příkazy nebylo možné získat.\n\nS tím nemůže nic udělat ani váš účet, ani vaše auto: výrobce toto přihlášení vypnul a jeho náhrada je chráněná kontrolou zařízení v aplikaci výrobce, kterou Home Assistant nemůže splnit.\n\nPoložka zůstala **jen pro čtení**: data vozidla dál přicházejí přes portál EU Data Act, chybí jen entity příkazů. Toto upozornění můžete zavřít."
-    },
     "mbb_mint_failed": {
       "title": "Vzdálené příkazy nejsou pro toto auto k dispozici ({brand})",
       "description": "Při nastavování {brand} jste zapnuli vzdálené příkazy MBB, ale trvalé přihlášení Car-Net se nepodařilo dokončit a backend neuvedl důvod.\n\nNa rozdíl od případu „Unknown user“ to **neznamená**, že vaše auto není registrováno — může jít o dočasnou poruchu backendu. Zkusit nastavení později znovu se vyplatí.\n\nDo té doby zůstala položka **jen pro čtení**: data vozidla dál přicházejí přes portál EU Data Act, chybí jen entity příkazů. Toto upozornění můžete zavřít."
