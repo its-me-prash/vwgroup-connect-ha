@@ -216,7 +216,7 @@
       "already_configured": "Tämä tili on jo määritetty.",
       "reauth_successful": "Uudelleenkirjautuminen onnistui.",
       "reconfigure_successful": "Määritys päivitetty onnistuneesti.",
-      "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen — taustajärjestelmä palautti ”Unknown user”. Tämä tarkoittaa, että se on uudempi ID- / MEB-malli (ID.3/4/5, e-up jne.), jota ei koskaan liitetty vanhaan Car-Net/MBB-järjestelmään, joten pysyvä kirjautuminen + etäkomennot eivät tavoita sitä. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista) sen sijaan. MBB-kirjautuminen on tarkoitettu vanhemmille Car-Net-autoille (useimmat PHEV- / polttomoottorimallit).",
+      "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen: taustajärjestelmä palautti ”Unknown user”, eli autoa ei ole rekisteröity vanhaan Car-Net/MBB-järjestelmään. Se on odotettu vastaus ID- ja MEB-malleille, ja sen vastaa myös vanhempi auto heti kun merkki on siirtänyt sen pois kyseisestä järjestelmästä — vastaus ei siis kerro mallin luokkaa. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista).",
       "mbb_fallback_armed": "Varayhteys otettu käyttöön. Jos Audisi tavallinen yhteys joskus lakkaa hyväksymästä etäkomentoja, lukitus/avaus, ilmastointi ja lataus siirtyvät automaattisesti varayhteyteen. Arjessa mikään ei muutu.",
       "no_devicegrant_audi": "Sopivaa Audia ei löytynyt. Tämä varayhteys koskee vain Audia, jonka lisäsit QR-/sovelluskirjautumisella ja jolla sitä ei vielä ole. Lisää Audisi ensin siten ja palaa sitten tänne.",
       "porsche_login_wall": "Tunnistetietosi ovat kunnossa — kirjautuminen pääsi salasanavaiheen ohi, mutta pysähtyi Porschen captcha-/suostumusnäyttöön, jota se ei voi suorittaa automaattisesti (havaittu osoitteessa my.porsche.com). Kyseessä on Porschen puolen este, seurattu kohdassa #1337, ei väärä salasana. Älä yritä uudelleen silmukassa — toistuvat yritykset ovat lukinneet Porsche-tilejä. Jos voit, ilmoita siitä, jotta voimme korjata sen (liitä diagnostiikka): {report_url}",
@@ -2602,7 +2602,11 @@
     },
     "meb_commands_unavailable": {
       "title": "Etäkomennot eivät ole käytettävissä tälle autolle ({brand})",
-      "description": "Otit MBB-etäkomennot käyttöön määrittäessäsi merkkiä {brand}, mutta tämä on MEB- / ID-perheen auto (ID.3/4/5/7, Enyaq, Born, Q4). VW:n MEB-taustajärjestelmä ei tue pysyvää Car-Net-komentopolkua — pysyvä kirjautuminen vastasi \"Unknown user\" — joten lukitus-, ilmastointi- ja latauskomentoja ei voi lähettää.\n\nMerkintä säilytettiin **vain luku -tilassa**: ajoneuvon tiedot kulkevat edelleen EU Data Act -portaalin kautta, et vain näe komentoentiteettejä. Tämä on VW:n MEB-alustan tunnettu rajoitus, ei määritysvirhe — voit ohittaa tämän ilmoituksen."
+      "description": "Otit MBB-etäkomennot käyttöön, kun määritit {brand}-tilin, mutta pysyvä Car-Net-kirjautuminen vastasi tälle autolle ”Unknown user”, joten lukitusta, ilmastointia ja latausta ei voi lähettää sitä kautta.\n\nVastaus tarkoittaa, ettei autoa ole rekisteröity VW:n vanhaan Car-Net-järjestelmään. Se on odotettu vastaus ID- ja MEB-malleille, joita ei koskaan rekisteröity sinne, ja sen vastaa myös vanhempi auto heti kun merkki on siirtänyt sen pois kyseisestä järjestelmästä. Vastaus yksin ei kerro, kummasta tapauksesta autosi kohdalla on kysymys.\n\nTietue pidettiin **vain luku -tilassa**: ajoneuvon tiedot tulevat edelleen EU Data Act -portaalin kautta, vain komento-entiteetit puuttuvat. Voit sulkea tämän ilmoituksen."
+    },
+    "mbb_mint_failed": {
+      "title": "Etäkomennot eivät ole käytettävissä tälle autolle ({brand})",
+      "description": "Otit MBB-etäkomennot käyttöön, kun määritit {brand}-tilin, mutta pysyvää Car-Net-kirjautumista ei saatu päätökseen, eikä taustajärjestelmä kertonut syytä.\n\nToisin kuin ”Unknown user” -tapauksessa tämä **ei** tarkoita, ettei autoasi ole rekisteröity — kyse voi olla väliaikaisesta taustajärjestelmän häiriöstä. Määrityksen uudelleenyritys myöhemmin kannattaa.\n\nSiihen asti tietue pidettiin **vain luku -tilassa**: ajoneuvon tiedot tulevat edelleen EU Data Act -portaalin kautta, vain komento-entiteetit puuttuvat. Voit sulkea tämän ilmoituksen."
     },
     "refresh_interval_too_frequent": {
       "title": "{brand}: päivitysväli liian tiheä",

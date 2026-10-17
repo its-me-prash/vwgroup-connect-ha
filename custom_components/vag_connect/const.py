@@ -139,7 +139,15 @@ CONF_MBB_VINS                 = "mbb_vins"
 CONF_MBB_COMMAND_CHANNEL      = "mbb_command_channel"      # bool: armed?
 CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (strategy=mbb)
 CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
-CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
+CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: the durable Car-Net login answered "Unknown user"
+# #1809 — WHY the durable-MBB mint failed, as classified by
+# ``config_flow.classify_mbb_mint_failure``: "not_enrolled" (the backend said
+# "Unknown user" — the only answer that supports the Car-Net verdict) or
+# "unknown" (a 5xx, a timeout, an audience mismatch #464, unauthorized_client,
+# a refused register).
+# CONF_MEB_COMMANDS_UNAVAILABLE keeps its name and its meaning, so an entry
+# written before this key existed still renders exactly as it does today.
+CONF_MBB_COMMANDS_BLOCKED_REASON = "mbb_commands_blocked_reason"  # str: see above
 # b15 — MBB COMMAND FALLBACK for a TWO-WAY device-grant primary (e.g. Audi
 # Car-Net on the CARIAD BFF). Unlike CONF_MBB_COMMAND_CHANNEL (portal primary →
 # MBB *is* the command channel), here the BFF stays the command primary and the

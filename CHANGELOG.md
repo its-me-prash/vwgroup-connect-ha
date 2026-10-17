@@ -73,6 +73,36 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   ([#1853](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1853)).
 
 
+### Behoben / Fixed
+
+- **The "Unknown user" notice now only says that when the login actually answered it.**
+  `17eab6f9` (#1809) stopped the repair notice and the setup abort from calling a backend
+  refusal "an MEB / ID-family car" — an Audi e-tron 55 quattro, a GE-platform car from 2019,
+  had been told it was an ID.3/ID.4/Enyaq/Born/Q4. What replaced that claim was narrower and
+  checkable: "the durable Car-Net login answered Unknown user for this car". The rule deciding
+  when to say that was left exactly as it was, and on that rule the sentence reaches people
+  whose login never answered it. A bare `invalid_grant` — the generic OAuth2 rejection, also
+  produced by an audience mismatch (#464) and by a refused register — was read as the same
+  verdict, and the entry's *other* write site flagged it on ANY mint failure at all, a 5xx or a
+  timeout included. The one field that would have told the two apart, `error_description`,
+  carries the actual "Unknown user" text, but the #1355 redaction dropped it before the setup
+  flow ever saw it, so even a true claim could not have been substantiated. Measured live
+  against an Audi e-tron 50 quattro, MY2022 — MLB-evo, not MEB: `HTTP 400`, `error=invalid_grant`,
+  `error_description="Unknown user <account-uuid>"`. The description is now carried on the
+  exception as an attribute (never in its message — it embeds an account UUID), and a new
+  classifier decides on it: only a confirmed "Unknown user" keeps the Car-Net wording, and
+  everything else — a 5xx, a timeout, an audience mismatch, an `unauthorized_client` — gets its
+  own notice that says the cause is undetermined rather than guessing one. Ten of the twelve shipped languages still carried the pre-`17eab6f9` "this is an
+  ID/MEB model" wording in this same notice and in the setup abort — `en` and `de` were fixed,
+  the other ten were not caught by the translation-parity test because the keys still existed,
+  just with the old text — so this PR carries the correction and the new notice to all of
+  them. Setting up the EU Data Act portal with MBB commands no longer loses the portal when the
+  command channel fails for any other reason: every mint failure now keeps the read-only
+  portal entry with the reason recorded, a refusal already at register is classified like one
+  at the token exchange, a Reconfigure no longer carries an earlier verdict into the next
+  attempt, and the previous notice is taken down when the reason changes. Measured on, and the
+  fix contributed by, @woifh's own Audi e-tron.
+
 ## [5.0.0] - 2026-10-16 — Two doors the manufacturer closed / Zwei Türen, die der Hersteller zugemacht hat
 
 - **Volkswagen Companion (ADB): VW app 4.6.4 mapping, controls, more reads and safety gates.** Developed against a Tiguan eHybrid (reads verified on the car) in [gszigethy/vwgroup-connect-ha](https://github.com/gszigethy/vwgroup-connect-ha) (fork releases 4.11.0-1 to 4.13.0-4, plus the fixes from this PR's review; PR numbers below refer to that repository). Thanks @gszigethy; app captures from @plainmad (Mk8 Golf GTE), @kgroshert (ID.4, e-up!) and @WEZANGO (CUPRA Born) ([#968](https://github.com/its-me-prash/vwgroup-connect-ha/issues/968)). Functional and technical design: [docs/COMPANION.md](docs/COMPANION.md).

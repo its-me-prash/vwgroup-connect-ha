@@ -2612,6 +2612,10 @@
       "title": "Remote commands aren't available for this car ({brand})",
       "description": "You enabled MBB remote commands when setting up {brand}, but the durable Car-Net login answered \"Unknown user\" for this car, so lock, climate and charge commands cannot be sent through it.\n\nThat answer means the car is not enrolled in VW's legacy Car-Net system. It is the expected answer for ID and MEB models, which were never enrolled, and it is also what an older car answers once the brand has migrated it off that system. The answer alone does not tell us which of the two your car is.\n\nThe entry was kept **read-only**: vehicle data still flows through the EU Data Act portal, you just will not see command entities. You can dismiss this notice."
     },
+    "mbb_mint_failed": {
+      "title": "Remote commands aren't available for this car ({brand})",
+      "description": "You enabled MBB remote commands when setting up {brand}, but the durable Car-Net login could not be completed, and the backend did not say why.\n\nUnlike the \"Unknown user\" case, this does **not** mean your car is unenrolled — it may be a temporary backend fault. Retrying the setup later is worth a go.\n\nThe entry was kept **read-only** in the meantime: vehicle data still flows through the EU Data Act portal, you just will not see command entities. You can dismiss this notice."
+    },
     "mandatory_consent_missing": {
       "title": "Škoda: mandatory consent not accepted",
       "description": "Your {brand} account hasn't accepted a mandatory service consent, so some data or features may be unavailable. Open the MyŠkoda app and accept the required consent — this notice clears itself once you do."

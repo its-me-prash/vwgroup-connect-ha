@@ -216,7 +216,7 @@
       "already_configured": "Tento účet je již nastaven.",
       "reauth_successful": "Opětovné ověření bylo úspěšné.",
       "reconfigure_successful": "Konfigurace byla úspěšně aktualizována.",
-      "mbb_not_eligible": "Vaše vozidlo není způsobilé pro trvalé přihlášení MBB — backend vrátil „Unknown user“. Jde o novější model ID / MEB (ID.3/4/5, e-up apod.), který nikdy nebyl registrován ve starém systému Car-Net/MBB, takže trvalé přihlášení a vzdálené příkazy se k němu nedostanou. Pro taková vozidla použijte kanál portálu EU Data Act (nebo přihlášení e-mailem a heslem). Přihlášení MBB je pro starší vozy Car-Net (většina plug-in hybridních / spalovacích modelů).",
+      "mbb_not_eligible": "Vaše vozidlo není způsobilé pro trvalé přihlášení MBB: backend vrátil „Unknown user“, což znamená, že auto není registrováno ve starém systému Car-Net/MBB. Je to očekávaná odpověď u modelů ID a MEB a je to také to, co odpoví starší auto, jakmile ho značka z tohoto systému vyřadila — neurčuje tedy třídu modelu. Pro tato vozidla použijte kanál portálu EU Data Act (nebo přihlášení e-mailem a heslem).",
       "mbb_fallback_armed": "Záložní připojení je nastaveno. Pokud normální připojení vašeho Audi někdy přestane přijímat dálkové příkazy, zamykání/odemykání, klimatizace a nabíjení se automaticky přepnou na zálohu. V běžném provozu se nic nemění.",
       "no_devicegrant_audi": "Nebylo nalezeno žádné odpovídající Audi. Tato záloha platí jen pro Audi přidané přihlášením přes QR / aplikaci, které ji ještě nemá. Nejprve takto přidejte své Audi a pak se sem vraťte.",
       "porsche_login_wall": "Tvoje přihlašovací údaje jsou v pořádku — přihlášení prošlo krokem s heslem, ale zastavilo se na obrazovce captcha/souhlasu Porsche, kterou nelze dokončit automaticky (pozorováno na my.porsche.com). Jde o překážku na straně Porsche, sledovanou v #1337, ne o špatné heslo. Nezkoušej to opakovaně ve smyčce — opakované pokusy zablokovaly účty Porsche. Pokud můžeš, nahlas to prosím, ať to můžeme opravit (přilož diagnostiku): {report_url}",
@@ -2602,7 +2602,11 @@
     },
     "meb_commands_unavailable": {
       "title": "Vzdálené příkazy nejsou pro toto auto k dispozici ({brand})",
-      "description": "Při nastavování {brand} jste zapnuli vzdálené příkazy MBB, ale tohle je vůz z rodiny MEB / ID (ID.3/4/5/7, Enyaq, Born, Q4). Backend MEB od VW nepodporuje trvalou příkazovou cestu Car-Net — trvalé přihlášení odpovědělo „Unknown user“ — takže příkazy zamykání, klimatizace a nabíjení nelze odeslat.\n\nZáznam zůstává **jen pro čtení**: data vozidla stále chodí přes portál EU Data Act, jen neuvidíte příkazové entity. Jde o známé omezení platformy MEB od VW, nikoli o chybu nastavení — toto upozornění můžete zavřít."
+      "description": "Při nastavování {brand} jste zapnuli vzdálené příkazy MBB, ale trvalé přihlášení Car-Net u tohoto auta odpovědělo „Unknown user“, takže zamykání, klimatizaci ani nabíjení přes něj poslat nelze.\n\nTa odpověď znamená, že auto není registrováno ve starém systému Car-Net od VW. Je to očekávaná odpověď u modelů ID a MEB, které tam nikdy registrované nebyly, a je to také to, co odpoví starší auto, jakmile ho značka z tohoto systému vyřadila. Samotná odpověď neříká, který z obou případů je ten váš.\n\nPoložka zůstala **jen pro čtení**: data vozidla dál přicházejí přes portál EU Data Act, chybí jen entity příkazů. Toto upozornění můžete zavřít."
+    },
+    "mbb_mint_failed": {
+      "title": "Vzdálené příkazy nejsou pro toto auto k dispozici ({brand})",
+      "description": "Při nastavování {brand} jste zapnuli vzdálené příkazy MBB, ale trvalé přihlášení Car-Net se nepodařilo dokončit a backend neuvedl důvod.\n\nNa rozdíl od případu „Unknown user“ to **neznamená**, že vaše auto není registrováno — může jít o dočasnou poruchu backendu. Zkusit nastavení později znovu se vyplatí.\n\nDo té doby zůstala položka **jen pro čtení**: data vozidla dál přicházejí přes portál EU Data Act, chybí jen entity příkazů. Toto upozornění můžete zavřít."
     },
     "refresh_interval_too_frequent": {
       "title": "{brand}: příliš častý interval aktualizace",

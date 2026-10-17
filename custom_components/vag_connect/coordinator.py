@@ -38,6 +38,7 @@ from .const import (
     CONF_KEEP_RAW_DATASETS,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MBB_COMMAND_FALLBACK,
+    CONF_MBB_COMMANDS_BLOCKED_REASON,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
     CONF_READ_ONLY,
@@ -1738,20 +1739,42 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "for %s", len(self.vehicles), brand,
             )
 
-        # b13 — MEB/ID known-limitation. Setup flags an entry when the user
-        # asked for MBB commands but the car is MEB-ineligible (the portal
-        # entry was created read-only). Surface a clear repair so it's a known
-        # limit, not a silent missing-command-entities failure.
+        # b13 — setup flags an entry when the user asked for MBB commands but
+        # the command channel could not be minted (the portal entry was created
+        # read-only). Surface a clear repair so it's a known limit, not a
+        # silent missing-command-entities failure.
+        # #1809 — pick the notice by the RECORDED reason. The Car-Net verdict
+        # ("the durable login answered Unknown user") is only told when the
+        # backend actually answered it; an undetermined mint failure gets its
+        # own wording rather than borrowing that one.
+        # An entry written before the reason key existed has no reason, and
+        # falls through to the behaviour it already had.
+        _blocked_reason = str(
+            self.entry.data.get(CONF_MBB_COMMANDS_BLOCKED_REASON, "") or ""
+        )
+        _issue_key = ""
         if self.entry.data.get(CONF_MEB_COMMANDS_UNAVAILABLE):
-            from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+            _issue_key = "meb_commands_unavailable"
+        elif _blocked_reason == "unknown":
+            _issue_key = "mbb_mint_failed"
+        from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+        # The issue id follows the reason, so a Reconfigure that changes the
+        # reason (or arms the channel) must take the previous notice down,
+        # or two contradictory notices stand side by side for one entry.
+        for _other in ("meb_commands_unavailable", "mbb_mint_failed"):
+            if _other != _issue_key:
+                ir.async_delete_issue(
+                    self.hass, DOMAIN, f"{_other}_{self.entry.entry_id}"
+                )
+        if _issue_key:
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                f"meb_commands_unavailable_{self.entry.entry_id}",
+                f"{_issue_key}_{self.entry.entry_id}",
                 is_fixable=False,
                 is_persistent=False,
                 severity=ir.IssueSeverity.WARNING,
-                translation_key="meb_commands_unavailable",
+                translation_key=_issue_key,
                 translation_placeholders={"brand": self.entry.data.get(CONF_BRAND, "")},
             )
 

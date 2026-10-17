@@ -216,7 +216,7 @@
       "already_configured": "Denne konto er allerede konfigureret.",
       "reauth_successful": "Fornyet login lykkedes.",
       "reconfigure_successful": "Konfigurationen blev opdateret.",
-      "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login — backendet returnerede \"Unknown user\". Det betyder, at det er en nyere ID/MEB-model (ID.3/4/5, e-up osv.), der aldrig blev registreret i det ældre Car-Net/MBB-system, så det vedvarende login + fjernkommandoerne kan ikke nå det. Brug EU Data Act-portalkanalen (eller login med e-mail + adgangskode) til disse køretøjer i stedet. MBB-loginet er til ældre Car-Net-biler (de fleste PHEV-/forbrændingsmodeller).",
+      "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login: backendet returnerede \"Unknown user\", hvilket betyder, at bilen ikke er registreret i det gamle Car-Net/MBB-system. Det er det forventede svar for ID- og MEB-modeller, og det er også, hvad en ældre bil svarer, når mærket har flyttet den ud af det system — så det identificerer ikke modelklassen. Brug EU Data Act-portalkanalen (eller e-mail + adgangskode-login) til disse køretøjer.",
       "mbb_fallback_armed": "Reserveforbindelse oprettet. Hvis din Audis normale forbindelse en dag holder op med at tage imod fjernkommandoer, skifter lås/lås op, klima og opladning automatisk til reserven. I hverdagen ændrer der sig ingenting.",
       "no_devicegrant_audi": "Ingen passende Audi fundet. Denne reserve gælder kun for en Audi, du har tilføjet med QR-/app-login, og som ikke allerede har den. Tilføj din Audi på den måde først, og kom så tilbage hertil.",
       "porsche_login_wall": "Dine loginoplysninger er i orden — loginnet kom forbi adgangskodetrinnet, men stoppede ved en Porsche captcha-/samtykkeskærm, som det ikke kan gennemføre automatisk (set på my.porsche.com). Det er en blokering på Porsches side, fulgt i #1337, ikke en forkert adgangskode. Prøv ikke igen i en løkke — gentagne forsøg har låst Porsche-konti. Hvis du kan, så rapportér det, så vi kan rette det (vedhæft diagnostik): {report_url}",
@@ -2602,7 +2602,11 @@
     },
     "meb_commands_unavailable": {
       "title": "Fjernkommandoer er ikke tilgængelige for denne bil ({brand})",
-      "description": "Du aktiverede MBB-fjernkommandoer, da du opsatte {brand}, men dette er en MEB / ID-familie-bil (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB-backend understøtter ikke den vedvarende Car-Net-kommandosti — det vedvarende login svarede \"Unknown user\" — så lås-, klima- og ladekommandoer kan ikke sendes.\n\nPosten blev holdt **skrivebeskyttet**: køretøjsdata flyder stadig gennem EU Data Act-portalen, du ser bare ingen kommando-entiteter. Dette er en kendt begrænsning ved VW's MEB-platform, ikke en opsætningsfejl — du kan afvise denne meddelelse."
+      "description": "Du slog MBB-fjernkommandoer til, da du satte {brand} op, men det vedvarende Car-Net-login svarede \"Unknown user\" for denne bil, så låsning, klima og opladning kan ikke sendes gennem det.\n\nDet svar betyder, at bilen ikke er registreret i VW's gamle Car-Net-system. Det er det forventede svar for ID- og MEB-modeller, som aldrig var registreret der, og det er også, hvad en ældre bil svarer, når mærket har flyttet den ud af det system. Svaret alene siger ikke, hvilken af de to din bil er.\n\nPosten blev holdt **skrivebeskyttet**: køretøjsdata kommer stadig via EU Data Act-portalen, du ser blot ingen kommando-entiteter. Du kan lukke denne meddelelse."
+    },
+    "mbb_mint_failed": {
+      "title": "Fjernkommandoer er ikke tilgængelige for denne bil ({brand})",
+      "description": "Du slog MBB-fjernkommandoer til, da du satte {brand} op, men det vedvarende Car-Net-login kunne ikke gennemføres, og backendet oplyste ikke hvorfor.\n\nI modsætning til \"Unknown user\"-tilfældet betyder det **ikke**, at din bil er uregistreret — det kan være en midlertidig backend-fejl. Det er værd at prøve opsætningen igen senere.\n\nIndtil da blev posten holdt **skrivebeskyttet**: køretøjsdata kommer stadig via EU Data Act-portalen, du ser blot ingen kommando-entiteter. Du kan lukke denne meddelelse."
     },
     "refresh_interval_too_frequent": {
       "title": "{brand}: opdateringsinterval for hyppigt",

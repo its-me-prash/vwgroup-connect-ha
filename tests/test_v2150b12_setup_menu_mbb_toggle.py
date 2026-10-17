@@ -11,12 +11,15 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from custom_components.vag_connect.config_flow import VagConnectConfigFlow
 from custom_components.vag_connect.const import (
     CONF_BRAND,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MBB_COMMAND_CLIENT_ID,
     CONF_MBB_COMMAND_TOKENS,
+    CONF_MBB_COMMANDS_BLOCKED_REASON,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
@@ -135,16 +138,126 @@ def test_finish_builds_portal_plus_command_channel() -> None:
     assert data[CONF_BRAND] == "volkswagen"  # portal data preserved
 
 
-def test_finish_meb_ineligible_keeps_portal_without_commands() -> None:
-    # MBB mint failed (MEB car) → portal entry created, no command channel.
+def test_finish_mint_failure_keeps_portal_without_commands() -> None:
+    # MBB mint failed → portal entry created, no command channel.
+    #
+    # #1809 — this used to assert CONF_MEB_COMMANDS_UNAVAILABLE on ANY mint
+    # failure, which is how the repair notice came to tell a user whose login
+    # hit a 5xx or a timeout that "the durable Car-Net login answered Unknown
+    # user". The entry now records WHY, and claims that verdict only when the
+    # backend actually gave it (see the GUARD below).
     flow = _flow()
     flow.async_create_entry = MagicMock(return_value={"type": "create_entry"})
     flow._dag_mbb_command = True
     flow._pending_portal_data = {CONF_BRAND: "volkswagen", "username": "u@t.de"}
     flow._pending_portal_title = "Volkswagen EU — u@t.de"
     flow._dag_tokens = _tok("portal-id")
-    flow._dag_mbb_tokens = None  # mint failed
+    flow._dag_mbb_tokens = None  # mint failed, reason undetermined
     asyncio.run(flow.async_step_browser_login_finish())
     data = flow.async_create_entry.call_args.kwargs["data"]
     assert CONF_MBB_COMMAND_CHANNEL not in data  # reads still work, no commands
-    assert data[CONF_MEB_COMMANDS_UNAVAILABLE] is True  # b13: flagged for the repair
+    assert data[CONF_MBB_COMMANDS_BLOCKED_REASON] == "unknown"  # flagged, honestly
+    assert CONF_MEB_COMMANDS_UNAVAILABLE not in data  # no Car-Net verdict claimed
+
+
+def test_finish_not_enrolled_still_flags_the_carnet_verdict() -> None:
+    # GUARD for the above: when the backend DID answer "Unknown user", the
+    # original flag must still be written, so the notice is unchanged for the
+    # case it was written for.
+    flow = _flow()
+    flow.async_create_entry = MagicMock(return_value={"type": "create_entry"})
+    flow._dag_mbb_command = True
+    flow._pending_portal_data = {CONF_BRAND: "volkswagen", "username": "u@t.de"}
+    flow._pending_portal_title = "Volkswagen EU — u@t.de"
+    flow._dag_tokens = _tok("portal-id")
+    flow._dag_mbb_tokens = None
+    flow._dag_mbb_failure_reason = "not_enrolled"
+    asyncio.run(flow.async_step_browser_login_finish())
+    data = flow.async_create_entry.call_args.kwargs["data"]
+    assert CONF_MBB_COMMAND_CHANNEL not in data
+    assert data[CONF_MEB_COMMANDS_UNAVAILABLE] is True
+    assert data[CONF_MBB_COMMANDS_BLOCKED_REASON] == "not_enrolled"
+
+
+# ── #1809 follow-up: driven through the approve step, not finish alone ───────
+
+
+def _approved_flow(reason: str) -> VagConnectConfigFlow:
+    """A portal + MBB-command flow whose QR poll is done and whose mint failed."""
+    flow = _flow()
+    flow.async_create_entry = MagicMock(return_value={"type": "create_entry"})
+    flow._dismiss_dag_persistent_notification = MagicMock()
+    flow._dag_device_code = "device-code"
+    flow._dag_poll_task = MagicMock(done=MagicMock(return_value=True))
+    flow._dag_mbb = True
+    flow._dag_mbb_command = True
+    flow._pending_portal_data = {CONF_BRAND: "audi", "username": "u@t.de"}
+    flow._pending_portal_title = "Audi — u@t.de"
+    flow._dag_tokens = _tok("portal-id")
+    flow._dag_mbb_tokens = None
+    flow._dag_mbb_failure_reason = reason
+    flow._dag_mbb_ineligible = reason == "not_enrolled"
+    return flow
+
+
+@pytest.mark.parametrize("reason", ["unknown", "not_enrolled"])
+def test_every_mint_failure_keeps_the_portal_entry(reason: str) -> None:
+    # The finish-only tests above could not see this: approve used to reach
+    # finish ONLY on a successful mint, and kept the read-only portal entry only
+    # for the confirmed "Unknown user". A 5xx or a bare invalid_grant sent the
+    # user back to the MBB form and the validated portal reads were lost.
+    flow = _approved_flow(reason)
+    flow.async_step_mbb_login = AsyncMock(return_value={"type": "form"})
+    asyncio.run(flow.async_step_browser_login_approve({}))
+    flow.async_step_mbb_login.assert_not_called()
+    data = flow.async_create_entry.call_args.kwargs["data"]
+    assert CONF_MBB_COMMAND_CHANNEL not in data
+    assert data[CONF_MBB_COMMANDS_BLOCKED_REASON] == reason
+    assert (CONF_MEB_COMMANDS_UNAVAILABLE in data) is (reason == "not_enrolled")
+
+
+def test_a_phase_one_failure_still_routes_back_to_retry() -> None:
+    # GUARD: no app tokens means the sign-in itself failed; there is nothing to
+    # keep, so the retry route stays as it was.
+    flow = _approved_flow("unknown")
+    flow._dag_tokens = None
+    flow.async_step_mbb_login = AsyncMock(return_value={"type": "form"})
+    asyncio.run(flow.async_step_browser_login_approve({}))
+    flow.async_step_mbb_login.assert_called_once()
+    flow.async_create_entry.assert_not_called()
+
+
+def test_a_stale_verdict_does_not_survive_a_new_attempt() -> None:
+    # Reconfigure seeds the pending data from entry.data. An earlier
+    # "Unknown user" must not outlive an attempt that failed differently…
+    flow = _approved_flow("unknown")
+    flow._pending_portal_data = {
+        **flow._pending_portal_data,
+        CONF_MEB_COMMANDS_UNAVAILABLE: True,
+        CONF_MBB_COMMANDS_BLOCKED_REASON: "not_enrolled",
+    }
+    asyncio.run(flow.async_step_browser_login_finish())
+    data = flow.async_create_entry.call_args.kwargs["data"]
+    assert CONF_MEB_COMMANDS_UNAVAILABLE not in data
+    assert data[CONF_MBB_COMMANDS_BLOCKED_REASON] == "unknown"
+
+
+def test_a_successful_reapproval_clears_the_old_verdict() -> None:
+    # …and a working command channel must not keep "commands unavailable".
+    flow = _flow()
+    flow.async_create_entry = MagicMock(return_value={"type": "create_entry"})
+    flow._dag_mbb_command = True
+    flow._pending_portal_data = {
+        CONF_BRAND: "audi", "username": "u@t.de",
+        CONF_MEB_COMMANDS_UNAVAILABLE: True,
+        CONF_MBB_COMMANDS_BLOCKED_REASON: "unknown",
+    }
+    flow._pending_portal_title = "Audi — u@t.de"
+    flow._dag_tokens = _tok("portal-id")
+    flow._dag_mbb_tokens = _tok("mbb-access")
+    flow._dag_mbb_client_id = "mbb-client"
+    asyncio.run(flow.async_step_browser_login_finish())
+    data = flow.async_create_entry.call_args.kwargs["data"]
+    assert data[CONF_MBB_COMMAND_CHANNEL] is True
+    assert CONF_MEB_COMMANDS_UNAVAILABLE not in data
+    assert CONF_MBB_COMMANDS_BLOCKED_REASON not in data
