@@ -2879,6 +2879,9 @@
     "export_file_no_data": {
       "message": "Filen inneholdt ikke et lesbart EU Data Act-datasett. Kontroller at det er .zip-filen du lastet ned fra VWs dataportal for denne bilen."
     },
+    "portal_request_requires_cookie_login": {
+      "message": "Denne tilkoblingen bruker innlogging med enhetskode. Opprett kontinuerlige dataforespørsler og historiske eksporter direkte i EU Data Act-portalen; opprettelse her krever en portalinnlogging med informasjonskapsler."
+    },
     "historical_portal_not_ready": {
       "message": "EU Data Act-portalen er ikke klar ennå. Vent til integrasjonen har hentet data én gang etter oppsett, og prøv deretter det historiske eksporten på nytt."
     },

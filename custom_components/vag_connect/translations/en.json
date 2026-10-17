@@ -2879,6 +2879,9 @@
     "export_file_no_data": {
       "message": "That file did not contain a readable EU Data Act dataset. Make sure it is the .zip you downloaded from the VW data portal for this car."
     },
+    "portal_request_requires_cookie_login": {
+      "message": "This connection uses device-code sign-in. Create continuous data requests and historical exports directly in the EU Data Act portal; creating them here requires a portal login with cookies."
+    },
     "historical_portal_not_ready": {
       "message": "The EU Data Act portal isn't ready yet. Wait until the integration has polled once after setup, then try requesting/importing the historical export again."
     },

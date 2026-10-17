@@ -2879,6 +2879,9 @@
     "export_file_no_data": {
       "message": "Tiedosto ei sisältänyt luettavaa EU Data Act -tietojoukkoa. Varmista, että se on .zip, jonka latasit VW:n dataportaalista tälle autolle."
     },
+    "portal_request_requires_cookie_login": {
+      "message": "Tämä yhteys käyttää laitekoodilla kirjautumista. Luo jatkuvat tietopyynnöt ja historiatietojen viennit suoraan EU Data Act -portaalissa; niiden luominen täällä edellyttää portaaliin kirjautumista evästeillä."
+    },
     "historical_portal_not_ready": {
       "message": "EU:n datasäädösportaali ei ole vielä valmis. Odota, kunnes integraatio on hakenut tiedot kerran käyttöönoton jälkeen, ja yritä sitten uudelleen."
     },

@@ -2879,6 +2879,9 @@
     "export_file_no_data": {
       "message": "Soubor neobsahoval čitelnou datovou sadu EU Data Act. Ujistěte se, že jde o .zip stažený z datového portálu VW pro toto vozidlo."
     },
+    "portal_request_requires_cookie_login": {
+      "message": "Toto připojení používá přihlášení pomocí kódu zařízení. Průběžné žádosti o data a historické exporty vytvářejte přímo na portálu EU Data Act; jejich vytvoření zde vyžaduje přihlášení k portálu pomocí cookies."
+    },
     "historical_portal_not_ready": {
       "message": "Portál EU Data Act ještě není připraven. Počkejte, až integrace po nastavení jednou provede dotaz, a poté zkuste historický export znovu."
     },

@@ -1341,7 +1341,15 @@ class DataActScraper:
         # best-effort but do NOT abort when it is absent; that abort silently
         # blocked every one-time export too. The header below is sent only when a
         # token actually exists.
+        # The per-entry portal session closes on unload. Do not start an
+        # export on it, or continue after the best-effort CSRF await if an
+        # unload happened there. A close racing the POST remains covered by
+        # the request exception handler below.
+        if getattr(self._session, "closed", False) is True:
+            return False
         csrf = await self._fetch_csrf_token()
+        if getattr(self._session, "closed", False) is True:
+            return False
 
         # The browser sends millisecond precision (…:46.111Z); match it.
         now = datetime.now(timezone.utc)

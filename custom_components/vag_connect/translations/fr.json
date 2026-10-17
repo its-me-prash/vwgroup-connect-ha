@@ -2879,6 +2879,9 @@
     "export_file_no_data": {
       "message": "Ce fichier ne contient pas de jeu de données EU Data Act lisible. Assurez-vous qu'il s'agit bien du .zip téléchargé depuis le portail de données VW pour cette voiture."
     },
+    "portal_request_requires_cookie_login": {
+      "message": "Cette connexion utilise une connexion par code d’appareil. Créez les demandes de données continues et les exports historiques directement dans le portail EU Data Act ; leur création ici nécessite une connexion au portail avec des cookies."
+    },
     "historical_portal_not_ready": {
       "message": "Le portail EU Data Act n'est pas encore prêt. Attendez que l'intégration ait interrogé une fois après la configuration, puis réessayez l'export historique."
     },

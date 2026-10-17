@@ -64,6 +64,17 @@ from .cariad.models import VehicleData
 _LOGGER = logging.getLogger(__name__)
 
 
+def _portal_scraper_session(client: Any, shared: Any) -> Any:
+    """The session that holds this entry's portal cookies.
+
+    Since #1793 the portal logs in on a jar-isolated per-entry session, so the
+    scraper must ride that one. On the shared session it carried no portal
+    cookie after a restart, every kickoff check answered 401 and the
+    session-expired repair opened on each startup.
+    """
+    return getattr(client, "_portal_session", None) or shared
+
+
 def _age_s(raw: Any) -> float | None:
     """Seconds since ``raw`` (datetime or ISO string), or None. (#1688)
 
@@ -2436,10 +2447,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
            user explicitly turned auto-kickoff off) OR ``force`` is set
            (the user pressed the manual "create data request" button, an
            explicit intent that bypasses the toggle).
-        2. The active auth strategy is ``"data_act_portal"`` (the
-           coordinator only knows how to consume the portal's ZIP
-           dumps in that mode; for the live BFF strategies there is
-           no need to ever go through the portal).
+        2. A cookie-authenticated portal is active, either as the primary
+           ``"data_act_portal"`` strategy or as a supplementary channel.
+           Bearer-only ``"device_grant_portal"`` entries must provision
+           requests in the portal UI; this scraper requires cookie login.
         3. The DataActScraper is available (always true since
            v2.10.0; defensive check kept for future refactors).
 
@@ -2474,17 +2485,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         tokens = getattr(self._cariad_client, "_tokens", None)
         active_strategy = getattr(tokens, "strategy", "") if tokens else ""
-        # v2.13.0 — device-code/QR portal entries (device_grant_portal) use the
-        # same EU-Data-Act portal proxy_api, so they need the continuous
-        # data-request kickoff too, not just the cookie data_act_portal path.
+        # Device-grant portal entries have a bearer, not a cookie login. The
+        # scraper cannot provision requests with that auth mode; neither the
+        # isolated nor the shared session has portal cookies. Leave existing
+        # bearer-backed reads alone and provision requests in the portal UI.
+        if active_strategy == "device_grant_portal":
+            if force:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="portal_request_requires_cookie_login",
+                )
+            _LOGGER.debug(
+                "Data Act kickoff: skipped bearer-only portal entry; create "
+                "the data request in the portal UI (scraper needs cookie login)",
+            )
+            return
         # b12 — AND a portal SUPPLEMENTARY armed on a non-portal primary (e.g.
         # MBB for commands) needs it too: without an active Custom Data Request
         # the portal returns no identifier → no_request → zero reads merged. The
-        # kickoff scraper shares the client session, where the supplementary
-        # portal already logged in (armed before this runs), so it's authed.
+        # supplementary portal already logged in on the entry's isolated
+        # portal session (armed before this runs), which the scraper uses too.
         supp_portal = self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL)
         if (
-            active_strategy not in ("data_act_portal", "device_grant_portal")
+            active_strategy != "data_act_portal"
             and not supp_portal
         ):
             _LOGGER.debug(
@@ -2501,7 +2524,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             async_get_clientsession,
         )
 
-        session = async_get_clientsession(self.hass)
+        session = _portal_scraper_session(
+            getattr(self, "_cariad_client", None), async_get_clientsession(self.hass)
+        )
         brand = self.entry.data[CONF_BRAND]
         scraper = DataActScraper(session, brand_name=brand)
 
@@ -2537,8 +2562,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # its Data Act request probed/kicked ~once/6h in portal mode. Filter it
         # like every other periodic path so a disabled car stays fully quiet.
         for vin in self._active_vins(list(self.vehicles)):
+            # An unload is not a failed provisioning attempt. Persisting its
+            # timestamp would delay the next setup by the full retry window.
+            if getattr(session, "closed", False) is True:
+                return
             try:
                 active = await scraper.get_active_custom_request_identifier(vin)
+                if getattr(session, "closed", False) is True:
+                    return
                 if active:
                     if new_map.get(vin) != active:
                         new_map[vin] = active
@@ -2600,6 +2631,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 new_ts[vin] = datetime.now(tz=timezone.utc).isoformat()
                 changed = True
                 new_id = await scraper.kickoff_custom_data_request(vin)
+                if getattr(session, "closed", False) is True:
+                    return
                 # #1439 — record why a kickoff made no request (portal HTTP
                 # status) so the reason survives the backoff window and shows in
                 # diagnostics without the user enabling debug logging.
@@ -2681,7 +2714,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="historical_disabled",
             )
-        session = async_get_clientsession(self.hass)
+        client = getattr(self, "_cariad_client", None)
+        tokens = getattr(client, "_tokens", None)
+        if getattr(tokens, "strategy", "") == "device_grant_portal":
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="portal_request_requires_cookie_login",
+            )
+        session = _portal_scraper_session(client, async_get_clientsession(self.hass))
         scraper = DataActScraper(session, brand_name=self.entry.data[CONF_BRAND])
         try:
             # Wedge-guard (#923, @naked-head — field-corrected). The portal
@@ -8919,8 +8959,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         primary.
 
         Both can use the portal's one-time historical export and the continuous
-        data-request button; the kickoff scraper is authed on the shared session
-        where the (primary or supplementary) portal logged in — see
+        data-request button for cookie-authenticated entries; the scraper uses
+        the entry's portal session where the primary or supplementary portal
+        logged in. Bearer-only device-grant entries must create requests in the
+        portal UI — see
         ``async_create_data_act_request`` and its b12 note. #923
         (@naked-head/@dazzzl): the export button was gated on read-only-portal
         mode only, so a merged ``eu_data_act+website_authproxy`` setup never got

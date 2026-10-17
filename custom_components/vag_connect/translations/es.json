@@ -2879,6 +2879,9 @@
     "export_file_no_data": {
       "message": "Ese archivo no contenía un conjunto de datos legible de la Ley de Datos de la UE. Asegúrate de que sea el .zip que descargaste del portal de datos de VW para este coche."
     },
+    "portal_request_requires_cookie_login": {
+      "message": "Esta conexión usa el inicio de sesión con código de dispositivo. Crea las solicitudes continuas de datos y las exportaciones históricas directamente en el portal EU Data Act; para crearlas aquí se necesita iniciar sesión en el portal con cookies."
+    },
     "historical_portal_not_ready": {
       "message": "El portal de la Ley de Datos de la UE aún no está listo. Espera a que la integración haya consultado una vez tras la configuración e inténtalo de nuevo."
     },
