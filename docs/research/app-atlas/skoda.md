@@ -1,7 +1,7 @@
 # App Atlas — Škoda (MyŠkoda)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-09
+> Last refreshed: 2026-10-17
 
 ## Identity
 
@@ -11,12 +11,11 @@
 | Expected backend | `mysmob` |
 | OLA enforcement known? | No (not observed yet) |
 
-## Configured sources (fallback chain)
+## Source
 
 | Source | Configured value |
 |---|---|
-| APKMirror | `skoda-auto-as/myskoda` |
-| Uptodown | `cz-skodaauto-myskoda` |
+| Google Play (only source) | `cz.skodaauto.myskoda` |
 
 ## Current version
 

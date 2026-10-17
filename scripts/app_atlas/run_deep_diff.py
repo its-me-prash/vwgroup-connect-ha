@@ -8,17 +8,20 @@ Usage:
         --old-version 2.15.0 \
         --new-version 2.16.0
 
-Invoked by ``.github/workflows/app-atlas-deep-diff.yml`` (manual
-``workflow_dispatch`` trigger). Does NOT run on a daily schedule —
-jadx full-decompile is too heavy.
+Run by hand. There was a ``workflow_dispatch`` workflow for this until
+2026-10-17; it was removed because the APK comes from Google Play via
+``apkeep``, which is deliberately absent from the runners (signing a
+disposable store account in from a shared CI address gets it locked), so
+a dispatch could never get past the fetch. It would not belong on a
+schedule either — a jadx full decompile is far too heavy for one.
 
 Output: writes
 ``docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md`` and exits.
 The workflow then commits + opens a PR.
 
-Note: this orchestrator currently requires BOTH versions to be
-fetchable from APKCombo as latest. For older versions, it falls back
-gracefully — the diff report just shows "(could not fetch old
+Note: Google Play serves only the current build, so this orchestrator
+resolves BOTH versions to that one build. For older versions it falls
+back gracefully — the diff report just shows "(could not fetch old
 version, falling back to current-only extraction)".
 """
 
@@ -47,8 +50,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Older version-name to compare against (e.g. '2.15.0').")
     p.add_argument("--new-version", required=True,
                    help="Newer version-name to compare to (e.g. '2.16.0').")
-    p.add_argument("--apkcombo-slug",
-                   help="Override APKCombo slug (default: read from config.json).")
+    p.add_argument("--package-id",
+                   help="Override the Play package id (default: read from config.json).")
     args = p.parse_args(argv)
 
     # Late import — these modules require external tools (jadx, rg)
@@ -69,19 +72,19 @@ def main(argv: list[str] | None = None) -> int:
                       args.brand, list(config["brands"].keys()))
         return 2
     brand_cfg = config["brands"][args.brand]
-    slug = args.apkcombo_slug or brand_cfg.get("sources", {}).get("apkcombo_slug")
-    if not slug:
-        _LOGGER.error("Brand %s has no apkcombo_slug — cannot fetch APK",
+    package_id = args.package_id or brand_cfg.get("package_id")
+    if not package_id:
+        _LOGGER.error("Brand %s has no package_id — cannot fetch APK",
                       args.brand)
         return 2
 
     _DIFFS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # NOTE: APKCombo only serves the LATEST version directly. For
-    # version-pinned downloads we'd need to navigate to per-version
-    # pages — that's a Phase A.3.1 follow-up. For now we run both
-    # decompiles against the current latest, and let the maintainer
-    # know if the two versions differ from what they asked for.
+    # NOTE: Google Play serves only the current build; there is no
+    # version-pinned download on that channel at all. Fetching an older
+    # build would mean a different source, which this pipeline no longer
+    # has — so for now both decompiles run against the current build, and
+    # the report says so rather than implying a real cross-version diff.
     _LOGGER.info("Starting deep-diff for %s: %s → %s",
                  args.brand, args.old_version, args.new_version)
 
@@ -90,22 +93,20 @@ def main(argv: list[str] | None = None) -> int:
         old_decomp = tmp_dir / "old_decomp"
         new_decomp = tmp_dir / "new_decomp"
 
-        # First decompile: the OLD version. (Currently we'd only get
-        # the latest from APKCombo. Future enhancement: per-version
-        # URL like /download/apk/{version}.)
+        # First decompile: the OLD version. (Currently this resolves to
+        # the current build — see the note above.)
         _LOGGER.info("Decompiling 'old' version %s...", args.old_version)
-        if not download_and_decompile(args.brand, slug, tmp_dir, old_decomp):
+        if not download_and_decompile(args.brand, package_id, tmp_dir, old_decomp):
             _LOGGER.error("Failed to fetch+decompile old version — aborting")
             return 1
 
-        # Second decompile: NEW version. APKCombo will serve the same
-        # APK since we only navigate to the latest page. Realistically
-        # this section will produce a diff only after Phase A.3.1
-        # adds per-version fetching. For MVP, we still write a report
-        # noting "both versions resolved to same APK" if old==new
+        # Second decompile: NEW version. This is the same APK, since Play
+        # serves one build. Realistically this section produces a real diff
+        # only once a version-pinned fetch exists. For MVP, we still write a
+        # report noting "both versions resolved to same APK" if old==new
         # findings.
         _LOGGER.info("Decompiling 'new' version %s...", args.new_version)
-        if not download_and_decompile(args.brand, slug, tmp_dir, new_decomp):
+        if not download_and_decompile(args.brand, package_id, tmp_dir, new_decomp):
             _LOGGER.error("Failed to fetch+decompile new version — aborting")
             return 1
 

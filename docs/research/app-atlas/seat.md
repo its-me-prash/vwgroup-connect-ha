@@ -1,7 +1,7 @@
 # App Atlas — SEAT
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-09
+> Last refreshed: 2026-10-17
 
 ## Identity
 
@@ -11,20 +11,19 @@
 | Expected backend | `ola` |
 | OLA enforcement known? | **YES** (since 2026-05-20) |
 
-## Configured sources (fallback chain)
+## Source
 
 | Source | Configured value |
 |---|---|
-| APKMirror | `seat-s-a/myseat` |
-| Uptodown | `my-seat` |
+| Google Play (only source) | `com.seat.myseat.ola` |
 
 ## Current version
 
 | | |
 |---|---|
-| Latest version-name | `2.22.1` |
+| Latest version-name | `2.23.0` |
 | Source that responded | `google_play` |
-| Previously cached version | `2.22.1` |
+| Previously cached version | `2.23.0` |
 | Changed since last run? | No |
 
 

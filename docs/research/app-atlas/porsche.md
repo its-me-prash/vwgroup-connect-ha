@@ -1,7 +1,7 @@
 # App Atlas — Porsche (My Porsche, North America)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-09
+> Last refreshed: 2026-10-17
 
 ## Identity
 
@@ -28,22 +28,21 @@ other **at this version** — which is exactly why both are polled: the day the
 builds diverge, the version pages diverge with them instead of the split
 passing unnoticed behind a single row.
 
-## Configured sources (fallback chain)
+## Source
 
 | Source | Configured value |
 |---|---|
-| APKMirror | `dr-ing-h-c-f-porsche-ag/my-porsche` |
-| Uptodown | `(none)` |
+| Google Play (only source) | `com.porsche.one` |
 
 ## Current version
 
 | | |
 |---|---|
 | Latest version-name | `21.26.39` |
-| Source that responded | `apkmirror` |
+| Source that responded | (none responded — value retained from an earlier `apkmirror` reading) |
 | Previously cached version | `21.26.39` |
 | Changed since last run? | No |
-
+| Reading | **Not re-confirmed today** — every source failed, so this is the last confirmed value, not a fresh one. |
 
 ## Discovered via APK extraction (Phase A.2)
 

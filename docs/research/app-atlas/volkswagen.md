@@ -1,7 +1,7 @@
 # App Atlas — Volkswagen EU (We Connect ID)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-09
+> Last refreshed: 2026-10-17
 
 ## Identity
 
@@ -11,12 +11,11 @@
 | Expected backend | `cariad_bff` |
 | OLA enforcement known? | No (not observed yet) |
 
-## Configured sources (fallback chain)
+## Source
 
 | Source | Configured value |
 |---|---|
-| APKMirror | `volkswagen-ag/volkswagen-we-connect-id` |
-| Uptodown | `volkswagen-we-connect-id` |
+| Google Play (only source) | `com.volkswagen.weconnect` |
 
 ## Current version
 

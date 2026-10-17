@@ -1441,7 +1441,18 @@ class PorscheClient:
                 if resp.status == 204:
                     self._capture_rate_limit_headers(resp.headers)
                     return {}
-                if resp.status not in (200, 202):
+                # 201 belongs here: POST /vehicles/{vin}/commands answers
+                # "201 Created" for an accepted command, and this client was
+                # the only one in the package that did not accept it — base.py
+                # takes (200, 201, 207) and (200, 201, 202, 207), and
+                # skoda_official takes (200, 201, 202, 204). Leaving it out
+                # cost more than an error message: raising here returns before
+                # resp.json(), so the body carrying `status.id` and "ACCEPTED"
+                # was never parsed, and _command() could not reach
+                # _poll_command() to find out whether the car had actually
+                # taken the command. Every remote command therefore reported
+                # "API error 201" while working (#1853).
+                if resp.status not in (200, 201, 202):
                     body = await resp.text()
                     raise APIError(resp.status, url, body)
                 self._capture_rate_limit_headers(resp.headers)

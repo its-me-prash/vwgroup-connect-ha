@@ -46,6 +46,32 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **A Škoda account no longer gets rate-limited by this integration's own
+  retrying.** @indigomejor measured an account-level lockout and handed over
+  what it took to find the cause: roughly 176 requests an hour, an HTTP 429 and
+  then a hard refusal that pauses the integration for two hours. The official
+  Škoda channel kept calling after it had started failing, because the guard in
+  front of it only reacted to an explicit rate-limit answer — a 5xx was
+  invisible to it, so a channel that was down was asked again every cycle. It
+  now stands back for 5, then 15, then 30 minutes per channel after repeated
+  failures, and resets as soon as a call succeeds. The reactive rate-limit
+  guard still runs first, so nothing that worked before changes. He also ruled
+  out the duplicate GitHub suggested, on version, cause, remedy and repair
+  state, before filing ([#1850](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1850)).
+- **Porsche remote commands no longer report "API error 201" while working.**
+  Every lock, unlock, climate and charging call surfaced an error in Home
+  Assistant although the car carried the command out. Porsche answers
+  "201 Created" for an accepted command, and this was the one brand client that
+  did not count 201 as success. The error message was the smaller half: the
+  failure happened before the response body was read, and that body is where
+  the command's own id and its "accepted" verdict live — which this integration
+  uses to check afterwards whether the car really did take the command. So a
+  command Porsche went on to reject looked exactly like one it performed.
+  @tp9csmv79n-code found the cause and verified the fix before filing
+  ([#1853](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1853)).
+
 
 ### Behoben / Fixed
 

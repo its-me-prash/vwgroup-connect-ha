@@ -7,8 +7,8 @@ Usage:
 
 What this does (Phase A.1):
 1. Reads scripts/app_atlas/config.json
-2. For each brand: scrapes APKMirror for current latest version-name +
-   version-code
+2. For each brand: reads its Google Play listing for the current latest
+   version-name
 3. Compares to .app-atlas-cache.json (committed state)
 4. Updates docs/research/app-atlas/{brand}.md with current version
 5. Updates docs/research/app-atlas/_summary.md (cross-brand matrix)
@@ -19,17 +19,19 @@ Hand-written findings go in scripts/app_atlas/notes/{brand}.{section}.md
 the generated page — writing them into the page itself would be erased by
 the next daily run.
 
-Phase A.2 will add: APK download via APKMirror direct CDN + apktool
+Phase A.2 adds: APK download from Google Play (apkeep) + apktool
 extraction + grep for OLA headers + endpoint discovery.
 
-Phase A.3 will add: jadx full decompile + semantic diff between
-consecutive versions.
+Phase A.3: jadx full decompile + constant diff, also run locally. Note
+that Google Play serves only the current build, so a diff between two
+consecutive versions needs builds already fetched earlier — the channel
+cannot fetch an older one on demand.
 
 CI-friendliness:
 - Pure stdlib (no external deps for Phase A.1)
 - Idempotent: re-runs without version changes are no-ops
-- Graceful per-brand failure: one unreachable APKMirror page doesn't
-  fail the whole run
+- Graceful per-brand failure: one unreadable Play listing doesn't fail
+  the whole run
 """
 
 from __future__ import annotations
@@ -72,78 +74,40 @@ def _fetch(url: str) -> str:
         return resp.read().decode("utf-8", errors="replace")
 
 
-# ── Source scrapers (multi-source fallback chain) ───────────────────
-# Strategy: try APKMirror first (most authoritative). If it 404/403s,
-# fall back to Uptodown (more scraper-friendly, broader coverage of
-# European OEM apps). Adding a 3rd source (e.g. Aptoide) is a 1-block
-# extension in scrape_version().
-
-_APKMIRROR_BASE = "https://www.apkmirror.com/apk/"
-_UPTODOWN_BASE  = "https://{sub}.en.uptodown.com/android"
-_APKCOMBO_BASE  = "https://apkcombo.com/{slug}/"
-
-# APKMirror page regexes — multiple layouts seen in the wild.
-_APKMIRROR_VERSION_REGEXES = [
-    re.compile(r'class="appRowVersionName"[^>]*>\s*<a[^>]*>[^<]*?\s+(\d+(?:\.\d+){1,3}(?:-\d+)?)', re.IGNORECASE),
-    re.compile(r'class="appRowTitle[^"]*"[^>]*>\s*<a[^>]*>[^<]*?\s+(\d+(?:\.\d+){1,3}(?:-\d+)?)', re.IGNORECASE),
-    re.compile(r'/[a-z0-9-]+-(\d+(?:\.\d+){1,3}(?:-\d+)?)-release', re.IGNORECASE),
-]
-
-# Uptodown pattern: <div itemprop="softwareVersion">5.4.1</div>
-_UPTODOWN_VERSION_REGEXES = [
-    re.compile(r'itemprop="softwareVersion"[^>]*>\s*([\d.]+(?:-\w+)?)', re.IGNORECASE),
-    re.compile(r'"latestVersion"\s*:\s*"([^"]+)"', re.IGNORECASE),
-    re.compile(r'class="version"[^>]*>\s*([\d.]+(?:-\w+)?)', re.IGNORECASE),
-]
-
-# APKCombo pattern: title includes "Volkswagen ... 3.61.0 - Updated: 2026 - com.x.y"
-_APKCOMBO_VERSION_REGEXES = [
-    # The meta-title pattern: " 3.61.0 - Updated:" — anchored by ` - Updated:` for safety.
-    re.compile(r'\b(\d+\.\d+\.\d+(?:[-.]\w+)?)\s*-\s*Updated:', re.IGNORECASE),
-    # Fallback: any `<a>...3.61.0</a>` style link.
-    re.compile(r'>(\d+\.\d+\.\d+(?:[-.]\w+)?)<\s*/\s*a\s*>', re.IGNORECASE),
-    # The page's own meta description: "Download My Porsche APK 20.26.36-row+186611
-    # - 129 MB - Updated: 2026-09 - …". Neither pattern above survives the size
-    # and date that sit between the version and " - Updated:", so APKCombo had
-    # quietly stopped answering for every brand — a fallback that matches nothing
-    # still counts as "configured", which is how it went unnoticed.
-    #
-    # Only the dotted numeric part is captured. APKCombo publishes the full build
-    # string (`20.26.36-row+186611`, `20.26.37-pcna+188460`), and keeping the
-    # flavour suffix would make the value unparseable for is_downgrade() — the
-    # brand could then be walked backwards by a stale listing with no guard
-    # firing. Stripped, a stale mirror is caught and reported instead.
-    re.compile(
-        r'<meta\s+name="description"\s+content="[^"]*?\bAPK\s+'
-        r'(\d+(?:\.\d+){1,3})(?:[-+][\w.+]*)?\s',
-        re.IGNORECASE,
-    ),
-]
-
-
-# v2.18.0 — Google Play, the authoritative source. The store page exposes the
-# version to an anonymous request, so this needs NO account and no token in CI.
-# It matters: the mirrors had never once resolved Volkswagen (the cache carried
-# last_version_name=null, last_source=null while the watcher dutifully recorded
-# that it had looked, every day) — and VW is the largest brand we serve. Play
-# answers 4.1.1 for it, matching what a real download yields.
+# ── Source scraper (Google Play only) ───────────────────────────────
+# Google Play is the publisher's own listing and the single source here, for
+# versions as for the APK itself (see apk_extractor). The store page exposes
+# the version to an anonymous request, so this needs NO account and no token
+# in CI.
+#
+# The mirrors that used to sit behind this (APKMirror, Uptodown, APKCombo) are
+# gone deliberately. They are not a current source: a mirror publishes
+# whatever it last happened to ingest, so its answer can lag the store by
+# weeks or name a build Play no longer serves — and a version that is wrong in
+# that direction is worse than no version, because is_downgrade() then has a
+# stale ceiling to compare against. Play had also made them redundant on every
+# brand that publishes a version at all: it resolved Volkswagen, which the
+# mirrors never once did (the cache carried last_version_name=null while the
+# watcher dutifully recorded that it had looked, every day).
 _PLAY_BASE = "https://play.google.com/store/apps/details?id={pkg}&hl=en&gl=US"
 
-# The version sits in the page's embedded JSON callback data. Google reshuffles
-# that markup periodically, hence the mirrors stay wired below as a fallback
-# rather than being deleted.
+# The version sits in the page's embedded JSON callback data.
 #
 # TRAP — do not "fix" a missing brand by matching `]]],"<version>",null`. That
 # shape is all over the page and looks like the jackpot, but it's review
 # metadata: Play records which app version each reviewer was running. Matching
 # it yields ~20 hits per page, mostly ancient, and would have the atlas report
 # some random reviewer's version as current. The bracket form below is the
-# actual version field — it agrees with the mirrors on all five brands that
-# publish one (seat 2.19.1, audi 5.6.0, skoda 8.14.0, vw 4.1.1, cupra 2.19.1).
+# actual version field. Measured 2026-10-17 across the full brand list: six of
+# the eight answer (seat 2.23.0, cupra 2.23.0, vw 4.6.4, audi 5.8.1, skoda
+# 8.17.0, vw_na 2026.9.29-9674).
 #
-# VW-NA and Porsche simply don't expose a version on their store listing at
-# all — not "Varies with device", just absent. They fall through to the mirrors,
-# which is the reason the mirrors are still wired up.
+# The two Porsche packages publish no version on their store listing at all —
+# not "Varies with device", just absent. They now report no version and the
+# atlas renders the gap, where the mirrors used to supply a number nobody had
+# checked against the store. (VW-NA was in that group when the mirrors were
+# removed from the APK path; it answers now, so do not take the Porsche gap as
+# permanent either — re-measure before building anything on it.)
 _PLAY_VERSION_REGEXES = [
     re.compile(r'\[\[\["(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?)"\]\]'),
     re.compile(r'"softwareVersion"\s*:\s*"(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?)"'),
@@ -161,7 +125,7 @@ def _try_google_play(package_id: str) -> str | None:
         _LOGGER.debug("Google Play %s → %s", url, exc)
         return None
     # "Varies with device" is Play's answer for staged/dynamic rollouts. It is
-    # not a version — fall through to the mirrors rather than record it.
+    # not a version — report none rather than record it.
     if "Varies with device" in body:
         _LOGGER.debug("Google Play %s → 'Varies with device'", package_id)
         return None
@@ -172,103 +136,29 @@ def _try_google_play(package_id: str) -> str | None:
     return None
 
 
-def _try_apkmirror(slug: str) -> str | None:
-    url = f"{_APKMIRROR_BASE}{slug}/"
-    try:
-        body = _fetch(url)
-    except urllib.error.HTTPError as exc:
-        _LOGGER.debug("APKMirror %s → HTTP %s", url, exc.code)
-        return None
-    except Exception as exc:  # noqa: BLE001
-        _LOGGER.debug("APKMirror %s → %s", url, exc)
-        return None
-    for regex in _APKMIRROR_VERSION_REGEXES:
-        m = regex.search(body)
-        if m:
-            return m.group(1)
-    return None
+def scrape_version(brand: str, package_id: str | None) -> tuple[str | None, str | None]:
+    """Read the current version from the brand's Google Play listing.
 
+    Returns ``(version, "google_play")`` on success and ``(None, None)`` when
+    Play has no version to give — either because the listing doesn't publish
+    one (VW-NA, Porsche) or because the markup moved. ``None`` is the honest
+    answer in both cases: the atlas renders the gap, and ``is_downgrade()``
+    keeps whatever ceiling the cache already holds instead of being handed a
+    mirror's guess.
 
-def _try_uptodown(subdomain: str) -> str | None:
-    url = _UPTODOWN_BASE.format(sub=subdomain)
-    try:
-        body = _fetch(url)
-    except urllib.error.HTTPError as exc:
-        _LOGGER.debug("Uptodown %s → HTTP %s", url, exc.code)
-        return None
-    except Exception as exc:  # noqa: BLE001
-        _LOGGER.debug("Uptodown %s → %s", url, exc)
-        return None
-    for regex in _UPTODOWN_VERSION_REGEXES:
-        m = regex.search(body)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _try_apkcombo(slug: str) -> str | None:
-    url = _APKCOMBO_BASE.format(slug=slug)
-    try:
-        body = _fetch(url)
-    except urllib.error.HTTPError as exc:
-        _LOGGER.debug("APKCombo %s → HTTP %s", url, exc.code)
-        return None
-    except Exception as exc:  # noqa: BLE001
-        _LOGGER.debug("APKCombo %s → %s", url, exc)
-        return None
-    for regex in _APKCOMBO_VERSION_REGEXES:
-        m = regex.search(body)
-        if m:
-            return m.group(1)
-    return None
-
-
-def scrape_version(brand: str, sources: dict[str, str | None]) -> tuple[str | None, str | None]:
-    """Multi-source fallback scrape.
-
-    Returns (version, source_name) — source_name is one of
-    ``"google_play"``, ``"apkmirror"``, ``"uptodown"``, ``"apkcombo"``, or
-    ``None``. Tries each configured source in order; returns on first success.
-
-    Google Play goes first: it's the publisher's own listing, so it can't lag
-    behind or mis-attribute the way a mirror can, and it needs no account. The
-    mirrors stay wired behind it for the days Play reshuffles its markup or
-    answers "Varies with device".
-
-    Adding another source: implement ``_try_<name>(slug) -> str | None``
-    + add an ``if <name>_slug := sources.get("<name>_slug")`` branch
-    below.
+    This is deliberately single-source. See the comment above ``_PLAY_BASE``
+    for why the mirrors were removed rather than kept as a fallback.
     """
-    package_id = sources.get("package_id")
-    if package_id:
-        v = _try_google_play(package_id)
-        if v:
-            return v, "google_play"
+    if not package_id:
+        _LOGGER.warning("Brand %s: no package_id configured", brand)
+        return None, None
 
-    apkmirror_slug = sources.get("apkmirror_slug")
-    if apkmirror_slug:
-        v = _try_apkmirror(apkmirror_slug)
-        if v:
-            return v, "apkmirror"
-
-    uptodown_sub = sources.get("uptodown_subdomain")
-    if uptodown_sub:
-        v = _try_uptodown(uptodown_sub)
-        if v:
-            return v, "uptodown"
-
-    # v2.4.2+ — APKCombo as 3rd-tier fallback. Less reliable than
-    # APKMirror but covers some apps that APKMirror + Uptodown don't.
-    apkcombo_slug = sources.get("apkcombo_slug")
-    if apkcombo_slug:
-        v = _try_apkcombo(apkcombo_slug)
-        if v:
-            return v, "apkcombo"
+    v = _try_google_play(package_id)
+    if v:
+        return v, "google_play"
 
     _LOGGER.warning(
-        "Brand %s: all sources failed (apkmirror_slug=%r, "
-        "uptodown_subdomain=%r, apkcombo_slug=%r)",
-        brand, apkmirror_slug, uptodown_sub, apkcombo_slug,
+        "Brand %s: Google Play published no version for %s", brand, package_id
     )
     return None, None
 
@@ -356,6 +246,50 @@ def _save_apk_findings(brand: str, findings: dict[str, Any], version: str) -> No
     )
 
 
+_APK_HEADING = "## Discovered via APK extraction (Phase A.2)"
+
+
+def _previous_apk_section(brand: str) -> str | None:
+    """The APK-findings body already on the brand's page, if any.
+
+The findings cache under ``.app-atlas-apk-cache/`` is gitignored, so it
+    never travels with the repository: it persists on whichever machine wrote
+    it (entries here go back months) and is simply absent anywhere else. The
+    committed page is the only record that travels.
+
+    That did not matter while CI both extracted and rendered in one job. With
+    extraction moved to a maintainer's machine, a CI render has no cache at
+    all, and handing ``_render_apk_section`` a None would put the "not yet
+    run" placeholder where a real extraction record had been — removing
+    findings inside a commit titled "refresh app-atlas". No committed page has
+    lost anything that way yet, because at the time of writing they all still
+    carry the placeholder; this closes the door before the first local run
+    fills them.
+
+    So an absent cache means "nothing new to say", not "nothing is known",
+    which is the rule the version cache already follows. The carried body
+    dates itself (``Last extracted: … for version …``), and nothing is
+    appended on the way through, so repeated carries cannot stack up a trail
+    of notes.
+    """
+    page = _ATLAS_DIR / f"{brand}.md"
+    if not page.is_file():
+        return None
+    try:
+        body = page.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    start = body.find(_APK_HEADING)
+    if start == -1:
+        return None
+    start += len(_APK_HEADING)
+    end = body.find("\n## ", start)
+    section = (body[start:] if end == -1 else body[start:end]).strip()
+    if not section or section.startswith("_(Empty"):
+        return None
+    return section
+
+
 def _render_apk_section(findings: dict[str, Any] | None) -> str:
     """Render the 'Discovered endpoints / headers' atlas sections.
 
@@ -368,6 +302,23 @@ def _render_apk_section(findings: dict[str, Any] | None) -> str:
             "brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_"
         )
     inner_findings = findings.get("findings", findings)
+    # A cache file this renderer cannot read must count as no findings, not as
+    # an empty result. The cache directory accumulates files from whatever tool
+    # last wrote it, and some carry a different shape entirely (one held
+    # ``{brand, versions, latest}``). Rendered through the lookups below, every
+    # field came back None and the page stated "Last extracted: (unknown)"
+    # followed by "none of the configured backend hosts found" — a negative
+    # finding, printed on a brand whose cache had in fact never been read.
+    if not any(k in inner_findings for k in ("extracted_at", "headers", "endpoint_hosts")):
+        _LOGGER.warning(
+            "APK findings cache has an unrecognised shape (keys: %s) — treating "
+            "it as no findings rather than as an empty result",
+            sorted(inner_findings)[:6],
+        )
+        return (
+            "_(Empty — Phase A.2 APK extraction not yet run for this "
+            "brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_"
+        )
     extracted_at = inner_findings.get("extracted_at", "(unknown)")
     extracted_for = findings.get("extracted_for_version", "(unknown)")
     headers = inner_findings.get("headers", [])
@@ -470,6 +421,24 @@ def _flavors_block(brand: str) -> str:
     return f"## Flavors\n\n{note}\n\n"
 
 
+def _source_label(source_name: str | None, status: str) -> str:
+    """How the page names the source behind the version above it.
+
+    A stale brand keeps its last confirmed version *and* the name of whatever
+    delivered it. Under a cell headed "responded" that reads as a claim about
+    this run, which it is not: the two Porsche rows said "apkcombo" and
+    "apkmirror" while carrying a value last confirmed days earlier, and once
+    those sources were removed from the code the same cell would have credited
+    something this pipeline can no longer even ask. So the retained case now
+    says it was retained and keeps the old name as provenance.
+    """
+    if not source_name:
+        return "(no source succeeded)"
+    if status == "stale":
+        return f"(none responded — value retained from an earlier `{source_name}` reading)"
+    return f"`{source_name}`"
+
+
 def _reading_note(status: str, current_version: str | None, observed: str | None) -> str:
     """The one line on the page that says how much to trust the number above it."""
     if status == "stale":
@@ -492,9 +461,12 @@ def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str
     ola_known  = brand_cfg.get("ola_enforcement_known", False)
     ola_since  = brand_cfg.get("ola_enforcement_since", "")
     prev_ver   = cache_entry.get("last_version_name", "")
-    sources    = brand_cfg.get("sources", {})
     now        = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%d")
-    apk_section = _render_apk_section(_load_apk_findings(brand))
+    fresh_findings = _load_apk_findings(brand)
+    apk_section = (
+        _render_apk_section(fresh_findings) if fresh_findings
+        else _previous_apk_section(brand) or _render_apk_section(None)
+    )
     flavors     = _flavors_block(brand)
     diff_section = _note_or(
         brand, "cross-version-diff",
@@ -506,7 +478,7 @@ def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str
         "version-bumps suggest follow-up work.)_",
     )
 
-    src_label = source_name or "(no source succeeded)"
+    src_label = _source_label(source_name, status)
     md = f"""# App Atlas — {display}
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
@@ -520,19 +492,18 @@ def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str
 | Expected backend | `{backend}` |
 | OLA enforcement known? | {'**YES** (since ' + ola_since + ')' if ola_known else 'No (not observed yet)'} |
 
-{flavors}## Configured sources (fallback chain)
+{flavors}## Source
 
 | Source | Configured value |
 |---|---|
-| APKMirror | `{sources.get('apkmirror_slug') or '(none)'}` |
-| Uptodown | `{sources.get('uptodown_subdomain') or '(none)'}` |
+| Google Play (only source) | `{package}` |
 
 ## Current version
 
 | | |
 |---|---|
 | Latest version-name | `{current_version or '(fetch failed)'}` |
-| Source that responded | `{src_label}` |
+| Source that responded | {src_label} |
 | Previously cached version | `{prev_ver or '(first run)'}` |
 | Changed since last run? | {'**YES**' if current_version and current_version != prev_ver else 'No'} |
 {_reading_note(status, current_version, observed)}
@@ -566,18 +537,30 @@ def emit_summary(config: dict[str, Any], results: dict[str, str | None],
     rows: list[str] = []
     for brand, cfg in config["brands"].items():
         version = results.get(brand) or "(fetch failed)"
-        src = sources_used.get(brand) or "—"
         # A version carried over from an earlier run reads exactly like a fresh
         # one in a table, which is how a stale number gets quoted as current.
+        # The same goes for the Source column: it is headed by what answered,
+        # so a retained row must not print the name of a source that was never
+        # asked. The two Porsche rows read `apkmirror` / `apkcombo` here while
+        # carrying a value last confirmed days earlier, and once those sources
+        # were removed the same cell would have named something this pipeline
+        # can no longer ask at all.
         status = statuses.get(brand, "ok")
         if status == "stale":
             version += " (not re-confirmed)"
         elif status == "rejected":
             version += " (kept; an older reading was rejected)"
+        name = sources_used.get(brand)
+        if not name:
+            src = "—"
+        elif status == "stale":
+            src = f"(retained from `{name}`)"
+        else:
+            src = f"`{name}`"
         ola_flag = "" if cfg.get("ola_enforcement_known") else ""
         rows.append(
             f"| **{cfg['display_name']}** | `{cfg['package_id']}` | "
-            f"`{version}` | `{src}` | `{cfg['expected_backend']}` | {ola_flag} |"
+            f"`{version}` | {src} | `{cfg['expected_backend']}` | {ola_flag} |"
         )
     body = (
         "# App Atlas — Cross-Brand Summary\n\n"
@@ -588,17 +571,24 @@ def emit_summary(config: dict[str, Any], results: dict[str, str | None],
         + "\n\n"
         "## Methodology\n\n"
         "Daily CI workflow ([`.github/workflows/app-atlas-builder.yml`](\n"
-        "../../../.github/workflows/app-atlas-builder.yml)) scrapes\n"
-        "APKMirror for the latest version of each VAG-brand Android app.\n"
-        "When a version changes (Phase A.2+), the workflow downloads the\n"
-        "APK, extracts it with apktool, and greps for known HTTP\n"
-        "patterns (OLA headers, backend URLs, etc).\n\n"
+        "../../../.github/workflows/app-atlas-builder.yml)) reads the Google\n"
+        "Play listing of each VAG-brand Android app for its latest\n"
+        "version-name. Play is the only source: a mirror serves whatever it\n"
+        "last ingested, which can lag the store by weeks, so a brand Play\n"
+        "does not publish a version for is reported as a gap rather than\n"
+        "filled in from elsewhere.\n\n"
+        "That job polls versions and nothing else. The APK download and the\n"
+        "extraction on top of it (phases A.2 and A.3 below) are run by a\n"
+        "maintainer locally and only their findings are committed, because\n"
+        "the Play download needs a disposable store account and signing one\n"
+        "in repeatedly from a shared runner address gets it locked. So a\n"
+        "green daily run means the versions were checked, not that the APKs\n"
+        "were re-extracted; each page dates its own extraction record.\n\n"
         "**Phase progression**:\n\n"
-        "- **A.1 (current)**: version-polling only. Confirms which apps\n"
-        "  exist and tracks their version cadence.\n"
-        "- **A.2 (next)**: APK download + string-pattern grep.\n"
-        "- **A.3 (later)**: full decompile via jadx + cross-version\n"
-        "  semantic diff.\n\n"
+        "- **A.1**: version-polling. Confirms which apps exist and tracks\n"
+        "  their version cadence. Runs daily in CI.\n"
+        "- **A.2**: APK download + string-pattern grep. Run locally.\n"
+        "- **A.3**: full decompile via jadx + constant diff. Run locally.\n\n"
         "See per-brand pages in this directory for details.\n"
     )
     _SUMMARY_PATH.write_text(body, encoding="utf-8")
@@ -615,17 +605,19 @@ def main(argv: list[str] | None = None) -> int:
                    help="Show what would change; don't write files.")
     p.add_argument("--with-apk-extraction", action="store_true",
                    help="Phase A.2: also download + decode APKs for brands where "
-                        "the version-name changed since last cache. Requires apktool "
-                        "on PATH. Adds significant CI runtime (~30s-2min per changed "
-                        "brand) — only enable in the scheduled workflow, not for "
-                        "local debugging.")
+                        "the version-name changed since last cache. Needs apkeep "
+                        "and apktool on PATH, and takes ~30s-2min per changed "
+                        "brand. This is a LOCAL step — the scheduled workflow "
+                        "polls versions only, because the Play fetch signs in "
+                        "with a disposable account and doing that from a shared "
+                        "runner IP gets the account locked.")
     p.add_argument("--force-extract", action="store_true",
                    help="Phase A.2 override: extract APKs for ALL brands "
                         "regardless of version-change cache state. Use this to "
                         "(re)build the apk-cache from scratch — e.g. after adding "
                         "a new brand, or for the initial population. Implies "
-                        "--with-apk-extraction. CI-only; locally it requires "
-                        "apktool on PATH for every brand.")
+                        "--with-apk-extraction, so the same local-only note "
+                        "applies, for every brand rather than the changed ones.")
     args = p.parse_args(argv)
     # --force-extract implies --with-apk-extraction.
     if args.force_extract:
@@ -636,9 +628,25 @@ def main(argv: list[str] | None = None) -> int:
     cache = load_cache()
     cache.setdefault("brands", {})
 
+    # Seeded from the cache, not empty. emit_summary() rewrites the whole
+    # cross-brand table from these three dicts, so with a `--brand X` run only
+    # X ever landed in them and the other seven rows were rendered from a
+    # missing key — printing "(fetch failed)" and an em dash for brands that
+    # had not been asked anything. The README offers `--brand audi` as the way
+    # to debug one brand, so that quietly blanked seven rows of the committed
+    # summary. A brand this run does not touch now keeps what was last known
+    # about it.
     results: dict[str, str | None] = {}
     sources_used: dict[str, str | None] = {}
     statuses: dict[str, str] = {}
+    for _brand, _entry in cache["brands"].items():
+        if _brand not in config["brands"]:
+            continue
+        results[_brand] = _entry.get("last_version_name")
+        sources_used[_brand] = _entry.get("last_source")
+        # Not "ok": nothing was confirmed for this brand in this run. "stale"
+        # is exactly what the table should say about a carried-over row.
+        statuses[_brand] = "stale" if _entry.get("last_version_name") else "ok"
     changed_brands: list[str] = []
 
     target_brands = [args.brand] if args.brand else list(config["brands"].keys())
@@ -647,20 +655,16 @@ def main(argv: list[str] | None = None) -> int:
             _LOGGER.error("Unknown brand %r — check config.json", brand)
             continue
         brand_cfg = config["brands"][brand]
-        # `package_id` sits beside `sources` in the config, but Google Play is
-        # keyed by it — fold it in so the resolver sees one flat dict. A brand
-        # carrying only a package_id is now pollable, where before it counted
-        # as having "no sources".
-        sources = dict(brand_cfg.get("sources", {}))
-        if pkg := brand_cfg.get("package_id"):
-            sources["package_id"] = pkg
-        if not sources:
-            _LOGGER.warning("Brand %s has no sources configured — skipping", brand)
+        # The package ID is the whole identity of a brand here: Play is keyed by
+        # it, and so is the APK fetch. A brand without one cannot be polled.
+        package_id = brand_cfg.get("package_id")
+        if not package_id:
+            _LOGGER.warning("Brand %s has no package_id configured — skipping", brand)
             results[brand] = None
             sources_used[brand] = None
             continue
 
-        observed, observed_src = scrape_version(brand, sources)
+        observed, observed_src = scrape_version(brand, package_id)
         prev_entry = cache["brands"].get(brand, {})
         # `or ""` rather than a .get default: a cache entry written by an older
         # build carries an explicit null, and `.get(key, "")` returns that null
@@ -730,9 +734,25 @@ def main(argv: list[str] | None = None) -> int:
             with tempfile.TemporaryDirectory(prefix=f"atlas_apk_{brand}_") as td:
                 tmp_dir = Path(td)
                 _LOGGER.info("Brand %s: starting APK extraction (version %s)", brand, current)
-                findings = extract_brand_apk(
-                    brand, brand_cfg, config["search_patterns"], tmp_dir,
-                )
+                # Extraction is best-effort and must never take the poll with
+                # it. It reaches the network and shells out to apkeep/apktool,
+                # so it can raise for reasons that have nothing to do with this
+                # brand — and an exception here used to abort main() for every
+                # brand still in the loop, leaving the run with nothing written
+                # at all. That is not theoretical: between 2026-10-13 and
+                # 2026-10-17 the daily workflow failed five times in a row on
+                # an unresolvable mirror host (URLError from a DNS lookup),
+                # while Play was answering for six brands the whole time.
+                try:
+                    findings = extract_brand_apk(
+                        brand, brand_cfg, config["search_patterns"], tmp_dir,
+                    )
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception(
+                        "Brand %s: APK extraction raised — continuing with "
+                        "version polling for the remaining brands", brand,
+                    )
+                    findings = None
                 if findings:
                     _save_apk_findings(brand, findings, current)
                     _LOGGER.info("Brand %s: APK extraction OK — %d headers, %d hosts found",
@@ -766,6 +786,37 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run:
         emit_summary(config, results, sources_used, statuses)
         save_cache(cache)
+
+    # The new-OAuth-client_id watch reads the extraction cache, so it has to run
+    # wherever extraction runs. It used to be a separate step in the daily
+    # workflow, which worked only because that job extracted too; once
+    # extraction moved to a maintainer's machine, that step had nothing to read
+    # and the watch would have gone quiet without anything saying so. Advisory
+    # only — it never fails the run.
+    if args.with_apk_extraction and not args.dry_run:
+        try:
+            try:
+                from .diff_known_client_ids import main as _cid_main  # noqa: PLC0415
+            except ImportError:
+                import sys as _sys  # noqa: PLC0415
+                _sys.path.insert(0, str(Path(__file__).parent))
+                from diff_known_client_ids import main as _cid_main  # type: ignore[no-redef]
+            _cid_main()
+            # Delivery is the half that did NOT come along. The workflow step
+            # that files the GitHub issue reads a marker inside the gitignored
+            # cache, so it can only ever see one written by a run in that same
+            # job — never one written here. Until that is wired up, a hit
+            # reaches a human only through this terminal, so say so loudly
+            # rather than let it scroll past among the per-brand lines.
+            marker = _APK_CACHE_DIR / "new-client-ids-found.md"
+            if marker.exists():
+                _LOGGER.warning(
+                    "NEW OAuth client_id(s) found. No issue is filed "
+                    "automatically from a local run — the details are above and "
+                    "in %s; open the tracker entry by hand.", marker,
+                )
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("client_id watch failed — the atlas run itself is unaffected")
 
     print(f"\nSummary: {len(changed_brands)} brand(s) changed: {changed_brands}")
     return 0

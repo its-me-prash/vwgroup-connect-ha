@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
+import time
 import uuid
 from typing import Any, Final
 
@@ -396,6 +397,21 @@ def parse_skoda_warning_lights(lights: Any) -> dict[str, Any]:
 # command may borrow one. Crude on purpose: one integer compare, no pacing model.
 _OFFICIAL_COMMAND_RESERVE = 4
 
+# #1850 (@indigomejor) — how long to stop calling the official API after it has
+# failed N cycles in a row. Same 5/15/30 min spacing the EU-DA portal's own 5xx
+# breaker uses (coordinator._PORTAL_5XX_BACKOFF_S), adopted rather than invented
+# so there is one escalation shape in this integration and not two.
+#
+# Why this is needed on top of the rate guard below: that guard is REACTIVE. It
+# skips only once the server has already said "too many" — RateLimit-Remaining 0,
+# or a 429/503 with Retry-After. A 5xx says nothing of the kind, so an endpoint
+# that 500-loops is invisible to it. Measured on a Škoda Octavia MY26: the
+# channel answered 500 for every read across three days, each read retried the
+# ladder for two endpoints (8 HTTP requests per cycle), at ~17.6 cycles/hour.
+# That is ~140 requests/hour against a documented 20/hour/key budget, and it
+# ended in 429 and then a hard 430 that pauses the account for two hours.
+_OFFICIAL_5XX_BACKOFF_S: tuple[float, ...] = (300.0, 900.0, 1800.0)
+
 
 class SkodaClient(CariadBaseClient):
     """Škoda API client."""
@@ -420,8 +436,16 @@ class SkodaClient(CariadBaseClient):
         # arm_supplementary_official). None unless the user configured an API key.
         # Consulted as an ACTIVE live source on every healthy poll (rate permitting)
         # AND as the hard-failure failover. Rate-limited to 20 req/hour/key, so both
-        # read paths go through _official_read_rate_safe, which self-skips at quota.
+        # read paths go through _official_read_rate_safe, which self-skips at quota
+        # AND, since #1850, on its own failure streak — the quota guard is reactive
+        # and a 5xx never trips it.
         self._supplementary_official: Any = None
+        # #1850 — consecutive failed official reads, and the monotonic deadline
+        # until which the channel is left alone. Per-instance and in memory on
+        # purpose: a reload is a legitimate reason to try the channel once more,
+        # and it also means a restart cannot inherit a stale skip window.
+        self._official_5xx_streak: int = 0
+        self._official_skip_until: float = 0.0
         # #1286 — Škoda official-API source mode, pushed by the coordinator from
         # CONF_SKODA_OFFICIAL_MODE. Only "official_only" changes THIS client's read
         # routing (get_status below); the other modes are enforced coordinator-side
@@ -483,20 +507,60 @@ class SkodaClient(CariadBaseClient):
 
     async def _official_read_rate_safe(self, vin: str) -> "VehicleData | None":
         """Shared body for the official public-API reads (failover + active
-        live-source). Honours the official channel's 20/hour/key budget: if the
-        server has told us we're out (RateLimit-Remaining 0, or a 429/503
-        Retry-After), skip the read until the window resets rather than breaching
-        the quota. Fail-soft: any error returns None so an official hiccup can
+        live-source). Two separate brakes, because they catch different things.
+        REACTIVE: if the server has told us we're out (RateLimit-Remaining 0, or
+        a 429/503 Retry-After) the read is skipped until the window resets. That
+        honours the 20/hour/key quota only once the server complains — it counts
+        nothing itself, which is why the second brake exists. PROACTIVE (#1850):
+        a streak of failed reads stops the calls for 5, then 15, then 30 minutes.
+        A 5xx is not a rate-limit signal, so without it a 500-looping endpoint
+        breaches the quota sevenfold while the reactive guard sees nothing. Fail-soft: any error returns None so an official hiccup can
         never itself sink the poll."""
         off = self._supplementary_official
         if off is None:
             return None
         if getattr(off, "over_rate_limit", False) is True:
             return None
-        try:
-            return await off.get_status(vin)  # type: ignore[no-any-return]
-        except Exception:  # noqa: BLE001
+        # #1850 — a read that keeps failing is skipped for a while. Checked
+        # BEFORE the call, because the cost being avoided is the call itself.
+        now = time.monotonic()
+        until = getattr(self, "_official_skip_until", 0.0)
+        if now < until:
             return None
+        try:
+            got = await off.get_status(vin)
+        except Exception:  # noqa: BLE001
+            self._note_official_failure()
+            return None
+        if got is None:
+            # A None here is "no data", not an exception, and the channel still
+            # cost a request to find that out. Counted the same way.
+            self._note_official_failure()
+            return None
+        self._official_5xx_streak = 0
+        self._official_skip_until = 0.0
+        return got  # type: ignore[no-any-return]
+
+    def _note_official_failure(self) -> None:
+        """Advance the official channel's failure streak and set its skip window.
+
+        Deliberately per-channel rather than raising the whole poll cycle's sleep
+        the way the portal breaker does: this channel is a supplement, and the
+        reporter's primary channels (``skoda`` and ``eu_data_act``) were healthy
+        throughout. Slowing the cycle would have taken his working sources down
+        with the broken one, which is the opposite of what he needs."""
+        streak = min(
+            getattr(self, "_official_5xx_streak", 0) + 1,
+            len(_OFFICIAL_5XX_BACKOFF_S),
+        )
+        self._official_5xx_streak = streak
+        wait = _OFFICIAL_5XX_BACKOFF_S[streak - 1]
+        self._official_skip_until = time.monotonic() + wait
+        _LOGGER.debug(
+            "Skoda official API: failure streak %d — not calling it again for "
+            "%.0fs (the rate guard cannot see a 5xx, so the streak does)",
+            streak, wait,
+        )
 
     async def official_failover_read(self, vin: str) -> "VehicleData | None":
         """Read one VIN via the official public API — the FAILOVER path, invoked

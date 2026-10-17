@@ -30,9 +30,9 @@ gap by walking all 7 brand apps daily and tracking what they do.
 
 | Phase | What | Status |
 |---|---|---|
-| **A.1** | Version-polling for all 7 brands (APKMirror → Uptodown → APKCombo fallback chain) | ✅ Live (daily) |
-| **A.2** | APK download + apktool decode + grep for header keys / endpoint hosts | ✅ Live (daily, on version-change) |
-| **A.3** | jadx full decompile + cross-version semantic diff | ✅ Live (manual `workflow_dispatch`) |
+| **A.1** | Version-polling for all 7 brands / 8 builds (Google Play only — no mirrors) | ✅ Live (daily) |
+| **A.2** | APK download + apktool decode + grep for header keys / endpoint hosts | ✅ Live, run **locally** (see below) |
+| **A.3** | jadx full decompile + cross-version semantic diff | ✅ Live, run **locally** (see below) |
 | **B** | Act on discoveries — separate per-PR | 🟡 Rolling |
 
 ## How discoveries flow into the integration
@@ -48,18 +48,37 @@ following the regular contribution workflow:
 
 ## Daily run
 
-The workflow runs every day at 04:00 UTC. When versions change,
-it opens an auto-PR for human review (no auto-merge — same safety
-pattern as the upstream OLA watcher).
+The workflow runs every day at 04:00 UTC and polls versions only. When
+versions change, it opens an auto-PR for human review (no auto-merge — same
+safety pattern as the upstream OLA watcher).
+
+**Why only versions:** the APK itself comes from Google Play via `apkeep`,
+which signs in with a disposable account. Doing that from a shared CI runner
+IP is how those accounts get locked, so phases A.2 and A.3 are run by hand on
+a maintainer's machine and their findings are committed. A green daily run
+therefore means "versions checked", not "APKs extracted".
+
+One consequence worth knowing: the new-OAuth-client_id alarm is now **manual**.
+The local extraction run checks for them and prints what it finds, but the step
+that opens a tracker issue lives in the workflow and reads a marker file that
+only exists beside a cache written in that same job. So if a local run reports
+a new client_id, file the issue by hand.
 
 ## Manual run
 
 ```bash
-# Run locally (no network mocks — actually scrapes APKMirror):
+# Run locally (no network mocks — actually reads the Play listings):
 python scripts/app_atlas/build_atlas.py
 
 # Single brand for debugging:
 python scripts/app_atlas/build_atlas.py --brand audi
+
+# Phase A.2 — fetch + decode the APKs whose version moved (needs apkeep
+# and apktool on PATH). --force-extract does every brand instead:
+python scripts/app_atlas/build_atlas.py --with-apk-extraction
+
+# Phase A.3 — jadx decompile + cross-version constant diff (needs jadx):
+python scripts/app_atlas/run_deep_diff.py --brand audi --old-version 5.8.0 --new-version 5.8.1
 
 # Dry run (show what would change, don't write):
 python scripts/app_atlas/build_atlas.py --dry-run

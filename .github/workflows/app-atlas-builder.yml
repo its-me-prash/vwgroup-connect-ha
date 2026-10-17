@@ -3,12 +3,23 @@ name: App Atlas Builder
 # Cross-brand VAG app discovery pipeline. See docs/research/app-atlas/
 # README.md for context + LEGAL.md for reverse-engineering disclosure.
 #
-# Phase A.1 (current): version-polling for all 8 brand builds via Google Play,
-#                      with the APK mirrors as fallback for the brands that
-#                      publish no version on their store listing. Porsche ships
-#                      two packages (NA + rest-of-world) and both are polled.
-# Phase A.2 (next):    APK download + apktool extraction + grep.
-# Phase A.3 (later):   jadx decompile + cross-version semantic diff.
+# Phase A.1 (current): version-polling for all 8 brand builds via Google Play.
+#                      Play is the ONLY source — the APK mirrors that used to
+#                      sit behind it were removed on 2026-10-17 (they serve
+#                      whatever they last ingested, and an unresolvable mirror
+#                      host had been failing this workflow daily since the
+#                      13th). Porsche ships two packages (NA + rest-of-world);
+#                      both are polled, and neither publishes a version on
+#                      Play, so both render as a gap.
+# Phase A.2:           APK download + apktool extraction + grep. Runs LOCALLY,
+#                      not in this job: the APK comes from Google Play via
+#                      apkeep, which signs in with a disposable account, and
+#                      doing that from a shared runner IP is how those accounts
+#                      get locked. This job therefore polls versions only. Run
+#                      extraction by hand:
+#                        python scripts/app_atlas/build_atlas.py
+#                          --with-apk-extraction [--force-extract]
+# Phase A.3 (later):   jadx decompile + cross-version semantic diff (also local).
 #
 # Runs daily at 04:00 UTC (different from the upstream-ola-watcher's
 # 08:00 UTC so the two don't compete for runner availability).
@@ -18,7 +29,7 @@ name: App Atlas Builder
 #   2. Updates the cross-brand summary
 #   3. Auto-commits to a branch named auto/atlas-{date}
 #   4. Opens a PR for human review (no auto-merge — same safety pattern
-#      as the OLA watcher, in case APKMirror returned junk data)
+#      as the OLA watcher, in case the store listing returned junk data)
 #
 # Idempotent: re-runs without version changes are no-ops.
 
@@ -26,11 +37,6 @@ on:
   schedule:
     - cron: "0 4 * * *"
   workflow_dispatch:
-    inputs:
-      force_extract:
-        description: "Force APK extraction for all brands (overrides version-change cache). Use to (re)build apk-cache from scratch."
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -49,34 +55,35 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install apktool (for Phase A.2 APK extraction)
+      - name: Run atlas builder (Phase A.1 version polling)
+        # Version polling only — see the Phase A.2 note in the header for why
+        # APK extraction is not run here. Reads eight Google Play listings, so
+        # this stays well under a minute.
+        #
+        # The notice is the point of this step's own annotation: what this job
+        # does and what it does not do differ, and a green tick alone does not
+        # say which. Someone reading the run has to be able to tell that the
+        # APK findings on the atlas pages were not re-checked here, without
+        # going to read this file.
         run: |
-          # Ubuntu's apt-installed apktool is usually a few versions old
-          # but works fine for our basic decode use-case. If it's not
-          # available, we fall back gracefully — the build_atlas.py
-          # apk_extractor logs an error per brand and continues without
-          # APK findings, so the workflow still completes for
-          # version-name polling.
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq apktool ripgrep || \
-            echo "::warning::apktool/ripgrep not installable — Phase A.2 APK extraction will skip"
-          apktool --version || true
-          rg --version | head -1 || true
-
-      - name: Run atlas builder (Phase A.1 polling + A.2 APK extraction)
-        # APK extraction only fires when a brand's version-name changed
-        # since last cache — so most days this stays under 1 minute.
-        # When triggered via workflow_dispatch with force_extract=true,
-        # extracts every brand regardless of cache state (~5-10min total).
-        run: |
-          FORCE_FLAG=""
-          if [ "${{ inputs.force_extract }}" = "true" ]; then
-            FORCE_FLAG="--force-extract"
-            echo "::notice::force_extract=true — extracting every brand regardless of cache"
-          fi
-          python scripts/app_atlas/build_atlas.py --with-apk-extraction $FORCE_FLAG
+          echo "::notice title=App Atlas::Version polling only — no APK was fetched or extracted in this run. Phases A.2/A.3 run locally (see docs/research/app-atlas/README.md), so the extraction findings on the atlas pages are whatever the last local run committed."
+          python scripts/app_atlas/build_atlas.py
 
       - name: Diff client_ids vs source (v2.10.4 watcher)
+        # Reads .app-atlas-apk-cache, which is gitignored and written only by an
+        # extraction run — so in this job it finds nothing and reports nothing
+        # (the script returns early when the directory is absent, so it cannot
+        # raise either).
+        #
+        # Detection itself did not move away with extraction: build_atlas.py
+        # invokes this same script at the end of a --with-apk-extraction run,
+        # where the cache exists. Delivery is the half that is NOT covered: the
+        # issue-filing step below reads a marker file that only exists next to
+        # a cache written in this job, so a client_id found locally does not
+        # reach the tracker on its own — the local run prints a warning telling
+        # the maintainer to file it. Both steps stay so the wiring is already
+        # here if extraction returns to CI, and so that closing the delivery
+        # gap is a change in one place rather than a new mechanism.
         id: client_id_diff
         run: |
           python scripts/app_atlas/diff_known_client_ids.py
@@ -192,15 +199,15 @@ jobs:
           gh pr create \
             --title "chore(atlas): refresh app-atlas via daily watcher ($(date -u +%Y-%m-%d))" \
             --label "auto-atlas" \
-            --body "A brand app's version-name changed. Sources are polled Google Play first, mirrors as fallback.
+            --body "A brand app's version-name changed. Google Play is the only source polled.
 
           See \`docs/research/app-atlas/_summary.md\` for the cross-brand matrix
           and the per-brand \`{brand}.md\` files for details.
 
-          **Phase A.1 scope**: this PR only updates version-name tracking. No
-          APK download or extraction yet (that's Phase A.2). The atlas pages
-          show \`(Empty — Phase A.2 will populate ...)\` placeholders for the
-          deeper findings.
+          **Scope**: this PR only updates version-name tracking. APK download
+          and extraction (Phase A.2) run locally, not in CI, so the deeper
+          findings on the atlas pages are whatever the last local run
+          committed.
 
           **Maintainer review**: scan the diff for implausible jumps
           (e.g. a version going backward, or from \`5.4.1\` to something

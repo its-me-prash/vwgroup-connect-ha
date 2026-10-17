@@ -9,7 +9,7 @@ That's the basis for the cross-version semantic diff in
 ``version_diff.py``.
 
 This module is NOT called by the daily atlas builder. It's only
-invoked from the manual ``app-atlas-deep-diff.yml`` workflow when a
+invoked from a local ``run_deep_diff.py`` run when a
 maintainer wants to investigate what semantically changed between
 two specific versions of a brand's app.
 
@@ -22,16 +22,13 @@ Hard requirements:
 from __future__ import annotations
 
 import logging
-import re
 import subprocess
 from pathlib import Path
-from typing import Any
 
-# Reuse the lighter pipeline from Phase A.2 for the download +
-# unpack-XAPK steps. The only difference at runtime is the decoder.
+# Reuse the lighter pipeline from Phase A.2 for the fetch + unpack-XAPK steps.
+# The only difference at runtime is the decoder.
 from apk_extractor import (
-    download_to,
-    resolve_apkcombo_download,
+    fetch_from_play,
     unpack_xapk,
 )
 
@@ -82,23 +79,19 @@ def jadx_decompile(apk_path: Path, dest_dir: Path) -> bool:
 
 def download_and_decompile(
     brand: str,
-    apkcombo_slug: str,
+    package_id: str,
     tmp_dir: Path,
     decomp_dir: Path,
 ) -> bool:
-    """End-to-end: APKCombo download → XAPK unpack → jadx decompile.
+    """End-to-end: Play fetch → XAPK unpack → jadx decompile.
 
     Returns True on success (decomp_dir populated). The downloaded
     APK is cleaned up after decompile; only the decompiled tree
     remains for the caller to analyze.
     """
-    download_url = resolve_apkcombo_download(apkcombo_slug)
-    if not download_url:
-        _LOGGER.error("Brand %s: could not resolve APKCombo URL", brand)
-        return False
-
-    apk_path = tmp_dir / f"{brand}.xapk"
-    if not download_to(download_url, apk_path):
+    apk_path = fetch_from_play(package_id, brand, tmp_dir)
+    if apk_path is None:
+        _LOGGER.error("Brand %s: no APK from Play", brand)
         return False
 
     unpack_dir = tmp_dir / f"{brand}_unpacked"

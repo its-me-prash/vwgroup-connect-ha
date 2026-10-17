@@ -8,8 +8,10 @@ CUPRA. mitch-dc only knows VW EU. Nobody systematically checks
 "does the Audi app talk to OLA?" or "did VW silently consolidate
 backends?"
 
-The App Atlas fills that gap. Daily CI workflow walks all 7 brand
-apps, extracts HTTP-related strings + endpoints + headers from each,
+The App Atlas fills that gap. A daily CI workflow reads the Google Play
+listing of all 8 brand builds for their version-names; a maintainer then
+runs the extraction locally, pulling HTTP-related strings + endpoints +
+headers out of each,
 and produces ``docs/research/app-atlas/{brand}.md`` reports. When
 something changes (new version, new endpoints, header additions),
 the pipeline auto-commits an updated atlas + flags potential
@@ -28,5 +30,6 @@ Phase B: act on discoveries — separate PRs as findings accumulate.
 
 Legal: standard reverse-engineering for interoperability per EU
 Software Directive Art. 6 and US DMCA §1201(f). No APKs hosted in
-this repo; downloads are transient during CI runs.
+this repo; a download goes to a temporary directory on the machine that
+runs the extraction and is discarded with it.
 """
