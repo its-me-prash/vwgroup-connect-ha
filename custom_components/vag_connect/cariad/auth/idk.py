@@ -111,6 +111,12 @@ def _token_exchange_detail(status: int, body: str) -> str:
 # assertion headers do not satisfy it. Lower-case because ``oauth_error_code``
 # returns the backend's own casing and this is compared case-insensitively;
 # it is the one SPACED value in the archive (see ``safe_error_token``).
+# Matches the 5-header variant the production path sends (HTTP 400). The
+# attestation watcher (.github/workflows/vw-eu-attestation-watcher.yml) also
+# knows an 8-header variant answered with HTTP 403 and plain
+# ``invalid assertion``; no production call path sends that today, so it is
+# not matched here — whoever switches to the 8-header set must widen both the
+# status gate and this marker.
 _EU_ATTESTATION_ERROR = "invalid assertion headers"
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
@@ -1889,8 +1895,9 @@ class IDKAuth:
         # CARIAD-BFF brands we build the Cartesian product of:
         #   - OAuth client_id chain (canonical + APK alternates)
         #   - qmauth chain (current + prior, in case VW re-rotated)
-        # Total attempts capped at ~6 per call (3 client_ids × 2 qmauth
-        # tuples). The first 200 short-circuits the rest.
+        # The size depends on the brand: Audi has 3 client_ids × 2 qmauth
+        # tuples = 6, VW EU 4 × 2 = 8 (#1712's log: attempts #0–#6 moving on,
+        # then the last one failing). The first 200 short-circuits the rest.
         if self._brand.name in ("audi", "volkswagen"):
             client_id_chain = resolver.oauth_client_id_chain()
             qmauth_chain = resolver.qmauth_chain()
@@ -2052,7 +2059,8 @@ class IDKAuth:
                     # secret has drawn this answer the remaining client_id
                     # candidates cannot change it: stop there instead of
                     # spending the whole chain (six rejected sign-ins per
-                    # login, and a refresh that fails falls back to a login).
+                    # login on Audi, eight on VW EU; a refresh that fails
+                    # falls back to a login).
                     if (
                         self._brand.name in ("audi", "volkswagen")
                         and resp.status in (400, 401)

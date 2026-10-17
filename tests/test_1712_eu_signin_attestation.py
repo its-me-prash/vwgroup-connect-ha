@@ -12,7 +12,7 @@ Measured against the shipping app rather than inferred: myAudi 5.8.1 carries no
 HMAC secret this integration signs ``x-qmauth`` with, while it does carry the
 Play Integrity client and still sends ``x-assertion``. So once every qmauth
 secret has drawn that answer, the rest of the ``client_id × qmauth`` walk cannot
-change it, and spending it costs up to six rejected sign-ins per login (a failed
+change it, and spending it costs six (Audi) or eight (VW EU) rejected sign-ins per login (a failed
 refresh falls back to a login) against an endpoint this project elsewhere warns
 about rate-limiting.
 
@@ -92,7 +92,7 @@ class TestTheMarker:
     def test_the_marker_survives_the_error_token_gate(self) -> None:
         # safe_error_token() is deliberately narrow and allows exactly one
         # spaced value. If that gate tightened, the detector would silently
-        # stop firing and the six-attempt walk would come back.
+        # stop firing and the full candidate walk would come back.
         assert oauth_error_code(_WALL_BODY) != ""
 
     @pytest.mark.parametrize("body", _OTHER_BODIES)
@@ -143,9 +143,9 @@ def _fixed_chain(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("_fixed_chain")
 class TestFailFast:
-    """The point of the fix: two rejected sign-ins instead of six.
+    """The point of the fix: two rejected sign-ins instead of six or eight.
 
-    Up to six rejected attempts land on the IDP per login (and a refresh that
+    Six (Audi) or eight (VW EU) rejected attempts land on the IDP per login (and a refresh that
     fails falls back to a login), on an endpoint this project warns about
     elsewhere (``RateLimitError``: "nicht hochfrequent retry'n — sonst
     Account-Lockout"). Once every qmauth secret has drawn the wall, no other

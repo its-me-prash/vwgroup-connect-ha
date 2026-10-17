@@ -408,8 +408,8 @@ class EuropeAttestationError(AuthenticationError):
     Raised once every qmauth secret in the chain has drawn that answer (one
     stale secret alone is not proof: the chain keeps the prior pair for VW
     re-rotations). The remaining client_id candidates cannot change an answer
-    about the headers, and walking them costs up to six rejected sign-ins per
-    login against an endpoint this project elsewhere warns about rate-limiting
+    about the headers, and walking them costs six rejected sign-ins per login
+    on Audi and eight on VW EU against an endpoint this project elsewhere warns about rate-limiting
     (``RateLimitError``). ``authenticate()`` hands it on when the portal
     fallback then fails generically, so the user hears this instead of
     "invalid credentials"."""
