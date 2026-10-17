@@ -210,13 +210,14 @@
       "missing_captcha": "Indtast de tegn, der vises i billedet ovenfor.",
       "captcha_retry": "Løs den viste captcha ovenfor for at fortsætte.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Din e-mail og din adgangskode er i orden — selve logindet virkede, og autorisationskoden kom tilbage. Volkswagen afviser nu det sidste trin, at bytte den kode til et token, fordi der kræves en Google-signeret enhedsattestering (Play Integrity), som kun den officielle app på en ægte telefon kan lave. At indtaste adgangskoden igen hjælper ikke, og det gør et nyt forsøg heller ikke. Den skrivebeskyttede EU Data Act-portal, som normalt tager over i dette tilfælde, virkede heller ikke for denne konto: tjek i portalen, at datadeling er slået til for din bil. (Følges: #1712.)"
     },
     "abort": {
       "already_configured": "Denne konto er allerede konfigureret.",
       "reauth_successful": "Fornyet login lykkedes.",
       "reconfigure_successful": "Konfigurationen blev opdateret.",
-      "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login — backendet returnerede \"Unknown user\". Det betyder, at det er en nyere ID/MEB-model (ID.3/4/5, e-up osv.), der aldrig blev registreret i det ældre Car-Net/MBB-system, så det vedvarende login + fjernkommandoerne kan ikke nå det. Brug EU Data Act-portalkanalen (eller login med e-mail + adgangskode) til disse køretøjer i stedet. MBB-loginet er til ældre Car-Net-biler (de fleste PHEV-/forbrændingsmodeller).",
+      "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login: backendet returnerede \"Unknown user\", hvilket betyder, at bilen ikke er registreret i det gamle Car-Net/MBB-system. Det er det forventede svar for ID- og MEB-modeller, og det er også, hvad en ældre bil svarer, når mærket har flyttet den ud af det system — så det identificerer ikke modelklassen. Brug EU Data Act-portalkanalen (eller e-mail + adgangskode-login) til disse køretøjer.",
       "mbb_fallback_armed": "Reserveforbindelse oprettet. Hvis din Audis normale forbindelse en dag holder op med at tage imod fjernkommandoer, skifter lås/lås op, klima og opladning automatisk til reserven. I hverdagen ændrer der sig ingenting.",
       "no_devicegrant_audi": "Ingen passende Audi fundet. Denne reserve gælder kun for en Audi, du har tilføjet med QR-/app-login, og som ikke allerede har den. Tilføj din Audi på den måde først, og kom så tilbage hertil.",
       "porsche_login_wall": "Dine loginoplysninger er i orden — loginnet kom forbi adgangskodetrinnet, men stoppede ved en Porsche captcha-/samtykkeskærm, som det ikke kan gennemføre automatisk (set på my.porsche.com). Det er en blokering på Porsches side, fulgt i #1337, ikke en forkert adgangskode. Prøv ikke igen i en løkke — gentagne forsøg har låst Porsche-konti. Hvis du kan, så rapportér det, så vi kan rette det (vedhæft diagnostik): {report_url}",
@@ -2602,7 +2603,11 @@
     },
     "meb_commands_unavailable": {
       "title": "Fjernkommandoer er ikke tilgængelige for denne bil ({brand})",
-      "description": "Du aktiverede MBB-fjernkommandoer, da du opsatte {brand}, men dette er en MEB / ID-familie-bil (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB-backend understøtter ikke den vedvarende Car-Net-kommandosti — det vedvarende login svarede \"Unknown user\" — så lås-, klima- og ladekommandoer kan ikke sendes.\n\nPosten blev holdt **skrivebeskyttet**: køretøjsdata flyder stadig gennem EU Data Act-portalen, du ser bare ingen kommando-entiteter. Dette er en kendt begrænsning ved VW's MEB-platform, ikke en opsætningsfejl — du kan afvise denne meddelelse."
+      "description": "Du slog MBB-fjernkommandoer til, da du satte {brand} op, men det vedvarende Car-Net-login svarede \"Unknown user\" for denne bil, så låsning, klima og opladning kan ikke sendes gennem det.\n\nDet svar betyder, at bilen ikke er registreret i VW's gamle Car-Net-system. Det er det forventede svar for ID- og MEB-modeller, som aldrig var registreret der, og det er også, hvad en ældre bil svarer, når mærket har flyttet den ud af det system. Svaret alene siger ikke, hvilken af de to din bil er.\n\nPosten blev holdt **skrivebeskyttet**: køretøjsdata kommer stadig via EU Data Act-portalen, du ser blot ingen kommando-entiteter. Du kan lukke denne meddelelse."
+    },
+    "mbb_mint_failed": {
+      "title": "Fjernkommandoer er ikke tilgængelige for denne bil ({brand})",
+      "description": "Du slog MBB-fjernkommandoer til, da du satte {brand} op, men det vedvarende Car-Net-login kunne ikke gennemføres, og backendet oplyste ikke hvorfor.\n\nI modsætning til \"Unknown user\"-tilfældet betyder det **ikke**, at din bil er uregistreret — det kan være en midlertidig backend-fejl. Det er værd at prøve opsætningen igen senere.\n\nIndtil da blev posten holdt **skrivebeskyttet**: køretøjsdata kommer stadig via EU Data Act-portalen, du ser blot ingen kommando-entiteter. Du kan lukke denne meddelelse."
     },
     "refresh_interval_too_frequent": {
       "title": "{brand}: opdateringsinterval for hyppigt",
@@ -2643,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "Gendan {brand} med e-mail og adgangskode",
       "description": "The sign-in session for this entry has expired and cannot be renewed.\n\nThis entry was set up with the code sign-in, and that route is closed: the manufacturer switched off the app sign-in this brand used, so a new code can no longer be requested. This is not a wrong-password problem and it is nothing you did wrong.\n\nChoose **Repair** and sign in with your email and password. The entry keeps its history, its settings and its entity names, so nothing has to be removed and added again.\n\nUntil then the entities stay unavailable."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen blokerer login for {brand}",
+      "description": "Din e-mail og din adgangskode er i orden — selve logindet virkede, og autorisationskoden kom tilbage. Volkswagen afviser nu det sidste trin, at bytte den kode til et token, fordi der kræves en Google-signeret enhedsattestering (Play Integrity), som kun den officielle app på en ægte telefon kan lave. At indtaste adgangskoden igen hjælper ikke, og det gør et nyt forsøg heller ikke. Den skrivebeskyttede EU Data Act-portal, som normalt tager over i dette tilfælde, virkede heller ikke for denne konto: tjek i portalen, at datadeling er slået til for din bil. (Følges: #1712.)"
     }
   },
   "services": {

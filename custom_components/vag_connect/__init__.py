@@ -136,6 +136,15 @@ _SETUP_ERRORS: dict[str, str] = {
         "is nothing stored to retry with: choose Reauthenticate and scan the "
         "code again. Your vehicle data returns once the new session is in."
     ),
+    # #1712 — the sign-in works and only the token exchange is refused (device
+    # attestation). Say so; the password is not the problem.
+    "eu_signin_attestation": (
+        "Volkswagen refuses the final sign-in step (it wants a device "
+        "attestation only the official app can produce). Your email and "
+        "password are fine and retrying will not help. The read-only EU Data "
+        "Act portal did not work for this account either: check in the portal "
+        "that data sharing is enabled for your car, then reauthenticate."
+    ),
     # #1813 follow-up — the same expiry on a brand whose app device-code client
     # the manufacturer retired. The sentence above would send that user into the
     # device_grant_retired banner, which is where @ratclma already was. The way
@@ -174,6 +183,9 @@ _SETUP_ERRORS: dict[str, str] = {
 _HARD_AUTH_SETUP_ERRORS: frozenset[str] = frozenset({
     "device_login_expired",   # #1813 — only a new sign-in can fix it
     "device_login_grant_retired",  # #1813 — same, but the code route is gone
+    # #1712 — a server-side wall: a soft retry would re-run the whole login on
+    # every backoff tick against a rate-limited endpoint, for nothing.
+    "eu_signin_attestation",
     "terms_and_conditions",
     "marketing_consent",
     "two_factor_required",

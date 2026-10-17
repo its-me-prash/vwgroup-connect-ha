@@ -139,6 +139,12 @@ def raise_issue_auth_required(
             ir.IssueSeverity.ERROR,
             "device_login_expired",
         ),
+        # #1712 — the sign-in worked, the token exchange is refused. Not a
+        # password problem, so it must not borrow the invalid_credentials copy.
+        "eu_signin_attestation": (
+            ir.IssueSeverity.ERROR,
+            "eu_signin_attestation",
+        ),
         # #1813 follow-up — same entry shape, but on a brand whose app
         # device-code client was retired, so the QR step above is a dead end
         # and the way back in is reconfigure with email + password.
@@ -210,7 +216,8 @@ def clear_auth_issues(hass: HomeAssistant, entry_id: str) -> None:
                    "marketing_consent", "too_many_requests",
                    "invalid_credentials", "auth_failed",
                    "device_login_expired", "device_login_grant_retired",
-                   "portal_interaction_required"]:
+                   "portal_interaction_required",
+                   "eu_signin_attestation"]:
         ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_{reason}")
 
 

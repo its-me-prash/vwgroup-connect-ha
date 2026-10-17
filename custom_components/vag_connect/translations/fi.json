@@ -210,13 +210,14 @@
       "missing_captcha": "Kirjoita yllä olevassa kuvassa näkyvät merkit.",
       "captcha_retry": "Ratkaise yllä näkyvä captcha jatkaaksesi.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toiminut myöskään tällä tilillä: tarkista portaalista, että tietojen jakaminen on käytössä autollesi. (Seurataan: #1712.)"
     },
     "abort": {
       "already_configured": "Tämä tili on jo määritetty.",
       "reauth_successful": "Uudelleenkirjautuminen onnistui.",
       "reconfigure_successful": "Määritys päivitetty onnistuneesti.",
-      "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen — taustajärjestelmä palautti ”Unknown user”. Tämä tarkoittaa, että se on uudempi ID- / MEB-malli (ID.3/4/5, e-up jne.), jota ei koskaan liitetty vanhaan Car-Net/MBB-järjestelmään, joten pysyvä kirjautuminen + etäkomennot eivät tavoita sitä. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista) sen sijaan. MBB-kirjautuminen on tarkoitettu vanhemmille Car-Net-autoille (useimmat PHEV- / polttomoottorimallit).",
+      "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen: taustajärjestelmä palautti ”Unknown user”, eli autoa ei ole rekisteröity vanhaan Car-Net/MBB-järjestelmään. Se on odotettu vastaus ID- ja MEB-malleille, ja sen vastaa myös vanhempi auto heti kun merkki on siirtänyt sen pois kyseisestä järjestelmästä — vastaus ei siis kerro mallin luokkaa. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista).",
       "mbb_fallback_armed": "Varayhteys otettu käyttöön. Jos Audisi tavallinen yhteys joskus lakkaa hyväksymästä etäkomentoja, lukitus/avaus, ilmastointi ja lataus siirtyvät automaattisesti varayhteyteen. Arjessa mikään ei muutu.",
       "no_devicegrant_audi": "Sopivaa Audia ei löytynyt. Tämä varayhteys koskee vain Audia, jonka lisäsit QR-/sovelluskirjautumisella ja jolla sitä ei vielä ole. Lisää Audisi ensin siten ja palaa sitten tänne.",
       "porsche_login_wall": "Tunnistetietosi ovat kunnossa — kirjautuminen pääsi salasanavaiheen ohi, mutta pysähtyi Porschen captcha-/suostumusnäyttöön, jota se ei voi suorittaa automaattisesti (havaittu osoitteessa my.porsche.com). Kyseessä on Porschen puolen este, seurattu kohdassa #1337, ei väärä salasana. Älä yritä uudelleen silmukassa — toistuvat yritykset ovat lukinneet Porsche-tilejä. Jos voit, ilmoita siitä, jotta voimme korjata sen (liitä diagnostiikka): {report_url}",
@@ -2602,7 +2603,11 @@
     },
     "meb_commands_unavailable": {
       "title": "Etäkomennot eivät ole käytettävissä tälle autolle ({brand})",
-      "description": "Otit MBB-etäkomennot käyttöön määrittäessäsi merkkiä {brand}, mutta tämä on MEB- / ID-perheen auto (ID.3/4/5/7, Enyaq, Born, Q4). VW:n MEB-taustajärjestelmä ei tue pysyvää Car-Net-komentopolkua — pysyvä kirjautuminen vastasi \"Unknown user\" — joten lukitus-, ilmastointi- ja latauskomentoja ei voi lähettää.\n\nMerkintä säilytettiin **vain luku -tilassa**: ajoneuvon tiedot kulkevat edelleen EU Data Act -portaalin kautta, et vain näe komentoentiteettejä. Tämä on VW:n MEB-alustan tunnettu rajoitus, ei määritysvirhe — voit ohittaa tämän ilmoituksen."
+      "description": "Otit MBB-etäkomennot käyttöön, kun määritit {brand}-tilin, mutta pysyvä Car-Net-kirjautuminen vastasi tälle autolle ”Unknown user”, joten lukitusta, ilmastointia ja latausta ei voi lähettää sitä kautta.\n\nVastaus tarkoittaa, ettei autoa ole rekisteröity VW:n vanhaan Car-Net-järjestelmään. Se on odotettu vastaus ID- ja MEB-malleille, joita ei koskaan rekisteröity sinne, ja sen vastaa myös vanhempi auto heti kun merkki on siirtänyt sen pois kyseisestä järjestelmästä. Vastaus yksin ei kerro, kummasta tapauksesta autosi kohdalla on kysymys.\n\nTietue pidettiin **vain luku -tilassa**: ajoneuvon tiedot tulevat edelleen EU Data Act -portaalin kautta, vain komento-entiteetit puuttuvat. Voit sulkea tämän ilmoituksen."
+    },
+    "mbb_mint_failed": {
+      "title": "Etäkomennot eivät ole käytettävissä tälle autolle ({brand})",
+      "description": "Otit MBB-etäkomennot käyttöön, kun määritit {brand}-tilin, mutta pysyvää Car-Net-kirjautumista ei saatu päätökseen, eikä taustajärjestelmä kertonut syytä.\n\nToisin kuin ”Unknown user” -tapauksessa tämä **ei** tarkoita, ettei autoasi ole rekisteröity — kyse voi olla väliaikaisesta taustajärjestelmän häiriöstä. Määrityksen uudelleenyritys myöhemmin kannattaa.\n\nSiihen asti tietue pidettiin **vain luku -tilassa**: ajoneuvon tiedot tulevat edelleen EU Data Act -portaalin kautta, vain komento-entiteetit puuttuvat. Voit sulkea tämän ilmoituksen."
     },
     "refresh_interval_too_frequent": {
       "title": "{brand}: päivitysväli liian tiheä",
@@ -2643,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "Palauta {brand} sähköpostilla ja salasanalla",
       "description": "The sign-in session for this entry has expired and cannot be renewed.\n\nThis entry was set up with the code sign-in, and that route is closed: the manufacturer switched off the app sign-in this brand used, so a new code can no longer be requested. This is not a wrong-password problem and it is nothing you did wrong.\n\nChoose **Repair** and sign in with your email and password. The entry keeps its history, its settings and its entity names, so nothing has to be removed and added again.\n\nUntil then the entities stay unavailable."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen estää kirjautumisen: {brand}",
+      "description": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toiminut myöskään tällä tilillä: tarkista portaalista, että tietojen jakaminen on käytössä autollesi. (Seurataan: #1712.)"
     }
   },
   "services": {

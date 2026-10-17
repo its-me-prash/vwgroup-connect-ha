@@ -210,7 +210,8 @@
       "missing_captcha": "Bitte gib die im Bild oben gezeigten Zeichen ein.",
       "captcha_retry": "Bitte löse das oben gezeigte Captcha, um fortzufahren.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat für dieses Konto ebenfalls nicht funktioniert: prüfe im Portal, ob die Datenfreigabe für dein Auto aktiv ist. (Verfolgt: #1712.)"
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
@@ -2604,6 +2605,10 @@
       "title": "Fernbefehle sind für dieses Auto nicht verfügbar ({brand})",
       "description": "Du hast beim Einrichten von {brand} die MBB-Fernbefehle aktiviert, aber die dauerhafte Car-Net-Anmeldung hat für dieses Auto \"Unknown user\" geantwortet. Verriegeln, Klima und Laden lassen sich darüber nicht senden.\n\nDiese Antwort heißt: das Auto ist im alten Car-Net-System nicht registriert. Bei ID- und MEB-Modellen ist das der erwartete Fall, weil sie dort nie registriert waren. Genau dasselbe antwortet aber auch ein älteres Auto, sobald die Marke es aus diesem System herausgenommen hat. Die Antwort allein sagt also nicht, welcher der beiden Fälle vorliegt.\n\nDer Eintrag bleibt **nur lesend**: die Fahrzeugdaten kommen weiter über das EU-Data-Act-Portal, nur die Befehls-Entitäten fehlen. Du kannst diesen Hinweis schließen."
     },
+    "mbb_mint_failed": {
+      "title": "Fernbefehle sind für dieses Auto nicht verfügbar ({brand})",
+      "description": "Du hast beim Einrichten von {brand} die MBB-Fernbefehle aktiviert, aber die dauerhafte Car-Net-Anmeldung ließ sich nicht abschließen, und das Backend hat keinen Grund genannt.\n\nAnders als beim Fall \"Unknown user\" heißt das **nicht**, dass dein Auto nicht registriert ist — es kann auch eine vorübergehende Störung sein. Ein späterer neuer Versuch lohnt sich.\n\nDer Eintrag bleibt bis dahin **nur lesend**: die Fahrzeugdaten kommen weiter über das EU-Data-Act-Portal, nur die Befehls-Entitäten fehlen. Du kannst diesen Hinweis schließen."
+    },
     "refresh_interval_too_frequent": {
       "title": "{brand}: Aktualisierungsintervall zu häufig",
       "description": "{brand} gibt nur kurzlebige Zugriffstokens aus, sodass bei deinem aktuellen Aktualisierungsintervall von **{current} Minuten** fast jede Abfrage das Token erneuern muss. Das löst den Schutz gegen Erneuerungs-Stürme aus — eine Obergrenze, wie oft die Integration erneuern darf, die verhindert, dass das Markenkonto gesperrt wird — und die Daten werden nicht mehr aktualisiert, bis der Schutz zurückgesetzt ist.\n\nDas ist ein Problem der Abfragehäufigkeit, kein Anmeldeproblem: Eine erneute Authentifizierung behebt es nicht.\n\n**Die Lösung:** Erhöhe das Aktualisierungsintervall auf **{recommended} Minuten** oder mehr unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren. So bleiben die Token-Erneuerungen unter dem Limit und die Daten fließen weiter.\n\nDiese Warnung verschwindet automatisch, sobald eine Token-Erneuerung wieder erfolgreich ist."
@@ -2643,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "{brand} mit E-Mail und Passwort wiederherstellen",
       "description": "Die Anmelde-Sitzung dieses Eintrags ist abgelaufen und lässt sich nicht erneuern.\n\nDieser Eintrag wurde über die Code-Anmeldung eingerichtet, und dieser Weg ist zu: Der Hersteller hat die App-Anmeldung dieser Marke abgeschaltet, ein neuer Code kann also nicht mehr angefordert werden. Das ist kein Passwort-Problem und du hast nichts falsch gemacht.\n\nWähle **Reparieren** und melde dich mit E-Mail und Passwort an. Der Eintrag behält seine Historie, seine Einstellungen und seine Entitätsnamen, es muss also nichts gelöscht und neu angelegt werden.\n\nBis dahin bleiben die Entitäten nicht verfügbar."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen blockiert die Anmeldung für {brand}",
+      "description": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat für dieses Konto ebenfalls nicht funktioniert: prüfe im Portal, ob die Datenfreigabe für dein Auto aktiv ist. (Verfolgt: #1712.)"
     }
   },
   "selector": {

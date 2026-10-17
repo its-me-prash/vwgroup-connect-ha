@@ -326,7 +326,21 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
 
 
 class CariadError(Exception):
-    """Base exception for all CARIAD client errors."""
+    """Base exception for all CARIAD client errors.
+
+    #1809 — ``oauth_error``/``oauth_error_description`` carry the OAuth2 error
+    fields of a token-endpoint rejection when the raiser could parse them.
+    Same contract as ``APIError.body`` below: the MESSAGE stays redacted and
+    these are ATTRIBUTES for classification only (#1355). They matter because
+    ``error`` alone is ambiguous — a bare ``invalid_grant`` is produced by an
+    account with no MBB enrolment, by an audience mismatch (#464), by a failed
+    register and by a 5xx alike, and only ``error_description`` separates them.
+    Never interpolate the description into a message, a log line or a
+    user-facing string: it can embed an account UUID.
+    """
+
+    oauth_error: str = ""
+    oauth_error_description: str = ""
 
 
 class AuthenticationError(CariadError):
@@ -372,6 +386,33 @@ class NorthAmericaAttestationError(AuthenticationError):
     CarnetSP INVALID_REQUEST body BEFORE any vehicle read, so it looks identical to
     a wrong password and NA owners loop re-entering credentials. Raised so the
     config flow can surface the real reason instead of ``invalid_credentials``."""
+
+
+class EuropeAttestationError(AuthenticationError):
+    """#1712 — the EU twin of the above, on the CARIAD BFF token endpoint.
+
+    The login itself works: the right page, the right POST, ``authenticated``,
+    and an authorization code comes back. Trading that code for a token is what
+    fails, with ``400`` and the OAuth error ``invalid assertion headers`` — a
+    statement about the headers we sign the request with, not about the account.
+
+    Grounded in the shipping app rather than inferred: myAudi 5.8.1 carries no
+    ``qmauth`` symbol in any of its six DEX files or its native libraries, nor
+    the HMAC secret this integration signs ``x-qmauth`` with, while it does
+    carry the Play Integrity client (``StandardIntegrityManager``,
+    ``requestIntegrityToken``) and still sends ``x-assertion``. The app has
+    moved from the HMAC scheme to a Google-signed attestation token bound to
+    VW's package and signing certificate, which very likely no open-source
+    client can mint.
+
+    Raised once every qmauth secret in the chain has drawn that answer (one
+    stale secret alone is not proof: the chain keeps the prior pair for VW
+    re-rotations). The remaining client_id candidates cannot change an answer
+    about the headers, and walking them costs six rejected sign-ins per login
+    on Audi and eight on VW EU against an endpoint this project elsewhere warns about rate-limiting
+    (``RateLimitError``). ``authenticate()`` hands it on when the portal
+    fallback then fails generically, so the user hears this instead of
+    "invalid credentials"."""
 
 
 class TermsAndConditionsError(AuthenticationError):

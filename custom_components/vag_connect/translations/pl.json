@@ -210,13 +210,14 @@
       "missing_captcha": "Wpisz znaki widoczne na obrazku powyżej.",
       "captcha_retry": "Rozwiąż captchę widoczną powyżej, aby kontynuować.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
-      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half."
+      "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
+      "eu_signin_attestation": "Twój e-mail i hasło są poprawne — samo logowanie się powiodło, a kod autoryzacyjny wrócił. Volkswagen odmawia teraz ostatniego kroku, wymiany tego kodu na token, ponieważ wymaga podpisanego przez Google poświadczenia urządzenia (Play Integrity), które potrafi wytworzyć tylko oficjalna aplikacja na prawdziwym telefonie. Ponowne wpisanie hasła nie pomoże, kolejna próba również nie. Portal EU Data Act tylko do odczytu, który zwykle przejmuje dane w takiej sytuacji, również nie zadziałał dla tego konta: sprawdź w portalu, czy udostępnianie danych jest włączone dla Twojego auta. (Śledzone: #1712.)"
     },
     "abort": {
       "already_configured": "To konto jest już skonfigurowane.",
       "reauth_successful": "Ponowne uwierzytelnianie zakończone sukcesem.",
       "reconfigure_successful": "Konfiguracja zaktualizowana pomyślnie.",
-      "mbb_not_eligible": "Twój pojazd nie kwalifikuje się do trwałego logowania MBB — backend zwrócił „Unknown user”. To nowszy model ID / MEB (ID.3/4/5, e-up itp.), który nigdy nie był zarejestrowany w starym systemie Car-Net/MBB, więc trwałe logowanie i polecenia zdalne nie mogą go osiągnąć. Dla takich pojazdów użyj kanału portalu EU Data Act (lub logowania e-mail + hasło). Logowanie MBB jest przeznaczone dla starszych aut Car-Net (większość modeli hybryd plug-in / spalinowych).",
+      "mbb_not_eligible": "Twój pojazd nie kwalifikuje się do trwałego logowania MBB: backend zwrócił „Unknown user”, co oznacza, że samochód nie jest zarejestrowany w starym systemie Car-Net/MBB. Jest to oczekiwana odpowiedź dla modeli ID i MEB, i jest to również to, co odpowiada starszy samochód, gdy marka przeniosła go z tego systemu — nie wskazuje więc klasy modelu. Dla takich pojazdów użyj kanału portalu EU Data Act (albo logowania e-mailem i hasłem).",
       "mbb_fallback_armed": "Połączenie zapasowe skonfigurowane. Jeśli zwykłe połączenie Twojego Audi kiedyś przestanie przyjmować polecenia zdalne, ryglowanie/odryglowanie, klimatyzacja i ładowanie automatycznie przełączą się na zapasowe. Na co dzień nic się nie zmienia.",
       "no_devicegrant_audi": "Nie znaleziono pasującego Audi. To połączenie zapasowe dotyczy tylko Audi dodanego przez logowanie QR / aplikacją, które jeszcze go nie ma. Najpierw dodaj w ten sposób swoje Audi, a potem wróć tutaj.",
       "porsche_login_wall": "Twoje dane logowania są poprawne — logowanie przeszło etap hasła, ale zatrzymało się na ekranie captcha/zgody Porsche, którego nie da się ukończyć automatycznie (widziany pod my.porsche.com). To blokada po stronie Porsche, śledzona w #1337, a nie błędne hasło. Nie ponawiaj w pętli — powtarzane próby blokowały konta Porsche. Jeśli możesz, zgłoś to, abyśmy mogli to naprawić (dołącz diagnostykę): {report_url}",
@@ -2602,7 +2603,11 @@
     },
     "meb_commands_unavailable": {
       "title": "Polecenia zdalne nie są dostępne dla tego samochodu ({brand})",
-      "description": "Podczas konfiguracji {brand} włączono polecenia zdalne MBB, ale to pojazd z rodziny MEB / ID (ID.3/4/5/7, Enyaq, Born, Q4). Backend MEB VW nie obsługuje trwałej ścieżki poleceń Car-Net — trwałe logowanie odpowiedziało „Unknown user” — więc nie można wysyłać poleceń blokady, klimatyzacji ani ładowania.\n\nWpis pozostaje **tylko do odczytu**: dane pojazdu nadal napływają przez portal EU Data Act, po prostu nie zobaczysz encji poleceń. To znane ograniczenie platformy MEB VW, a nie błąd konfiguracji — możesz zamknąć to powiadomienie."
+      "description": "Podczas konfiguracji {brand} włączono polecenia zdalne MBB, ale trwałe logowanie Car-Net zwróciło dla tego samochodu „Unknown user”, więc zamykania, klimatyzacji ani ładowania nie można przez nie wysłać.\n\nTa odpowiedź oznacza, że samochód nie jest zarejestrowany w starym systemie Car-Net firmy VW. Jest to oczekiwana odpowiedź dla modeli ID i MEB, które nigdy tam nie były zarejestrowane, i jest to również to, co odpowiada starszy samochód, gdy marka przeniosła go z tego systemu. Sama odpowiedź nie mówi, który z tych dwóch przypadków dotyczy twojego samochodu.\n\nWpis pozostał **tylko do odczytu**: dane pojazdu nadal przychodzą przez portal EU Data Act, brakuje tylko encji poleceń. To powiadomienie można zamknąć."
+    },
+    "mbb_mint_failed": {
+      "title": "Polecenia zdalne nie są dostępne dla tego samochodu ({brand})",
+      "description": "Podczas konfiguracji {brand} włączono polecenia zdalne MBB, ale trwałego logowania Car-Net nie udało się ukończyć, a backend nie podał powodu.\n\nInaczej niż w przypadku „Unknown user”, **nie** oznacza to, że twój samochód nie jest zarejestrowany — może to być chwilowa awaria backendu. Warto ponowić konfigurację później.\n\nDo tego czasu wpis pozostał **tylko do odczytu**: dane pojazdu nadal przychodzą przez portal EU Data Act, brakuje tylko encji poleceń. To powiadomienie można zamknąć."
     },
     "refresh_interval_too_frequent": {
       "title": "{brand}: zbyt częsty interwał aktualizacji",
@@ -2643,6 +2648,10 @@
     "device_login_grant_retired": {
       "title": "Przywróć {brand} za pomocą adresu e-mail i hasła",
       "description": "The sign-in session for this entry has expired and cannot be renewed.\n\nThis entry was set up with the code sign-in, and that route is closed: the manufacturer switched off the app sign-in this brand used, so a new code can no longer be requested. This is not a wrong-password problem and it is nothing you did wrong.\n\nChoose **Repair** and sign in with your email and password. The entry keeps its history, its settings and its entity names, so nothing has to be removed and added again.\n\nUntil then the entities stay unavailable."
+    },
+    "eu_signin_attestation": {
+      "title": "Volkswagen blokuje logowanie dla {brand}",
+      "description": "Twój e-mail i hasło są poprawne — samo logowanie się powiodło, a kod autoryzacyjny wrócił. Volkswagen odmawia teraz ostatniego kroku, wymiany tego kodu na token, ponieważ wymaga podpisanego przez Google poświadczenia urządzenia (Play Integrity), które potrafi wytworzyć tylko oficjalna aplikacja na prawdziwym telefonie. Ponowne wpisanie hasła nie pomoże, kolejna próba również nie. Portal EU Data Act tylko do odczytu, który zwykle przejmuje dane w takiej sytuacji, również nie zadziałał dla tego konta: sprawdź w portalu, czy udostępnianie danych jest włączone dla Twojego auta. (Śledzone: #1712.)"
     }
   },
   "services": {

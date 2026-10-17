@@ -25,6 +25,7 @@ from ..exceptions import (
     APIError,
     AuthenticationError,
     AuthProxyUnavailableError,
+    EuropeAttestationError,
     TokenExpiredError,
 )
 from ..models import BrandConfig, TokenSet, VehicleData
@@ -442,6 +443,12 @@ class CariadBaseClient:
             strategies = [("idk", {"hybrid_full": False})]
 
         last_err: Exception | None = None
+        # #1712 — an earlier IDK strategy that hit the EU attestation wall.
+        # The strategies after it still run (the portal is the read path these
+        # owners rely on), but if they fail too, a GENERIC failure from them
+        # must not be what the user sees: it maps to "invalid credentials", and
+        # the attestation answer is the proof that the password is fine.
+        attestation_err: EuropeAttestationError | None = None
         for idx, (kind, opts) in enumerate(strategies):
             try:
                 if kind == "idk":
@@ -500,7 +507,13 @@ class CariadBaseClient:
                 return
             except AuthenticationError as err:
                 last_err = err
+                if isinstance(err, EuropeAttestationError):
+                    attestation_err = err
                 if idx == len(strategies) - 1:
+                    # Specific subclasses (terms, consent, portal stop, …) name
+                    # an action the user can take and keep precedence.
+                    if attestation_err is not None and type(err) is AuthenticationError:
+                        raise attestation_err from err
                     raise
                 _LOGGER.info(
                     "Auth strategy #%d (kind=%s opts=%s) failed for %s: %s — "
@@ -523,6 +536,8 @@ class CariadBaseClient:
                     idx, kind, opts, type(err).__name__, self._brand.name,
                 )
                 if idx == len(strategies) - 1:
+                    if attestation_err is not None:
+                        raise attestation_err from err
                     raise AuthenticationError(
                         f"Auth failed with {type(err).__name__} "
                         f"(no usable strategy left)"
