@@ -26,15 +26,30 @@ keeps all seven call sites and — more importantly — the cookie export/import
 code untouched: cookies continue to live in the aiohttp jar, which is what gets
 persisted between restarts.
 
-**The SSL-context trap, and why the context here is built from scratch.**
+**The SSL-context trap, and how Home Assistant now solves it.**
 ``httpx`` calls ``set_alpn_protocols(["http/1.1", "h2"])`` on whatever context
-it is handed. Hand it Home Assistant's SHARED context and every *other* aiohttp
-connection in the process starts negotiating h2 and dies with a garbled status
-line — @eurojojo hit exactly that, and it surfaced as a bogus "invalid
-credentials" on the primary login, which is the worst possible symptom because
-it sends people chasing their own password. So this module builds its own
-context, in an executor (``ssl.create_default_context`` does blocking file I/O
-to load the CA bundle).
+it is handed. Hand it a context that something else also uses with *different*
+protocols and every other connection sharing it starts negotiating h2 and dies
+with a garbled status line — @eurojojo hit exactly that, and it surfaced as a
+bogus "invalid credentials" on the primary login, which is the worst possible
+symptom because it sends people chasing their own password.
+
+HA 2026.2 fixed this at the root (core PR #161330): ``util.ssl.client_context``
+keys its cache on the ALPN set and pre-sets those protocols on the context, so
+httpx's mutation is a no-op on a context that already carries ``h2``, and the
+``http/1.1``-only context aiohttp gets is a *different object* that httpx never
+touches. HA's own comment: "httpx/httpcore mutates SSL contexts by calling
+set_alpn_protocols(), so we pre-set the correct protocols to prevent shared
+context corruption."
+
+So we ask for the ``SSL_ALPN_HTTP11_HTTP2`` bucket and get the sanctioned
+route instead of a private copy. The whole cache is warmed at import of
+``homeassistant.util.ssl`` — which HA core itself imports long before any
+integration loads — so the call reads no certificate from disk and needs no
+executor.
+
+Requesting the wrong bucket here would reintroduce #1679 process-wide, so the
+constant is pinned by a test rather than left to a reviewer's eye.
 
 **Redirects are followed here, not by httpx**, because the connector reads
 ``resp.history`` to log the hostname chain — a repeating A → B → A → B is the
@@ -43,9 +58,7 @@ raise the same ``TooManyRedirects`` the call sites already catch.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-import ssl
 from contextlib import asynccontextmanager
 from http.cookies import SimpleCookie
 from typing import Any
@@ -53,6 +66,11 @@ from collections.abc import AsyncIterator, Mapping
 
 import httpx
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
+from homeassistant.util.ssl import (
+    SSL_ALPN_HTTP11_HTTP2,
+    SSLCipherList,
+    client_context,
+)
 from yarl import URL
 
 _LOGGER = logging.getLogger(__name__)
@@ -168,8 +186,6 @@ class H2Session:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._aiohttp = session
-        self._ctx: ssl.SSLContext | None = None
-        self._lock = asyncio.Lock()
         #: Test seam only. With a transport injected no socket is opened and no
         #: SSL context is built, so the cookie bridge, the redirect chain and
         #: the exception mapping can be exercised without a live server.
@@ -196,22 +212,6 @@ class H2Session:
         own context manager.
         """
         await self._aiohttp.close()
-
-    async def _ensure_ctx(self) -> ssl.SSLContext:
-        """The module's OWN SSL context, built once, in an executor.
-
-        Never Home Assistant's shared context: httpx sets ALPN on whatever it
-        is handed, and that breaks every other aiohttp connection in the
-        process (#1679). ``create_default_context`` reads the CA bundle from
-        disk, hence the executor.
-        """
-        async with self._lock:
-            if self._ctx is None:
-                loop = asyncio.get_running_loop()
-                self._ctx = await loop.run_in_executor(
-                    None, ssl.create_default_context
-                )
-            return self._ctx
 
     # ── cookie bridge ─────────────────────────────────────────────────────
 
@@ -279,14 +279,17 @@ class H2Session:
         # connector has no close hook — its session is closed by the caller —
         # so a client living on the adapter would leak a connection pool; a
         # client per hop would re-handshake on every step of a ten-hop SSO
-        # chain. Bound to this context manager it does neither, and the SSL
-        # context is cached across chains so the CA bundle is read once.
+        # chain. Bound to this context manager it does neither, and HA's
+        # context cache is shared across chains so no certificate is re-read.
         client_kw: dict[str, Any] = {"follow_redirects": False}
         if self._transport is not None:
             client_kw["transport"] = self._transport
         else:
             client_kw["http2"] = True
-            client_kw["verify"] = await self._ensure_ctx()
+            # The h2 bucket, never the http/1.1 one: see the module docstring.
+            client_kw["verify"] = client_context(
+                SSLCipherList.PYTHON_DEFAULT, SSL_ALPN_HTTP11_HTTP2
+            )
         try:
             client = httpx.AsyncClient(**client_kw)
         except ImportError as exc:

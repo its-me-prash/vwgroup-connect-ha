@@ -3,7 +3,7 @@
 """Tests for the Cross-Brand App Atlas pipeline (Phase A.1).
 
 Source-level pins for the scaffolding — no network calls (CI doesn't
-need to actually scrape APKMirror/Uptodown to validate the structure).
+need to actually read a Google Play listing to validate the structure).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def _brand_keys() -> list[str]:
     """Brand keys straight from config.json.
 
     Parametrising off the config instead of a hand-copied literal is what makes
-    adding a brand a one-line change: the per-brand page, apkcombo-slug and
+    adding a brand a one-line change: the per-brand page, package-id and
     deep-diff-choice tests all pick it up, so a half-added brand fails loudly
     instead of being silently untested.
     """
@@ -85,23 +85,17 @@ class TestConfig:
                  if cfg.get("ola_enforcement_known")}
         assert known == {"seat", "cupra"}
 
-    def test_each_brand_has_sources_dict(self) -> None:
-        """Multi-source fallback chain — every brand needs a sources block."""
+    def test_package_id_is_the_whole_source_identity(self) -> None:
+        """Google Play is the only source, keyed by package_id — so that one
+        field is all a brand needs, and the old per-mirror `sources` block has
+        no reason to exist. Pinned in both directions: the id must be there,
+        and the block must not come back."""
         data = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
         for brand, cfg in data["brands"].items():
-            assert "sources" in cfg, f"Brand {brand} missing 'sources' dict"
-            # At least one source the resolver actually walks. It walks four:
-            # Google Play (keyed by package_id), APKMirror, Uptodown, APKCombo.
-            # Demanding an APKMirror or Uptodown slug specifically would reject
-            # a brand that only one of the other two carries — which is exactly
-            # the shape of the rest-of-world Porsche package.
-            sources = cfg["sources"]
-            assert (
-                cfg.get("package_id")
-                or sources.get("apkmirror_slug")
-                or sources.get("uptodown_subdomain")
-                or sources.get("apkcombo_slug")
-            ), f"Brand {brand} has no source the resolver can poll"
+            assert cfg.get("package_id"), f"Brand {brand} has no package_id to poll"
+            assert "sources" not in cfg, (
+                f"Brand {brand} carries a 'sources' block again — nothing reads it"
+            )
 
     def test_search_patterns_include_ola_headers(self) -> None:
         data = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
@@ -134,16 +128,190 @@ class TestBuildScript:
         src = _SCRIPT_PATH.read_text(encoding="utf-8")
         assert src.startswith("#!/usr/bin/env python3") or "if __name__ == " in src
 
-    def test_multi_source_scraper_present(self) -> None:
-        """scrape_version walks google_play → apkmirror → uptodown → apkcombo."""
+    def test_google_play_is_the_only_version_source(self) -> None:
+        """The version scraper walks Google Play and nothing else. The mirror
+        tiers are gone because a mirror answers from whatever it last ingested:
+        a reading that lags the store is worse than none, since is_downgrade()
+        then compares against a stale ceiling. A missing version is rendered as
+        a gap instead."""
         src = _SCRIPT_PATH.read_text(encoding="utf-8")
         assert "def scrape_version(" in src
-        # v2.18.0 — Google Play (the publisher's own listing) leads.
         assert "_try_google_play" in src
-        assert "_try_apkmirror" in src
-        assert "_try_uptodown" in src
-        # v2.4.2+ — APKCombo as 3rd-tier fallback (added for VW EU coverage).
-        assert "_try_apkcombo" in src
+        for gone in ("_try_apkmirror", "_try_uptodown", "_try_apkcombo",
+                     "apkmirror.com", "uptodown.com", "apkcombo.com"):
+            assert gone not in src, f"{gone} is back in the version scraper"
+
+    def test_an_extraction_crash_does_not_take_the_poll_down(self) -> None:
+        """Measured, not hypothetical: the daily workflow failed five days
+        running (2026-10-13 .. 2026-10-17) because an unresolvable mirror host
+        raised URLError out of the extractor, aborting main() before anything
+        was written — while Play was answering for six brands throughout. The
+        extraction call has to be guarded."""
+        # Anchored on the call's own neighbouring lines. An earlier version of
+        # this test searched for a `try:` before the call and an `except` after
+        # it, and passed on a mutant with both removed: the import block just
+        # above has its own try/except, which is what the search found.
+        lines = _SCRIPT_PATH.read_text(encoding="utf-8").splitlines()
+        call = next(i for i, ln in enumerate(lines)
+                    if "findings = extract_brand_apk(" in ln)
+        above = lines[call - 1].strip()
+        assert above == "try:", (
+            "the extract_brand_apk call is not directly inside a try: — the "
+            f"line above it is {above!r}"
+        )
+        arm = [ln.strip() for ln in lines[call:call + 20]]
+        assert any(ln.startswith("except Exception") for ln in arm), (
+            "no except arm on the extraction call — one brand's crash would "
+            "abort the poll for every remaining brand"
+        )
+        assert "findings = None" in arm, (
+            "the except arm must leave findings unset so the caller renders "
+            "last-known findings instead of claiming a successful extraction"
+        )
+
+    def test_a_stale_brand_page_says_the_source_was_retained(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Through emit_brand_atlas, because the call site is the part that was
+        uncovered: reverting it alone — helper and summary left intact — kept
+        the whole suite green, which is how the live pages came to credit a
+        removed mirror without a test noticing."""
+        mod = _load_builder()
+        atlas = tmp_path / "atlas"
+        atlas.mkdir()
+        monkeypatch.setattr(mod, "_ATLAS_DIR", atlas)
+        monkeypatch.setattr(mod, "_APK_CACHE_DIR", tmp_path / "no-cache")
+        cfg = {"display_name": "Porsche", "package_id": "com.porsche.one",
+               "expected_backend": "ppa"}
+
+        mod.emit_brand_atlas("porsche", cfg, "21.26.39", "apkmirror",
+                             {"last_version_name": "21.26.39"}, status="stale")
+        row = next(ln for ln in (atlas / "porsche.md").read_text(encoding="utf-8").splitlines()
+                   if "Source that responded" in ln)
+        assert "retained" in row, f"a stale page still claims a source answered: {row!r}"
+        assert "| `apkmirror` |" not in row
+        assert row.split("|")[2].strip() != "apkmirror"
+
+        # And the fresh case must keep reading as a plain source name.
+        mod.emit_brand_atlas("porsche", cfg, "21.26.40", "google_play",
+                             {"last_version_name": "21.26.39"})
+        row = next(ln for ln in (atlas / "porsche.md").read_text(encoding="utf-8").splitlines()
+                   if "Source that responded" in ln)
+        assert "`google_play`" in row and "retained" not in row
+
+    def test_an_unreadable_findings_file_is_no_findings_not_empty_findings(
+        self,
+    ) -> None:
+        """The cache directory collects files from whatever tool last wrote it,
+        and one shape in there is `{brand, versions, latest}`. Read through the
+        lookups this renderer uses, every field came back None and five pages
+        were rendered stating "Last extracted: (unknown)" followed by "none of
+        the configured backend hosts found" — a negative result reported for
+        brands whose cache had never been read. Unreadable has to mean unknown,
+        not empty."""
+        mod = _load_builder()
+        foreign = mod._render_apk_section(
+            {"brand": "skoda", "versions": ["8.17.0"], "latest": "8.17.0"}
+        )
+        assert foreign.startswith("_(Empty"), (
+            f"a cache file of an unknown shape rendered as a result: {foreign[:120]!r}"
+        )
+        assert "(unknown)" not in foreign
+        assert "none of the configured" not in foreign
+
+        # A well-formed record must still render, or the guard would swallow
+        # every real finding instead.
+        good = mod._render_apk_section({
+            "extracted_for_version": "5.8.1",
+            "findings": {"extracted_at": "2026-06-25T04:38:28",
+                         "headers": ["x-qmauth"], "endpoint_hosts": []},
+        })
+        assert "Last extracted: 2026-06-25T04:38:28" in good
+        assert "x-qmauth" in good
+
+    def test_the_summary_table_marks_a_retained_row_as_retained(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Through emit_summary, not through the helper. The helper had a unit
+        test while the table built its own label inline, so reverting the
+        table's half left the suite green — the rendered-page test only catches
+        it once someone re-runs the builder."""
+        mod = _load_builder()
+        out = tmp_path / "_summary.md"
+        monkeypatch.setattr(mod, "_SUMMARY_PATH", out)
+        cfg = {"brands": {
+            "skoda": {"display_name": "Skoda", "package_id": "cz.skodaauto.myskoda",
+                      "expected_backend": "mysmob"},
+            "porsche": {"display_name": "Porsche", "package_id": "com.porsche.one",
+                        "expected_backend": "ppa"},
+        }}
+        mod.emit_summary(
+            cfg,
+            {"skoda": "8.17.0", "porsche": "21.26.39"},
+            {"skoda": "google_play", "porsche": "apkmirror"},
+            {"skoda": "ok", "porsche": "stale"},
+        )
+        body = out.read_text(encoding="utf-8")
+        skoda_row = next(ln for ln in body.splitlines() if "Skoda" in ln)
+        porsche_row = next(ln for ln in body.splitlines() if "Porsche" in ln)
+        assert "`google_play`" in skoda_row and "retained" not in skoda_row
+        assert "8.17.0" in skoda_row and "not re-confirmed" not in skoda_row
+        # The retained row must not read as though apkmirror answered today.
+        assert "| `apkmirror` |" not in porsche_row
+        assert "retained" in porsche_row
+        assert "not re-confirmed" in porsche_row
+
+    def test_a_single_brand_run_does_not_blank_the_other_rows(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """emit_summary rewrites every row from the dicts main() built, so with
+        `--brand X` only X was in them and the rest rendered as "(fetch
+        failed)" — for brands that had not been asked anything. The README
+        offers --brand for debugging, so this silently blanked the committed
+        table."""
+        mod = _load_builder()
+        atlas = tmp_path / "atlas"
+        atlas.mkdir()
+        cache = tmp_path / "cache.json"
+        cfg_path = tmp_path / "config.json"
+        cfg_path.write_text(json.dumps({"brands": {
+            "skoda": {"display_name": "Skoda", "package_id": "cz.skodaauto.myskoda",
+                      "expected_backend": "mysmob"},
+            "porsche": {"display_name": "Porsche", "package_id": "com.porsche.one",
+                        "expected_backend": "ppa"},
+        }, "search_patterns": {}}), encoding="utf-8")
+        cache.write_text(json.dumps({"brands": {
+            "skoda": {"last_version_name": "8.17.0", "last_source": "google_play",
+                      "last_status": "ok"},
+            "porsche": {"last_version_name": "21.26.39", "last_source": "apkmirror",
+                        "last_status": "stale"},
+        }}), encoding="utf-8")
+        monkeypatch.setattr(mod, "_CONFIG_PATH", cfg_path)
+        monkeypatch.setattr(mod, "_CACHE_PATH", cache)
+        monkeypatch.setattr(mod, "_ATLAS_DIR", atlas)
+        monkeypatch.setattr(mod, "_SUMMARY_PATH", atlas / "_summary.md")
+        monkeypatch.setattr(mod, "_APK_CACHE_DIR", tmp_path / "no-cache")
+        monkeypatch.setattr(mod, "scrape_version", lambda *a, **k: ("8.18.0", "google_play"))
+
+        assert mod.main(["--brand", "skoda"]) == 0
+        body = (atlas / "_summary.md").read_text(encoding="utf-8")
+        assert "(fetch failed)" not in body, (
+            "a brand this run never touched was rendered as a failed fetch"
+        )
+        porsche_row = next(ln for ln in body.splitlines() if "Porsche" in ln)
+        assert "21.26.39" in porsche_row, "the untouched brand lost its known version"
+        assert "8.18.0" in next(ln for ln in body.splitlines() if "Skoda" in ln)
+
+    def test_a_retained_reading_is_not_labelled_as_having_responded(self) -> None:
+        """The source cell is headed by what answered *this run*, so a stale
+        brand must not print a bare source name there."""
+        mod = _load_builder()
+        fresh = mod._source_label("google_play", "ok")
+        assert fresh == "`google_play`"
+        stale = mod._source_label("apkcombo", "stale")
+        assert "retained" in stale
+        assert stale != "`apkcombo`"
+        assert mod._source_label(None, "ok") == "(no source succeeded)"
 
     def test_emits_per_brand_atlas(self) -> None:
         src = _SCRIPT_PATH.read_text(encoding="utf-8")
@@ -193,6 +361,138 @@ class TestAtlasDocs:
         """Initial atlas run populates a page per brand even when fetch fails."""
         assert (_ATLAS_DIR / f"{brand}.md").exists()
 
+    def test_a_rerender_without_a_cache_keeps_the_extraction_record(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`.app-atlas-apk-cache/` is gitignored and only lives for the length
+        of an extraction run — the page is the durable record. That was
+        invisible while CI extracted and rendered in the same job. Once
+        extraction moved to a maintainer's machine, a CI re-render had no cache
+        and would have replaced a real extraction record with the "not yet run"
+        placeholder, deleting findings inside a commit titled "refresh
+        app-atlas"."""
+        mod = _load_builder()
+        atlas = tmp_path / "atlas"
+        atlas.mkdir()
+        real = (
+            "_Last extracted: 2026-06-25T04:38:28 (for version `5.5.1`)_\n\n"
+            "### HTTP header keys found in app bytecode\n\n- `x-qmauth`\n"
+        )
+        (atlas / "audi.md").write_text(
+            "# App Atlas - Audi\n\n"
+            "## Discovered via APK extraction (Phase A.2)\n\n"
+            f"{real}\n"
+            "## Cross-version diff\n\nnothing\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(mod, "_ATLAS_DIR", atlas)
+        monkeypatch.setattr(mod, "_APK_CACHE_DIR", tmp_path / "empty-cache")
+
+        assert mod._load_apk_findings("audi") is None, "fixture must have no cache"
+
+        # Go through the real renderer, not just the helper. An earlier version
+        # of this test called _previous_apk_section() directly and passed on a
+        # mutant with the call site reverted to the old
+        # `_render_apk_section(_load_apk_findings(brand))` — it proved the
+        # helper worked while the page was still being emptied.
+        mod.emit_brand_atlas(
+            "audi",
+            {"display_name": "Audi", "package_id": "de.myaudi.mobile.assistant",
+             "expected_backend": "cariad_bff"},
+            "5.8.1", "google_play", {"last_version_name": "5.8.0"},
+        )
+        page = (atlas / "audi.md").read_text(encoding="utf-8")
+        assert page.count("## Discovered via APK extraction") == 1, (
+            "the carried body brought a second copy of the heading"
+        )
+        head = page.index("## Discovered via APK extraction")
+        apk_part = page[head:page.index("\n## ", head + 10)]
+        assert "Last extracted: 2026-06-25" in apk_part, (
+            "the re-rendered page dropped the extraction record"
+        )
+        assert "x-qmauth" in apk_part
+        # Scoped to this section on purpose: the Phase A.3 cross-version-diff
+        # section below legitimately carries its own "(Empty ...)" placeholder.
+        assert "_(Empty" not in apk_part
+
+        carried = mod._previous_apk_section("audi")
+        assert carried is not None
+        assert "## Discovered via APK extraction" not in carried
+
+        # Carrying a carried body must be idempotent, or every run would stack
+        # another layer onto the page.
+        (atlas / "audi.md").write_text(
+            "# App Atlas - Audi\n\n"
+            "## Discovered via APK extraction (Phase A.2)\n\n"
+            f"{carried}\n\n"
+            "## Cross-version diff\n\nnothing\n",
+            encoding="utf-8",
+        )
+        assert mod._previous_apk_section("audi") == carried
+
+        # A page that never had findings must not carry the placeholder forward
+        # as though it were a record.
+        (atlas / "seat.md").write_text(
+            "## Discovered via APK extraction (Phase A.2)\n\n"
+            "_(Empty — Phase A.2 APK extraction not yet run for this brand.)_\n\n"
+            "## Cross-version diff\n",
+            encoding="utf-8",
+        )
+        assert mod._previous_apk_section("seat") is None
+        assert mod._previous_apk_section("brand-with-no-page") is None
+
+    def test_the_client_id_watch_runs_where_the_cache_is(self) -> None:
+        """The new-OAuth-client_id watch reads the extraction cache. It was a
+        separate step in the daily workflow, which only worked because that job
+        extracted too. With extraction local, that step has nothing to read, so
+        the watch has to be invoked by the extraction run itself or it goes
+        quiet with nothing saying so."""
+        src = _SCRIPT_PATH.read_text(encoding="utf-8")
+        assert "diff_known_client_ids" in src, (
+            "build_atlas does not invoke the client_id watch at all"
+        )
+        tail = src[src.index("diff_known_client_ids"):]
+        assert "_cid_main()" in tail
+        # Advisory only: it must not be able to fail the atlas run.
+        assert "except Exception" in tail
+
+    def test_no_page_credits_a_source_that_was_not_asked(self) -> None:
+        """A brand that keeps its last confirmed version also keeps the name of
+        whatever delivered it, and both the per-brand page and the summary used
+        to print that name under a column headed "Source that responded". Both
+        Porsche rows therefore read `apkmirror` / `apkcombo` on runs where
+        neither was in the code at all. Scanned over the rendered pages, so it
+        catches the claim wherever it is rendered from."""
+        # Match the NAME, not a backticked name. The first version of this
+        # test asserted only on "| `apkmirror` |" and was run against a tree
+        # where porsche.md read "| Source that responded | apkmirror |" with no
+        # backticks at all — it passed, on a page publishing the exact claim
+        # this test exists to catch. The label's markup is not the invariant;
+        # the mirror name appearing in a row about this run is.
+        for page in sorted(_ATLAS_DIR.glob("*.md")):
+            for line in page.read_text(encoding="utf-8").splitlines():
+                cells = [c.strip().strip("`") for c in line.split("|")]
+                if "Source that responded" not in cells:
+                    continue
+                for mirror in ("apkmirror", "apkcombo", "uptodown"):
+                    assert mirror not in cells, (
+                        f"{page.name} credits {mirror} as the source that "
+                        f"responded: {line.strip()!r}"
+                    )
+        # The summary's rows have no label cell, so check its Source column by
+        # position instead of by heading.
+        summary = _ATLAS_DIR / "_summary.md"
+        if summary.exists():
+            for line in summary.read_text(encoding="utf-8").splitlines():
+                if not line.startswith("| **"):
+                    continue
+                cells = [c.strip().strip("`") for c in line.split("|")]
+                for mirror in ("apkmirror", "apkcombo", "uptodown"):
+                    assert mirror not in cells, (
+                        f"_summary.md credits {mirror} as a source that "
+                        f"responded: {line.strip()!r}"
+                    )
+
 
 # ──────────────────────────────────────────────────────────────────────
 # 5. Phase A.2 — APK extraction module
@@ -217,7 +517,7 @@ class TestApkExtractorModule:
         assert "subprocess.run" in src
 
     def test_handles_xapk_bundles(self) -> None:
-        """APKCombo serves XAPK split-bundles; unpacker must handle them."""
+        """Play serves XAPK split-bundles; unpacker must handle them."""
         src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
         assert "def unpack_xapk(" in src
         assert "zipfile" in src
@@ -238,7 +538,7 @@ class TestApkExtractorModule:
 
 
 class TestPhaseA2Robustness:
-    """Phase A.2 hardening: Windows apktool resolution, Uptodown fallback,
+    """Phase A.2 hardening: Windows apktool resolution, Play-only fetch,
     and the package-identity guard that rejects decoy downloads."""
 
     def _extractor(self):
@@ -262,10 +562,59 @@ class TestPhaseA2Robustness:
         src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
         assert 'shutil.which("apktool")' in src
 
-    def test_uptodown_fallback_present(self) -> None:
+    def test_google_play_is_the_only_apk_source(self) -> None:
+        """The mirrors are gone on purpose. Two recorded reasons, both from
+        this repository's own history rather than from memory: a mirror served
+        CUPRA 2.18.1 while Play and the store had 2.19.1, and Volkswagen was
+        never resolved by any of the three at all — its cache entry carried a
+        null version while the watcher recorded daily that it had looked (see
+        tests/test_v2180_atlas_google_play.py). One of them also gated
+        downloads and handed back its own client app, which is why the package
+        guard below had to exist. This pins that none of them comes back
+        quietly — not even as a comment someone later writes a caller for."""
         src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
-        assert "def resolve_uptodown_download(" in src
-        assert "resolve_uptodown_download(uptodown_sub)" in src
+        assert "def fetch_from_play(" in src
+        assert "fetch_from_play(package_id, brand, tmp_dir)" in src
+        assert "resolve_apkcombo_download" not in src
+        assert "resolve_uptodown_download" not in src
+        assert "apkcombo.com" not in src
+        assert "uptodown" not in src.lower()
+
+    def test_play_success_is_a_file_not_an_exit_code(self) -> None:
+        """apkeep can print "Downloading" and exit 0 having written nothing when
+        the disposable account it drew is cohort-limited. The fetch must judge on
+        artifacts appearing on disk and rotate accounts, or the atlas records a
+        successful extraction of nothing."""
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert "_apks_in(out_dir)" in src
+        assert "_PLAY_ROTATIONS" in src
+        assert "auroraoss.com/api/auth" in src
+
+    def test_a_split_bundle_counts_as_an_artifact(self, tmp_path) -> None:
+        """apkeep writes a split bundle as .xapk or .apks depending on how Play
+        serves it, and the fetch judges success by artifacts appearing on disk.
+        Counting only two of the three extensions made an .apks download read
+        as "no artifact": the fetch would rotate accounts against a file it had
+        already pulled and then report failure for a successful download. The
+        reference script counts all three."""
+        mod = self._extractor()
+        for name in ("base.apk", "bundle.xapk", "split.apks", "notes.txt",
+                     "UPPER.APKS"):
+            (tmp_path / name).write_bytes(b"x")
+        found = {p.name for p in mod._apks_in(tmp_path)}
+        assert found == {"base.apk", "bundle.xapk", "split.apks", "UPPER.APKS"}, (
+            f"artifact detection missed a bundle extension: {sorted(found)}"
+        )
+
+    def test_the_rotation_budget_covers_the_documented_worst_case(self) -> None:
+        """The reference method rotates without a limit and records that one
+        brand needed attempt 18. A cap below that fails exactly the brand the
+        note was written about."""
+        mod = self._extractor()
+        assert mod._PLAY_ROTATIONS >= 18, (
+            f"_PLAY_ROTATIONS={mod._PLAY_ROTATIONS} is under the documented "
+            "worst case of 18 attempts"
+        )
 
     def test_package_guard_wired(self) -> None:
         src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
@@ -278,18 +627,21 @@ class TestPhaseA2Robustness:
         assert mod._apk_declares_package(apk, "de.myaudi.mobile.assistant") is True
 
     def test_guard_rejects_decoy(self, tmp_path) -> None:
-        """Uptodown serves its own com.uptodown app for gated downloads — the
-        guard must reject it when a brand package was requested."""
+        """A file that declares a different package than the one requested is
+        rejected. The name below is the real case that put the guard here: a
+        mirror that gated downloads handed back its own client app."""
         mod = self._extractor()
         apk = self._fake_apk(tmp_path, "com.uptodown.activities")
         assert mod._apk_declares_package(apk, "cz.skodaauto.myskoda") is False
 
-    def test_uptodown_token_regex(self) -> None:
+    def test_no_mirror_scraping_machinery_is_left_behind(self) -> None:
+        """The HTML-scraping helpers went with the resolvers. Pinned because a
+        leftover regex is how a mirror path quietly comes back: someone writes a
+        new caller for a parser that is still sitting there."""
         mod = self._extractor()
-        html = ('<button id="detail-download-button" class="button" '
-                'data-url="AbC123_tok-en">Download</button>')
-        m = mod._UPTODOWN_TOKEN_RE.search(html)
-        assert m is not None and m.group(1) == "AbC123_tok-en"
+        for gone in ("_UPTODOWN_TOKEN_RE", "_R2_LINK_RE",
+                     "resolve_uptodown_download", "resolve_apkcombo_download"):
+            assert not hasattr(mod, gone), f"{gone} is still importable"
 
 
 class TestPhaseA2Integration:
@@ -332,14 +684,27 @@ class TestPhaseA2Integration:
         assert "Discovered via APK extraction" in src
 
 
-class TestAllBrandsHaveApkcomboSlug:
-    """Phase A.2 currently uses APKCombo CDN — every brand needs a slug."""
+class TestAllBrandsHaveAPlayPackageId:
+    """Phase A.2 fetches from Google Play — every brand needs a package id, and
+    that is now the single identifier, not one of three."""
 
     @pytest.mark.parametrize("brand", _brand_keys())
-    def test_brand_has_apkcombo_slug(self, brand: str) -> None:
+    def test_brand_has_package_id(self, brand: str) -> None:
         data = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
-        slug = data["brands"][brand]["sources"].get("apkcombo_slug")
-        assert slug, f"Brand {brand} missing apkcombo_slug — APK extraction can't run"
+        pkg = data["brands"][brand].get("package_id")
+        assert pkg, f"Brand {brand} missing package_id — APK extraction can't run"
+        assert "/" not in pkg, (
+            f"Brand {brand}: {pkg!r} looks like a mirror slug, not a Play package id"
+        )
+
+    def test_no_mirror_keys_remain(self) -> None:
+        """Scanned over the raw config text, not over a per-brand `sources`
+        dict: that dict is gone, so a loop through it would be a loop over
+        nothing and would pass whatever the file said. The text scan still
+        fails if any mirror key is reintroduced, wherever it is put."""
+        raw = _CONFIG_PATH.read_text(encoding="utf-8")
+        for gone in ("apkmirror_slug", "uptodown_subdomain", "apkcombo_slug"):
+            assert gone not in raw, f"config.json carries {gone} again"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -366,10 +731,11 @@ class TestPhaseA3Modules:
         assert "--no-res" in src  # skip resource decoding for speed
 
     def test_jadx_reuses_apkextractor_download(self) -> None:
-        """Don't reinvent the APK download wheel — reuse A.2's path."""
+        """Don't reinvent the APK download wheel — reuse A.2's Play path, so
+        there is exactly one place where an APK enters this pipeline."""
         src = _JADX_PATH.read_text(encoding="utf-8")
         assert "from apk_extractor import" in src
-        assert "download_to" in src and "unpack_xapk" in src
+        assert "fetch_from_play" in src and "unpack_xapk" in src
 
     def test_version_diff_module_exists(self) -> None:
         assert _VERSION_DIFF_PATH.exists()
@@ -416,64 +782,22 @@ class TestPhaseA3Docs:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# 7. APKCombo meta-description fallback
+# 7. Version ordering guard
 # ──────────────────────────────────────────────────────────────────────
 
 
-_APKCOMBO_META = (
-    '<html><head><meta name="description" content="Download {name} APK {build}'
-    ' - 129 MB - Updated: 2026-09 - Dr. Ing. h.c. F. Porsche AG - Free App for'
-    ' Android"></head><body>Old versions: 20.26.31 20.26.34</body></html>'
-)
-
-
-class TestApkComboMetaFallback:
-    """APKCombo is the last fallback in the chain, and it is the only source
-    that answers for packages the other three never list."""
-
-    @pytest.mark.parametrize(
-        "build,expected",
-        [
-            # Porsche publishes the flavour in the build string itself.
-            ("20.26.36-row+186611", "20.26.36"),
-            ("20.26.37-pcna+188460", "20.26.37"),
-            ("4.3.2", "4.3.2"),
-            ("2026.7.28-9380", "2026.7.28"),
-        ],
-    )
-    def test_meta_description_yields_numeric_version(
-        self, build: str, expected: str,
-    ) -> None:
-        mod = _load_builder()
-        page = _APKCOMBO_META.format(name="My Porsche", build=build)
-        for regex in mod._APKCOMBO_VERSION_REGEXES:
-            m = regex.search(page)
-            if m:
-                assert m.group(1) == expected
-                break
-        else:
-            pytest.fail("no APKCombo pattern matched the meta description")
-
-    def test_stripped_version_stays_comparable(self) -> None:
-        """The flavour suffix is dropped for a reason: with it, the string does
-        not parse, is_downgrade() cannot fire, and a stale mirror listing would
-        walk the brand backwards unchallenged."""
+class TestVersionOrdering:
+    def test_a_flavoured_build_string_cannot_be_compared(self) -> None:
+        """Porsche publishes the flavour in the build string itself
+        (`20.26.36-row+186611`). Such a string does not parse, so
+        is_downgrade() cannot fire on it — which is why a version is only ever
+        recorded as its dotted numeric part. Keep both halves of this pinned:
+        the unparseable form must stay unparseable (so it is never silently
+        treated as comparable), and the stripped form must compare."""
         mod = _load_builder()
         assert mod.parse_version("20.26.36-row") is None
         assert mod.is_downgrade("20.26.36-row", "20.26.37") is False
         assert mod.is_downgrade("20.26.36", "20.26.37") is True
-
-    def test_old_version_list_is_not_matched_first(self) -> None:
-        """The page also carries older version numbers in plain body text."""
-        mod = _load_builder()
-        page = _APKCOMBO_META.format(name="My Porsche", build="20.26.36-row+186611")
-        version: str | None = None
-        for regex in mod._APKCOMBO_VERSION_REGEXES:
-            m = regex.search(page)
-            if m:
-                version = m.group(1)
-                break
-        assert version == "20.26.36"
 
 
 # ──────────────────────────────────────────────────────────────────────

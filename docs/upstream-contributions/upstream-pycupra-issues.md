@@ -4,10 +4,13 @@
 > upstream pycupra HA integration, distilled from anonymized
 > community observations + public release notes.
 >
-> **Usage:** Copy-paste each section as a new GitHub issue at
+> **Usage:** Open each section as a new GitHub issue at
 > `https://github.com/upstream/homeassistant-pycupra/issues/new`.
-> No AI/automation attribution included — these are framed as your
-> own constructive feedback to the maintainer.
+> These are drafts, not submissions: read one through and put it in your
+> own words before posting, because a maintainer is owed a report whose
+> claims you have actually checked. If an assistant helped you draft it,
+> say so upstream — that is welcome, and it tells a reviewer which parts
+> to read twice.
 >
 > Created: 2026-05-02
 

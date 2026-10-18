@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""v2.18.0 — the app-atlas polls Google Play first, not the third-party mirrors.
+"""v2.18.0 — the app-atlas polls Google Play, not the third-party mirrors.
 
 Two things drove this:
 
@@ -14,8 +14,13 @@ Two things drove this:
 Play needs no account for this — the store page serves the version to an
 anonymous request — so nothing lands in CI secrets.
 
-The mirrors stay wired as a fallback: VW-NA and Porsche publish no version on
-their listings, and Play reshuffles its markup from time to time.
+2026-10-17: the mirrors are gone entirely, so Play is the only source for the
+version as well as for the APK. They were not pulled because one of them broke
+— they were pulled because a mirror answers from whatever it last ingested, and
+a reading that lags the store is worse than none: ``is_downgrade()`` then has a
+stale ceiling to compare against. Measured on the day they were removed, six of
+the eight builds answer from Play; both Porsche packages publish no version at
+all and are now reported as such instead of being filled in from elsewhere.
 
 Fixtures below are trimmed from real page bodies fetched on 2026-07-17.
 """
@@ -72,42 +77,37 @@ class TestGooglePlayScrape:
         assert build_atlas._try_google_play("com.example.app") is None
 
     def test_network_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Must degrade to the mirrors, never take the workflow down.
+        # Must report no version, never take the workflow down.
         _stub_fetch(monkeypatch, RuntimeError("boom"))
         assert build_atlas._try_google_play("com.example.app") is None
 
 
 class TestSourceOrder:
-    def test_play_wins_and_the_mirrors_are_not_called(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        called: list[str] = []
-        monkeypatch.setattr(build_atlas, "_try_google_play", lambda p: "4.1.1")
-        for name in ("_try_apkmirror", "_try_uptodown", "_try_apkcombo"):
-            monkeypatch.setattr(
-                build_atlas, name, lambda s, _n=name: called.append(_n) or "0.0.1"
-            )
+    """There is no order left to test — Play is the only source. What these
+    pin instead is that the removed tiers did not leave a stub behind, and
+    that the two states the mirrors used to paper over are now reported as
+    what they are."""
 
+    def test_play_is_the_only_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(build_atlas, "_try_google_play", lambda p: "4.1.1")
         version, source = build_atlas.scrape_version(
-            "volkswagen",
-            {"package_id": "com.volkswagen.weconnect", "apkmirror_slug": "vw/x"},
+            "volkswagen", "com.volkswagen.weconnect"
         )
         assert (version, source) == ("4.1.1", "google_play")
-        assert called == []
+        for gone in ("_try_apkmirror", "_try_uptodown", "_try_apkcombo"):
+            assert not hasattr(build_atlas, gone), f"{gone} is importable again"
 
-    def test_falls_back_to_mirrors_when_play_has_no_version(
+    def test_no_version_on_the_listing_is_reported_as_none(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # This is Porsche and VW-NA: no version on the listing at all.
+        """Both Porsche packages, measured 2026-10-17: Play publishes no
+        version for them. That now yields None, which the caller renders as a
+        retained reading. A mirror's answer here would have been a number
+        nobody had checked against the store."""
         monkeypatch.setattr(build_atlas, "_try_google_play", lambda p: None)
-        monkeypatch.setattr(build_atlas, "_try_apkmirror", lambda s: "12.24.27")
+        assert build_atlas.scrape_version("porsche", "com.porsche.one") == (None, None)
 
-        version, source = build_atlas.scrape_version(
-            "porsche", {"package_id": "com.porsche.one", "apkmirror_slug": "p/one"}
-        )
-        assert (version, source) == ("12.24.27", "apkmirror")
-
-    def test_brand_without_package_id_still_uses_mirrors(
+    def test_a_brand_without_a_package_id_is_not_polled(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
@@ -115,17 +115,12 @@ class TestSourceOrder:
             "_try_google_play",
             lambda p: pytest.fail("Play must not be called without a package_id"),
         )
-        monkeypatch.setattr(build_atlas, "_try_apkmirror", lambda s: "1.2.3")
-
-        assert build_atlas.scrape_version("x", {"apkmirror_slug": "a/b"}) == (
-            "1.2.3",
-            "apkmirror",
-        )
+        assert build_atlas.scrape_version("x", None) == (None, None)
 
 
 def test_every_brand_carries_a_package_id() -> None:
-    # Play is keyed by package_id. A brand missing one silently drops to the
-    # mirrors — which is exactly how VW went unpolled for months.
+    # Play is keyed by package_id, and it is the only source. A brand missing
+    # one cannot be polled at all — it is the whole source identity now.
     import json
 
     cfg = json.loads(

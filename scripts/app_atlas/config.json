@@ -1,15 +1,10 @@
 {
-  "_comment": "Cross-brand App Atlas — per-brand metadata. Edit when an app rebrands or moves package ID. Used by scripts/app_atlas/build_atlas.py and the .github/workflows/app-atlas-builder.yml workflow.",
+  "_comment": "Cross-brand App Atlas — per-brand metadata. Edit when an app rebrands or moves package ID. Used by scripts/app_atlas/build_atlas.py and the .github/workflows/app-atlas-builder.yml workflow. package_id is the sole source identifier: Google Play is the only version and APK source, so a brand needs nothing else to be pollable.",
   "_atlas_version": 1,
   "brands": {
     "seat": {
       "display_name": "SEAT",
       "package_id": "com.seat.myseat.ola",
-      "sources": {
-        "apkmirror_slug": "seat-s-a/myseat",
-        "uptodown_subdomain": "my-seat",
-        "apkcombo_slug": "my-seat-app/com.seat.myseat.ola"
-      },
       "expected_backend": "ola",
       "ola_enforcement_known": true,
       "ola_enforcement_since": "2026-05-20"
@@ -17,11 +12,6 @@
     "cupra": {
       "display_name": "CUPRA",
       "package_id": "com.cupra.mycupra",
-      "sources": {
-        "apkmirror_slug": "seat-cupra-s-a/my-cupra-app",
-        "uptodown_subdomain": "my-cupra",
-        "apkcombo_slug": "my-cupra-app/com.cupra.mycupra"
-      },
       "expected_backend": "ola",
       "ola_enforcement_known": true,
       "ola_enforcement_since": "2026-05-20"
@@ -29,44 +19,24 @@
     "volkswagen": {
       "display_name": "Volkswagen EU (We Connect ID)",
       "package_id": "com.volkswagen.weconnect",
-      "sources": {
-        "apkmirror_slug": "volkswagen-ag/volkswagen-we-connect-id",
-        "uptodown_subdomain": "volkswagen-we-connect-id",
-        "apkcombo_slug": "volkswagen/com.volkswagen.weconnect"
-      },
       "expected_backend": "cariad_bff",
       "ola_enforcement_known": false
     },
     "audi": {
       "display_name": "Audi (myAudi)",
       "package_id": "de.myaudi.mobile.assistant",
-      "sources": {
-        "apkmirror_slug": "audi-ag/myaudi",
-        "uptodown_subdomain": "myaudi",
-        "apkcombo_slug": "myaudi/de.myaudi.mobile.assistant"
-      },
       "expected_backend": "cariad_bff",
       "ola_enforcement_known": false
     },
     "skoda": {
       "display_name": "Škoda (MyŠkoda)",
       "package_id": "cz.skodaauto.myskoda",
-      "sources": {
-        "apkmirror_slug": "skoda-auto-as/myskoda",
-        "uptodown_subdomain": "cz-skodaauto-myskoda",
-        "apkcombo_slug": "myskoda/cz.skodaauto.myskoda"
-      },
       "expected_backend": "mysmob",
       "ola_enforcement_known": false
     },
     "volkswagen_na": {
       "display_name": "Volkswagen US/CA (myVW)",
       "package_id": "com.vw.carnet.release",
-      "sources": {
-        "apkmirror_slug": "volkswagen-of-america-inc/myvw",
-        "uptodown_subdomain": null,
-        "apkcombo_slug": "myvw/com.vw.carnet.release"
-      },
       "expected_backend": "con_veh_net",
       "ola_enforcement_known": false
     },
@@ -74,23 +44,13 @@
       "_comment": "PCNA build (North America). The rest-of-world build ships as a separate package — see the porsche_row entry below.",
       "display_name": "Porsche (My Porsche, North America)",
       "package_id": "com.porsche.one",
-      "sources": {
-        "apkmirror_slug": "dr-ing-h-c-f-porsche-ag/my-porsche",
-        "uptodown_subdomain": null,
-        "apkcombo_slug": "my-porsche/com.porsche.one"
-      },
       "expected_backend": "ppa",
       "ola_enforcement_known": false
     },
     "porsche_row": {
-      "_comment": "Rest-of-world My Porsche. EU users run this package, not com.porsche.one — so a PCNA-only reading was never the version our EU reporters are on. At 20.26.37 (versionCode 188460) both builds are the same code apart from package-name strings and one Porsche-Card availability path, but that is a per-version finding, not a standing guarantee: tracking both is what makes a future split visible instead of silent. apkmirror_slug is null on purpose — the PCNA slug must NOT be reused here, it would report the NA version as this brand's.",
+      "_comment": "Rest-of-world My Porsche. EU users run this package, not com.porsche.one — so a PCNA-only reading was never the version our EU reporters are on. At 20.26.37 (versionCode 188460) both builds are the same code apart from package-name strings and one Porsche-Card availability path, but that is a per-version finding, not a standing guarantee: tracking both is what makes a future split visible instead of silent.",
       "display_name": "Porsche (My Porsche, rest-of-world)",
       "package_id": "de.porsche.one",
-      "sources": {
-        "apkmirror_slug": null,
-        "uptodown_subdomain": null,
-        "apkcombo_slug": "my-porsche/de.porsche.one"
-      },
       "expected_backend": "ppa",
       "ola_enforcement_known": false
     }

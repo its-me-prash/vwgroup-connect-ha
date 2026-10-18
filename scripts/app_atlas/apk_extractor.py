@@ -5,7 +5,8 @@
 Builds on Phase A.1's version polling. When a version changes, this
 module:
 
-1. Downloads the APK (or XAPK split-bundle) from APKCombo's R2 CDN
+1. Downloads the APK (or XAPK split-bundle) from Google Play, the only
+   source (see ``fetch_from_play``)
 2. Unpacks XAPK → base APK if needed
 3. Decodes the APK via ``apktool`` to extract AndroidManifest + smali
 4. Greps the decoded output for HTTP-related patterns (header names,
@@ -16,160 +17,38 @@ module:
 The actual atlas markdown rendering happens in ``build_atlas.py`` —
 this module just produces the data.
 
-CI requirements:
-- ``apktool`` on PATH (ubuntu-latest has it pre-installed via apt or
-  the workflow can `apt-get install apktool` in ~10s)
-- ``unzip``, ``find``, ``grep`` (pre-installed)
+Where this runs: on a maintainer's machine, not in the daily workflow.
+The Play download signs in with a disposable store account, and repeating
+that from a shared CI runner address gets the account locked, so the
+scheduled job polls versions only and the findings from a local run are
+what gets committed.
+
+Requirements:
+- ``apkeep`` on PATH for the Play download; without it this module logs
+  and returns None, and the atlas page keeps its last-known findings
+- ``apktool`` on PATH for the decode
+- ``unzip``, ``find``, ``grep``
 - Python stdlib only — no extra pip deps
 
-Phase A.3 will add ``jadx`` decompile + semantic-diff between
-consecutive versions; that lives in a separate module.
+Phase A.3 adds ``jadx`` decompile + constant diff; that lives in a
+separate module and is likewise local.
 """
 
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import re
+import shutil
 import subprocess
-import urllib.error
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Any
 
 _LOGGER = logging.getLogger("app_atlas.apk")
-
-# v Phase A.2 fix 2026-05-25: APKCombo's `/download/apk` page is more
-# strictly Cloudflare-protected than its plain version-name page. The
-# desktop User-Agent that worked for version-name polling gets HTTP
-# 403 on the download page from GitHub Actions IPs. Pivoting to a
-# mobile UA + a fuller browser-headers set unblocks most CI runs —
-# Cloudflare's bot-heuristics are friendlier to "user on mobile data
-# without JS" requests because mobile clients are higher-noise.
-_UA = (
-    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-)
-_BROWSER_HEADERS: dict[str, str] = {
-    "User-Agent": _UA,
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.7,de;q=0.3",
-    "Accept-Encoding": "gzip, deflate",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-}
-_PAGE_TIMEOUT = 30
-_DOWNLOAD_TIMEOUT = 300  # Big files; allow generous timeout for slow CDN.
-
-# Regex to extract the APKCombo signed-CDN URL from a download page.
-# Pattern matches links like /r2?u=https%3A%2F%2F... or direct
-# https://apks.<hash>.r2.cloudflarestorage.com/... .
-_R2_LINK_RE = re.compile(r'href="(/r2\?u=[^"]+)"')
-
-
-def fetch(url: str, timeout: int = _PAGE_TIMEOUT) -> bytes:
-    """GET a URL with browser-like headers; return raw bytes.
-
-    v Phase A.2 fix: uses mobile UA + full browser-header set
-    (`_BROWSER_HEADERS`) to maximize chance of bypassing Cloudflare's
-    bot-heuristic on GitHub-Actions runner IPs. May still get 403 on
-    persistent blocks — caller is expected to log and continue.
-    """
-    req = urllib.request.Request(url, headers=_BROWSER_HEADERS)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        # Handle gzip-encoded responses (we requested Accept-Encoding: gzip).
-        body = resp.read()
-        if resp.headers.get("Content-Encoding") == "gzip":
-            import gzip
-            body = gzip.decompress(body)
-        return body
-
-
-def fetch_text(url: str) -> str:
-    """GET a URL; return text body."""
-    return fetch(url).decode("utf-8", errors="replace")
-
-
-def resolve_apkcombo_download(slug: str) -> str | None:
-    """Walk the APKCombo download page to find the R2-signed CDN URL.
-
-    ``slug`` is e.g. ``"my-cupra-app/com.cupra.mycupra"``. Returns the
-    fully-resolved download URL (XAPK or APK) or None on failure.
-    """
-    page_url = f"https://apkcombo.com/{slug}/download/apk"
-    try:
-        body = fetch_text(page_url)
-    except urllib.error.HTTPError as exc:
-        _LOGGER.warning("APKCombo %s → HTTP %s", page_url, exc.code)
-        return None
-    m = _R2_LINK_RE.search(body)
-    if not m:
-        _LOGGER.warning("APKCombo %s: no R2 link found", page_url)
-        return None
-    relative = m.group(1)
-    # APKCombo's /r2 endpoint just redirects to the actual R2 URL.
-    # urllib follows 301/302 automatically.
-    return f"https://apkcombo.com{relative}"
-
-
-# Uptodown embeds a per-download token in the download button's data-url;
-# the file is served from dw.uptodown.net/dwn/<token>.
-_UPTODOWN_TOKEN_RE = re.compile(
-    r'id="detail-download-button"[^>]*data-url="([^"]+)"'
-)
-
-
-def resolve_uptodown_download(subdomain: str) -> str | None:
-    """Resolve the direct APK/XAPK URL from an Uptodown app subdomain.
-
-    Fallback for brands not served by APKCombo (e.g. Škoda). ``subdomain``
-    is e.g. ``"cz-skodaauto-myskoda"``. The ``/android/download`` page carries
-    a token in the ``#detail-download-button`` ``data-url``; the file lives at
-    ``https://dw.uptodown.net/dwn/<token>``. Returns the URL or None.
-    """
-    page_url = f"https://{subdomain}.en.uptodown.com/android/download"
-    try:
-        body = fetch_text(page_url)
-    except urllib.error.HTTPError as exc:
-        _LOGGER.warning("Uptodown %s → HTTP %s", page_url, exc.code)
-        return None
-    except Exception as exc:  # noqa: BLE001
-        _LOGGER.warning("Uptodown %s → %s", page_url, exc)
-        return None
-    m = _UPTODOWN_TOKEN_RE.search(body)
-    if not m:
-        _LOGGER.warning("Uptodown %s: no download token found", page_url)
-        return None
-    return f"https://dw.uptodown.net/dwn/{m.group(1)}"
-
-
-def download_to(url: str, dest: Path) -> bool:
-    """Download a URL to ``dest`` using browser-like headers.
-
-    Returns True on success. For large files (APKs), streams to disk
-    to avoid loading 100MB+ into memory.
-    """
-    try:
-        req = urllib.request.Request(url, headers=_BROWSER_HEADERS)
-        with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as resp:
-            # Stream to disk in 1 MB chunks.
-            with dest.open("wb") as f:
-                while True:
-                    chunk = resp.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-        return True
-    except Exception as exc:  # noqa: BLE001
-        _LOGGER.error("Download failed (%s): %s", url[:80], exc)
-        return False
-
 
 def unpack_xapk(xapk_path: Path, dest_dir: Path) -> Path | None:
     """Extract a XAPK file (zip-of-APKs) and return the path to the
@@ -222,8 +101,9 @@ def unpack_xapk(xapk_path: Path, dest_dir: Path) -> Path | None:
 def _apk_declares_package(base_apk: Path, expected_pkg: str) -> bool:
     """True if the APK's AndroidManifest contains the expected package name.
 
-    Guard against decoy downloads: some mirrors (Uptodown) gate the real file
-    and serve their own client app instead. Binary AXML stores strings as
+    This is what makes an analysed artifact attributable to a brand: every
+    finding downstream is reported under this brand's name, so the file has to
+    declare the package the config asked for. Binary AXML stores strings as
     UTF-16LE, so a substring scan of AndroidManifest.xml reliably confirms the
     declared package is present.
     """
@@ -238,7 +118,6 @@ def _apk_declares_package(base_apk: Path, expected_pkg: str) -> bool:
 
 def apktool_decode(apk_path: Path, dest_dir: Path) -> bool:
     """Run ``apktool d <apk> -o <dest>``. Returns True on success."""
-    import shutil
     if dest_dir.exists():
         # apktool refuses to overwrite by default.
         shutil.rmtree(dest_dir)
@@ -399,6 +278,113 @@ def grep_patterns(decoded_dir: Path, search_patterns: dict[str, Any]) -> dict[st
     return findings
 
 
+
+_AURORA_DISPENSER = "https://auroraoss.com/api/auth"
+# The reference script rotates without a limit by default, and records that
+# MyŠkoda 8.16.0 needed attempt 18 — a budget of 8 would simply have failed on
+# that brand. A cap exists here only so an unattended run cannot spin forever;
+# it is set above the worst case that method documents, not below it.
+_PLAY_ROTATIONS = 24
+_PLAY_SLEEP_S = 4.0
+
+# Three extensions, matching the reference script. apkeep writes a split
+# bundle as .xapk or .apks depending on how Play serves it, and counting only
+# two of the three made such a download read as "no artifact": the fetch would
+# then rotate accounts against a file that was already on disk, and finally
+# report failure for a package it had successfully pulled.
+_PLAY_ARTIFACT_SUFFIXES = (".apk", ".xapk", ".apks")
+
+
+def _apks_in(d: Path) -> set[Path]:
+    return {p for p in d.iterdir()
+            if p.is_file() and p.suffix.lower() in _PLAY_ARTIFACT_SUFFIXES}
+
+
+def fetch_from_play(package_id: str, brand: str, out_dir: Path) -> Path | None:
+    """Pull one package from Google Play via apkeep. Returns the artifact, or None.
+
+    Follows C:/tools/apkget.sh, the standing method in this project, and
+    deliberately keeps its two awkward properties rather than tidying them away.
+    One thing it does NOT yet carry over: that script takes a minimum version
+    and version-code (``APKGET_MIN_VERSION`` / ``APKGET_MIN_CODE``) and rotates
+    until the artifact meets them, because a disposable account can land in an
+    older rollout cohort. Without that floor, the version a finding is filed
+    under comes from the Play listing rather than from the artifact, so it can
+    name a build one cohort newer than the file that was actually read.
+
+    1. SUCCESS IS A FILE ON DISK, never an exit code. apkeep can print
+       "Downloading ..." and exit 0 having written nothing, when the disposable
+       account it was handed is cohort-limited for that package. Trusting the
+       exit code is how a build reports a successful extraction of nothing.
+    2. FAILURE MEANS ROTATE, not give up. Each attempt takes a fresh throwaway
+       account from the Aurora dispenser; the same package often lands on the
+       second or third one. That is why there is a loop here and not a single call.
+
+    No account is created and no password is entered: the dispenser hands out a
+    disposable {email, auth} pair, which apkeep consumes via --auth-token. The
+    token is never logged.
+
+    Returns None when apkeep is not installed, which is the state of the CI
+    runner today. The caller treats None as "render last-known findings", so an
+    environment without apkeep degrades instead of failing.
+    """
+    if shutil.which("apkeep") is None:
+        _LOGGER.warning(
+            "Brand %s: apkeep is not installed — no Play fetch, the atlas page "
+            "will render last-known findings", brand,
+        )
+        return None
+
+    for attempt in range(1, _PLAY_ROTATIONS + 1):
+        try:
+            req = urllib.request.Request(
+                _AURORA_DISPENSER, headers={"User-Agent": "com.aurora.store"},
+            )
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                creds = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("Brand %s: attempt %d — Aurora dispenser: %s",
+                            brand, attempt, exc)
+            time.sleep(_PLAY_SLEEP_S)
+            continue
+        email, auth = creds.get("email", ""), creds.get("auth", "")
+        if not email or not auth:
+            _LOGGER.warning("Brand %s: attempt %d — dispenser gave no credentials",
+                            brand, attempt)
+            time.sleep(_PLAY_SLEEP_S)
+            continue
+
+        before = _apks_in(out_dir)
+        try:
+            subprocess.run(
+                ["apkeep", "-a", package_id, "-d", "google-play",
+                 "--email", email, "--auth-token", auth, "--accept-tos",
+                 str(out_dir)],
+                capture_output=True, timeout=600, check=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("Brand %s: attempt %d — apkeep did not run: %s",
+                            brand, attempt, type(exc).__name__)
+            time.sleep(_PLAY_SLEEP_S)
+            continue
+        new = _apks_in(out_dir) - before
+        if not new:
+            # Not an error and not rate limiting against us: this throwaway
+            # account is cohort-limited for this package. Take another one.
+            _LOGGER.info("Brand %s: attempt %d — Play returned no artifact for "
+                         "this account, rotating", brand, attempt)
+            time.sleep(_PLAY_SLEEP_S)
+            continue
+        got = sorted(new, key=lambda p: p.stat().st_size)[-1]
+        _LOGGER.info("Brand %s: Play served %s on attempt %d",
+                     brand, got.name, attempt)
+        return got
+
+    _LOGGER.warning("Brand %s: %d account rotations exhausted, no artifact",
+                    brand, _PLAY_ROTATIONS)
+    return None
+
+
 def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
                      search_patterns: dict[str, Any],
                      tmp_dir: Path) -> dict[str, Any] | None:
@@ -408,32 +394,23 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
     transient files (APK + decoded dir) on success or failure — only
     the findings dict is retained.
     """
-    sources = brand_cfg.get("sources", {})
-    apkcombo_slug = sources.get("apkcombo_slug")
-    uptodown_sub = sources.get("uptodown_subdomain")
-    if not apkcombo_slug and not uptodown_sub:
-        _LOGGER.warning("Brand %s: no apkcombo_slug or uptodown_subdomain — "
-                       "skipping APK extraction", brand)
+    package_id = brand_cfg.get("package_id")
+    if not package_id:
+        _LOGGER.warning("Brand %s: no package_id — skipping APK extraction", brand)
         return None
 
-    # 1. Resolve download URL — APKCombo first (XAPK, fast CDN), then fall
-    #    back to Uptodown for brands APKCombo doesn't serve (e.g. Škoda).
-    download_url = None
-    if apkcombo_slug:
-        download_url = resolve_apkcombo_download(apkcombo_slug)
-    if not download_url and uptodown_sub:
-        _LOGGER.info("Brand %s: APKCombo unavailable — trying Uptodown", brand)
-        download_url = resolve_uptodown_download(uptodown_sub)
-    if not download_url:
-        _LOGGER.warning("Brand %s: no download URL via APKCombo or Uptodown", brand)
+    # 1+2. Fetch from Google Play, the only source. The mirrors this used to
+    # walk are gone on purpose: they serve whatever they last ingested, which
+    # the repository's own history shows lagging by a full minor version, and
+    # one of them had also started gating downloads and handing back a
+    # different app than the one requested — which is why step 3b exists. An
+    # atlas built from a stale or substituted APK is worse than one that
+    # renders last-known findings, which is what the caller does when this
+    # returns None.
+    apk_path = fetch_from_play(package_id, brand, tmp_dir)
+    if apk_path is None:
         return None
-    _LOGGER.info("Brand %s: APK download URL resolved", brand)
-
-    # 2. Download.
-    apk_path = tmp_dir / f"{brand}.xapk"
-    if not download_to(download_url, apk_path):
-        return None
-    _LOGGER.info("Brand %s: downloaded %d bytes", brand, apk_path.stat().st_size)
+    _LOGGER.info("Brand %s: fetched %d bytes from Play", brand, apk_path.stat().st_size)
 
     # 3. Unpack XAPK (or copy if it's already a plain APK).
     unpack_dir = tmp_dir / f"{brand}_unpacked"
@@ -441,17 +418,17 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
     if not base_apk:
         return None
 
-    # 3b. Identity guard — confirm the APK actually IS the brand app. Some
-    #     mirrors (notably Uptodown) gate downloads and serve their OWN client
-    #     app (com.uptodown.*) instead of the requested one. Without this check
-    #     we'd silently analyse the wrong app and report bogus findings. Uses
-    #     the canonical per-brand package_id from config.json so the guard also
-    #     applies to brands fetched via a non-APKCombo source.
+    # 3b. Identity guard — confirm the APK actually IS the brand app. Without
+    #     it we would analyse whatever arrived and report the findings under
+    #     this brand's name: a substituted app, the wrong split out of an XAPK,
+    #     or a mistyped package id all look identical from here. Checked
+    #     against the canonical per-brand package_id from config.json, so it
+    #     holds whatever the fetch path is.
     expected_pkg = brand_cfg.get("package_id")
     if expected_pkg and not _apk_declares_package(base_apk, expected_pkg):
-        _LOGGER.error("Brand %s: downloaded APK does not declare expected package "
-                      "%r — likely a decoy/wrong download (e.g. Uptodown's own "
-                      "app). Rejecting.", brand, expected_pkg)
+        _LOGGER.error("Brand %s: downloaded APK does not declare expected "
+                      "package %r — wrong or substituted download. Rejecting.",
+                      brand, expected_pkg)
         return None
 
     # 4. apktool decode.
@@ -468,7 +445,6 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
     findings["xapk_size_bytes"] = apk_path.stat().st_size
 
     # 6. Cleanup transient files.
-    import shutil
     try:
         apk_path.unlink(missing_ok=True)
         shutil.rmtree(unpack_dir, ignore_errors=True)

@@ -1295,6 +1295,31 @@ class WebsiteAuthProxyConnector:
             landed_status, landed_chain,
         )
 
+        # #1827 — the consent hook can also appear AFTER the e-mail code, and on
+        # an account that uses one it appears ONLY there: begin_login returns
+        # "otp_required" at the challenge page and never reaches its own
+        # decline, so the fix that method got has never run for these users.
+        #
+        # Left alone, the interstitial comes back 200 and without
+        # "email-challenge" in the URL, so the rejection check below waves it
+        # through and _finalise_login judges the host instead. Measured, that
+        # raises "login did not complete (ended at consent.vwgroup.io/hooks/...)"
+        # — the very message #1827 was reported with, only from this method
+        # rather than from refresh(). The user has a correct code in hand and is
+        # told the login failed; asking for another code cannot help, because
+        # the next one lands on the same page. Two reporters escaped only by
+        # signing in at volkswagen.de in a browser and clicking "Not now" by
+        # hand, one of them "by chance".
+        #
+        # Placed before the rejection check, as in begin_login: the decline only
+        # ever removes a blocker (it returns None on any other host and on a
+        # page with no skip link), so a genuinely rejected code still raises
+        # below untouched.
+        _declined = await self._decline_action_hook(landed, landed_html)
+        if _declined is not None:
+            landed, landed_status = _declined
+            landed_html = ""
+
         if landed_status >= 400 or "email-challenge" in landed:
             err = _login_error(landed_html)
             # Which of the two conditions fired, and whether the page carried an

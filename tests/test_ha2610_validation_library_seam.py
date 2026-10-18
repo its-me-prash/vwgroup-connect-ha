@@ -109,7 +109,17 @@ def test_repair_flow_steps_are_annotated_with_the_repairs_result() -> None:
 
     assert "-> RepairsFlowResult:" in code
     assert "data_entry_flow" not in code, "the unparameterised result is back"
-    assert "from homeassistant.components.repairs import RepairsFlow, RepairsFlowResult" in code
+    # The name still has to come from the repairs component, but it is a
+    # TYPE_CHECKING import now: at runtime it does not exist before HA
+    # 2026.9, and importing it there took the whole integration down
+    # (#1858, pinned in test_1858_repairs_import_floor). This line used to
+    # pin the combined one-liner, so it failed on the very change that
+    # fixed that setup breaker. The two halves are pinned separately now:
+    # the subclassed class at runtime, the annotation type wherever it is.
+    assert "from homeassistant.components.repairs import RepairsFlow\n" in code
+    assert (
+        "from homeassistant.components.repairs import RepairsFlowResult" in code
+    )
 
 
 def test_the_repairs_result_type_exists_on_the_installed_ha() -> None:

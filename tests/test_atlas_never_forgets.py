@@ -48,7 +48,6 @@ def atlas(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "brands": {"skoda": {
             "display_name": "Skoda",
             "package_id": "cz.skodaauto.myskoda",
-            "sources": {"uptodown_subdomain": "x"},
             "expected_backend": "mysmob",
         }},
         "search_patterns": {},
@@ -68,23 +67,23 @@ def atlas(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 class TestAFailedScrapeKeepsWhatWeKnew:
     def test_the_reported_case(self, atlas) -> None:
         """Skoda: known-good 8.14.0, then every source fails."""
-        assert atlas(("8.14.0", "uptodown"))["last_version_name"] == "8.14.0"
+        assert atlas(("8.14.0", "google_play"))["last_version_name"] == "8.14.0"
         entry = atlas((None, None))
         assert entry["last_version_name"] == "8.14.0"
-        assert entry["last_source"] == "uptodown"
+        assert entry["last_source"] == "google_play"
         assert entry["last_status"] == "stale"
 
     def test_the_page_says_it_is_not_fresh(self, atlas) -> None:
         """Carrying the value silently would be its own kind of wrong: the
         number has to keep saying how old it is."""
-        atlas(("8.14.0", "uptodown"))
+        atlas(("8.14.0", "google_play"))
         atlas((None, None))
         assert "(fetch failed)" not in atlas.page()
         assert "Not re-confirmed today" in atlas.page()
         assert "not re-confirmed" in atlas.summary()
 
     def test_confirmation_time_stops_moving_while_stale(self, atlas) -> None:
-        confirmed = atlas(("8.14.0", "uptodown"))["last_confirmed_at"]
+        confirmed = atlas(("8.14.0", "google_play"))["last_confirmed_at"]
         assert atlas((None, None))["last_confirmed_at"] == confirmed
 
     def test_a_first_ever_failure_still_reports_failure(self, atlas) -> None:
@@ -96,7 +95,7 @@ class TestAFailedScrapeKeepsWhatWeKnew:
         assert "(fetch failed)" in atlas.page()
 
     def test_recovery_clears_the_mark(self, atlas) -> None:
-        atlas(("8.14.0", "uptodown"))
+        atlas(("8.14.0", "google_play"))
         atlas((None, None))
         entry = atlas(("8.15.0", "google_play"))
         assert entry["last_version_name"] == "8.15.0"
@@ -126,7 +125,7 @@ class TestAVersionDoesNotWalkBackwards:
 
     def test_a_date_scheme_moves_forward_normally(self, atlas) -> None:
         """myVW numbers by date; the comparator must not misread that."""
-        atlas(("2026.5.27-9076", "apkmirror"))
+        atlas(("2026.5.27-9076", "google_play"))
         entry = atlas(("2026.7.28-9380", "google_play"))
         assert entry["last_version_name"] == "2026.7.28-9380"
         assert entry["last_status"] == "ok"

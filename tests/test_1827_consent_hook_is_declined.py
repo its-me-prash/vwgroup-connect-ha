@@ -179,3 +179,196 @@ class TestTheInteractivePathToo:
         # And the same call is a no-op on an ordinary landing, which is what
         # makes it safe to put in front of every landing check.
         assert asyncio.run(c._decline_action_hook(PORTAL_OK, "")) is None
+
+# -- the e-mail-code path, which the first fix never reached ------------------
+CHALLENGE = "https://identity.vwgroup.io/u/email-challenge?state=ST"
+CHALLENGE_FORM = (
+    '<html><body><form method="post" action="/u/email-challenge?state=ST">'
+    '<input type="hidden" name="_csrf" value="C1">'
+    '<input type="text" name="code" value="">'
+    "</form></body></html>"
+)
+
+
+class _PostSession(_Session):
+    """Adds POST, so submit_otp can be driven rather than approximated.
+
+    The POST answers from its own script; GETs keep coming from _Session's,
+    which is what the decline link uses.
+    """
+
+    def __init__(
+        self,
+        post_steps: list[tuple[str, int, str]],
+        *get_steps: tuple[str, int, str],
+    ) -> None:
+        super().__init__(*get_steps)
+        self._post_steps = list(post_steps)
+        self.posted: list[str] = []
+
+    def post(self, url: str, **_kw: Any) -> _Resp:
+        self.posted.append(url)
+        landed, status, body = self._post_steps.pop(0) if self._post_steps else (
+            PORTAL_OK, 200, "",
+        )
+        return _Resp(landed, status, body)
+
+
+def _otp_client(sess: _PostSession) -> WebsiteAuthProxyConnector:
+    c = _client(sess)
+    c._otp_url = CHALLENGE
+    c._otp_html = CHALLENGE_FORM
+    c._otp_state = "ST"
+    return c
+
+
+class TestTheEmailCodePathDeclinesTheHookToo:
+    def test_the_code_lands_on_the_hook_and_the_login_still_completes(self) -> None:
+        """The reported shape. VW shows the opt-in AFTER the e-mail code, so
+        begin_login - which returns "otp_required" at the challenge page - never
+        reaches its own decline.
+
+        Measured without the decline: this raises "login did not complete
+        (ended at consent.vwgroup.io/hooks/data-clean-room)", which is the exact
+        message #1827 was filed with, only from this method instead of from
+        refresh(). The user holds a correct code and is told the login failed.
+        """
+        sess = _PostSession(
+            [(HOOK, 200, HOOK_PAGE)],   # the code POST lands on the opt-in
+            (PORTAL_OK, 200, ""),       # declining lands back on the portal
+        )
+        c = _otp_client(sess)
+
+        assert asyncio.run(c.submit_otp("123456")) is True
+        assert c.logged_in is True
+        assert len(sess.requested) == 1, "the decline link was never followed"
+        assert "/skip" in sess.requested[0]
+        assert "accept" not in sess.requested[0]
+        # The pending challenge is cleared, so a stale URL cannot be re-posted.
+        assert c._otp_url is None
+        assert c._otp_html is None
+
+    def test_a_wrong_code_is_still_a_wrong_code(self) -> None:
+        """The dangerous direction. The decline sits in front of the rejection
+        check, so it must not turn a refused code into a session: a user with a
+        typo has to be told to check the code, not handed a channel that stores
+        nothing.
+        """
+        sess = _PostSession([(CHALLENGE, 200, CHALLENGE_FORM)])
+        c = _otp_client(sess)
+        with pytest.raises(AuthenticationError, match="OTP rejected"):
+            asyncio.run(c.submit_otp("000000"))
+        assert c.logged_in is False
+        assert sess.requested == [], "nothing may be fetched for a refused code"
+
+    def test_an_http_error_on_the_code_post_still_raises(self) -> None:
+        sess = _PostSession([("https://identity.vwgroup.io/u/oops", 500, "")])
+        c = _otp_client(sess)
+        with pytest.raises(AuthenticationError):
+            asyncio.run(c.submit_otp("123456"))
+        assert c.logged_in is False
+
+    def test_a_hook_served_with_an_error_status_is_still_declined(self) -> None:
+        """The case that makes the ORDER load-bearing rather than tidy.
+
+        VW serves these interstitials from its own infrastructure and nothing
+        promises a 200 - the consent host has answered 4xx before. Behind the
+        rejection check the decline would never run for such a page: the check
+        sees >= 400 and raises "OTP rejected - check the code", which is both
+        wrong and unactionable, because the code was right and no new code can
+        get past an opt-in page.
+
+        In front of it, the decline reassigns the landing and the status, so the
+        check then sees the portal's 200 and the login completes.
+        """
+        sess = _PostSession(
+            [(HOOK, 403, HOOK_PAGE)],   # the opt-in, served with an error status
+            (PORTAL_OK, 200, ""),       # declining still lands on the portal
+        )
+        c = _otp_client(sess)
+        assert asyncio.run(c.submit_otp("123456")) is True
+        assert c.logged_in is True
+        assert len(sess.requested) == 1
+        assert "/skip" in sess.requested[0]
+
+    def test_an_ordinary_success_is_untouched(self) -> None:
+        """The decline is a no-op on any other host, so the normal path must not
+        gain a request or lose its result."""
+        sess = _PostSession([(PORTAL_OK, 200, "")])
+        c = _otp_client(sess)
+        assert asyncio.run(c.submit_otp("123456")) is True
+        assert c.logged_in is True
+        assert sess.requested == [], "a healthy code POST fetched something extra"
+
+    def test_a_hook_with_no_skip_link_keeps_the_old_verdict(self) -> None:
+        """Same contract as the resume path: the helper may only ever remove a
+        blocker. With no link to follow the verdict is unchanged from before
+        this fix - byte for byte the same raise, which is the point: if VW stops
+        offering "Not now" we stop skipping instead of guessing at a URL."""
+        sess = _PostSession([(HOOK, 200, HOOK_PAGE_NO_SKIP)])
+        c = _otp_client(sess)
+        with pytest.raises(AuthenticationError, match="login did not complete"):
+            asyncio.run(c.submit_otp("123456"))
+        assert c.logged_in is False
+        assert sess.requested == [], "nothing may be fetched with no link"
+
+
+class TestTheDeclineIsInEveryLandingPath:
+    """A placement pin, and it says so.
+
+    Every behavioural test above would still pass with the call removed from
+    ONE of the three methods, because each test drives only one of them. That
+    is exactly how #1827 shipped half-fixed: the decline went into begin_login
+    and refresh, submit_otp was missed, and the whole suite stayed green while
+    every account that uses an e-mail code remained broken.
+
+    Checked on the methods' own source rather than on a search of the file, so
+    a call sitting in some unrelated function cannot satisfy it.
+    """
+
+    def test_all_three_landing_methods_decline(self) -> None:
+        import ast
+        import inspect
+
+        from custom_components.vag_connect.cariad.auth import _website_authproxy
+
+        src = inspect.getsource(_website_authproxy)
+        tree = ast.parse(src)
+        bodies: dict[str, str] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                bodies[node.name] = ast.get_source_segment(src, node) or ""
+
+        for method in ("begin_login", "submit_otp", "refresh"):
+            assert method in bodies, f"{method} is gone - rename?"
+            assert "_decline_action_hook" in bodies[method], (
+                f"{method} does not decline the consent hook; an account whose "
+                "login goes through it is blocked with no way out but a manual "
+                "browser sign-in (#1827)"
+            )
+
+    def test_the_decline_runs_before_the_verdict_in_submit_otp(self) -> None:
+        """Order, not just presence. Behind the rejection check the call is
+        dead code for the reported case: the interstitial is a 200 that is not
+        the challenge page, so the verdict is already wrong by the time the
+        decline would run."""
+        import ast
+        import inspect
+
+        from custom_components.vag_connect.cariad.auth import _website_authproxy
+
+        src = inspect.getsource(_website_authproxy)
+        tree = ast.parse(src)
+        body = ""
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == "submit_otp"
+            ):
+                body = ast.get_source_segment(src, node) or ""
+        assert body, "submit_otp not found"
+        decline_at = body.index("_decline_action_hook")
+        verdict_at = body.index('if landed_status >= 400 or "email-challenge" in landed')
+        assert decline_at < verdict_at, (
+            "the decline sits behind the rejection check, where it cannot help"
+        )

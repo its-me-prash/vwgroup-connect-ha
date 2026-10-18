@@ -5,14 +5,21 @@
 
 The official Škoda public API (``public.api.connect.skoda-auto.cz``) is live, but
 a user can only mint an ``X-API-Key`` from **Settings → Smart Home → API Keys**,
-which arrives with app **v8.16** (verified absent from 8.15.0). This script polls
-the mirrors listed in ``scripts/app_atlas/config.json`` for the current MyŠkoda
-version and flags when it reaches the trigger version, so we can be first to pull
-it, androguard the key-creation endpoint, and evaluate auto-mint.
+which arrives with app **v8.16** (verified absent from 8.15.0). This script reads
+the current MyŠkoda version from its Google Play listing and flags when it reaches
+the trigger version, so we can be first to pull it, androguard the key-creation
+endpoint, and evaluate auto-mint.
 
-Fail-soft: any mirror that errors is skipped; if no version is found at all it
-prints ``FOUND none`` and does NOT trigger (no false alarms). Output is
-machine-readable for the workflow:
+Google Play is the only source, as everywhere else in this repo since 2026-10-17.
+It used to walk three APK mirrors, which had two problems: a mirror reports
+whatever it last ingested, so this gate could fire late or on a build the store
+no longer serves; and the config lookup in front of them read
+``config.json["apps"]["skoda"]["sources"]``, a key path that never existed in
+that file (it has ``brands``), so the lookup always raised and the hardcoded
+mirror slugs in the fallback were in fact the only thing it ever used.
+
+Fail-soft is unchanged: if no version is found it prints ``FOUND none`` and does
+NOT trigger (no false alarms). Output is machine-readable for the workflow:
 
     FOUND <version-or-none>
     TRIGGER  |  NO-TRIGGER
@@ -23,73 +30,56 @@ import json
 import os
 import re
 import sys
-import urllib.error
-import urllib.request
 
 TRIGGER_VERSION = (8, 16, 0)
 _PKG = "cz.skodaauto.myskoda"
 _VER_RE = re.compile(r"\b(8\.\d{1,2}\.\d{1,2})\b")
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/128.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
 
 
-def _cfg_sources() -> dict[str, str]:
+def _package_id() -> str:
+    """The Play package for MyŠkoda, from the atlas config when it is there."""
     here = os.path.dirname(os.path.abspath(__file__))
     cfg = os.path.join(here, "app_atlas", "config.json")
     try:
         with open(cfg, encoding="utf-8") as fh:
-            src = json.load(fh)["apps"]["skoda"]["sources"]
-    except Exception:  # noqa: BLE001 — fall back to hardcoded slugs
-        src = {
-            "apkcombo_slug": "myskoda/cz.skodaauto.myskoda",
-            "uptodown_subdomain": "cz-skodaauto-myskoda",
-            "apkmirror_slug": "skoda-auto-as/myskoda",
-        }
-    return src
+            pkg = json.load(fh)["brands"]["skoda"]["package_id"]
+    except Exception:  # noqa: BLE001 — the constant below is the same value
+        return _PKG
+    return str(pkg) or _PKG
 
 
-def _urls(src: dict[str, str]) -> list[str]:
-    urls: list[str] = []
-    if src.get("apkcombo_slug"):
-        urls.append(f"https://apkcombo.com/{src['apkcombo_slug']}/")
-        urls.append(f"https://apkcombo.com/{src['apkcombo_slug']}/download/apk")
-    if src.get("uptodown_subdomain"):
-        urls.append(f"https://{src['uptodown_subdomain']}.en.uptodown.com/android")
-    if src.get("apkmirror_slug"):
-        urls.append(f"https://www.apkmirror.com/apk/{src['apkmirror_slug']}/")
-    return urls
+def _play_version(package_id: str) -> tuple[int, int, int] | None:
+    """Read the version-name off the Play listing, or None.
 
-
-def _fetch_versions(url: str) -> list[tuple[int, int, int]]:
+    Delegates to the atlas scraper rather than carrying a second copy of the
+    page patterns: that module also encodes which shapes on a Play page are
+    NOT the version (review metadata looks just like it), and two copies of
+    that knowledge would drift.
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_atlas"))
     try:
-        req = urllib.request.Request(url, headers=_HEADERS)
-        with urllib.request.urlopen(req, timeout=25) as resp:  # noqa: S310 — fixed https hosts
-            html = resp.read(600_000).decode("utf-8", "replace")
-    except (urllib.error.URLError, OSError, ValueError):
-        return []
-    out = []
-    for m in _VER_RE.findall(html):
-        parts = tuple(int(x) for x in m.split("."))
-        if len(parts) == 3:
-            out.append(parts)  # type: ignore[arg-type]
-    return out
+        from build_atlas import _try_google_play  # noqa: PLC0415
+    except Exception:  # noqa: BLE001
+        return None
+    try:
+        raw = _try_google_play(package_id)
+    except Exception:  # noqa: BLE001 — fail soft, never a false alarm
+        return None
+    if not raw:
+        return None
+    m = _VER_RE.search(raw)
+    if not m:
+        return None
+    parts = tuple(int(x) for x in m.group(1).split("."))
+    return parts if len(parts) == 3 else None  # type: ignore[return-value]
 
 
 def main() -> int:
-    src = _cfg_sources()
-    found: list[tuple[int, int, int]] = []
-    for url in _urls(src):
-        found.extend(_fetch_versions(url))
-    if not found:
+    latest = _play_version(_package_id())
+    if latest is None:
         print("FOUND none")
         print("NO-TRIGGER")
         return 0
-    latest = max(found)
     print("FOUND " + ".".join(map(str, latest)))
     print("TRIGGER" if latest >= TRIGGER_VERSION else "NO-TRIGGER")
     return 0

@@ -1,7 +1,7 @@
 # App Atlas — Volkswagen US/CA (myVW)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-10-09
+> Last refreshed: 2026-10-17
 
 ## Identity
 
@@ -11,12 +11,11 @@
 | Expected backend | `con_veh_net` |
 | OLA enforcement known? | No (not observed yet) |
 
-## Configured sources (fallback chain)
+## Source
 
 | Source | Configured value |
 |---|---|
-| APKMirror | `volkswagen-of-america-inc/myvw` |
-| Uptodown | `(none)` |
+| Google Play (only source) | `com.vw.carnet.release` |
 
 ## Current version
 
