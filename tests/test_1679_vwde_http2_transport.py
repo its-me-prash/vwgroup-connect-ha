@@ -277,34 +277,111 @@ async def test_the_jar_is_passed_through_not_copied() -> None:
         await session.close()
 
 
-def test_the_shared_ssl_context_is_never_used() -> None:
-    """The ALPN trap, pinned.
+def test_the_two_alpn_buckets_are_genuinely_different_objects() -> None:
+    """The premise the fix rests on, checked before the fix is checked.
 
-    httpx calls ``set_alpn_protocols`` on whatever context it gets, so handing
-    it Home Assistant's SHARED context makes unrelated aiohttp connections
-    negotiate h2 and die — @eurojojo saw that surface as a bogus "invalid
-    credentials" on the primary login. This module must build its own.
+    HA 2026.2 keys the context cache on the ALPN set (core PR #161330). That is
+    the whole reason we may now ask HA for a context at all: the one we get for
+    ``h2`` is a DIFFERENT object from the ``http/1.1`` one its aiohttp
+    connector uses, so httpx mutating ours cannot reach aiohttp's.
+
+    If a future HA collapsed those two into one object, the test below would
+    still pass while #1679 came back process-wide — so the bucketing itself is
+    asserted here rather than assumed.
+    """
+    from homeassistant.util.ssl import (
+        SSL_ALPN_HTTP11,
+        SSL_ALPN_HTTP11_HTTP2,
+        SSLCipherList,
+        client_context,
+    )
+
+    h2 = client_context(SSLCipherList.PYTHON_DEFAULT, SSL_ALPN_HTTP11_HTTP2)
+    h11 = client_context(SSLCipherList.PYTHON_DEFAULT, SSL_ALPN_HTTP11)
+    assert isinstance(h2, ssl.SSLContext)
+    assert h2 is not h11, (
+        "HA no longer buckets its SSL contexts per ALPN set — handing httpx a "
+        "context aiohttp also uses reintroduces #1679 for the whole process"
+    )
+    # Cached, so no certificate is read per request chain.
+    assert client_context(SSLCipherList.PYTHON_DEFAULT, SSL_ALPN_HTTP11_HTTP2) is h2
+
+
+@pytest.mark.asyncio
+async def test_httpx_is_handed_the_h2_bucket_and_never_aiohttps(monkeypatch) -> None:
+    """The ALPN trap, pinned where it can actually bite: the live call.
+
+    httpx calls ``set_alpn_protocols`` on whatever context it is given. Ask for
+    the ``http/1.1`` bucket — a one-word slip, and exactly the line HA's own
+    ``aiohttp_client`` contains, so a plausible thing to copy — and httpx
+    rewrites the context every other integration's HTTPS runs on. @eurojojo saw
+    that as a bogus "invalid credentials" on an unrelated login.
+
+    Captured from the real construction path (no injected transport), so this
+    fails if the bucket changes, if ``verify`` stops being passed, or if
+    ``http2`` is dropped. Identity, not a string search: an assertion on the
+    source text passes against a context that merely looks right.
+    """
+    from homeassistant.util.ssl import (
+        SSL_ALPN_HTTP11,
+        SSL_ALPN_HTTP11_HTTP2,
+        SSLCipherList,
+        client_context,
+    )
+
+    from custom_components.vag_connect.cariad.auth import _http2
+
+    captured: dict[str, object] = {}
+    real_client = _http2.httpx.AsyncClient
+
+    def _recorder(**kw: object) -> httpx.AsyncClient:
+        captured.update(kw)
+        # Swap the socket out, keep everything else the code chose.
+        kw.pop("verify", None)
+        kw.pop("http2", None)
+        return real_client(
+            transport=httpx.MockTransport(
+                lambda _r: httpx.Response(200, text="ok")
+            ),
+            **kw,
+        )
+
+    monkeypatch.setattr(_http2.httpx, "AsyncClient", _recorder)
+
+    session = _session()
+    try:
+        # No transport argument: this is the production branch that picks a
+        # context, which the rest of this file's tests deliberately bypass.
+        async with H2Session(session).get(SITE) as resp:
+            assert resp.status == 200
+    finally:
+        await session.close()
+
+    assert captured.get("http2") is True, (
+        "h2 was not requested; volkswagen.de answers 502 over HTTP/1.1"
+    )
+    handed = captured.get("verify")
+    assert handed is client_context(
+        SSLCipherList.PYTHON_DEFAULT, SSL_ALPN_HTTP11_HTTP2
+    ), "httpx must get the h2 ALPN bucket"
+    assert handed is not client_context(
+        SSLCipherList.PYTHON_DEFAULT, SSL_ALPN_HTTP11
+    ), "that is the context aiohttp uses — mutating it is #1679 process-wide"
+
+
+def test_the_context_is_no_longer_built_by_hand() -> None:
+    """A secondary guard, and a weak one by nature: it only says the old
+    machinery is gone. The test above is what proves the new route is right.
+
+    Kept because the hand-built context was the thing that had to go — it did
+    blocking disk I/O behind an executor hop and a lock, all of which HA's
+    pre-warmed cache makes unnecessary.
     """
     import inspect
 
     from custom_components.vag_connect.cariad.auth import _http2
 
     src = inspect.getsource(_http2)
-    assert "ssl.create_default_context" in src
-    assert "get_default_context" not in src, "HA's shared SSL context must not be used"
-    assert "homeassistant.util.ssl" not in src
-
-
-@pytest.mark.asyncio
-async def test_the_context_is_built_once_and_off_the_event_loop() -> None:
-    """``create_default_context`` reads the CA bundle from disk, so it belongs in
-    an executor; and it must be cached rather than rebuilt per request."""
-    session = _session()
-    try:
-        adapter = H2Session(session)
-        first = await adapter._ensure_ctx()
-        second = await adapter._ensure_ctx()
-        assert isinstance(first, ssl.SSLContext)
-        assert first is second
-    finally:
-        await session.close()
+    assert "run_in_executor" not in src
+    assert "create_default_context" not in src
+    assert "_ensure_ctx" not in src

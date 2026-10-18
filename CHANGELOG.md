@@ -46,7 +46,82 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Geändert / Changed
+
+- **The volkswagen.de HTTP/2 channel now uses Home Assistant's own SSL context
+  instead of a private one.** When that channel was built, handing httpx a
+  shared context was genuinely dangerous: httpx sets the ALPN protocols on
+  whatever context it is given, so a context shared with the rest of Home
+  Assistant made every *other* integration's connections try HTTP/2 and die
+  with a garbled status line. @eurojojo hit exactly that, and it surfaced as a
+  bogus "invalid credentials" on an unrelated login — the worst possible
+  symptom, because it sends people hunting for a password problem they do not
+  have ([#1679](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1679)). This integration therefore built its own
+  context, in a background thread, because loading the certificate bundle
+  blocks. Home Assistant 2026.2 fixed the problem at its root: it keeps a
+  separate context per protocol set, so the HTTP/2 one it hands out is a
+  different object from the HTTP/1.1 one everything else uses, and it builds
+  them all up front. Asking for that one removes the private context, the
+  background thread and the lock around it, and puts this channel on the
+  sanctioned route. Nothing changes for cars. Which context gets handed over
+  is now pinned by a test that checks the object itself, rather than one that
+  checked how it was built.
+
 ### Behoben / Fixed
+
+- **A portal feed that has stopped no longer overrides your polling interval.**
+  For a car with the EU Data Act portal armed, the integration aligns its next
+  poll to the portal's own delivery cadence — a snapshot a minute late is worth
+  catching a minute later rather than a whole interval later. That retry had no
+  limit, so on a feed that had stopped delivering it fired on every poll: the
+  expected drop stayed permanently overdue and the cadence stuck at the
+  three-minute lower bound for as long as the outage lasted, whatever interval
+  you had configured. The retry now gets a budget of three polls, after which
+  your configured interval applies again, and the first snapshot that actually
+  lands restores the alignment. @indigomejor measured this on an Octavia:
+  ten minutes configured, a flat 3.4-minute cadence across three days, roughly
+  seventeen polls an hour, ending in a rate-limit lockout — and raising the
+  interval could not help, because the interval was only ever the upper bound
+  ([#1850](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1850)).
+
+- **The volkswagen.de sign-in works again on accounts that get an e-mail
+  code.** The advertising opt-in VW put in front of the login was already being
+  declined, but only on the two paths that reach it before the code is
+  entered. On an account that uses a code, that is never the case: the sign-in
+  stops at the challenge page to collect the code, and the opt-in appears only
+  after it is submitted — so for exactly the people reporting this, the fix in
+  5.0.0 could not run. Entering a correct code ended with "login did not
+  complete" and asking for a new one could not help, because the next one
+  landed on the same page. The code step now declines the opt-in as the other
+  two do, and it does so before judging the landing, which also covers the
+  opt-in being served with an error status. @nuggie found the cause on 5.0.0
+  and posted the log line that proves it — a sign-in chain ending at
+  `consent.vwgroup.io` after the code POST, which only exists to be read
+  because the same report round added logging to that step. @Fishermanjb
+  reported it first and supplied the original logs, and @Ra72xx hit it
+  independently on a second account and confirmed the workaround of declining
+  the opt-in once in a browser
+  ([#1827](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1827)).
+
+- **Setup no longer fails on Home Assistant versions before 2026.6.** Every
+  release since 4.13.0 stopped during setup with `setup failed: ImportError
+  (message redacted)` and then looped on "No vehicles found for this account",
+  because the repair-notice module imported a name — `RepairsFlowResult` —
+  that Home Assistant only began exporting in 2026.6. That name is used
+  nowhere except in type annotations, so it is no longer imported while the
+  integration runs. Two things made this far harder to diagnose than it needed
+  to be, and both are fixed as well: `hacs.json` still advertised `2024.4.0`,
+  so HACS offered the update to precisely the installations it would break (it
+  now declares `2026.6.0`), and the setup error withheld everything but the
+  exception class, so "ImportError" was the entire diagnosis. It now also names
+  the module and the symbol that could not be imported. Those are plain names;
+  the exception message and the module's file path stay withheld, because the
+  message can carry an access token and the path carries the account name of
+  whoever runs Home Assistant. @thomascombe diagnosed the whole chain on a
+  Golf 8 GTE — down to the file, the line and the version boundary, having
+  first added that missing log line locally himself — and confirmed the same
+  release sets up after upgrading the core ([#1858](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1858)).
+
 
 - **A Škoda account no longer gets rate-limited by this integration's own
   retrying.** @indigomejor measured an account-level lockout and handed over

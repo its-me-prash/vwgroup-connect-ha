@@ -42,7 +42,7 @@ Review rules from CONTRIBUTING.md:
 - [ ] Changed a user-facing string? Updated `strings.json` (the English source of truth) and mirrored it into **every** `translations/*.json`, in everyday driver vocabulary
 - [ ] No new runtime dependencies — `manifest.json` `requirements` stays empty (we bundle our own CARIAD client)
 - [ ] **No secrets in the diff** — no tokens, S-PIN, full 17-char VINs, user-IDs, e-mail, or exact GPS (round to 1 decimal), even from your own car (see CONTRIBUTING.md → *Privacy & data handling*)
-- [ ] **No AI / co-author trailers** in any commit (`Co-Authored-By:`, `Generated with …`, etc.)
+- [ ] **Used an AI assistant on this?** Please say so — a `Co-Authored-By:` trailer, or one line in the description above. It is welcome here and it counts against nothing: it tells a reviewer which parts to read twice. A pull request has already arrived with tests its own checklist called passing that failed on the first run here, so knowing saves us both a round trip.
 - [ ] One PR = one concern; commit messages use a `feat|fix|refactor|docs|test|chore|ci|i18n:` prefix
 
 <!--
