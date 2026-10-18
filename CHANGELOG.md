@@ -147,9 +147,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   @tp9csmv79n-code found the cause and verified the fix before filing
   ([#1853](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1853)).
 
-
-### Behoben / Fixed
-
 - **The "Unknown user" notice now only says that when the login actually answered it.**
   `17eab6f9` (#1809) stopped the repair notice and the setup abort from calling a backend
   refusal "an MEB / ID-family car" — an Audi e-tron 55 quattro, a GE-platform car from 2019,
