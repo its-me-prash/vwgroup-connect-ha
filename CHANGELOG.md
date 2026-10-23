@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.1.2] - 2026-10-27 — Six things it reported wrongly / Sechs Dinge, die es falsch gemeldet hat
+
 ### Behoben / Fixed
 
 - **A readiness reading that never arrived was reported as the car being
