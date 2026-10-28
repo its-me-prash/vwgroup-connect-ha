@@ -132,6 +132,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   A field can be exercised by several tests and pinned by none — it is pinned
   now, against eight separate mutations.
 
+- **Per-source connectivity sensors read "unavailable" for up to a whole poll
+  interval after every restart.** The map those sensors are created from was
+  computed on the poll path only, so after each setup and each reload they sat
+  at *unavailable (restored)* until the next scheduled poll. For a diagnostic
+  whose entire job is to say which sources a car is reaching, that reads as
+  "this source is broken" rather than "not measured yet".
+
+  @InfObject found it on a VW ID. Buzz
+  ([#1954](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1954)) and
+  brought the fix point with him: the computation is local-only — no await, no
+  network — so there was never a reason to defer it to a poll. It now runs
+  during setup as well, fail-soft, exactly as it does on the poll path.
+
 ## [5.1.2] - 2026-10-28 — Ten things it reported wrongly / Zehn Dinge, die es falsch gemeldet hat
 
 ### Behoben / Fixed

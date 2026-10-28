@@ -2270,6 +2270,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             "VW Group Connect portal-safety %s (setup): %s",
                             mask_vin(vin), "; ".join(_setup_disc),
                         )
+                    # #1954 (@InfObject, VW ID. Buzz) — the per-source
+                    # connectivity sensors exist only for keys present in this
+                    # map, and it was computed on the poll path only. So after
+                    # every setup and every reload they sat at "unavailable
+                    # (restored)" for up to a whole poll interval, which reads as
+                    # "this source is broken" rather than "not measured yet".
+                    # The compute is local-only — no await, no network — so there
+                    # was never a reason to defer it. Fail-soft like the poll
+                    # path: a compute hiccup must not sink setup.
+                    try:
+                        prepared_data["channel_status"] = (
+                            self._compute_channel_status(vin, prepared_data)
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        _LOGGER.debug(
+                            "channel-status compute skipped at setup (%s)",
+                            type(exc).__name__,
+                        )
                     self.vehicles[vin] = self._apply_optimistic_hold(vin, prepared_data)
                     if hasattr(self, "vehicle_success"):
                         self.vehicle_success[vin] = True
