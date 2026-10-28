@@ -436,6 +436,32 @@ def _is_selfhealing_poll_error(err: object) -> bool:
         UpstreamUnavailableError,
     )
 
+    # #1959 — a RAW transient network exception, not yet wrapped in an APIError.
+    #
+    # Every branch below tests an ``APIError``, and the status-0 branch
+    # additionally requires the ``"transient:"`` tag that only
+    # ``base._request`` writes. Five of the fifteen clients do not go through
+    # it — PlugAndPlay/WCG (the dongle cloud), Porsche, Skoda-official and
+    # VW-NA all build their own request path — so on those a connection reset
+    # arrives here as a bare ``ClientConnectorError``, matches nothing, and is
+    # escalated to the public Error Reporter as though it were our defect.
+    #
+    # That is what filed #1959: one "Connection reset by peer" against the
+    # dongle cloud, on one car, over two days. Ordinary internet, presented as
+    # a bug — and noise in that report teaches people to ignore the next one,
+    # which costs far more than the blip.
+    #
+    # The tuple is imported rather than restated so there is one list of what
+    # counts as transient. Guarding here rather than in each of the five
+    # clients is deliberate: this is the gate every poll error passes, so one
+    # check covers the clients that exist and the ones added later. (A standalone
+    # client still does not inherit base's *retry*, so a single blip still fails
+    # its poll — it just no longer asks the user to report it.)
+    from .cariad.api.base import _TRANSIENT_NET_ERRORS  # noqa: PLC0415
+
+    if isinstance(err, _TRANSIENT_NET_ERRORS):
+        return True
+
     # A transiently-rejected token refresh (invalid_client / server_error / 5xx /
     # network) is a backend hiccup that self-heals on the next poll, not our bug —
     # de-escalate it from the public Error Reporter like a 5xx.

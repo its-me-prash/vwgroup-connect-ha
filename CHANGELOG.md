@@ -289,6 +289,35 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   it is not zero — and a VIN whose setup read failed outright has nothing stored
   to put the value in.
 
+- **A single "connection reset" on the dongle channel was offered to you as a
+  defect worth filing.** The poll handler decides whether an error is
+  self-healing — the car will be reachable again next poll — or something the
+  Error Reporter should offer to file. Every branch of that decision inspected
+  an `APIError`, which is the shape the shared request helper produces after it
+  has retried a network failure and given up. Five of the fifteen channel
+  clients do not go through that helper; on those, a reset arrives as the raw
+  `aiohttp` exception, matches no branch, and counts as a defect.
+
+  That is what filed
+  [#1959](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1959): one
+  reset against the dongle cloud, on one car, over two days, on my own
+  installation. Ordinary internet, presented as a bug. The cost is not that one
+  issue — it is that noise in those reports teaches people to ignore the next
+  one, and the next one may be real.
+
+  The handler now recognises the transient network classes directly, and
+  **imports that list from the request helper instead of restating it**, so the
+  two cannot drift apart as one of them gains a class. The exclusion is by
+  exception class only, never by which client raised it, so a genuine failure on
+  the same channel is still reported.
+
+  **What this does not change**, so nobody reads more into it. The Error
+  Reporter has never filed anything on its own and still does not — it prepares
+  a report and you decide whether to send it; this changes what it *offers*, not
+  whether it asks. And a bare `OSError` is still reported: a connection reset
+  reaches this point wrapped in an `aiohttp` class, while a bare one can just as
+  easily be a local file or permission failure, which is worth knowing about.
+
 ## [5.1.2] - 2026-10-28 — Ten things it reported wrongly / Zehn Dinge, die es falsch gemeldet hat
 
 ### Behoben / Fixed

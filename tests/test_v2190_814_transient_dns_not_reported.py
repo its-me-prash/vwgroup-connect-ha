@@ -12,6 +12,11 @@ bug. ``_is_selfhealing_poll_error`` now catches it.
 """
 from __future__ import annotations
 
+import asyncio
+
+import pytest
+from aiohttp import ClientConnectorError, ClientPayloadError, ServerDisconnectedError
+
 from custom_components.vag_connect.coordinator import _is_selfhealing_poll_error
 from custom_components.vag_connect.cariad.exceptions import (
     APIError,
@@ -65,3 +70,79 @@ def test_structured_404_still_reported() -> None:
     assert _is_selfhealing_poll_error(
         APIError(404, "u", '{"error":"vehicle not found"}')
     ) is False
+
+
+# ── #1959 — the RAW exception, from a client that is not base ────────────────
+#
+# #814 above was fixed for the shape ``base._request`` produces: an ``APIError``
+# with status 0 and a ``"transient:"`` body. Every branch in the classifier
+# tested an ``APIError``, so the fix only reached the clients that go through
+# base.
+#
+# **Five of the fifteen clients do not.** PlugAndPlay and WCG (the dongle
+# cloud), Porsche, Skoda-official and VW-NA each build their own request path,
+# verified by resolving the real MRO rather than grepping for ``(CariadBaseClient)``
+# — an earlier grep called every client standalone because it missed indirect
+# inheritance. On those five a connection reset arrives here as a bare
+# ``ClientConnectorError``, matches no branch, and is escalated.
+#
+# That filed #1959: one "Connection reset by peer" against the dongle cloud, on
+# one car, over two days. Ordinary internet, presented as a defect — and noise
+# in that report teaches people to ignore the next one.
+
+
+class _ConnKey:
+    """The minimum aiohttp needs to build a ClientConnectorError."""
+
+    host = "prod.acpp.cariad.digital"
+    port = 443
+    ssl = True
+
+    def __repr__(self) -> str:
+        return self.host
+
+
+@pytest.mark.parametrize(
+    ("err", "what"),
+    [
+        (ClientConnectorError(_ConnKey(), OSError("Connection reset by peer")),
+         "the #1959 reset against the dongle cloud"),
+        (ServerDisconnectedError(), "a mid-stream disconnect"),
+        (ClientPayloadError("truncated"), "a truncated response body"),
+        (asyncio.TimeoutError(), "a request timeout"),
+    ],
+    ids=["connector-reset", "disconnected", "payload", "timeout"],
+)
+def test_1959_a_raw_transient_from_a_standalone_client_is_self_healing(
+    err: Exception, what: str
+) -> None:
+    assert _is_selfhealing_poll_error(err) is True, (
+        f"{what} would be escalated to the public Error Reporter"
+    )
+
+
+def test_1959_the_list_is_imported_rather_than_restated() -> None:
+    """One list of what counts as transient, not two that drift apart. If base
+    adds a class, the classifier gains it without being edited — and this test
+    is what makes that claim checkable."""
+    from custom_components.vag_connect.cariad.api.base import _TRANSIENT_NET_ERRORS
+
+    for cls in _TRANSIENT_NET_ERRORS:
+        assert _is_selfhealing_poll_error(cls.__new__(cls)) is True, cls.__name__
+
+
+def test_1959_a_genuine_defect_from_the_same_client_is_still_reported() -> None:
+    """The exclusion is by exception CLASS, never by which client raised it. A
+    real failure on the dongle path must still reach the reporter — otherwise
+    this fix would have silenced a whole channel."""
+    assert _is_selfhealing_poll_error(APIError(400, "u", "bad request")) is False
+    assert _is_selfhealing_poll_error(TypeError("mapper got a list")) is False
+    assert _is_selfhealing_poll_error(AttributeError("no attribute 'soc'")) is False
+
+
+def test_1959_an_os_error_is_not_blanket_suppressed() -> None:
+    """``ClientConnectorError`` wraps an ``OSError``, but a bare ``OSError``
+    reaching the poll handler is not the same thing — it could be a local file
+    or permission failure, which IS worth reporting. The guard must test the
+    aiohttp classes, not their cause."""
+    assert _is_selfhealing_poll_error(OSError("Connection reset by peer")) is False
