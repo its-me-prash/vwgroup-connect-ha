@@ -162,6 +162,32 @@ _MBB_OPLIST_DENY_TTL = timedelta(hours=12)
 # stop per-poll hammering and short enough to self-heal unattended.
 _MBB_OPLIST_SOFT_DENY_TTL = timedelta(minutes=30)
 
+# A closure that is not a door must not decide the door verdict, and a closure
+# that is not a window must not decide the window verdict. #1950 established the
+# rule on the portal mapper; the same mistake was live here, for six brands,
+# because the bonnet and the boot ride in ``access.accessStatus.value.doors`` and
+# the roof rides in ``…value.windows``. Measured before the fix: four closed
+# doors plus an open bonnet reported ``doors_open=True``; a boot-only delivery
+# reported it on no door evidence at all; an open roof reported four closed
+# windows as open.
+#
+# Until this fix neither the bonnet nor the roof had ANY other outlet in this
+# file — ``hood_open`` and ``sunroof_open`` were never written — so their only
+# effect was to corrupt the aggregate they did not belong to. They now get their
+# own fields rather than simply being dropped.
+#
+# A DENY-list, deliberately: an unrecognised member keeps counting as a door or a
+# window, exactly as before, so a new backend spelling cannot silently vanish.
+_EU_NON_DOOR_MEMBERS = frozenset({"trunk", "bonnet", "hood", "tailgate", "boot"})
+_EU_ROOF_MEMBERS = frozenset(
+    {"roofcover", "sunroof", "sunroofrear", "sunrooffront", "moonroof", "panoroof"}
+)
+
+
+def _eu_member(name: object) -> str:
+    """Normalise an access-array member name for the membership tests above."""
+    return "".join(ch for ch in str(name).lower() if ch.isalnum())
+
 # #1590 — an Audi Q4 the BFF does not serve returns a STRUCTURED 404 on
 # selectivestatus every poll, spamming the Error Reporter and hammering a dead
 # endpoint. A "not served" 404 is more persistent than a bare 401 (30 min) but
@@ -4814,10 +4840,35 @@ class VWEUClient(CariadBaseClient):
                 for door in doors
                 if (name := door.get("name")) is not None
             }
+            # ``doors_individual`` keeps EVERY member on purpose: _DOOR_TKEYS in
+            # binary_sensor.py has translated keys for ``trunk`` and ``bonnet``,
+            # and VagDoorSensor is documented as "eine einzelne Tür/Kofferraum/
+            # Motorhaube". Those per-closure entities are intended, so dropping
+            # them here would delete two supported entities to fix an aggregate.
             d.doors_individual = {
                 name: "open" in tk for name, tk in door_tokens.items()
             }
-            d.doors_open = any("open" in tk for tk in door_tokens.values())
+            # The AGGREGATE is the defect: the bonnet and the boot are not doors
+            # (see _EU_NON_DOOR_MEMBERS), so including them inverted the verdict
+            # against the real doors and, on a delivery carrying no door at all,
+            # fabricated one from a single non-door member.
+            _door_only = {
+                name: tk for name, tk in door_tokens.items()
+                if _eu_member(name) not in _EU_NON_DOOR_MEMBERS
+            }
+            # Guarded, so a non-door-only delivery leaves the verdict UNKNOWN
+            # instead of stating something no door reported.
+            if _door_only:
+                d.doors_open = any("open" in tk for tk in _door_only.values())
+            # The bonnet's first outlet in this file. Before this its only
+            # effect was to corrupt the door aggregate above.
+            if d.hood_open is None:
+                for _bn, _btk in door_tokens.items():
+                    if _eu_member(_bn) in ("bonnet", "hood") and (
+                        "open" in _btk or "closed" in _btk
+                    ):
+                        d.hood_open = "open" in _btk
+                        break
             # The trunk rides in the doors array under name "trunk". Surface its
             # dedicated open + lock state — both were previously left null on the
             # two-token ``["unlocked", "closed"]`` shape (open never set at all,
@@ -4854,7 +4905,24 @@ class VWEUClient(CariadBaseClient):
             d.doors_open = False
 
         if windows:
-            d.windows_open = any("open" in _acc_tokens(w) for w in windows)
+            # Windows only. The note below already knew the roof rides in this
+            # array ("an option-dependent roof on a car without one"); what it
+            # did not do was keep it out of the aggregate, so an open roof
+            # reported four closed windows as open.
+            _win_only = [
+                w for w in windows
+                if _eu_member(w.get("name")) not in _EU_ROOF_MEMBERS
+            ]
+            if _win_only:
+                d.windows_open = any("open" in _acc_tokens(w) for w in _win_only)
+            # The roof's first outlet in this file.
+            if d.sunroof_open is None:
+                for _rw in windows:
+                    if _eu_member(_rw.get("name")) in _EU_ROOF_MEMBERS:
+                        _rtk = _acc_tokens(_rw)
+                        if "open" in _rtk or "closed" in _rtk:
+                            d.sunroof_open = "open" in _rtk
+                            break
             # v2.18.1 (#810, @lucson) — windows_individual follows the documented
             # ``True == closed`` convention: the same one VagWindowSensor (which
             # inverts for the HA WINDOW device_class) and the EU-Data-Act portal
@@ -4863,7 +4931,10 @@ class VWEUClient(CariadBaseClient):
             # car without one) is skipped so it can't surface as a phantom window.
             windows_individual: dict[str, bool] = {}
             windows_position: dict[str, int] = {}
-            for w in windows:
+            # ``_win_only``, not ``windows``: a roof member here became a WINDOW
+            # entity named after the raw backend key, because there is no
+            # translation for ``roofCover`` or ``sunRoofRear``.
+            for w in _win_only:
                 name = w.get("name")
                 if name is None:
                     continue

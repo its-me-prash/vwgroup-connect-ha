@@ -96,11 +96,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   straight revert to the v5.1.2 code.
 
 - **A locked car reported its doors unlocked, because the boot was counted as a
-  door — on the EU Data Act portal path.** The channel is named deliberately:
-  the same mistake is **still live on the North America path**, where four
-  locked doors plus an unlocked boot likewise read as unlocked. That one is not
-  fixed here, so if your car reads through the US/Canada connector this entry
-  does not describe your fix yet. The EU portal path is what follows.
+  door.** Found on the EU Data Act portal path and fixed there first; the entry
+  below it covers the four other places the same mistake turned out to be live,
+  North America included.
 
   There the tailgate's lock state was folded
   into the per-door `doors_locked` aggregation, where any unlocked member makes
@@ -147,6 +145,75 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   `doors_locked` on it. The tests sat directly on the defect and said nothing.
   A field can be exercised by several tests and pinned by none — it is pinned
   now, against eight separate mutations.
+
+- **The same mistake was live in four more places, and one of them was six
+  brands wide.** After the fix above, the integration was swept for the pattern
+  "a closure that is not a door decides whether the doors are shut". Every hit
+  below was measured on the real parsers, not reasoned about, and each one broke
+  the same two ways: it inverted the verdict against the real doors, and on a
+  delivery carrying no door at all it fabricated a verdict from a single
+  non-door member.
+
+  **North America** (`doorStatus` and `exteriorStatus.doorLockStatus`): the boot
+  and the bonnet rode in the list that decides both *Doors Open* and *Doors
+  Locked*. Four locked doors plus an unlocked boot read as **unlocked**; worse,
+  a locked boot on a delivery with no door fields at all reported the doors
+  **locked** on no door evidence whatsoever. Both now come from door fields
+  only.
+
+  **Volkswagen EU — which Audi, Bentley, Lamborghini, VW Commercial and Audi NA
+  all inherit unchanged**: the bonnet and the boot sat in the door aggregate and
+  the roof sat in the window aggregate, so four closed doors plus an open bonnet
+  reported an open door, and an open roof reported an open window.
+
+  The part that makes this more than a tidy-up: **neither `hood_open` nor
+  `sunroof_open` was ever written anywhere in that file**, and North America had
+  no roof mapping at all. So the bonnet's and the roof's only effect on your
+  system was to corrupt an aggregate they did not belong to. They now populate
+  *Hood Open* and *Sunroof Open* — entities that already existed, already had
+  names, and had simply never received a value on those channels.
+
+  Kept deliberately: the per-closure *door* entities still include the boot and
+  the bonnet. Those are intended — the translation table has named keys for both
+  — so only the aggregate changed. The per-closure *window* entities lose their
+  roof members, which is the opposite case: nothing ever translated `roofCover`
+  or `sunRoofRear`, so they surfaced as window entities named after the raw
+  backend key.
+
+  The exclusions are deny-lists of known non-members, never allow-lists of door
+  names. Those dict-iteration paths exist so a firmware-specific door id works
+  without being enumerated anywhere, so an unrecognised spelling still counts as
+  a door exactly as before — a fix that quietly dropped the next new door would
+  be worse than the bug.
+
+  One existing test had to change, and it is worth naming: it asserted that a
+  raised bonnet plus an open boot meant "a door is open", on a fixture whose two
+  side doors were both closed. It pinned the defect in place. 30 tests now cover
+  the five sites, against 15 separate mutations.
+  ([#1950](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1950))
+
+- **"All closures secured" could say yes with the boot standing open.** It was
+  deciding from at most three doors — the data dictionary documents a safe-state
+  field for three of them and none at all for the front left — while the name
+  promised every closure. Measured: three secured doors plus an open tailgate
+  gave *secured*, with *Trunk Open* reading true on the same vehicle at the same
+  moment.
+
+  The arithmetic was widened to match the name rather than the name narrowed to
+  match the arithmetic. It now also requires that nothing we can see is standing
+  open, read from the boot's and the bonnet's **open** state — deliberately not
+  from their own safe-state fields, which is the trap: v4.7.11 removed those two
+  from this calculation after a live SEAT/CUPRA delivery reported the bonnet
+  "unsafe" while a second field in the same dataset said it was closed. The
+  dictionary documents no "safe" value for either of them, so that signal cannot
+  carry a verdict. A test now pins that case so the widening cannot resurrect it.
+
+  A closure we cannot see neither forces a *no* nor permits a *yes* on its own,
+  so the claim is "every closure this delivery reported is secured". **This can
+  change an automation's behaviour**: on a car that reports an open boot, an
+  entity that used to read secured will now read unsecured — which is the point,
+  but it is a value change rather than a cosmetic one.
+  ([#1950](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1950))
 
 - **Per-source connectivity sensors read "unavailable" for up to a whole poll
   interval after every restart.** The map those sensors are created from was

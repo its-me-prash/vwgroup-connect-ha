@@ -184,6 +184,38 @@ _NA_OUTCOME_REJECTED = 0
 _NA_OUTCOME_SUCCESS = 2
 _NA_OUTCOME_FAILED = 3
 
+# A closure that is not a door must not contribute to a door verdict. #1950
+# established that on the portal mapper and the same mistake was live here: it
+# inverts the verdict against the real doors (four locked doors plus an unlocked
+# boot read as unlocked) and, on a doors-absent delivery, fabricates one out of
+# nothing (a locked boot alone read as "doors locked", on no door evidence).
+#
+# A DENY-list, not an allow-list of door names: the dict-iteration fallbacks
+# below exist precisely so firmware-specific door-id sets work without an enum
+# list, so an unrecognised spelling has to keep counting as a door exactly as
+# before. Only members we positively know are not doors come out — and every one
+# of them is already read into its own field a few lines later, so nothing is
+# lost by excluding it here.
+_NA_NON_DOOR_MEMBERS = frozenset({"trunk", "hood", "bonnet", "tailgate", "boot"})
+# The roof rides in the window dict and is not a window. Unlike the doors above
+# it had NO other outlet in this file, so excluding it alone would drop the
+# reading; it is routed to ``sunroof_open`` instead.
+_NA_NON_WINDOW_MEMBERS = frozenset(
+    {"sunroof", "roof", "roofcover", "sunroofrear", "moonroof", "panoroof"}
+)
+
+
+def _na_member(key: object) -> str:
+    """Normalise a closure key for membership tests: lowercase, alphanumerics
+    only, and a trailing ``door``/``window`` qualifier dropped so that
+    ``frontLeftDoor`` and ``frontLeft`` compare equal. Deliberately total — an
+    unknown key normalises to itself and therefore stays in the aggregate."""
+    s = "".join(ch for ch in str(key).lower() if ch.isalnum())
+    for suffix in ("door", "window"):
+        if s.endswith(suffix) and len(s) > len(suffix):
+            return s[: -len(suffix)]
+    return s
+
 
 def _na_correlation_id(resp: Any) -> str | None:
     """Extract the async correlationId from a con-veh command response."""
@@ -1148,7 +1180,11 @@ class VWNAClient:
                 per_door = [
                     str(val).strip().upper()
                     for key, val in lock_dict.items()
-                    if "timestamp" not in str(key).lower() and isinstance(val, str)
+                    if "timestamp" not in str(key).lower()
+                    and isinstance(val, str)
+                    # the boot and the bonnet are in this dict too, and they are
+                    # not doors — see _NA_NON_DOOR_MEMBERS
+                    and _na_member(key) not in _NA_NON_DOOR_MEMBERS
                 ]
                 known = [t for t in per_door if t in ("LOCKED", "UNLOCKED")]
                 # Only decide when EVERY reported door is known: a partial view
@@ -1181,6 +1217,10 @@ class VWNAClient:
                 door_states = [
                     val for key, val in door_status.items()
                     if key != "doorStatusTimestamp" and val != "NOTAVAILABLE"
+                    # trunk and hood are read into trunk_open/hood_open just
+                    # below; leaving them here made an open boot report an open
+                    # door and an unlocked boot unlock the whole car
+                    and _na_member(key) not in _NA_NON_DOOR_MEMBERS
                 ]
             if any(isinstance(s, str) for s in door_states):
                 d.doors_open = any(
@@ -1219,11 +1259,25 @@ class VWNAClient:
                 window_states = [
                     val for key, val in win.items()
                     if not key.endswith("Timestamp") and val != "NOTAVAILABLE"
+                    # the roof is not a window — see _NA_NON_WINDOW_MEMBERS
+                    and _na_member(key) not in _NA_NON_WINDOW_MEMBERS
                 ]
             if any(isinstance(s, str) for s in window_states):
                 d.windows_open = any(
                     isinstance(s, str) and s.upper() == "OPEN" for s in window_states
                 )
+            # The roof had no outlet in this file at all, so it used to reach
+            # only ``windows_open`` — where an open roof reported four closed
+            # windows as open. Give it its own field instead of dropping it.
+            if isinstance(win, dict) and d.sunroof_open is None:
+                for _rk, _rv in win.items():
+                    if (
+                        _na_member(_rk) in _NA_NON_WINDOW_MEMBERS
+                        and isinstance(_rv, str)
+                        and _rv.strip().upper() in ("OPEN", "CLOSED")
+                    ):
+                        d.sunroof_open = _rv.strip().upper() == "OPEN"
+                        break
 
             # v2.10.0 (#322) — Parking light from exteriorStatus.lightStatus.
             light_status = v(vehicle_raw, "exteriorStatus", "lightStatus")

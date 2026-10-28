@@ -181,7 +181,19 @@ def test_1281_mixed_bonnet_single_doors_double():
     assert data.doors_individual["frontLeft"] is False   # closed
     assert data.doors_individual["trunk"] is True        # open
     assert data.trunk_open is True
-    assert data.doors_open is True                        # bonnet + trunk open
+    # The per-closure entities above are unchanged and still intended: _DOOR_TKEYS
+    # has translated keys for the trunk and the bonnet on purpose.
+    #
+    # The AGGREGATE changed, and deliberately. This line used to read
+    # ``is True`` with the comment "bonnet + trunk open" — i.e. it pinned a
+    # bonnet and a boot deciding a *door* verdict. Both side doors in this
+    # fixture are closed, so "a door is open" was wrong, and the same mechanism
+    # made a boot-only delivery assert a door verdict on no door evidence at
+    # all. Same rule as #1950 on the portal mapper: the verdict comes from the
+    # members it names.
+    assert data.doors_open is False                       # both doors closed
+    assert data.hood_open is True                         # the bonnet's own field
+
 
 
 def test_1281_real_mixed_door_trace_from_reporter():

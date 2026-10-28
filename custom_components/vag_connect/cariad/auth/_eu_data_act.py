@@ -4809,7 +4809,31 @@ def map_dataset_to_vehicle_data(
     ]
     _safe_present = [v for v in _safe_vals if v in (2, 3)]
     if _safe_present:
-        d.closures_secured = all(v == 2 for v in _safe_present)
+        # Prash decision, 2026-10-28: this entity is published as "All closures
+        # secured", and it was deciding that from three doors. Measured before
+        # the change: three safe doors plus ``open_state_tailgate=2`` gave
+        # ``closures_secured=True`` while ``trunk_open=True`` sat on the same
+        # object. The name promised more than the arithmetic delivered, so the
+        # arithmetic was widened rather than the name narrowed.
+        #
+        # Widened with the OPEN state of the boot and the bonnet, and
+        # deliberately NOT with their ``safe_state_*`` fields. That is the whole
+        # reason those two were dropped in v4.7.11: a live SEAT/CUPRA delivery
+        # carried ``safe_state_front_engine_bonnet=3`` on a CLOSED bonnet, and
+        # the dictionary documents no safe(2) for either of them, so a "3" there
+        # is not a usable unsafe signal. ``d.trunk_open`` and ``d.hood_open`` are
+        # already parsed further up from the open_state enums plus their dotted
+        # and boolean dialects, so this inherits every spelling they handle.
+        #
+        # ``is not True`` and not ``is False``: a closure we cannot see must
+        # neither force a False nor block a True. So the claim is "every closure
+        # this delivery reported is secured" — which is as strong as the data
+        # allows, and it now goes False exactly where it used to lie.
+        d.closures_secured = (
+            all(v == 2 for v in _safe_present)
+            and d.trunk_open is not True
+            and d.hood_open is not True
+        )
     # Still CONSUME the two dropped leaves (their only consumer was the aggregate)
     # so the Scout does not re-report them as unmapped every poll; their unreliable
     # polarity means we read-and-discard rather than surface a value.
