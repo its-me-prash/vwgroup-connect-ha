@@ -76,6 +76,90 @@ class TestGooglePlayScrape:
         _stub_fetch(monkeypatch, 'Varies with device [[["9.9.9"]]')
         assert build_atlas._try_google_play("com.example.app") is None
 
+    # ── semver build metadata ───────────────────────────────────────────────
+    #
+    # This family cost three weeks of silent staleness on both Porsche entries,
+    # and the pattern was only ever tested against a plain ``4.1.1``. The real
+    # listings publish ``21.26.44-pcna+193583`` and ``21.26.44-row+193583``:
+    # the old pattern consumed ``-pcna`` and then demanded the closing quote, so
+    # the ``+193583`` broke the match. The watcher reported "Google Play
+    # published no version", and somebody wrote that down as a fact about the
+    # STORE rather than about our parser.
+    #
+    # Measured against the live listings on 2026-10-28, so these are real
+    # strings rather than invented ones.
+    @pytest.mark.parametrize(
+        ("version", "package"),
+        [
+            ("21.26.44-pcna+193583", "com.porsche.one"),
+            ("21.26.44-row+193583", "de.porsche.one"),
+            ("20.26.37-pcna+188460", "com.porsche.one"),   # an older real reading
+            ("1.2.3+build.7", "com.example.dotted"),       # dotted build metadata
+            ("1.2.3+build-7", "com.example.hyphen"),       # hyphenated
+        ],
+        ids=["porsche-na", "porsche-row", "porsche-older", "dotted", "hyphenated"],
+    )
+    def test_build_metadata_does_not_break_the_version(
+        self, monkeypatch: pytest.MonkeyPatch, version: str, package: str
+    ) -> None:
+        _stub_fetch(monkeypatch, f'x"]],1],null,null,null,[[["{version}"]],[[[37]]')
+        assert build_atlas._try_google_play(package) == version
+
+    @pytest.mark.parametrize(
+        "version",
+        ["2.23.1", "4.1.1", "2026.9.29-9674"],
+        ids=["plain", "plain-short", "prerelease-no-build"],
+    )
+    def test_the_shapes_that_already_worked_still_do(
+        self, monkeypatch: pytest.MonkeyPatch, version: str
+    ) -> None:
+        """Widening a pattern is where a regression hides. ``2026.9.29-9674`` is
+        the real VW-NA shape and has no build metadata at all."""
+        _stub_fetch(monkeypatch, f'x"]],1],null,null,null,[[["{version}"]],[[[37]]')
+        assert build_atlas._try_google_play("com.example.app") == version
+
+    def test_a_plus_outside_the_version_slot_is_not_picked_up(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The widened pattern must not start matching things that merely
+        contain a ``+``. Only the bracket slot counts."""
+        _stub_fetch(monkeypatch, 'some+thing "1.2.3+9" null,null,x')
+        assert build_atlas._try_google_play("com.example.app") is None
+
+    def test_the_build_metadata_group_does_not_run_past_the_version(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A greedy build-metadata group would swallow everything up to the LAST
+        closing bracket on the page and return it as the version. A short clean
+        fixture cannot show that, so this one carries a second ``"]]`` after the
+        version slot, exactly as a real listing does.
+        """
+        _stub_fetch(
+            monkeypatch,
+            'x"]],1],[[["21.26.44-pcna+193583"]],[[[37]],[[[29,"1.2.3"]],x',
+        )
+        assert build_atlas._try_google_play("com.porsche.one") == "21.26.44-pcna+193583"
+
+    def test_the_software_version_fallback_also_takes_build_metadata(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The second pattern is the documented escape hatch for when the bracket
+        markup moves. It needs the same build-metadata tolerance, or the fallback
+        would fail on exactly the listings the primary pattern just learned to
+        read. Fixture carries no bracket slot, so only the fallback can answer.
+        """
+        _stub_fetch(monkeypatch, 'null,"softwareVersion": "21.26.44-row+193583",null')
+        assert build_atlas._try_google_play("de.porsche.one") == "21.26.44-row+193583"
+
+    def test_the_absent_slot_is_still_reported_as_no_version(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Skoda's listing answers 200 with no version in that slot at all, which
+        is a DIFFERENT cause from the Porsche one and must stay distinguishable:
+        no version, rather than a wrong one."""
+        _stub_fetch(monkeypatch, 'x"]],1],null,null,null,[[[37]],[[[29,"1')
+        assert build_atlas._try_google_play("cz.skodaauto.myskoda") is None
+
     def test_network_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Must report no version, never take the workflow down.
         _stub_fetch(monkeypatch, RuntimeError("boom"))

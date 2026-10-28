@@ -102,15 +102,35 @@ _PLAY_BASE = "https://play.google.com/store/apps/details?id={pkg}&hl=en&gl=US"
 # the eight answer (seat 2.23.0, cupra 2.23.0, vw 4.6.4, audi 5.8.1, skoda
 # 8.17.0, vw_na 2026.9.29-9674).
 #
-# The two Porsche packages publish no version on their store listing at all —
-# not "Varies with device", just absent. They now report no version and the
-# atlas renders the gap, where the mirrors used to supply a number nobody had
-# checked against the store. (VW-NA was in that group when the mirrors were
-# removed from the APK path; it answers now, so do not take the Porsche gap as
-# permanent either — re-measure before building anything on it.)
+# CORRECTION (2026-10-28). This block used to state that "the two Porsche
+# packages publish no version on their store listing at all — not 'Varies with
+# device', just absent". That was wrong, and it was wrong in the way that costs
+# the most: a negative result from our own parser was written down as a fact
+# about the store, where it then explained away three weeks of staleness and
+# stopped anyone looking further.
+#
+# Measured on 2026-10-28, both listings HTTP 200, version present in exactly the
+# bracket slot the first pattern reads:
+#     com.porsche.one  -> 21.26.44-pcna+193583
+#     de.porsche.one   -> 21.26.44-row+193583
+# The cached value was 21.26.39, so a newer release had been sitting unread.
+#
+# What actually failed is the pattern: ``(?:[-.]\w+)?`` consumes ``-pcna`` and
+# then demands the closing quote, so the semver BUILD METADATA (``+193583``)
+# broke the match. That suffix is not new either — docs/research/app-atlas/
+# porsche_row.md records ``20.26.37-pcna+188460`` from an older APK reading — so
+# the format never changed under us; the pattern simply never covered it. The
+# cache's ``apkmirror``/``apkcombo`` source labels are unrelated historical
+# leftovers: ``google_play`` has been the only source since the mirrors were
+# dropped, and a stale entry retains its previous source string.
+#
+# Still open and a DIFFERENT cause: cz.skodaauto.myskoda returns 200 with no
+# version in that slot at all, so Škoda's staleness is not this bug.
 _PLAY_VERSION_REGEXES = [
-    re.compile(r'\[\[\["(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?)"\]\]'),
-    re.compile(r'"softwareVersion"\s*:\s*"(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?)"'),
+    re.compile(r'\[\[\["(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?(?:\+[\w.-]+)?)"\]\]'),
+    re.compile(
+        r'"softwareVersion"\s*:\s*"(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?(?:\+[\w.-]+)?)"'
+    ),
 ]
 
 
@@ -141,10 +161,16 @@ def scrape_version(brand: str, package_id: str | None) -> tuple[str | None, str 
 
     Returns ``(version, "google_play")`` on success and ``(None, None)`` when
     Play has no version to give — either because the listing doesn't publish
-    one (VW-NA, Porsche) or because the markup moved. ``None`` is the honest
-    answer in both cases: the atlas renders the gap, and ``is_downgrade()``
-    keeps whatever ceiling the cache already holds instead of being handed a
-    mirror's guess.
+    one or because the markup moved. ``None`` is the honest answer in both
+    cases: the atlas renders the gap, and ``is_downgrade()`` keeps whatever
+    ceiling the cache already holds instead of being handed a mirror's guess.
+
+    This docstring used to name "VW-NA, Porsche" as listings that publish no
+    version. Both were wrong by 2026-10-28: VW-NA answers, and both Porsche
+    listings publish a version that our own pattern could not parse (see the
+    correction above ``_PLAY_VERSION_REGEXES``). A ``None`` from here means
+    "we read nothing", which is NOT the same claim as "the store published
+    nothing" — do not translate one into the other without re-measuring.
 
     This is deliberately single-source. See the comment above ``_PLAY_BASE``
     for why the mirrors were removed rather than kept as a fallback.
