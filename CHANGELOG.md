@@ -48,6 +48,61 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **The indicator that tells you a reading is old was reading the wrong
+  clock — and the capture time was sitting in the same snapshot all along.**
+
+  @tdrieshof measured it on an Audi Q6 e-tron (PPE, Belgium, portal-only): the
+  car was at **38 %**, Home Assistant showed **56 %**, and nothing in the
+  interface suggested the number was two days old. @HeinMelissen saw the same
+  shape on a Q4 — a charge target set to 50 while the integration kept showing
+  80, the last value it ever received, republished indefinitely.
+
+  The staleness verdict asked "how long since `last_seen_at`", and
+  `last_seen_at` says when the **delivery** was last seen. A channel refreshes
+  that stamp even when every value inside the delivery is old, so the age came
+  out as minutes no matter how stale the data was. The function's own docstring
+  called that field "the car's own data was captured", which is the whole bug
+  in one sentence.
+
+  What makes this one unusual: nothing had to be collected. `field_captured_ts`
+  — a per-field record of when the car captured each value — was already in the
+  snapshot, already feeding the per-sensor *Data captured at* attribute, and
+  already flipping that sensor's freshness label from "dataset" to "point". The
+  per-sensor attributes knew the capture time while the verdict did not. The
+  verdict now looks at it, preferring the **newest** capture (the question is
+  whether the car recorded anything recently), then the dongle's own
+  *Datenstand*, then the delivery sighting as before — so a channel that
+  records no capture time behaves exactly as it did.
+
+  A carried-forward field keeps its original capture stamp, which is the point:
+  if every field is carried forward, every stamp is old, the newest is old, and
+  the verdict fires.
+
+  **What this does not fix, so nobody updates expecting it.** Two things:
+
+  1. **The bar is 72 hours.** With the anchor corrected, @tdrieshof's two-day-old
+     data is now *measured* correctly — 48 hours instead of six minutes — and
+     still sits under that bar, so his indicator stays off. While the anchor was
+     wrong the bar never mattered, because the age was always minutes; fixing
+     the anchor is what makes the threshold a live question for the first time.
+     Three days is a long time for a feed that normally arrives every fifteen
+     minutes. Lowering it means more cards on more cars, so it is a decision
+     rather than a fix and it is not made here.
+  2. **The 40 carried-forward fields still have no age limit of their own.**
+     Only position has one, at 24 hours. This fixes the global verdict — "did
+     the car capture anything recently" — so a wholly frozen feed is flagged. A
+     single field freezing while others keep moving is a per-field problem and
+     is still open.
+
+  Pinned by 18 tests against seven mutations, including one that restores the
+  old anchor. Why no test caught it before, measured rather than assumed: of
+  the ten test files covering this area, not one set an old capture next to a
+  fresh delivery, and both tests that call the age helper directly pass it a
+  delivery sighting and nothing else. The function was covered only on its
+  fallback path.
+  ([#1917](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1917),
+  [#1364](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1364))
+
 - **The "raise your update interval" card could latch on for good and
   recommend a bigger number every time — and v5.1.2 is what made that
   possible.** This one is ours, introduced four hours after release, so it is

@@ -198,27 +198,52 @@ def _gap_fill_from_export(
 
 
 def _capture_age_s(data: dict[str, Any]) -> float | None:
-    """Seconds since the car's own data was captured (``last_seen_at``), or None.
+    """Seconds since the car itself captured the data, or None.
 
-    ``last_seen_at`` is channel-heterogeneous — a ``datetime`` from the BFF/Škoda
-    paths, an ISO string from the EU Data Act portal (the very channel that
-    freezes), or absent. Handle both real types; anything else / missing → None so
-    the caller does not flag it. A future-dated OCU clock yields a negative age
-    (< any threshold) → no false alarm. (#465)
+    #1917 (@tdrieshof, @HeinMelissen) — this used to read ``last_seen_at`` and
+    its own docstring called that "the car's own data was captured". It is not:
+    ``last_seen_at`` says when the delivery was last SEEN, which a channel
+    refreshes even when every value inside it is old. So the one verdict whose
+    job is to flag a frozen feed was anchored on the wrong clock. Measured on a
+    portal-only Audi Q6 e-tron: the car was at 38 %, Home Assistant showed 56 %,
+    and nothing said the reading was two days old.
+
+    **The capture time was already in the snapshot.** ``field_captured_ts`` is a
+    documented provenance map (see ``_PROVENANCE_MAPS``); it already supplies the
+    per-sensor ``data_captured_at`` attribute and flips ``freshness_source`` from
+    "dataset" to "point". The per-sensor attributes knew the capture time while
+    the staleness verdict did not. This function now looks at it.
+
+    Preference, best evidence first:
+
+    1. the **newest** entry of ``field_captured_ts`` — "when did the car last
+       capture anything". A carried-forward field keeps its OLD stamp, which is
+       the point: if every field is carried forward, every stamp is old, the
+       newest is old, and the verdict fires.
+    2. ``data_captured_at`` — the dongle's own "Datenstand".
+    3. ``last_seen_at`` — the delivery sighting, i.e. the previous behaviour, so
+       a channel that records no capture time is unchanged.
+
+    Parsing is delegated to :func:`_age_s`, which handles both a ``datetime``
+    and an ISO string and returns None for anything else — so a missing or
+    unparseable stamp falls through to the next source rather than flagging.
+    A future-dated OCU clock still yields a negative age (< any threshold) and
+    still raises no false alarm, which is the #465 behaviour kept deliberately.
     """
-    raw = data.get("last_seen_at")
-    if isinstance(raw, datetime):
-        ts = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
-    elif isinstance(raw, str) and raw:
-        try:
-            ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-    else:
-        return None
-    return (datetime.now(tz=timezone.utc) - ts).total_seconds()
+    stamps = data.get("field_captured_ts")
+    if isinstance(stamps, dict):
+        # No emptiness test on the map itself: it would be redundant. An empty
+        # map and a map whose every stamp is unparseable both yield an empty
+        # ``ages``, and the guard below already falls through for that — a
+        # mutation run proved the extra condition unreachable.
+        ages = [a for a in (_age_s(v) for v in stamps.values()) if a is not None]
+        if ages:
+            # smallest age == newest capture
+            return min(ages)
+    age = _age_s(data.get("data_captured_at"))
+    if age is not None:
+        return age
+    return _age_s(data.get("last_seen_at"))
 
 
 # Stage-0 EU-DA observability — map the portal connector's ``last_no_data_reason``
