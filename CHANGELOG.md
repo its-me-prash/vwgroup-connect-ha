@@ -48,6 +48,37 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **An existing entry could not finish setting itself up, and the message
+  blamed the account (#1947).** Reported on v5.1.2 by @mortenmoulder, @RichardPitt and
+  @hausamsee, all on CUPRA, and diagnosed correctly in a single comment by
+  @nijaobscvra666. The portal sign-in that v5.1.2 repaired succeeds, the read
+  channel arms, a cached vehicle is restored — and setup then gives up every
+  160 seconds with "No vehicles found for this account. The login itself
+  worked", on accounts whose car is plainly visible in the portal.
+
+  Nothing was wrong with those accounts, and nothing was wrong with the v5.1.2
+  fix. These entries hold persisted tokens with no recorded strategy, which is
+  why setup skips the fresh login; the token refresh is then refused, and such a
+  refusal has been classified as *transient* since 2026-09-01, deliberately, so
+  that a network hiccup would stop bouncing people to a password prompt. The
+  fallback ladder that exists for exactly this situation — do the login that was
+  skipped, and if that is refused as well, enumerate through the EU Data Act
+  portal — was built thirteen days **before** that reclassification and only
+  ever caught the other class. So the refusal walked past both rungs untouched,
+  and the generic "no vehicles" wording is simply what the entry point reports
+  when setup gives up without a reason of its own. It was never about vehicles.
+
+  Both rungs now take both classes, **at setup only**. The poll loop keeps
+  treating a refused refresh as transient, because there the entry has a
+  last-known-good snapshot to stay alive on while the hiccup passes; setup has
+  no snapshot, so "transient" meant retrying the same dead token file forever
+  with nothing able to change the outcome. @hausamsee asked for precisely the
+  outcome this produces — carry on with the channel that authenticated — and his
+  car is the case the second rung now serves. The workaround people found,
+  removing the entry and adding it again, worked only because it wipes the
+  stored token file; it is no longer needed, and it cost everyone who used it
+  their entity history.
+
 - **A single stopped clock could switch the stale-data indicator off
   completely.** Found by auditing the fix above before it shipped, so it was
   never released — it is written down because the shape is worth knowing.

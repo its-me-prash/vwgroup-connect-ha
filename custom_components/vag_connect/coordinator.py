@@ -1580,6 +1580,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             TermsAndConditionsError,
             MarketingConsentError,
             TwoFactorRequiredError,
+            TokenRefreshRetryError,
             RateLimitError,
         )
 
@@ -2184,7 +2185,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             try:
                 vins = await self._cariad_client.get_vehicles()
                 _enum_ok = True
-            except AuthenticationError:
+            except (AuthenticationError, TokenRefreshRetryError):
                 # v2.21.1 (#875) — persisted IDK/legacy tokens can no longer be
                 # refreshed (VW's device-attestation wall 403s the refresh). We
                 # skipped the fresh login above because they weren't a portal
@@ -2202,6 +2203,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # channel is degraded (per-VIN reads resume via the poll loop's
                 # supplementary revive). No EU Data Act channel → [] → re-raise →
                 # original invalid_credentials behaviour (strict no-op).
+                # #1947 follow-up — the catch above ALSO takes the transient
+                # classification, and that is the whole fix. #1318 (2026-09-01)
+                # reclassified every non-invalid_grant refresh rejection as
+                # TokenRefreshRetryError, a deliberate SIBLING of
+                # AuthenticationError so a blip would stop bouncing users to a
+                # reauth prompt. This ladder was built 13 days earlier
+                # (3d5b542d, 2026-08-19) and was never widened, so from that day
+                # the very failure it exists for walked straight past it: the
+                # catch-all at the end of async_setup returns False, and the
+                # entry point renders that as "No vehicles found for this
+                # account. The login itself worked" — on an account whose car is
+                # plainly visible in the portal. @mortenmoulder called that
+                # message "very strange", and he was right; it was never about
+                # vehicles.
+                # The sibling classification is correct for the POLL loop, which
+                # keeps the entry live on its last snapshot while a hiccup
+                # passes. Setup has no snapshot, so "transient" there means
+                # retrying the same dead token file every 160 s with nothing in
+                # the loop able to change the outcome. The only exit users found
+                # was deleting the entry, which works solely because it wipes
+                # .storage/vag_connect_tokens_<entry_id>. Widened here and ONLY
+                # here: _is_selfhealing_poll_error keeps its classification, and
+                # TokenRefreshRetryError stays a sibling (both pinned by tests).
                 try:
                     if persisted is None or persisted_is_portal:
                         raise
@@ -2223,7 +2247,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await self._arm_supplementary_channels()
                     vins = await self._cariad_client.get_vehicles()
                     _enum_ok = True
-                except AuthenticationError:
+                except (AuthenticationError, TokenRefreshRetryError):
+                    # #1947 follow-up — the retry can be refused the same
+                    # transient way (the shared id_token login path raises it
+                    # too, see auth/_mbboauth.py), so this rung needs the same
+                    # pair. Without it the fresh login above only moves the dead
+                    # end one step later and the portal is still never asked.
                     vins = await self._enumerate_via_eu_data_act_fallback()
                     if not vins:
                         raise
