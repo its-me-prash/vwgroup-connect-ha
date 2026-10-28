@@ -13,7 +13,7 @@ someone adds a legitimate new placeholder. Instead a literal is accepted when it
 carries a visible marker of being made up:
 
   * a word marker anywhere in it: TEST, SYNTHET, SYNTH, KEEP, DUMMY, FAKE,
-    EXAMPLE, PLACEHOLD, REDACT
+    EXAMPLE, PLACEHOLD, REDACT, ANON, SAMPLE
   * a filler run: four or more identical characters in a row (XXXX, AAAA, 0000)
   * an all-zero serial, the last six characters
   * a sequential serial, ascending or descending by one (012345, 123456, 987654)

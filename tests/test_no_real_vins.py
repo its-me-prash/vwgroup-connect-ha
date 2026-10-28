@@ -146,6 +146,30 @@ class TestTheGuardAcceptsPlaceholders:
         assert bad == []
 
 
+class TestTheGuardDocumentsWhatItDoes:
+    """The docstring is the rule as a contributor reads it, so it has to agree
+    with the code underneath it. It did not: ``ANON`` and ``SAMPLE`` are two of
+    the eleven word markers the code accepts and neither appeared in the list a
+    reader sees, so the written rule understated what already counts as
+    obviously-fake. Someone following the documentation would rename a
+    legitimate ANON placeholder for nothing.
+
+    Prose cannot be diffed against behaviour, so the part of it that *is*
+    derivable from the code gets derived. A twelfth marker added later fails
+    this test too, rather than quietly widening the gate behind its own
+    documentation.
+    """
+
+    def test_the_docstring_names_every_marker_the_code_accepts(self) -> None:
+        import check_no_real_vins
+
+        doc = check_no_real_vins.__doc__ or ""
+        missing = [m for m in check_no_real_vins._MARKERS if m not in doc]
+        assert missing == [], (
+            f"markers the code accepts but the documented rule omits: {missing}"
+        )
+
+
 def _tracked_paths() -> list[str]:
     """``git ls-files`` for the repo under test.
 
