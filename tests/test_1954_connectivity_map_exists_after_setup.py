@@ -26,7 +26,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.vag_connect.cariad.models import VehicleData
 
-VIN = "TMBEL9NEXP1001954"
+VIN = "TMBZZZZZZZZ000000"  # synthetic, zeroed serial (house convention)
 
 
 def _coord(entry_data: dict[str, Any], restored: dict[str, Any] | None = None) -> Any:
