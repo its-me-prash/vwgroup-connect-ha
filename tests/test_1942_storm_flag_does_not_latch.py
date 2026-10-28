@@ -47,7 +47,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -222,6 +222,103 @@ def test_the_guard_still_trips_on_a_token_that_could_be_refreshed() -> None:
 
     assert c.refresh_storm_detected is True
     assert len(c._refresh_history) == _base._REFRESH_MAX_PER_HOUR
+
+
+# ── the half the first fix missed: nothing guarantees a later refresh ───────
+
+
+def _arm_portal(c: VWEUClient) -> None:
+    """Drive the real ``_arm_eu_portal`` with only the network faked, so the
+    clear is observed where it actually has to happen."""
+    conn = MagicMock()
+    conn.login = AsyncMock(return_value=None)
+    with patch(
+        "custom_components.vag_connect.cariad.auth._eu_data_act.EUDataActConnector",
+        return_value=conn,
+    ):
+        asyncio.run(c._arm_eu_portal())
+
+
+def test_arming_the_portal_fallback_clears_the_flag_by_itself() -> None:
+    """Clearing it inside ``_refresh_tokens`` was not enough, and this is the
+    test that says why.
+
+    The data path calls ``_refresh_tokens`` only on a 401 (the proactive re-mint
+    is gated to one strategy and one brand). The native block that sends a
+    SEAT/CUPRA car to this fallback is a **403**. So on exactly the car this
+    fallback exists for, nothing re-enters the refresh path, the clear there
+    never runs, and the Repair stays raised until a restart.
+
+    ``tests/test_reactive_session_recovery.py::
+    test_a_403_does_not_recover_and_that_is_the_known_gap`` pins that premise.
+    """
+    c = _client_on_a_real_bearer()
+    _trip_the_budget(c)
+    c._refresh_tokens = AsyncMock(  # type: ignore[method-assign]
+        side_effect=AssertionError("arming must not depend on a refresh")
+    )
+
+    _arm_portal(c)
+
+    assert c.refresh_storm_detected is False, (
+        "the flag survived the switch to a channel that spends no budget, and "
+        "nothing on a 403 path would ever come back to clear it"
+    )
+
+
+def test_arming_installs_the_sentinel_and_clears_in_the_same_step() -> None:
+    """Pin the pairing, not just the flag: the clear belongs to the moment the
+    bearer-less session is installed."""
+    c = _client_on_a_real_bearer()
+    _trip_the_budget(c)
+
+    _arm_portal(c)
+
+    assert c._tokens is not None
+    assert c._tokens.strategy == "data_act_portal"
+    assert c._tokens.refresh_token == ""
+    assert c.refresh_storm_detected is False
+
+
+def _arm_website(c: VWEUClient) -> None:
+    conn = MagicMock()
+    conn.begin_login = AsyncMock(return_value="ok")
+    with patch(
+        "custom_components.vag_connect.cariad.auth._website_authproxy"
+        ".WebsiteAuthProxyConnector",
+        return_value=conn,
+    ):
+        asyncio.run(c._arm_website_proxy())
+
+
+def test_arming_the_website_fallback_clears_the_flag_by_itself() -> None:
+    """The website-authproxy channel is the same shape — a bearer-less cookie
+    session that spends no refresh budget — so it needs the same clear.
+
+    This test exists because a mutation run found that line unpinned: deleting
+    it left every test green. An unpinned line is one a later tidy-up removes.
+    """
+    c = _client_on_a_real_bearer()
+    c._website_cookies = None
+    _trip_the_budget(c)
+
+    _arm_website(c)
+
+    assert c._tokens is not None
+    assert c._tokens.strategy == "website_authproxy"
+    assert c._tokens.refresh_token == ""
+    assert c.refresh_storm_detected is False
+
+
+def test_arming_does_not_declare_the_account_unlocked() -> None:
+    """Same boundary as the refresh path: arming a fallback measures nothing
+    about an account lock."""
+    c = _client_on_a_real_bearer()
+    c.account_lock_detected = True
+
+    _arm_portal(c)
+
+    assert c.account_lock_detected is True
 
 
 def test_a_real_bearer_keeps_the_flag_after_a_later_refusal() -> None:

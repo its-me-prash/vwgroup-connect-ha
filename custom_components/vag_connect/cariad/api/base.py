@@ -686,6 +686,14 @@ class CariadBaseClient:
             expires_at=_time.time() + 3300,
             strategy="data_act_portal",
         )
+        # #1942 — arming this fallback is the moment a refresh storm becomes
+        # impossible, so it is the moment to drop the flag that claims one.
+        # Clearing it in ``_refresh_tokens`` alone was not enough: the data
+        # path only calls that on a 401, and the native block that sends us
+        # here is a 403. So on the very car this fallback exists for, nothing
+        # re-entered the refresh path and the "raise your update interval"
+        # Repair stayed raised until a restart. Belt and braces, both places.
+        self.refresh_storm_detected = False
 
     def supplementary_readers(
         self, vin: str
@@ -1122,6 +1130,11 @@ class CariadBaseClient:
             expires_at=_time.time() + 3300,
             strategy="website_authproxy",
         )
+        # #1942 — same reasoning as the portal fallback above: this channel
+        # spends no refresh budget, so a storm flag set before the switch can
+        # no longer be true, and nothing is guaranteed to re-enter the refresh
+        # path to clear it.
+        self.refresh_storm_detected = False
 
     def get_website_proxy_cookies(self) -> list[dict[str, Any]]:
         """v2.14.3 — export the live website-authproxy session cookies.

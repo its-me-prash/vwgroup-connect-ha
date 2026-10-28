@@ -79,6 +79,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   that path checked whether the account is locked, and inventing an all-clear is
   the mistake this release is otherwise about.
 
+  **That alone was not enough, and the reason is worth writing down.** Clearing
+  it only on the next refresh assumes a next refresh happens. The data path asks
+  for one only on a **401** — and the native block that sends a SEAT or CUPRA car
+  to this fallback is a **403**. So on exactly the car the fallback exists for,
+  nothing came back to run the clear and the card stayed raised until a restart.
+  The flag is therefore now also dropped at the moment either read-only fallback
+  is armed, which is the moment a storm becomes impossible. The evidence for
+  that gap was already in this repository, in a test written days earlier that
+  pins "a 403 does not recover"; it simply had not been connected to this fix.
+
   Why the #1918 tests could not see it: every one of them starts from a client
   built moments earlier, where the flag has never been anything but False.
   Asserting it is still False proves nothing about a flag that was True. Pinned
@@ -86,7 +96,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   straight revert to the v5.1.2 code.
 
 - **A locked car reported its doors unlocked, because the boot was counted as a
-  door.** On the EU Data Act portal path the tailgate's lock state was folded
+  door — on the EU Data Act portal path.** The channel is named deliberately:
+  the same mistake is **still live on the North America path**, where four
+  locked doors plus an unlocked boot likewise read as unlocked. That one is not
+  fixed here, so if your car reads through the US/Canada connector this entry
+  does not describe your fix yet. The EU portal path is what follows.
+
+  There the tailgate's lock state was folded
   into the per-door `doors_locked` aggregation, where any unlocked member makes
   the whole verdict *unlocked*. So an unlocked boot on an otherwise locked car
   reported the doors as unlocked.
@@ -144,6 +160,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   brought the fix point with him: the computation is local-only — no await, no
   network — so there was never a reason to defer it to a poll. It now runs
   during setup as well, fail-soft, exactly as it does on the poll path.
+
+  Two paths it does **not** reach, so nobody reads more into it than is there:
+  a **companion (ADB) entry** skips that part of setup entirely — its first poll
+  is immediate rather than an interval away, so the window is much shorter, but
+  it is not zero — and a VIN whose setup read failed outright has nothing stored
+  to put the value in.
 
 ## [5.1.2] - 2026-10-28 — Ten things it reported wrongly / Zehn Dinge, die es falsch gemeldet hat
 
