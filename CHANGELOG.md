@@ -85,6 +85,53 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   now by the sequence itself, against six mutations — the first of which is a
   straight revert to the v5.1.2 code.
 
+- **A locked car reported its doors unlocked, because the boot was counted as a
+  door.** On the EU Data Act portal path the tailgate's lock state was folded
+  into the per-door `doors_locked` aggregation, where any unlocked member makes
+  the whole verdict *unlocked*. So an unlocked boot on an otherwise locked car
+  reported the doors as unlocked.
+
+  @Adcad1970's Audi A6 e-tron is where it surfaced
+  ([#1950](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1950)):
+  "Doors Locked" and "Trunk Locked" moved together — identical timestamps,
+  identical values — for hours while the car stayed locked.
+
+  The direction he could not see is the worse one. On a delivery carrying *only*
+  the tailgate's lock state, which this portal does send, the door verdict was
+  decided entirely by the boot — and a locked boot then asserted **doors
+  locked** on no door evidence at all. Measured before and after the change: a
+  tailgate-locked-only payload went from a fabricated *locked* to *unknown*, and
+  four locked doors plus an unlocked boot went from a wrong *unlocked* to
+  *locked*. Only the boot's **lock** state was ever involved; an *open* boot
+  never touched the door verdict, in either direction, and that boundary is now
+  pinned too.
+
+  The file already guarded against this exact hazard in the other dialect — the
+  bare `locked` field is read under a dotted spelling precisely so the trunk
+  state cannot mis-set `doors_locked` — and the historical `door_info.*` path
+  has always aggregated doors alone, sending the boot lock to `trunk_locked`
+  separately. Only the enum path got it wrong. The door verdict now comes from
+  door fields; a tailgate-only payload leaves it unknown rather than stating
+  something no field reported.
+
+  Two consequences worth knowing, because they are not all upside. On a car
+  whose portal delivery only ever carries the tailgate's lock state,
+  `doors_locked` is now *unknown* instead of wrong — so the named `locked` and
+  `unlocked` triggers cannot fire on it (an edge needs a real value on both
+  sides), the `is_locked` condition answers "not locked" for unknown, and on a
+  fresh install the "Doors Locked" sensor may not be created at all while
+  hide-empty is on. In exchange, leaving the field empty finally lets the
+  historical export path and the cross-channel gap-fill supply it — the old code
+  occupied the field with the boot's value and blocked both.
+
+  Why the existing portal tests never caught this is worth recording, because
+  the obvious guess is wrong. It is not that they all supplied door fields
+  alongside the tailgate: two of them feed a tailgate-only lock payload, which
+  is exactly the broken shape. They passed because **not one of them asserted**
+  `doors_locked` on it. The tests sat directly on the defect and said nothing.
+  A field can be exercised by several tests and pinned by none — it is pinned
+  now, against eight separate mutations.
+
 ## [5.1.2] - 2026-10-28 — Ten things it reported wrongly / Zehn Dinge, die es falsch gemeldet hat
 
 ### Behoben / Fixed

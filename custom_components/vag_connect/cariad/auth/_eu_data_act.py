@@ -3638,7 +3638,17 @@ def map_dataset_to_vehicle_data(
         _to_int(first("locked_state_rear_right_door")),
     ]
     _tail_lock = _to_int(first("locked_state_tailgate"))
-    _lock_vals = [v for v in (*_locks, _tail_lock) if v in (2, 3)]
+    # #1950 (@Adcad1970, Audi A6 e-tron) — the tailgate is NOT a door. It used to
+    # be folded into the aggregation below, which broke both ways on a delivery
+    # that carried only ``locked_state_tailgate``: doors_locked became an exact
+    # mirror of trunk_locked, and a locked tailgate asserted "doors locked" on no
+    # door evidence at all. Same hazard the dotted-spelling note at the bare
+    # ``locked`` read above already guards against, in the other dialect — and the
+    # historical ``door_info.*`` path below already aggregates doors only. So the
+    # door verdict comes from door fields, and the tailgate goes to trunk_locked
+    # alone; a tailgate-only payload now leaves doors_locked unset (unknown)
+    # rather than stating something no field reported.
+    _lock_vals = [v for v in _locks if v in (2, 3)]
     if _lock_vals:
         d.doors_locked = all(v == 2 for v in _lock_vals)  # any unlocked → False
     if _tail_lock in (2, 3) and d.trunk_locked is None:
