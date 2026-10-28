@@ -48,14 +48,58 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **A single stopped clock could switch the stale-data indicator off
+  completely.** Found by auditing the fix above before it shipped, so it was
+  never released — it is written down because the shape is worth knowing.
+
+  The corrected verdict takes the newest of up to seventy per-field capture
+  stamps. "Newest" is the smallest age, and a stamp dated in the **future**
+  has a negative age, so it won outright: one car reporting a clock six hours
+  ahead answered "six hours in the future" and the indicator read *not stale*
+  on a feed that had been frozen for four days. Sixty-nine correct stamps
+  silenced by one broken one.
+
+  The verdict now judges on the stamps that are not in the future. Only when
+  **every** stamp is future-dated does the negative answer stand, which keeps
+  the deliberate behaviour from [#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465):
+  a car whose clock runs ahead raises no repair card, because then there is
+  nothing sane to prefer over it.
+  ([#1917](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1917))
+
+- **A parked car on a dongle is not a frozen feed, and no longer reports as
+  one.** Also caught before shipping.
+
+  The first version of the fix above consulted `data_captured_at` as a second
+  source. That field is written in exactly one place — the KWP2000 dongle —
+  and that client documents it as refreshing "only when the car is driven / on
+  ignition". So the fix silently gave the dongle channel a staleness verdict it
+  had never had, and every dongle car parked longer than three days would have
+  reported its data as outdated. Correct arithmetic, wrong question: the
+  indicator exists to say the feed broke, not that the owner took the train.
+
+  The dongle's "Datenstand" is no longer part of that decision. It is still
+  shown as the per-sensor *Data captured at* attribute, where it answers the
+  question it can answer.
+  ([#1917](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1917))
+
 - **The indicator that tells you a reading is old was reading the wrong
   clock — and the capture time was sitting in the same snapshot all along.**
 
   @tdrieshof measured it on an Audi Q6 e-tron (PPE, Belgium, portal-only): the
   car was at **38 %**, Home Assistant showed **56 %**, and nothing in the
-  interface suggested the number was two days old. @HeinMelissen saw the same
-  shape on a Q4 — a charge target set to 50 while the integration kept showing
-  80, the last value it ever received, republished indefinitely.
+  interface suggested the number was two days old. His diagnostic is what made
+  it checkable: the anchor the code read was about **22 hours** old while the
+  car's own capture, quoted in his own log, was about **47 hours** old.
+
+  A second report that looked identical turned out not to be this fault, and
+  that belongs here rather than in a footnote: a Q4 whose charge target read 80
+  against a setting of 50 looked exactly like a frozen feed, and the owner then
+  checked the portal archives himself and found the source data genuinely wrong
+  — readings four hours old against a fifteen-minute cadence, and a charging
+  speed of 660 km/h held for three hours. That is VW's data being wrong, not
+  ours being stale, and #1917 says so explicitly. It is named here because the
+  symptom is the same and the cause is not, which is the whole difficulty with
+  this class of bug.
 
   The staleness verdict asked "how long since `last_seen_at`", and
   `last_seen_at` says when the **delivery** was last seen. A channel refreshes
@@ -81,7 +125,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   **What this does not fix, so nobody updates expecting it.** Two things:
 
   1. **The bar is 72 hours.** With the anchor corrected, @tdrieshof's two-day-old
-     data is now *measured* correctly — 48 hours instead of six minutes — and
+     data is now *measured* correctly — 47 hours against the 22 the old
+     anchor reported — and
      still sits under that bar, so his indicator stays off. While the anchor was
      wrong the bar never mattered, because the age was always minutes; fixing
      the anchor is what makes the threshold a live question for the first time.
@@ -295,8 +340,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   Error Reporter should offer to file. Every branch of that decision inspected
   an `APIError`, which is the shape the shared request helper produces after it
   has retried a network failure and given up. Five of the fifteen channel
-  clients do not go through that helper; on those, a reset arrives as the raw
-  `aiohttp` exception, matches no branch, and counts as a defect.
+  clients do not go through that helper, and measuring what that actually means
+  took two attempts:
+
+  - the **dongle cloud** and **Skoda-official** convert nothing, so all four
+    transient classes reach the handler raw and count as a defect — this is the
+    gap that filed the issue;
+  - **VW North America** converts three of the four into a backend-unavailable
+    error the handler already understood, and leaks the fourth, a truncated
+    response body;
+  - **Porsche** retries and then raises the same tagged `APIError` the helper
+    does, so it was already covered.
+
+  An earlier version of this entry said a reset arrives raw on all five. It
+  does not, and the correction is the same kind of care this release is about:
+  the measurement that mattered was not "which clients inherit the helper" but
+  "which ones let the exception through".
 
   That is what filed
   [#1959](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1959): one

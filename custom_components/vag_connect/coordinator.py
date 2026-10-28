@@ -220,15 +220,18 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
        capture anything". A carried-forward field keeps its OLD stamp, which is
        the point: if every field is carried forward, every stamp is old, the
        newest is old, and the verdict fires.
-    2. ``data_captured_at`` — the dongle's own "Datenstand".
-    3. ``last_seen_at`` — the delivery sighting, i.e. the previous behaviour, so
+    2. ``last_seen_at`` — the delivery sighting, i.e. the previous behaviour, so
        a channel that records no capture time is unchanged.
+
+    ``data_captured_at`` is deliberately NOT a step in this chain; the comment at
+    the fall-through says why a dongle's "Datenstand" must not decide this.
 
     Parsing is delegated to :func:`_age_s`, which handles both a ``datetime``
     and an ISO string and returns None for anything else — so a missing or
     unparseable stamp falls through to the next source rather than flagging.
-    A future-dated OCU clock still yields a negative age (< any threshold) and
-    still raises no false alarm, which is the #465 behaviour kept deliberately.
+    A future-dated OCU clock still raises no false alarm (#465), but it can no
+    longer mask sane stamps beside it: among many stamps the future-dated ones
+    are ignored, and the negative age only stands when every stamp is one.
     """
     stamps = data.get("field_captured_ts")
     if isinstance(stamps, dict):
@@ -238,11 +241,29 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
         # mutation run proved the extra condition unreachable.
         ages = [a for a in (_age_s(v) for v in stamps.values()) if a is not None]
         if ages:
+            # A future-dated stamp yields a NEGATIVE age, and a negative value
+            # wins min() outright: one broken clock among seventy would silence
+            # the verdict for the other sixty-nine. Measured before this guard
+            # existed: {+6 h, 90 h, 95 h} answered -6.0 h, so data_stale read
+            # false on a feed that had been frozen for four days.
+            #
+            # So the newest capture is taken from the stamps that are NOT in the
+            # future. Only when EVERY stamp is future-dated does the negative
+            # answer stand -- that is the deliberate #465 behaviour, where a car
+            # whose clock runs ahead raises no false alarm, and it is kept
+            # because then there is no sane stamp to prefer over it.
+            sane = [a for a in ages if a >= 0]
             # smallest age == newest capture
-            return min(ages)
-    age = _age_s(data.get("data_captured_at"))
-    if age is not None:
-        return age
+            return min(sane) if sane else min(ages)
+    # ``data_captured_at`` is deliberately NOT consulted. It is written in
+    # exactly one place -- the KWP2000 dongle (``plugandplay.py``) -- and that
+    # client documents it as refreshing "only when the car is driven / on
+    # ignition". Anchoring the verdict on it would flag every dongle car parked
+    # longer than the threshold, which is a parked car rather than a frozen
+    # feed: the indicator exists to say the feed broke, not that the owner took
+    # the train. Prash's decision, 2026-10-28. The dongle still surfaces that
+    # stamp as the per-sensor *Data captured at* attribute, where it answers the
+    # question it can actually answer.
     return _age_s(data.get("last_seen_at"))
 
 

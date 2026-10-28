@@ -79,12 +79,22 @@ def test_structured_404_still_reported() -> None:
 # tested an ``APIError``, so the fix only reached the clients that go through
 # base.
 #
-# **Five of the fifteen clients do not.** PlugAndPlay and WCG (the dongle
-# cloud), Porsche, Skoda-official and VW-NA each build their own request path,
-# verified by resolving the real MRO rather than grepping for ``(CariadBaseClient)``
-# — an earlier grep called every client standalone because it missed indirect
-# inheritance. On those five a connection reset arrives here as a bare
-# ``ClientConnectorError``, matches no branch, and is escalated.
+# **Five of the fifteen clients do not** build on it: PlugAndPlay and WCG (the
+# dongle cloud), Porsche, Skoda-official and VW-NA each have their own request
+# path, verified by resolving the real MRO rather than grepping for
+# ``(CariadBaseClient)`` — an earlier grep called every client standalone because
+# it missed indirect inheritance.
+#
+# But "does not inherit" is not the same question as "lets the exception
+# through", and only the second one matters here. Measured per client:
+#
+#   dongle cloud, Skoda-official  convert nothing  -> all four classes arrive raw
+#   VW-NA                         catches 3 of 4   -> leaks ClientPayloadError
+#   Porsche                       retries, then raises the tagged APIError
+#
+# So the gap is real on two clients and partial on a third; Porsche was already
+# covered by the #814 branch above. The guard is still written for the whole
+# tuple, because it costs nothing and a client added later inherits the cover.
 #
 # That filed #1959: one "Connection reset by peer" against the dongle cloud, on
 # one car, over two days. Ordinary internet, presented as a defect — and noise
