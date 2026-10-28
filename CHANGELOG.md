@@ -46,6 +46,45 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **The "raise your update interval" card could latch on for good and
+  recommend a bigger number every time — and v5.1.2 is what made that
+  possible.** This one is ours, introduced four hours after release, so it is
+  stated plainly rather than buried.
+
+  @clipse2004's CUPRA Formentor
+  ([#1942](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1942)):
+  he raised the interval, the card came back with a higher number, he raised it
+  again, and so on. The escalation looked like repeated storms. It was not —
+  the recommended value is derived from the *current* interval, so **one** flag
+  that never clears produces 40 → 55 → 60 all by itself.
+
+  The flag has exactly one setter and five clearers. The #1918 fix in v5.1.2
+  added an early return so a bearer-less cookie session stops paying for a
+  re-login that cannot work — correct in itself, but it sits *before* the
+  budget check and before all five of those clearers. So: a client trips the
+  budget while it still holds a real bearer (the flag goes up, rightly), the
+  native plane then answers with the attestation wall *in the same session*,
+  the portal fallback is armed, and from that moment every refresh leaves
+  through the early return. Nothing can clear the flag again for the life of
+  the client, and the card is raised on every poll with no storm behind it.
+  That is the one state in which the advice is pure noise: a cookie session
+  spends no refresh budget at all, so raising the interval cannot change
+  anything.
+
+  The branch now clears the flag on its way out. That is a measurement rather
+  than an assumption — it returns precisely *because* it will not spend a slot.
+  An account-lock flag is deliberately **not** cleared alongside it: nothing on
+  that path checked whether the account is locked, and inventing an all-clear is
+  the mistake this release is otherwise about.
+
+  Why the #1918 tests could not see it: every one of them starts from a client
+  built moments earlier, where the flag has never been anything but False.
+  Asserting it is still False proves nothing about a flag that was True. Pinned
+  now by the sequence itself, against six mutations — the first of which is a
+  straight revert to the v5.1.2 code.
+
 ## [5.1.2] - 2026-10-28 — Ten things it reported wrongly / Zehn Dinge, die es falsch gemeldet hat
 
 ### Behoben / Fixed

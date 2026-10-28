@@ -1871,6 +1871,25 @@ class CariadBaseClient:
                 and self._tokens.strategy in _COOKIE_SESSION_STRATEGIES
             ):
                 _cs_args = (self._brand.name, self._tokens.strategy)
+                # #1942 (@clipse2004) — this return sits BEFORE the budget check
+                # and before all five paths that clear the storm flag, so a
+                # client that tripped the budget while it still held a real
+                # bearer and only then fell back to a cookie session — which
+                # happens in-session, seat_cupra arms the portal on a 403 —
+                # could never clear the flag again. The "raise your update
+                # interval" Repair then stayed raised for the rest of the
+                # client's life, recommending a higher number each time, with no
+                # storm behind it at all. That is the self-escalating card
+                # #1942 reports.
+                #
+                # Clearing it here is a measurement, not an assumption: this
+                # branch spends no slot of the budget, so there is no refresh
+                # storm by definition. ``account_lock_detected`` is deliberately
+                # NOT cleared alongside it — nothing on this path measured
+                # whether the account is locked, and a full re-authentication
+                # after a restart clears that one honestly.
+                if not for_command:
+                    self.refresh_storm_detected = False
                 if not self._cookie_session_refusal_reported:
                     self._cookie_session_refusal_reported = True
                     _LOGGER.info(
