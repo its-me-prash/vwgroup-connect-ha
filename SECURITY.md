@@ -14,8 +14,12 @@ are not patched.
 
 | Version | Supported |
 |---|---|
-| 4.7.x | ✅ |
-| < 4.7 | ❌ — please update |
+| 5.2.x | ✅ |
+| < 5.2 | ❌ — please update |
+
+> This table was left at `4.7.x` for five minor lines. If you are reading it
+> and the number looks older than the latest release, the release is right and
+> the table is stale — please open an issue.
 
 Home Assistant supports the integration on its own currently-supported core
 versions (typically the last 4 monthly releases). Any HA below the
@@ -74,7 +78,14 @@ mitigation within **14 days** for high-severity issues.
 - **Zero external runtime dependencies** (`requirements: []` in
   `manifest.json`) — no transitive supply-chain risk.
 - **Credentials redaction** in `diagnostics.py` — passwords, S-PINs,
-  usernames, GPS coordinates are never exposed in diagnostics exports.
+  usernames and GPS coordinates are redacted from diagnostics exports. The
+  redaction is **by key name**, applied recursively, so a value is only safe
+  once its key, or a key above it, is registered. That is a real limit and not
+  a formality: until 5.2.1 the primary `website_cookies` jar was not
+  registered, and a diagnostics file from an earlier version can carry a live
+  volkswagen.de session. See **#1968** for what to do if you have attached
+  one. Since 5.2.1 the completeness of that list is a test, derived from the
+  key names in `const.py` rather than read off the list itself.
 - **S-PIN fail-fast** (since v1.8.0 / #60) — privileged commands raise
   `ServiceValidationError` before they reach the API.
 - **Reverse geocoding opt-in** (since v1.8.0 / #60) — vehicle GPS is
@@ -89,7 +100,23 @@ mitigation within **14 days** for high-severity issues.
 - **Token redaction in diagnostics** — `access_token`, `refresh_token`,
   `id_token`, `client_secret` (snake_case + camelCase variants) and email
   addresses are masked in `diagnostics.py` exports. JWT-pattern strings
-  are stripped from any value field via `JWT_RE`.
+  are stripped from any value field via `JWT_RE`. Because the match is on the
+  key name and runs recursively, a token dict nested under an unregistered
+  container key is still masked by its inner names — which is why the
+  `mbb_command_tokens` and `supplementary_tibber_tokens` values were covered
+  before 5.2.1 while the cookie jar, whose keys are `name` / `value` /
+  `domain`, was not.
+
+---
+
+## How a problem gets published
+
+Reporting is private (above). **Disclosure is public**: once a fix is released,
+what was wrong, which versions are affected and what a user has to do are
+written up in a normal issue, linked from the release notes and from
+`CHANGELOG.md`. The advisory for the diagnostics exposure is **#1968**. If a
+fix changes what you were told to do, the correction is appended to that same
+page rather than replacing it, so the record of what changed stays readable.
 
 ---
 
@@ -103,4 +130,4 @@ mitigation within **14 days** for high-severity issues.
 
 ---
 
-*Last updated: 2026-09-23 — v4.7.13*
+*Last updated: 2026-10-31 — v5.2.1*

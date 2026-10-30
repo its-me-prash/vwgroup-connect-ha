@@ -100,6 +100,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   would otherwise let the module pass while checking nothing — which is the
   shape of the review failure that allowed the original wording to stand.
 
+- **`SECURITY.md` carried the same overstatement, and a supported-versions
+  table five minor lines out of date (#923, #1968).** It named `4.7.x` as the
+  supported line and said passwords, S-PINs, usernames and GPS "are never
+  exposed in diagnostics exports". The table now reads `5.2.x`, and the two
+  redaction bullets say how the redaction actually works — by key name,
+  recursively, so a value is safe only once its key or a key above it is
+  registered — which is the property that made the gap possible and the
+  property that also meant the two nested token dicts were covered while the
+  cookie jar was not. Measured, not assumed: reconstructing the pre-5.2.1
+  scrubber and running it over the shapes the code writes leaves the cookie
+  value in the clear and all six token values redacted. The file also now says
+  how a problem gets published once it is fixed; until now it only said how to
+  report one privately.
+
 ## [5.2.1] - 2026-10-30 — The file we asked you for / Die Datei, um die wir gebeten haben
 
 ### Behoben / Fixed
