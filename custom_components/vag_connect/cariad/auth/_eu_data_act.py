@@ -7109,18 +7109,28 @@ class EUDataActConnector:
             # The reason string stays ``no_request`` either way: it feeds the
             # portal-health sensor's enum and its translations, and a new value
             # would have to be added in several places for a wording change.
+            # The one-time historical export reaches this same branch through
+            # _ALL_METADATA_PATH, where "continuous data request" is the wrong
+            # noun: there is nothing continuous to enable, and telling someone
+            # to go and create one sends them to the wrong control. Named as an
+            # open loose end when the rest of this message was fixed, so it is
+            # closed here rather than left as a known-wrong sentence.
+            _one_time = request_type == "all"
             _LOGGER.info(
-                "EU Data Act portal: no active data-request found for %s%s. If "
-                "you have not set one up, enable the continuous data request "
-                "for this car on the VW data portal (it can take a while to "
-                "propagate). If you already have one, leave it alone — the "
-                "portal sometimes answers this way while a request is live, "
-                "and it clears on its own. Vehicle will show with no data "
-                "until then.",
+                "EU Data Act portal: no active %s found for %s%s. If you have "
+                "not set one up, %s for this car on the VW data portal (it can "
+                "take a while to propagate). If you already have one, leave it "
+                "alone — the portal sometimes answers this way while a request "
+                "is live, and it clears on its own. Vehicle will show with no "
+                "data until then.",
+                "historical data export" if _one_time else "data-request",
                 vin[-6:],
                 f" (the portal answered HTTP {self._last_soft_status})"
                 if self._last_soft_status is not None
                 else "",
+                "request the historical data export"
+                if _one_time
+                else "enable the continuous data request",
             )
             return d
         # #465 observability — record WHEN this data request was created (its

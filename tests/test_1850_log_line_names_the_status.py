@@ -100,9 +100,12 @@ def _no_request_message() -> str:
 
     src = inspect.getsource(eda)
     start = src.index('self._note_no_data("no_request")')
-    block = src[start : start + 2800]
-    body = block[block.index("_LOGGER.info("):]
-    return _joined(body[: body.index("return d")])
+    # Sliced to the next ``return d`` rather than to a character count: a fixed
+    # window silently stopped reaching the end of the call when the comment
+    # above it grew, and the helper then raised instead of reporting.
+    body = src[src.index("_LOGGER.info(", start):]
+    end = body.index("return d")
+    return _joined(body[:end])
 
 
 def test_the_message_keeps_the_advice_and_adds_the_status_and_the_caveat() -> None:
@@ -180,3 +183,19 @@ def test_an_empty_zip_stays_quiet() -> None:
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("readme.txt", "nothing here")
     assert eda._unzip_json(buf.getvalue(), "dataset.zip") == {}
+
+
+def test_the_one_time_export_is_not_called_a_continuous_request() -> None:
+    """The one-time historical export reaches this same branch through a
+    different metadata path, and "continuous data request" is the wrong control
+    to send that user to — there is nothing continuous to enable."""
+    import inspect
+
+    msg = _no_request_message()
+    assert "if _one_time" in msg, (
+        "the message no longer distinguishes the one-time export"
+    )
+    assert "request the historical data export" in msg
+    assert "historical data export" in msg
+    # and the flag really is the request type, which is set outside the call
+    assert '_one_time = request_type == "all"' in inspect.getsource(eda)

@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-10-30 — The file we asked you for / Die Datei, um die wir gebeten haben
+
 ### Behoben / Fixed
 
 - **Three credential keys reached the diagnostics download unredacted, the
@@ -101,6 +103,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   It now warns, naming the root's type and how many top-level items it had, and
   nothing else: not the file name, which can carry a VIN, and not a single
   value.
+
+- **The one-time historical export told you to enable a continuous data
+  request (#1850).** It reaches the same "no active request" branch through its own
+  metadata path, where that is the wrong control to point at: there is nothing
+  continuous to enable for a one-time export. Named as a loose end when the
+  rest of that message was corrected, and closed here rather than left as a
+  known-wrong sentence.
 
 ## [5.2.0] - 2026-10-30 — As of when? / Seit wann gilt das?
 
