@@ -73,6 +73,33 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   so the account is the field that identifies them — which is what made the
   empty value cost something rather than merely look untidy.
 
+- **The product itself promised that tokens were redacted, and that promise is
+  what put the files into public issues (#923, #1968).** Three texts ask for a
+  diagnostics file and all three overstated what the redaction did: the Vehicle
+  Data Scout repair card said "everything is redacted automatically" and named
+  **tokens** among what is stripped; the `test_cohort` option said "no VIN, GPS,
+  tokens or email is ever included"; and the bug-report template said sensitive
+  data had been auto-redacted since v1.8.x, listing neither cookies nor tokens.
+  From mid-June until 5.2.1 none of that was true of the three credential keys.
+
+  Both in-product strings are now scoped to 5.2.1 across **all 13 language
+  files**. The edit is deliberately mechanical: only the clause in front of the
+  colon that introduces the list was replaced, so each language keeps its own
+  wording for the list itself and no prose was invented in a language that
+  cannot be reviewed here. English and German additionally say what an older
+  version did **not** redact. The bug-report template now names 5.2.1 as the
+  floor, separates session cookies and account tokens from the fields that have
+  been redacted since v1.8.x, and links #1968; its mandatory privacy checkbox
+  no longer asks the reporter to strip tokens out of an opaque cookie jar by
+  hand, which is not something anyone can do.
+
+  The guard against a relapse anchors on the colon and on the identifiers that
+  are spelled the same everywhere (VIN, GPS, token) rather than on vocabulary,
+  so one test covers every language; a positive control fails if that anchor
+  ever stops finding the two sentences, because an anchor that finds nothing
+  would otherwise let the module pass while checking nothing — which is the
+  shape of the review failure that allowed the original wording to stand.
+
 ## [5.2.1] - 2026-10-30 — The file we asked you for / Die Datei, um die wir gebeten haben
 
 ### Behoben / Fixed
