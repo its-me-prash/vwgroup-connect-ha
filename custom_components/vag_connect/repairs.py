@@ -66,7 +66,7 @@ from homeassistant.helpers.selector import (
 from ._vol import vol
 
 from ._vwde_reauth import VwDeReauthMixin
-from .cariad._util import mask_vin
+from .cariad._util import mask_email, mask_vin
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -198,6 +198,27 @@ def raise_issue_auth_required(
     # "Repair" button that delegates to async_create_fix_flow below.
     is_fixable = reason in _FIXABLE_REASONS
 
+    # #923 (@kalwados) — the account slot used to be supplied as an empty
+    # string. That satisfied the frontend, which only needs the key to exist,
+    # and left every one of these cards reading "Your Volkswagen account ()":
+    # the one field that could tell a two-entry owner WHICH account the card
+    # belongs to said nothing. Four of the texts interpolate it, and the
+    # fixable ones — the cards that show a Repair button — are among them.
+    #
+    # Filled with the masked account id rather than the address itself, using
+    # the same helper the diagnostics download uses (#709): these cards get
+    # screenshotted into public issues, so "p***@***.de" is as much as may
+    # appear. Two entries on different accounts stay distinguishable by the
+    # initial and the TLD. Falls back to the entry title, then to the same
+    # "this entry" wording supplementary_reauth already uses below.
+    _entry = hass.config_entries.async_get_entry(entry_id)
+    _username = str((_entry.data.get(CONF_USERNAME) if _entry else None) or "")
+    _account = (
+        mask_email(_username)
+        if _username
+        else ((_entry.title if _entry else None) or "this entry")
+    )
+
     ir.async_create_issue(
         hass,
         DOMAIN,
@@ -213,7 +234,7 @@ def raise_issue_auth_required(
         # even pre-2.14.3 issues lingering in the registry render cleanly).
         translation_placeholders={
             "brand": (brand or "").title() or "VW Group",
-            "username": "",
+            "username": _account,
         },
         learn_more_url=_learn_url_for_reason(brand, reason),
         data={"entry_id": entry_id, "reason": reason},

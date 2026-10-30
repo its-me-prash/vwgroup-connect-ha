@@ -46,6 +46,33 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **An auth repair card named the brand but never the account, so a two-car
+  owner could not tell which entry it was about (#923, @kalwados).** Six of the
+  cards print the account in parentheses — `auth_failed`, `two_factor_required`,
+  `email_two_factor_required`, `terms_and_conditions`, `marketing_consent`,
+  `too_many_requests` — and all six were handed an empty string, which rendered
+  as "Your Volkswagen account ()". Four of them are the fixable reasons, so the
+  card with the Repair button was in that set. The slot now carries the masked
+  account id (`p***@***.de` — the shape the diagnostics download reduces an
+  address to, because these cards get screenshotted into public issues),
+  falling back to the entry title and then to "this entry".
+
+  The reason it survived review: the frontend only checks that a placeholder
+  *key* exists, so an empty *value* renders cleanly and errors nowhere, and the
+  call site supplies both keys, which reads as complete. The new test drives
+  the real function and demands a non-empty value for every placeholder in the
+  copy that will actually be rendered, with a positive control that the copy
+  really uses the slot and a guard that a newly added card printing the account
+  cannot go unexercised.
+
+  Inventory while here: of the 34 repair cards only `stale_data`,
+  `historical_timeout` and `supplementary_reauth` name the vehicle, and only
+  the first two are keyed per vehicle at all. The remaining 31 are per entry,
+  so the account is the field that identifies them — which is what made the
+  empty value cost something rather than merely look untidy.
+
 ## [5.2.1] - 2026-10-30 — The file we asked you for / Die Datei, um die wir gebeten haben
 
 ### Behoben / Fixed
