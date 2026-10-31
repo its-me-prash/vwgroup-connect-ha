@@ -1566,6 +1566,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._drop_anchor_seen: datetime | None = None
         # Consecutive EU-DA portal 5xx outages → escalating poll backoff (5/15/30m).
         self._consecutive_portal_5xx = 0
+        # #1941 — the push gate warns once per entry when the brand's client has
+        # no user-id slot at all, which is a permanent condition rather than the
+        # transient one the old debug line implied.
+        self._push_user_id_unsupported_logged = False
 
         # Per-VIN consecutive-failure counter (v1.8.7). Reset to 0 on every
         # successful poll. Used by ``is_vehicle_available`` to apply
@@ -5777,9 +5781,48 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # how Škoda push stayed dead without a single log line: SkodaClient
             # never defined user_id, so every setup bailed here and nothing said
             # so. Say it, at debug, so the next gap of this shape is findable.
+            #
+            # #1941 (@philf90) — and saying it at debug was not enough, because
+            # the message reads TRANSIENT ("not captured *yet*, the next refresh
+            # re-tries") while for some brands it is PERMANENT: neither
+            # ``VWEUClient`` nor ``AudiClient`` assigns ``user_id`` or
+            # ``_user_id`` anywhere, so the Audi/VW toggle this gate guards can
+            # never start for either of the two brands it names. He enabled it,
+            # confirmed ``enable_push_audi_vw: true`` in diagnostics, and was
+            # left waiting for a refresh that cannot help.
+            #
+            # So distinguish the two. A client with no user-id attribute AT ALL
+            # is a permanent condition and says so once, at WARNING, where
+            # somebody who turned the toggle on will actually see it. A client
+            # that has the attribute but has not filled it yet keeps the old
+            # debug line, because that one really does resolve on its own.
+            #
+            # Deliberately NOT fixed here: the VW EU client does hold the value,
+            # under another name — ``_mbb_user_id()`` decodes the ``sub`` claim
+            # of the id_token (and the authproxy path carries ``mbb_user_id``).
+            # Widening the gate to accept it would make the toggle reachable,
+            # but the Audi/VW push manager ships with an unverified subscription
+            # body by its own docstring, so that step belongs with a tester on a
+            # real car rather than in a logging fix.
+            _has_slot = any(
+                hasattr(client, name) for name in ("user_id", "_user_id")
+            )
+            if not user_id and not _has_slot:
+                if not self._push_user_id_unsupported_logged:
+                    self._push_user_id_unsupported_logged = True
+                    _LOGGER.warning(
+                        "Push setup skipped for %s: this brand's client does "
+                        "not capture a user id, which the push subscription "
+                        "needs. This will not resolve on its own — the toggle "
+                        "cannot start on this brand yet. Tracked in #1941; "
+                        "nothing is wrong with your account or your settings.",
+                        brand or "this entry",
+                    )
+                return
             _LOGGER.debug(
                 "Push setup skipped: %s",
-                "no user_id captured by the brand client" if not user_id
+                "user id not captured yet by the brand client (a later "
+                "refresh re-tries)" if not user_id
                 else "no vehicles known yet",
             )
             return

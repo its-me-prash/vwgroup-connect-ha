@@ -100,6 +100,31 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   would otherwise let the module pass while checking nothing — which is the
   shape of the review failure that allowed the original wording to stand.
 
+- **The push gate reported a permanent stop as if it were transient, so the
+  Audi/VW push toggle looked like it was still starting up (#1941,
+  @philf90).** He switched on *Audi/VW push updates*, confirmed
+  `enable_push_audi_vw: true` in diagnostics, and got one line per setup:
+  "Push setup skipped: no user_id captured by the brand client". It reads as
+  *not captured yet*, and the comment above the gate said as much — next
+  refresh re-tries. For his brand it never resolves: neither `VWEUClient` nor
+  `AudiClient` assigns `user_id` or `_user_id` anywhere, so the gate bails on
+  every setup, for both of the two brands that toggle names. It was logged at
+  debug, so without debug logging on there was nothing to see at all.
+
+  The two cases are now told apart. A client with no user-id slot at all is a
+  permanent condition: it says so once per entry, at warning level, names the
+  brand, states that it will not resolve on its own, and points at #1941. A
+  client that has the slot and has not filled it keeps the debug line, with
+  wording that now actually says it re-tries.
+
+  **Not fixed here, deliberately.** The VW EU client does hold that value under
+  another name — `_mbb_user_id()` decodes the `sub` claim of the id_token, and
+  the authproxy path carries `mbb_user_id`. Widening the gate to accept it
+  would make the toggle reachable, but the Audi/VW push manager ships with an
+  unverified subscription body by its own docstring, so that step belongs with
+  a tester on a real car rather than inside a logging fix. The same shape was
+  #602 for Škoda, which is what the comment at this gate has described since.
+
 - **`SECURITY.md` carried the same overstatement, and a supported-versions
   table five minor lines out of date (#923, #1968).** It named `4.7.x` as the
   supported line and said passwords, S-PINs, usernames and GPS "are never
