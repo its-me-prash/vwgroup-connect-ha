@@ -114,6 +114,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   how a problem gets published once it is fixed; until now it only said how to
   report one privately.
 
+  `docs/TRIAGE.md` carried the same absolute in the heading of its "Redact
+  before you paste" section — "Diagnostics redact the sensitive fields for
+  you" — and in the step that tells a reporter where to click. Both now name
+  5.2.1 as the floor, and the section explains the key-name matching, because
+  that mechanism is also the limit a reader needs in order to recognise an
+  unmasked credential if one ever shows up again.
+
 ## [5.2.1] - 2026-10-30 — The file we asked you for / Die Datei, um die wir gebeten haben
 
 ### Behoben / Fixed
