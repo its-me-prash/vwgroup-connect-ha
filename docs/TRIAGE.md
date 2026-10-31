@@ -53,7 +53,7 @@ The Bug Report template asks for these because each one changes the answer:
 - **Sanitised logs** — HA → Settings → System → Logs, filter `vag_connect`
   (enable *Enable debug logging* on the integration first)
 - **Diagnostics** — Settings → Devices & Services → VW Group Connect → ⋮ →
-  *Download diagnostics*. On **5.2.1 and newer** the sensitive fields are
+  *Download diagnostics*. On **5.2.2 and newer** the sensitive fields are
   redacted for you. An older file can carry a live volkswagen.de session, so
   update before you attach one — see **#1968**.
 
@@ -63,14 +63,16 @@ so attaching it up front saves a day.
 
 ### Redact before you paste
 
-**On 5.2.1 and newer, diagnostics redact the sensitive fields for you.** A raw
+**On 5.2.2 and newer, diagnostics redact the sensitive fields for you.** A raw
 HA log does not — so if you paste log text, mask it yourself first. The
 templates require you to confirm you've done this:
 
 The redaction matches on the **key name** and runs recursively, which is worth
 knowing because it is also its limit: a value is only covered once its own key,
 or a key above it, is registered. That is exactly how the `website_cookies` jar
-slipped through until 5.2.1. If you ever see a field in a diagnostics file that
+slipped through until 5.2.1 — and how a charging profile's `location_lat` /
+`location_lon` and *any* field whose name carries a dot slipped through until
+5.2.2. If you ever see a field in a diagnostics file that
 looks like a credential and is not masked, that is a bug worth reporting.
 
 - **VIN** → keep only the last 6 characters, e.g. `***003577`. A full VIN
@@ -78,7 +80,9 @@ looks like a credential and is not masked, that is a bug worth reporting.
 - **Tokens** (`access_token`, `refresh_token`, `id_token`) → remove entirely.
 - **S-PIN** → never share, not even masked.
 - **Email** → mask the local part, e.g. `u***@***.com`.
-- **GPS** (`latitude`, `longitude`) → round to 1 decimal, or remove.
+- **GPS** (`latitude`, `longitude`, `location_lat`, `location_lon`, and the
+  same names after a dot, e.g. `parking_position.latitude`) → round to 1
+  decimal, or remove.
 - **Account ID / user_id** (UUIDs) → remove.
 
 If something slips through, say so in the issue and the maintainer will edit

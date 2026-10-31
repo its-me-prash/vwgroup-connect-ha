@@ -130,4 +130,4 @@ page rather than replacing it, so the record of what changed stays readable.
 
 ---
 
-*Last updated: 2026-10-31 — v5.2.1*
+*Last updated: 2026-10-31 — v5.2.2*

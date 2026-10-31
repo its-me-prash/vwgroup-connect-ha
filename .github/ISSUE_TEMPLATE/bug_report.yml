@@ -145,16 +145,19 @@ body:
       label: Diagnostics / Diagnose-Daten (optional)
       description: |
         Settings → Devices & Services → VW Group Connect → ⋮ → Download diagnostics.
-        **Update to 5.2.1 or newer first.** VIN, password, S-PIN, GPS, email, address and user_id
-        have been redacted since v1.8.x — but session cookies and account tokens only since 5.2.1.
-        A file taken on an older version can carry a live volkswagen.de session. See #1968 if you
-        have already posted one.
+        **Update to 5.2.2 or newer first.** VIN, password, S-PIN, email, address and user_id
+        have been redacted since v1.8.x. Session cookies and account tokens only since 5.2.1, and
+        two GPS cases only since 5.2.2: the location of a charging profile, and any field whose
+        name is dotted. A file taken on an older version can carry a live volkswagen.de session,
+        or the place where you charge. See #1968 if you have already posted one.
 
         HA → Einstellungen → Integrationen → VW Group Connect → 3-Punkte-Menü → Diagnose herunterladen.
-        **Bitte zuerst auf 5.2.1 oder neuer aktualisieren.** VIN, Passwort, S-PIN, GPS, Email,
-        Adresse und user_id werden seit v1.8.x geschwärzt — Session-Cookies und Konto-Tokens aber
-        erst seit 5.2.1. Eine Datei von einer älteren Version kann eine aktive volkswagen.de-Sitzung
-        enthalten. Falls du schon eine gepostet hast: siehe #1968.
+        **Bitte zuerst auf 5.2.2 oder neuer aktualisieren.** VIN, Passwort, S-PIN, Email,
+        Adresse und user_id werden seit v1.8.x geschwärzt. Session-Cookies und Konto-Tokens erst
+        seit 5.2.1, und zwei GPS-Fälle erst seit 5.2.2: der Ort eines Ladeprofils, und jedes Feld
+        mit einem Punkt im Namen. Eine Datei von einer älteren Version kann eine aktive
+        volkswagen.de-Sitzung enthalten oder den Ort, an dem du lädst. Falls du schon eine
+        gepostet hast: siehe #1968.
 
         If you cannot update: please do not attach the whole file. Say so in the report instead and
         you will be asked for the one section that is needed. A cookie jar is an opaque string, so
@@ -170,5 +173,5 @@ body:
       label: Privacy confirmation / Datenschutz-Bestätigung
       description: Required / Pflicht
       options:
-        - label: "My diagnostics file is from 5.2.1 or newer, or I opened it and checked it by hand; and I have masked VIN to last 6 chars and removed email, GPS and S-PIN from any logs I pasted. / Meine Diagnose-Datei ist von 5.2.1 oder neuer, oder ich habe sie geöffnet und von Hand geprüft; und ich habe in eingefügten Logs die VIN auf die letzten 6 Zeichen gekürzt und Email, GPS und S-PIN entfernt."
+        - label: "My diagnostics file is from 5.2.2 or newer, or I opened it and checked it by hand; and I have masked VIN to last 6 chars and removed email, GPS and S-PIN from any logs I pasted. / Meine Diagnose-Datei ist von 5.2.2 oder neuer, oder ich habe sie geöffnet und von Hand geprüft; und ich habe in eingefügten Logs die VIN auf die letzten 6 Zeichen gekürzt und Email, GPS und S-PIN entfernt."
           required: true

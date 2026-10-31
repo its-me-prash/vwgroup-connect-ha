@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.2.2] - 2026-10-31 — What the message actually knows / Was die Meldung wirklich weiß
+
 ### Behoben / Fixed
 
 - **An auth repair card named the brand but never the account, so a two-car
@@ -87,8 +89,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   colon that introduces the list was replaced, so each language keeps its own
   wording for the list itself and no prose was invented in a language that
   cannot be reviewed here. English and German additionally say what an older
-  version did **not** redact. The bug-report template now names 5.2.1 as the
-  floor, separates session cookies and account tokens from the fields that have
+  version did **not** redact. The bug-report template now names 5.2.2 as the
+  floor, moves GPS out of the since-v1.8.x list because two of its spellings
+  were not covered until this release, separates session cookies and account tokens from the fields that have
   been redacted since v1.8.x, and links #1968; its mandatory privacy checkbox
   no longer asks the reporter to strip tokens out of an opaque cookie jar by
   hand, which is not something anyone can do.
@@ -335,7 +338,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   `docs/TRIAGE.md` carried the same absolute in the heading of its "Redact
   before you paste" section — "Diagnostics redact the sensitive fields for
   you" — and in the step that tells a reporter where to click. Both now name
-  5.2.1 as the floor, and the section explains the key-name matching, because
+  5.2.2 as the floor, and the section explains the key-name matching, because
   that mechanism is also the limit a reader needs in order to recognise an
   unmasked credential if one ever shows up again.
 
