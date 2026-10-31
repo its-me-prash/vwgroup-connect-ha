@@ -160,6 +160,16 @@ class VwDeReauthMixin:
             # The site failed while checking the code. Nothing the user types
             # differently will help, so do not send them round the loop again.
             _LOGGER.warning("Website authproxy OTP step: %s", err)
+            # #1969 (@Ra72xx) — and a 4xx is not an outage, so it must not
+            # borrow the "temporarily unavailable, wait 5-15 minutes" wording.
+            # Fixed in BOTH places on purpose: this is the options/reauth twin
+            # of the setup path in config_flow, and #1843's own notes say the
+            # two were reported separately by two different people. Fixing one
+            # would have left the other telling half the users to wait for
+            # something that does not pass.
+            _status = getattr(err, "status", None)
+            if isinstance(_status, int) and 400 <= _status < 500:
+                raise ValueError("authproxy_refused") from err
             raise ValueError("upstream_unavailable") from err
         except AuthenticationError as err:
             _LOGGER.debug("Website authproxy OTP step rejected the code")

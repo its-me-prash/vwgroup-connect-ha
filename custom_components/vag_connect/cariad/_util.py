@@ -433,6 +433,29 @@ _OAUTH_ERR_RE = re.compile(r"^[A-Za-z0-9_.\- ]{1,40}$")
 _OAUTH_ERR_MAX_TOKEN = 24
 
 
+def retry_after_seconds(headers: Any) -> int | None:
+    """``Retry-After`` from ONE response, in seconds, or None.
+
+    Lives here because two channels need it and only one had it: the app
+    backend parsed it (#1850) while the EU Data Act portal path ignored it
+    entirely, so a portal 429 cost a whole poll instead of a short wait. One
+    implementation, two callers; ``CariadBaseClient._retry_after_seconds``
+    stays a staticmethod delegating to this, because a test pins that shape on
+    purpose — it must not be able to read remembered state.
+
+    Only the delta-seconds form is honoured. RFC 9110 also allows an HTTP-date,
+    and a half-parsed date is worse than no value: an unparsed header leaves
+    whatever backoff the caller already has in charge.
+    """
+    raw = headers.get("Retry-After") if headers is not None else None
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text.isdigit():
+        return None
+    return int(text)
+
+
 def safe_error_token(value: object) -> str:
     """*value* if it is shaped like an error code, else ``""``.
 

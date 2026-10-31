@@ -155,14 +155,58 @@ def test_a_real_session_problem_still_raises_authentication_error(
 
 
 @pytest.mark.parametrize("status", [404, 410])
-def test_not_provisioned_still_raises_authentication_error(status: int) -> None:
-    """404/410 means the data request is not provisioned — unchanged, so the
-    existing "delivery not ready" handling is untouched."""
+def test_enumeration_404_is_an_outage_not_a_dead_session(status: int) -> None:
+    """Corrected in #1964. This test used to assert AuthenticationError here.
+
+    Its reasoning was "404/410 means the data request is not provisioned", and
+    that is the META DATA endpoint's meaning — borrowed onto the enumeration
+    call because enumeration was a convenient way to drive ``_get_json``.
+    ``/proxy_api/consent/me/vehicles`` has nothing to do with data requests; it
+    lists the account's consented cars.
+
+    @Hollywoodchaos disproved the premise from outside the integration: logged
+    into the portal in a browser with the same account, its own vehicle list
+    fails with a technical error, so the 404 was the truth about the portal and
+    not about his login.
+
+    What the old expectation cost is visible one file over, in ``vw_eu``: an
+    ``AuthenticationError`` out of enumeration makes the caller REPLAY THE
+    STORED PASSWORD, enumerate again, and then raise
+    ``PortalSessionExpiredError`` — the session-expired repair card. That is
+    precisely the sequence this file's own 5xx test exists to prevent, quoted
+    in its docstring; #465 fixed it for the outage family and left 404 behind
+    on the borrowed reasoning.
+
+    The metadata path is NOT changed, and the test below pins that.
+    """
+    from custom_components.vag_connect.cariad.exceptions import (
+        UpstreamUnavailableError,
+    )
+
+    conn, _ = _connector(status)
+    with pytest.raises(UpstreamUnavailableError):
+        asyncio.new_event_loop().run_until_complete(conn.list_vehicle_vins())
+
+
+@pytest.mark.parametrize("status", [404, 410])
+def test_a_hard_call_that_does_not_declare_the_status_still_raises_auth(
+    status: int,
+) -> None:
+    """The other half of #1964, and the guard against the wrong fix.
+
+    Only a call site that declares a status gets the outage verdict. A plain
+    hard call — the metadata path among them — keeps raising, which is what
+    #1932 decided and pinned. Adding 404 to the global outage set would make
+    the test above pass and silently reverse that decision; this one fails if
+    anyone does.
+    """
     from custom_components.vag_connect.cariad.exceptions import AuthenticationError
 
     conn, _ = _connector(status)
     with pytest.raises(AuthenticationError):
-        asyncio.new_event_loop().run_until_complete(conn.list_vehicle_vins())
+        asyncio.new_event_loop().run_until_complete(
+            conn._get_json("https://portal.invalid/metadata")
+        )
 
 
 def test_a_successful_enumeration_still_returns_the_vins() -> None:

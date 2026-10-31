@@ -20,6 +20,7 @@ from aiohttp import (
 )
 
 from ..auth.idk import IDKAuth
+from .._util import retry_after_seconds
 from .graphql import VehicleImageFetcher, VehicleImageData
 from ..exceptions import (
     APIError,
@@ -1608,14 +1609,15 @@ class CariadBaseClient:
         Only the delta-seconds form is honoured. RFC 9110 also allows an
         HTTP-date, and a half-parsed date is worse than no value: an unparsed
         header simply leaves the existing backoff in charge.
+
+        #1969 — the parsing now lives in ``cariad/_util.retry_after_seconds``,
+        because the EU Data Act portal path needed the same thing and had none.
+        This stays a staticmethod delegating to it: the signature and the
+        absence of ``self`` are what a test pins, for the stale-value reason
+        above, and that property is worth keeping separate from where the three
+        lines of parsing happen to live.
         """
-        raw = headers.get("Retry-After") if headers is not None else None
-        if raw is None:
-            return None
-        text = str(raw).strip()
-        if not text.isdigit():
-            return None
-        return int(text)
+        return retry_after_seconds(headers)
 
     def _enter_rate_lockout(self, seconds: int, status: int) -> None:
         """Pause all requests on this client for ``seconds`` (B4).

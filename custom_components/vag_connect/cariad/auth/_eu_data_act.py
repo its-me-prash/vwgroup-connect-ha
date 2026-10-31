@@ -50,6 +50,7 @@ from .._util import (
     drop_charge_sentinel,
     drop_odometer_sentinel,
     is_https_on_domains,
+    retry_after_seconds,
 )
 from ..exceptions import (
     AuthenticationError,
@@ -232,6 +233,17 @@ _PORTAL_OUTAGE_STATUSES = frozenset(_RETRIABLE_STATUSES | {429})
 # (→ "delivery_not_ready"). Splitting them keeps a normal wait from reading as a fault.
 _PORTAL_OUTAGE_STATUSES = frozenset({429, 500, 502, 503, 504})
 _PORTAL_RETRY_DELAYS = (3.0, 6.0)  # backoff (s) before giving up on a soft call
+# #1969 — the portal answers a burst with 429 and a SHORT, explicit
+# ``Retry-After`` ("try again in 4 seconds"), and we honoured none of it. 429 is
+# kept out of _RETRIABLE_STATUSES deliberately ("one quiet skip, no
+# backoff-retry"), which is right as a refusal to hammer and wrong as an answer
+# to a server that has just said exactly how long to wait. Waiting out a
+# cooldown the server itself named is the opposite of hammering.
+#
+# Capped, and taken at most ONCE per call: a server that keeps answering 429
+# must not be able to hold a poll open. A cooldown far beyond this cap is not a
+# cooldown but an outage, and the existing path already reports that as one.
+_PORTAL_RETRY_AFTER_MAX_S = 30
 # On a transient download error we fall back to the next-older listed dataset
 # (TommiG1 loops the listing newest→oldest). Capped so a full-portal outage where
 # every file 5xxs cannot turn one poll into many hammering requests.
@@ -6780,8 +6792,25 @@ class EUDataActConnector:
         *,
         headers: dict[str, str] | None = None,
         soft: bool = False,
+        outage_statuses: tuple[int, ...] = (),
     ) -> Any:
         """GET + parse JSON. Raises AuthenticationError on HTTP >= 400.
+
+        ``outage_statuses`` — #1964 (@Hollywoodchaos). The meaning of a 404 on
+        this portal is ENDPOINT-DEPENDENT, and until now one rule was applied
+        to all of them. On the metadata endpoint a 404 means "there is no such
+        data request", which #1932 decided deliberately and pinned with a test.
+        On vehicle ENUMERATION it means the portal cannot list the account's
+        cars — he verified that in a browser, where the portal's own page fails
+        with "Não foi possível carregar os seus veículos" — and we turned it
+        into a session-expired repair card blaming his login.
+
+        A call site that knows a status means "upstream problem, not your
+        session" declares it here, and it is then treated exactly like the
+        5xx/429 family: ``UpstreamUnavailableError``, which the coordinator
+        already handles as a transient no-data poll and does NOT escalate.
+        Nothing is implied for any other call site, so the #1932 decision on
+        the metadata path stands untouched.
 
         v2.12.1 — ``soft=True`` returns None instead of raising for the
         transient "not provisioned yet" / portal-outage statuses
@@ -6829,6 +6858,9 @@ class EUDataActConnector:
         # the user "server-side issue at VW … do NOT reconfigure", and this is
         # our own session going away locally. A false explanation is worse than
         # a plain one.
+        # #1969 — one Retry-After wait per call, independent of the attempt
+        # counter, so a 429 cooldown cannot multiply with the 5xx backoff.
+        waited_retry_after = False
         for attempt in range(len(_PORTAL_RETRY_DELAYS) + 1):
             # Checked on EVERY attempt, not once before the loop. The first
             # version of this guard sat above the loop, on the reasoning that
@@ -6882,6 +6914,28 @@ class EUDataActConnector:
                         # gives up as "no data", hard still raises — which
                         # matters, because an empty VIN list is read as "this
                         # account has no cars" and fails setup outright.
+                        # #1969 — a 429 with a short, explicit cooldown is the
+                        # one case where the server has told us what to do.
+                        # Before this, a throttled poll was simply lost: soft
+                        # returned "no data", hard reported an outage, and the
+                        # newest dataset was never reached. One wait, capped,
+                        # and only when the header is present and parseable —
+                        # a missing or absurd value leaves the old behaviour
+                        # exactly as it was.
+                        if resp.status == 429 and not waited_retry_after:
+                            _cooldown = retry_after_seconds(resp.headers)
+                            if (
+                                _cooldown is not None
+                                and 0 < _cooldown <= _PORTAL_RETRY_AFTER_MAX_S
+                            ):
+                                waited_retry_after = True
+                                _LOGGER.debug(
+                                    "EU Data Act portal: throttled, waiting the "
+                                    "%d s the portal asked for and retrying once",
+                                    _cooldown,
+                                )
+                                await asyncio.sleep(_cooldown)
+                                continue
                         if (
                             resp.status in _RETRIABLE_STATUSES
                             and attempt < len(_PORTAL_RETRY_DELAYS)
@@ -6909,7 +6963,10 @@ class EUDataActConnector:
                         # coordinator already treats it as self-healing.
                         # 401/403 (real session problem) and 404/410 (not
                         # provisioned) are deliberately untouched.
-                        if not soft and resp.status in _PORTAL_OUTAGE_STATUSES:
+                        if not soft and (
+                            resp.status in _PORTAL_OUTAGE_STATUSES
+                            or resp.status in outage_statuses
+                        ):
                             raise UpstreamUnavailableError(
                                 resp.status, brand=self._state
                             )
@@ -6942,9 +6999,27 @@ class EUDataActConnector:
         return None
 
     async def list_vehicle_vins(self) -> list[str]:
-        """Return the VINs consented on the portal."""
+        """Return the VINs consented on the portal.
+
+        #1964 (@Hollywoodchaos) — ``outage_statuses`` declares that a 404 or
+        410 HERE is the portal failing to list the account's cars, not a dead
+        session and not "no such data request". He proved the distinction from
+        the outside: logged into the portal in a browser with the same account,
+        its own "Veículos associados" section fails with a technical error, so
+        the 404 we received was the truth about the portal and not about his
+        login. Before this, every status from 400 upwards on this call became
+        an ``AuthenticationError``, and the caller turned that into the
+        session-expired repair card — which told him to fix the one thing that
+        was working.
+
+        Deliberately NOT changed for the metadata endpoint, where #1932
+        decided that a 404 means "no such data request" and pinned it with a
+        test. Same status, two endpoints, two meanings; the rule now lives at
+        the call site that knows which one it is.
+        """
         payload = await self._get_json(
-            f"{_PORTAL_BASE}{_VEHICLES_PATH}?viewPosition=FRONT_LEFT"
+            f"{_PORTAL_BASE}{_VEHICLES_PATH}?viewPosition=FRONT_LEFT",
+            outage_statuses=(404, 410),
         )
         vins: list[str] = []
 

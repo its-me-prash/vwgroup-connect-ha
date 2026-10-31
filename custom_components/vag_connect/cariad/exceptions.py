@@ -805,7 +805,34 @@ class AuthProxyUnavailableError(CariadError):
     A 5xx says nothing about credentials or cookies, so it gets its own error:
     the caller treats it as "this channel is unavailable right now", leaves the
     stored session alone, and does not arm a re-authentication.
+
+    #1969 (@Ra72xx) — the class is named for an *unavailable* site and its
+    docstring is about 5xx, but the OTP step raised it for **every** status
+    from 400 upwards. The config flow therefore told him "VW backend
+    temporarily unavailable, wait 5-15 minutes" for a 400 that repeated every
+    time. The verdict was right about the cause (his code and password are not
+    the problem; the code is only sent AFTER the password is accepted, #1843)
+    and wrong about what to do, because a 4xx that repeats is not an outage.
+
+    So the raise site now records what it knew and threw away: the status, and
+    the reason the site's own error page gave. A caller that can show a better
+    message reads ``status`` to tell a transient 5xx from a refusal; nothing is
+    forced to, since both default to None and ``str(err)`` is unchanged in
+    shape.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        reason: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status = status
+        #: The site's own error text, parsed from the page it landed on.
+        #: Discarding this is what left #1969 with a bare number.
+        self.reason = reason
 
 
 class APIError(CariadError):

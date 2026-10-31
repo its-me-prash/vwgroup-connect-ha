@@ -454,6 +454,14 @@ def _map_error(err_code: str) -> str:
         "porsche_login_wall",  # b23 #1337 — Porsche captcha/consent wall past password
         "website_login_failed",  # #1679/#1313 — vw.de login failed, but NOT on the password
         "invalid_otp",  # #1843 — the e-mail CODE was refused, never the password
+        # #1969 — the site REFUSED the code step with a 4xx. Sibling of
+        # upstream_unavailable above and deliberately not the same key: both say
+        # it is neither the code nor the password, but only the 5xx one may
+        # promise that waiting fixes it. Registering it here is not optional —
+        # this set is an allowlist, and a key missing from it is silently
+        # replaced by "cannot_connect", which is how a careful new message
+        # becomes "Failed to connect" in front of the user.
+        "authproxy_refused",
     } else "cannot_connect"
 
 
@@ -1273,6 +1281,17 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # #1843 — the site failed while checking the code. A new code
             # cannot get past a server that is down.
             _LOGGER.warning("Website authproxy OTP step: %s", err)
+            # #1969 (@Ra72xx) — but a 4xx is not "down". He got the
+            # upstream_unavailable text, which says "temporarily unavailable,
+            # wait 5-15 minutes, do NOT reconfigure", for a 400 that repeated
+            # on every attempt. Right about the cause, wrong about the remedy:
+            # waiting clears a 5xx, it does not clear a refusal. Both keep
+            # saying it is not his code or password — that part of #1843 is
+            # untouched — but the 4xx case stops promising that it will pass
+            # on its own, and carries the status and the site's own reason.
+            _status = getattr(err, "status", None)
+            if isinstance(_status, int) and 400 <= _status < 500:
+                raise ValueError("authproxy_refused") from err
             raise ValueError("upstream_unavailable") from err
         except AuthenticationError as err:
             # #1843 — @kalwados hit this same verdict on the OPTIONS flow; this

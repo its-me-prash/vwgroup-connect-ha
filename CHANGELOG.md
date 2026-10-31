@@ -100,6 +100,79 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   would otherwise let the module pass while checking nothing — which is the
   shape of the review failure that allowed the original wording to stand.
 
+- **A 404 on vehicle enumeration was reported as a dead session (#1964,
+  @Hollywoodchaos).** He diagnosed it himself and proved it from outside the
+  integration: logged into the portal in a browser with the same account, its
+  own "Veículos associados" section fails with a technical error, so the 404 we
+  received was the truth about the portal and not about his login. We turned it
+  into the session-expired repair card, which told him to fix the one thing
+  that was working.
+
+  The cause is that a 404 on this portal means different things on different
+  endpoints and one rule was applied to all of them. On the metadata endpoint
+  it means "there is no such data request" — #1932 decided that deliberately
+  and pinned it with a test — and that stays exactly as it was. On enumeration
+  it means the portal cannot list the account's cars, which is an upstream
+  problem, so that call now declares 404 and 410 as such and gets the same
+  treatment the 5xx family already had. The rule lives at the call site that
+  knows which endpoint it is talking to; nothing is implied for any other.
+
+  **An existing test asserted the old behaviour, and its expectation is what
+  changed.** #465 pinned "404/410 on enumeration raises an authentication
+  error" with the reasoning *"404/410 means the data request is not
+  provisioned"* — the metadata endpoint's meaning, borrowed onto enumeration
+  because enumeration was a convenient way to drive the shared helper. The
+  caller is what settles it: an authentication error out of enumeration makes
+  `vw_eu` **replay the stored password**, enumerate again and then raise
+  `PortalSessionExpiredError`. That is the exact sequence #465 itself exists to
+  prevent, quoted in its own docstring for the 5xx case; it fixed the outage
+  family and left 404 behind on the borrowed premise. The expectation was
+  changed only after reading that caller, and the test now carries the
+  reasoning instead of the conclusion — plus a sibling that fails if anyone
+  "simplifies" this by adding 404 to the global outage set, which would
+  silently reverse #1932.
+
+- **A refused e-mail-code step promised that waiting would fix it (#1969,
+  @Ra72xx).** His volkswagen.de login failed after the code with HTTP 400,
+  repeatedly, and the dialog said "VW backend temporarily unavailable … wait
+  5–15 minutes … do NOT reconfigure". The verdict was right and #1843 decided
+  it on purpose: the code is only sent **after** the password is accepted, so
+  neither can be the cause of an HTTP error. The remedy was wrong. Waiting
+  clears a 5xx; it does not clear a refusal, and his repeated every time.
+
+  A 4xx now has its own error text that keeps #1843's verdict — not your code,
+  not your password — and drops the promise that it passes on its own. Fixed in
+  **both** flows, because the setup path and the options/reauth path have
+  separate handlers and were reported separately by two different people;
+  fixing one would have left half the users waiting for nothing.
+
+  And the part that was worse: the raise site **parsed the site's own error
+  text one branch earlier and then threw it away** on a 4xx, leaving a bare
+  number. The single piece of evidence that would say *why* VW refused was
+  read and discarded. It is now carried on the exception and in the message.
+
+  Known gap, stated rather than hidden: the new error text is written in
+  English and German. The other eleven language files carry the English
+  sentence so that key parity holds, and they want a translation pass.
+
+- **The portal tells us how long to wait when it throttles us, and we ignored
+  it (#1969).** It answers a burst with 429 and a short explicit
+  ``Retry-After``; 429 was deliberately kept out of the retriable set ("one
+  quiet skip, no backoff-retry"), which is the right refusal to hammer a server
+  and the wrong answer to one that has just named its own cooldown. The poll
+  was simply lost — soft returned no-data, hard reported an outage — and on a
+  multi-vehicle account the newest dataset was never reached, because the list
+  endpoint is called once per VIN and the coordinator reads the VINs
+  concurrently.
+
+  A parseable cooldown inside a 30-second cap is now waited out and the request
+  repeated, at most once per call, so a server that keeps throttling cannot
+  hold a poll open. A missing, zero, over-cap or HTTP-date value leaves the old
+  behaviour untouched. The parsing moved to ``cariad/_util`` because two
+  channels needed it and only the app backend had it (#1850); its staticmethod
+  on the base client stays, delegating, since a test pins that shape for a
+  stale-value reason that still applies.
+
 - **A dotted field name walked past every name-based redaction rule (#923).**
   Found by generalising the same way, and it is the wider of the two: each rule
   in the scrubber that keys off a name tested exact equality on the whole key,

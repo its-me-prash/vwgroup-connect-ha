@@ -1365,10 +1365,20 @@ class WebsiteAuthProxyConnector:
             # the only outcome that is plausibly about the code itself — and even
             # then it is the CODE, never the password.
             if landed_status >= 400:
+                # #1969 (@Ra72xx) — ``err`` was parsed three lines up and then
+                # dropped on this path, so the one thing that could say WHY the
+                # site refused was read and discarded. He was left with a bare
+                # 400 and a dialog telling him to wait for an outage that was
+                # not one. Keep the reason in the message where a human reads
+                # it, and on the exception where the config flow can pick a
+                # better wording for a 4xx than "temporarily unavailable".
                 raise AuthProxyUnavailableError(
                     "Website authproxy: the site answered "
                     f"{landed_status} while checking the e-mail code — this is "
                     "a server-side failure, not your code or your password"
+                    + (f" (the site said: {err})" if err else ""),
+                    status=landed_status,
+                    reason=err or None,
                 )
             raise AuthenticationError(
                 err or "Website authproxy: OTP rejected — check the code"
