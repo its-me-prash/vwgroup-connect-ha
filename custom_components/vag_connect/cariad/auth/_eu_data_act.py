@@ -5838,6 +5838,24 @@ class EUDataActConnector:
         # returned None, so get_vehicle_data can tell a 404 "not provisioned yet"
         # (→ delivery_not_ready) apart from a 5xx/429 portal outage (→ portal_error).
         self._last_soft_status: int | None = None
+        # #1969 — throttling observability, and the reason it is PUBLIC like
+        # ``last_no_data_reason``: the diagnostics download reads attributes off
+        # this object by name, so a leading underscore would have made it a
+        # field nobody can see. (``_last_soft_status`` above claims in its own
+        # comment to be "surfaced as diagnostic sensors" and is in fact read
+        # nowhere outside this module — measured, 31.10.2026. Not fixed here,
+        # but not repeated either.)
+        #
+        # The open question these answer is whether this portal ever sends US a
+        # short ``Retry-After``. It was measured from the outside by a reader of
+        # the same portal, never on our own traffic, and a guess about a rate
+        # limit is how a poll loop gets paced wrongly. One user's diagnostics
+        # file now settles it: a count above zero with no seconds recorded means
+        # we are throttled and told nothing; a count of zero means this has
+        # never happened to us at all.
+        self.throttle_count = 0
+        self.last_retry_after_s: int | None = None
+        self.last_throttle_honoured: bool | None = None
         # #1932/#1933 — a soft miss that never got a response AT ALL. The
         # handler for (TimeoutError, ClientConnectionError) returned None
         # without touching _last_soft_status, so a portal we could not reach
@@ -6922,12 +6940,22 @@ class EUDataActConnector:
                         # and only when the header is present and parseable —
                         # a missing or absurd value leaves the old behaviour
                         # exactly as it was.
-                        if resp.status == 429 and not waited_retry_after:
+                        if resp.status == 429:
+                            # Recorded for EVERY 429, before deciding whether
+                            # to wait: the second one in a call and the
+                            # over-cap case are exactly the observations that
+                            # would otherwise be lost, and they are the ones
+                            # that say whether our pacing is wrong.
                             _cooldown = retry_after_seconds(resp.headers)
+                            self.throttle_count += 1
+                            self.last_retry_after_s = _cooldown
+                            self.last_throttle_honoured = False
+                        if resp.status == 429 and not waited_retry_after:
                             if (
                                 _cooldown is not None
                                 and 0 < _cooldown <= _PORTAL_RETRY_AFTER_MAX_S
                             ):
+                                self.last_throttle_honoured = True
                                 waited_retry_after = True
                                 _LOGGER.debug(
                                     "EU Data Act portal: throttled, waiting the "

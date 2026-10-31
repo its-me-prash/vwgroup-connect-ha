@@ -100,6 +100,32 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   would otherwise let the module pass while checking nothing — which is the
   shape of the review failure that allowed the original wording to stand.
 
+- **Whether this portal ever throttles *us* is now in the diagnostics
+  download, instead of being taken on faith (#1969).** Its rate limits are
+  known only from someone else measuring their own traffic against the same
+  portal — per-endpoint ceilings, a refill of roughly one request every two
+  seconds, a short explicit `Retry-After`. Honouring that cooldown was the
+  right change; pacing our polls against those numbers would not have been,
+  because nothing had ever observed the mechanism on our own requests. A rate
+  limit taken on faith is how a poll loop gets tuned against a figure that does
+  not apply to it.
+
+  Three values are recorded and exported as `portal_throttle`, so one user's
+  file answers it: a count of zero means it has never happened to us; a count
+  above zero with no seconds means we are throttled and told nothing, so any
+  cap has to be guessed; a count above zero with a number says the mechanism
+  applies and whether the 30-second cap is the right one. Recorded on **every**
+  429, including the second one within a call and the over-cap case — those are
+  precisely the observations that say the pacing is wrong, and precisely the
+  ones a "record it only when we act on it" version would throw away.
+
+  The fields are public on the connector on purpose: the download reads
+  attributes off that object by name, so a leading underscore would have made
+  this a field nobody can see. `_last_soft_status` right above it claims in its
+  own comment to be "surfaced as diagnostic sensors" and is in fact read
+  nowhere outside its module — measured, not assumed, and left alone rather
+  than repeated.
+
 - **A 404 on vehicle enumeration was reported as a dead session (#1964,
   @Hollywoodchaos).** He diagnosed it himself and proved it from outside the
   integration: logged into the portal in a browser with the same account, its

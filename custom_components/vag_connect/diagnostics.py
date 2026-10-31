@@ -709,6 +709,47 @@ def _portal_no_data_reason(client: Any) -> str | None:
     return reason or None
 
 
+def _portal_throttle(client: Any) -> dict[str, Any] | None:
+    """Whether this portal has ever throttled US, and whether it said for how long.
+
+    #1969 — the portal's rate limits are known only from someone else's
+    measurement of their own traffic: per-endpoint ceilings, a refill of about
+    one request every two seconds, and a short explicit ``Retry-After``. We now
+    honour such a cooldown, but whether this portal ever sends one to THIS
+    integration had never been observed, and a rate limit taken on faith is how
+    a poll loop gets paced against a number that does not apply.
+
+    Three values make one report settle it:
+
+    * ``count`` 0 — it has never happened to us, and any pacing work would be
+      for a problem we do not have;
+    * ``count`` above 0 with ``retry_after_s`` null — we are throttled and told
+      nothing, so there is nothing to honour and a cap has to be guessed;
+    * ``count`` above 0 with a number — the mechanism applies to us, and the
+      number says whether the 30 s cap is the right one.
+
+    Counts and one integer; no PII. Resolves the portal exactly like
+    ``_portal_no_data_reason``, with the same ``getattr`` guards so an older or
+    partial client stays export-safe.
+    """
+    if client is None:
+        return None
+    portal = (
+        getattr(client, "_eu_portal", None)
+        or getattr(client, "_supplementary_eu_portal", None)
+    )
+    if portal is None:
+        return None
+    count = getattr(portal, "throttle_count", None)
+    if count is None:
+        return None  # a client from before this existed
+    return {
+        "count": int(count),
+        "retry_after_s": getattr(portal, "last_retry_after_s", None),
+        "honoured": getattr(portal, "last_throttle_honoured", None),
+    }
+
+
 def _portal_field_delivery(client: Any) -> dict[str, Any] | None:
     """The EU-Data-Act portal's last value/value-less field split, or None.
 
@@ -965,6 +1006,10 @@ async def async_get_config_entry_diagnostics(
         "last_update_success": coordinator.last_update_success,
         "portal_no_data_reason": _portal_no_data_reason(client),
         "portal_field_delivery": _portal_field_delivery(client),
+        # #1969 — see _portal_throttle: this is the field that turns "the
+        # portal's rate limits were measured by someone else, on their own
+        # traffic" into something one report of ours can confirm or refute.
+        "portal_throttle": _portal_throttle(client),
         "cloud_push_active": coordinator.cloud_push_active,
         "push_states": coordinator.push_states,
         "push_last_errors": coordinator.push_last_errors,
