@@ -100,6 +100,83 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   would otherwise let the module pass while checking nothing — which is the
   shape of the review failure that allowed the original wording to stand.
 
+- **A dotted field name walked past every name-based redaction rule (#923).**
+  Found by generalising the same way, and it is the wider of the two: each rule
+  in the scrubber that keys off a name tested exact equality on the whole key,
+  while EU Data Act field names **are** dotted — the dictionary's own count is
+  3206 of 7990 — and an *unmapped* portal field lands verbatim in
+  `raw_unmapped_fields`, which the download emits. Measured with one marker per
+  key: `latitude`, `access_token` and `user_id` were handled, while
+  `parking_position.latitude`, `vehicle.parking.longitude`,
+  `settings.access_token`, `auth.tokens.refresh_token` and `vehicle.user_id`
+  all came through in the clear.
+
+  What hid it: the value-**pattern** rules were never affected. `profile.email`
+  masked correctly, so the file read as redacted. The name rules now match the
+  last dotted segment as well, which is the conservative direction — a dotted
+  name whose leaf is registered carries the same kind of data as the bare one.
+  The full dotted spelling is kept as the output key, so triage still sees
+  which field was redacted, and a harmless dotted field such as
+  `odometer.total_km` stays readable.
+
+  The guard walks **every** name in all three sets and requires the dotted form
+  to be handled too, so a name registered later is covered without anyone
+  remembering this. Reverting the fix turns 48 of its 68 cases red, each one
+  naming the field it would have leaked.
+
+  It had to be fixed in **both** scrubbers. `_scrub_raw` has its own key logic
+  and the same blindness: after `_scrub` was corrected it still returned four
+  of the five dotted spellings in the clear, so a guard on the half that
+  happened to be measured first would have gone green over a leak. Widening
+  that guard to sweep both functions then caught a third hole immediately, in
+  the new fix itself — `location_lat` and `location_lon` live only in the GPS
+  set, which `_scrub_raw` never consulted. That is the argument for a guard
+  that walks the sets instead of a list of examples: it found a gap introduced
+  minutes earlier.
+
+  This is the second time in one issue that a redaction looked complete because
+  it was checked against itself. Both guards added since derive their
+  expectation from somewhere else: one from the key names in `const.py`, this
+  one from the redaction sets themselves.
+
+- **A charging profile's coordinates reached the diagnostics download in the
+  clear — the place the car habitually charges (#923).** Generalising from the
+  cookie-jar defect found a second gap of exactly the same shape, and this one
+  had been shipping. `coordinator.py` flattens each Škoda / SEAT / CUPRA
+  charging profile into `{"name", "location_lat", "location_lon", …}`, while
+  the GPS branch in `diagnostics.py` only ever matched the spellings
+  `latitude` and `longitude`. So the coordinates of the profile's location —
+  home, for most people — went into the download at two decimals, roughly a
+  kilometre, in **both** the default and the opt-in mode, although that
+  module's stated contract is privacy-by-default removal. The owner's own
+  label for the place went with them, even though the project had already
+  registered the sibling `charging_location_N_name` on the argument that such
+  a label is the owner's word for a place.
+
+  `location_lat` and `location_lon` now go through the same branch as
+  `latitude` and `longitude`: removed by default, rounded to one decimal only
+  on the existing opt-in. `active_charging_profile_name` is registered, and
+  the per-profile label is masked by a container-aware step, because a global
+  `name` rule would redact every brand, device and entity name in the file.
+  Everything triage actually uses — target SoC, current limit, the counts —
+  is kept, and an absent coordinate or label still stays visibly empty rather
+  than becoming a fake redaction.
+
+  Measured, not reasoned: a profile in the production shape through the real
+  scrubber returned both coordinates and the label unchanged, with a positive
+  control confirming that bare `latitude` *was* being removed, so the branch
+  worked and the names were the gap. The guard against the next one derives
+  the set of coordinate key names from the **source** and fails if any is in
+  neither redaction set — it names `location_lat` and `location_lon` when the
+  fix is reverted, so it would have caught this before release. A list checked
+  against itself always looks complete; this is the second time that cost
+  something in this issue.
+
+  **If you have already attached a diagnostics file:** unlike the credential
+  keys, there is nothing to rotate here. The coordinates are approximate, and
+  deleting the comment is the only thing that helps — see #1968 for why that
+  does not remove the uploaded file.
+
 - **The push gate reported a permanent stop as if it were transient, so the
   Audi/VW push toggle looked like it was still starting up (#1941,
   @philf90).** He switched on *Audi/VW push updates*, confirmed
