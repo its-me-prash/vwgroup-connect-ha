@@ -181,6 +181,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   English and German. The other eleven language files carry the English
   sentence so that key parity holds, and they want a translation pass.
 
+  **And the first version of that text promised something it cannot keep.** It
+  said "the exact reason the site gave is in the log next to this message".
+  Measured afterwards: the parser behind that promise recognises exactly one
+  page format — a body carrying the literal `templateModel` with JSON holding
+  a truthy error — with no regex, no HTML parsing and no marker lists. An
+  Auth0 JSON body, an Auth0 error page, an nginx/WAF 400 and an empty body all
+  yield nothing, and the e-mail-code step is the Auth0 universal-login flow,
+  where that word does not appear at all. So in exactly the case the sentence
+  was written for, there is no reason in the log either.
+  
+  The text now says what is actually known — the status, and that it is
+  neither the code nor the password — states plainly that the site usually
+  gives no reason we can read on this step, and asks for the three things that
+  do help. A test drives the real parser against those four bodies and fails
+  if anyone restores the promise before the parser can keep it, which is the
+  right order.
+
 - **The portal tells us how long to wait when it throttles us, and we ignored
   it (#1969).** It answers a burst with 429 and a short explicit
   ``Retry-After``; 429 was deliberately kept out of the retriable set ("one

@@ -164,6 +164,55 @@ class TestTheKeyActuallyReachesTheUser:
             "it must keep #1843's verdict: neither the code nor the password"
         )
 
+    def test_the_wording_does_not_promise_a_reason_we_usually_lack(self) -> None:
+        """The first version of this text did, and it was unkeepable.
+
+        It said "the exact reason the site gave is in the log next to this
+        message". Measured below: the parser recognises exactly one page
+        format, and the realistic bodies for this step are not it. Promising
+        a reason that is usually absent sends a reporter looking for a line
+        that is not there, which is worse than saying plainly that the site
+        gives us nothing here.
+        """
+        d = json.loads(
+            io.open("custom_components/vag_connect/strings.json", encoding="utf-8").read()
+        )
+        text = d["config"]["error"][_KEY].lower()
+        assert "exact reason" not in text, "the unkeepable promise is back"
+        assert "no reason" in text or "gives no reason" in text, (
+            "the text should say that the site usually gives us no reason here"
+        )
+
+    def test_the_parser_really_does_not_find_a_reason_in_these_bodies(self) -> None:
+        """Why the text may not promise a reason — measured, not assumed.
+
+        ``_login_error`` recognises exactly one page format: a body carrying
+        the literal ``templateModel`` with JSON holding a truthy ``error`` or
+        ``errorCode``. It has no regex, no HTML parsing and no marker lists.
+        The e-mail-challenge step is the Auth0 universal-login flow, where
+        that word does not occur.
+
+        If someone later makes the parser understand these bodies, this test
+        fails and the text can be improved with it — which is the right order.
+        """
+        from custom_components.vag_connect.cariad.auth._eu_data_act import (
+            _login_error,
+        )
+
+        realistic = {
+            "auth0 json": '{"error":"invalid_grant","error_description":"Wrong code"}',
+            "auth0 page": '<div class="ulp-error"><p>Code not valid.</p></div>',
+            "nginx 400": "<html><title>400 Bad Request</title>400 Bad Request</html>",
+            "empty": "",
+        }
+        found = {k: _login_error(v) for k, v in realistic.items()}
+        assert all(v is None for v in found.values()), found
+
+        # counter-check in the same run: the one shape it DOES read, and the
+        # same shape with the trigger word renamed.
+        assert _login_error('var templateModel = {"error": "expired"};') == "expired"
+        assert _login_error('var tmplModel = {"error": "expired"};') is None
+
     def test_the_german_text_is_german_and_uses_real_umlauts(self) -> None:
         d = json.loads(
             io.open("custom_components/vag_connect/translations/de.json", encoding="utf-8").read()
