@@ -298,6 +298,73 @@ class TestTheHeadingIsAnchoredToColumnZero:
         assert "headings" in out
 
 
+class TestASectionNeedsACategoryHeading:
+    """A section with entries but no ``### `` heading parses to ZERO entries.
+
+    ``build_release_notes.split_entries`` only yields a group once it has seen
+    a category heading, so such a section produces "The change list could not
+    be generated" on the release page. v5.2.3b1 shipped that way on
+    2026-11-01 — five entries, no heading, degraded page — and it was the only
+    one of 386 sections with the defect.
+
+    Nothing caught it, and the reason is worth keeping in view: the fix made
+    for it was verified by a test that drives the first pre-release *with
+    entries*, which silently picked a different, healthy section. So the guard
+    belongs in the gate, over every section, not in a test that chooses its own
+    input.
+    """
+
+    def test_a_released_section_without_a_category_is_refused(self, tmp_path: Path):
+        live = tmp_path / "CHANGELOG.md"
+        live.write_text(
+            MIN.replace("### Fixed\n\n- **Old.**", "- **Old.**"),
+            encoding="utf-8", newline="\n",
+        )
+        code, out = _run(_CHECKER, "--file", str(live))
+        assert code == 1, f"a headingless section was accepted:\n{out}"
+        assert "1.0.0" in out, "the offending section must be named"
+        assert "category heading" in out
+
+    def test_the_unreleased_block_is_held_to_it_too(self, tmp_path: Path):
+        live = tmp_path / "CHANGELOG.md"
+        live.write_text(
+            MIN.replace("### Behoben / Fixed\n\n- **First.**", "- **First.**"),
+            encoding="utf-8", newline="\n",
+        )
+        code, out = _run(_CHECKER, "--file", str(live))
+        assert code == 1
+        assert "Unreleased" in out
+
+    def test_a_section_with_a_category_passes(self, tmp_path: Path):
+        """Positive control: the rule must not refuse a healthy file."""
+        live = tmp_path / "CHANGELOG.md"
+        live.write_text(MIN, encoding="utf-8", newline="\n")
+        code, out = _run(_CHECKER, "--file", str(live))
+        assert code == 0, out
+
+    def test_a_section_with_no_entries_at_all_is_not_refused(self, tmp_path: Path):
+        """An empty Unreleased block is the normal post-release state, and a
+        prose-only section is legitimate. Only entries WITHOUT a category are
+        the defect, so the rule keys on both halves rather than on the heading
+        alone."""
+        live = tmp_path / "CHANGELOG.md"
+        live.write_text(
+            MIN.replace(
+                "### Behoben / Fixed\n\n- **First.** body ([#101](u)).\n\n"
+                "- **Second.** body ([#102](u)).\n",
+                "",
+            ),
+            encoding="utf-8", newline="\n",
+        )
+        code, out = _run(_CHECKER, "--file", str(live))
+        assert code == 0, out
+
+    def test_the_live_changelog_satisfies_it(self):
+        """The repo's own file, so the rule cannot pass only on fixtures."""
+        code, out = _run(_CHECKER, "--file", str(_ROOT / "CHANGELOG.md"))
+        assert code == 0, out
+
+
 # ── two entries, one title ───────────────────────────────────────────────────
 
 class TestCollidingTitlesOccupyTwoSlots:

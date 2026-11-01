@@ -89,6 +89,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [5.2.3b1] - 2026-11-01 — Only two hosts may ask for your password / Nur zwei Hosts dürfen nach deinem Passwort fragen
 
+### Behoben / Fixed
+
 - **The login chain may now only reach the identity provider or the portal
   (#1740).** Adopted from the portal operator's own reference implementation, as
   his service notice of 2026-10-06 asked: *"Maintainers of other integrations are
@@ -164,46 +166,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   hand-written table would have forgotten — `user.html/extra` and the trailing
   slash. Switching the allowlist off fails fifteen, including both walker tests.
 
-- **The official Škoda API grew three write routes and two plug fields; the
-  fields are read, the writes deliberately are not (#1286).** Re-fetched the live
-  OpenAPI spec the research note names as its source of truth: **83120 bytes and
-  12 routes**, against the 66993 bytes and 9 routes the note was written from.
-  `ChargingStatus` gained `plugConnectionState` and `plugLockState`, and three
-  `PUT` routes appeared — `charging/limit` (`targetStateOfChargeInPercent`,
-  integer, required), `charging/mode` and `charging-profiles/{id}`.
-
-  The two read fields are now parsed, and **no mapping is invented**: the spec
-  declares both as plain strings with *no enum*, so the raw token goes onto the
-  model and `normalize_enum_states` folds it onto the sensor's own options —
-  an unrecognised value becomes no value rather than a wrong one, which is the
-  same tolerant path the mysmob dialect uses for the identical datum.
-  `drop_charge_sentinel` runs first, for the reason it already guards
-  `chargeType`: a documented no-reading token must not become a confident state.
-
-  The three writes are **not** implemented, and that is a decision rather than a
-  gap. There is no caller: `official_only` mode changes *reads*, while commands
-  go through an explicit six-command allowlist whose stated entry condition is
-  the same signature as the mysmob counterpart — vin and nothing else. A
-  target-SoC write takes a value, so wiring it means widening that allowlist, and
-  the allowlist is a safety boundary: the fallback fires only on 401/403/404, the
-  failures that *prove* the car never saw the command, because anything else may
-  have executed and sending a non-idempotent command twice on a second channel is
-  worse than reporting a failure. The routes and that reasoning are recorded
-  together in `docs/research/skoda-official-api.md`.
-
-  Also corrected there: the note said keys were mintable only from an unreleased
-  **v8.16**. They are mintable now. MyŠkoda **8.18.0** carries
-  `PublicApiKeysApi` over `POST /api/v2/public-api-keys` on mysmob — the same
-  route `mint_api_key` already uses, so the 8.16-derived implementation is still
-  correct. The user path is Settings → Smart Home, per vehicle; two distinct DTOs
-  confirm the secret is returned only at creation; and a `PUBLIC_API_KEY_MANAGEMENT`
-  flag suggests the menu is server-gated and may not be visible to everyone.
-
-  The dependency worth planning around, and the reason this was looked at at all:
-  **a key can only be minted through mysmob.** When the old API stops answering,
-  anyone without a key has no way left to get one, because the public API cannot
-  issue its own credentials.
-
 - **A batch capture stamp outranked a live clock, and dated a whole car at 82
   hours (#1917, @InfObject).** He did not just report it, he diagnosed it: "the
   single available point timestamp... dates the whole merged vehicle despite the
@@ -250,6 +212,77 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   with the live clock. The eighteen existing #1917 tests pass unchanged, because
   they pass no contributor set and an unclassifiable car stays on the old path.
 
+- **The Charging Port sensor could never hold a value on portal cars, and the
+  fix is deliberately one-way (#1739, @awood-ops).** The EU Data Act portal
+  never delivers the `plug_state` label, only the boolean `plug_connected`, so
+  the enum sensor stayed empty while the cable was demonstrably in — from the
+  same poll his `charging_status` read `CHARGING_HV_BATTERY` and the
+  `charging_cable_connected` binary sensor read on. He diagnosed it himself,
+  down to the sensor reading one field only, and proposed the derivation.
+
+  It derives `connected` from a `plug_connected` of exactly `True`, and derives
+  **nothing** from a `False`. That asymmetry is the whole design. The boolean
+  has three producers: the plug enum itself, in which case the label is already
+  set and this never runs; a German-language negation heuristic over a different
+  signal field; and an inference from an active charging session. Charging
+  proves the cable is in. Not charging proves nothing, and a missing or
+  re-worded text makes the heuristic `False` just as readily as a real
+  disconnection does. A `disconnected` out of such a `False` would be #1403
+  again — a connected plug published as a confident `False` — and that comment
+  still stands: a definite wrong answer is worse than an absent one. A `False`
+  therefore leaves the sensor without a value, which Home Assistant renders as
+  `unknown`: the honest state for "we cannot tell".
+
+  The derived label is marked `derived:plug_connected` in `field_sources`, so
+  triage never mistakes it for a portal reading. `is True` rather than a
+  truthiness test, because the boolean is the contract and a stray `"1"` must
+  not read as connected. Fifteen tests, and the asymmetry is pinned by a
+  mutation: deriving both directions fails exactly the two tests that guard it.
+
+### Hinzugefügt / Added
+
+- **The official Škoda API grew three write routes and two plug fields; the
+  fields are read, the writes deliberately are not (#1286).** Re-fetched the live
+  OpenAPI spec the research note names as its source of truth: **83120 bytes and
+  12 routes**, against the 66993 bytes and 9 routes the note was written from.
+  `ChargingStatus` gained `plugConnectionState` and `plugLockState`, and three
+  `PUT` routes appeared — `charging/limit` (`targetStateOfChargeInPercent`,
+  integer, required), `charging/mode` and `charging-profiles/{id}`.
+
+  The two read fields are now parsed, and **no mapping is invented**: the spec
+  declares both as plain strings with *no enum*, so the raw token goes onto the
+  model and `normalize_enum_states` folds it onto the sensor's own options —
+  an unrecognised value becomes no value rather than a wrong one, which is the
+  same tolerant path the mysmob dialect uses for the identical datum.
+  `drop_charge_sentinel` runs first, for the reason it already guards
+  `chargeType`: a documented no-reading token must not become a confident state.
+
+  The three writes are **not** implemented, and that is a decision rather than a
+  gap. There is no caller: `official_only` mode changes *reads*, while commands
+  go through an explicit six-command allowlist whose stated entry condition is
+  the same signature as the mysmob counterpart — vin and nothing else. A
+  target-SoC write takes a value, so wiring it means widening that allowlist, and
+  the allowlist is a safety boundary: the fallback fires only on 401/403/404, the
+  failures that *prove* the car never saw the command, because anything else may
+  have executed and sending a non-idempotent command twice on a second channel is
+  worse than reporting a failure. The routes and that reasoning are recorded
+  together in `docs/research/skoda-official-api.md`.
+
+  Also corrected there: the note said keys were mintable only from an unreleased
+  **v8.16**. They are mintable now. MyŠkoda **8.18.0** carries
+  `PublicApiKeysApi` over `POST /api/v2/public-api-keys` on mysmob — the same
+  route `mint_api_key` already uses, so the 8.16-derived implementation is still
+  correct. The user path is Settings → Smart Home, per vehicle; two distinct DTOs
+  confirm the secret is returned only at creation; and a `PUBLIC_API_KEY_MANAGEMENT`
+  flag suggests the menu is server-gated and may not be visible to everyone.
+
+  The dependency worth planning around, and the reason this was looked at at all:
+  **a key can only be minted through mysmob.** When the old API stops answering,
+  anyone without a key has no way left to get one, because the public API cannot
+  issue its own credentials.
+
+### Geändert / Changed
+
 - **The refused-login message now names the one thing known to fix it (#1969,
   @Ra72xx).** He answered the three questions the previous message asked, and the
   third answer was the cause: signing in at volkswagen.de in a browser and
@@ -278,33 +311,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   phrasings — the same trap as a test that pins a spelling instead of an effect —
   and a second test pins the remedy itself: the site, the browser, the prompt,
   and that declining is presented as sufficient.
-
-- **The Charging Port sensor could never hold a value on portal cars, and the
-  fix is deliberately one-way (#1739, @awood-ops).** The EU Data Act portal
-  never delivers the `plug_state` label, only the boolean `plug_connected`, so
-  the enum sensor stayed empty while the cable was demonstrably in — from the
-  same poll his `charging_status` read `CHARGING_HV_BATTERY` and the
-  `charging_cable_connected` binary sensor read on. He diagnosed it himself,
-  down to the sensor reading one field only, and proposed the derivation.
-
-  It derives `connected` from a `plug_connected` of exactly `True`, and derives
-  **nothing** from a `False`. That asymmetry is the whole design. The boolean
-  has three producers: the plug enum itself, in which case the label is already
-  set and this never runs; a German-language negation heuristic over a different
-  signal field; and an inference from an active charging session. Charging
-  proves the cable is in. Not charging proves nothing, and a missing or
-  re-worded text makes the heuristic `False` just as readily as a real
-  disconnection does. A `disconnected` out of such a `False` would be #1403
-  again — a connected plug published as a confident `False` — and that comment
-  still stands: a definite wrong answer is worse than an absent one. A `False`
-  therefore leaves the sensor without a value, which Home Assistant renders as
-  `unknown`: the honest state for "we cannot tell".
-
-  The derived label is marked `derived:plug_connected` in `field_sources`, so
-  triage never mistakes it for a portal reading. `is True` rather than a
-  truthiness test, because the boolean is the contract and a stray `"1"` must
-  not read as connected. Fifteen tests, and the asymmetry is pinned by a
-  mutation: deriving both directions fails exactly the two tests that guard it.
 
 ## [5.2.2] - 2026-10-31 — What the message actually knows / Was die Meldung wirklich weiß
 

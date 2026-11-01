@@ -264,6 +264,31 @@ def _git_show(ref: str, path: str) -> str | None:
     return r.stdout
 
 
+def sections_without_a_category(text: str) -> list[str]:
+    """Section names that hold ``- **`` entries but no ``### `` heading.
+
+    ``build_release_notes.split_entries`` only yields a group once it has seen
+    a category heading, so such a section parses as ZERO entries and the
+    release page comes out as "The change list could not be generated".
+
+    v5.2.3b1 shipped exactly that way on 2026-11-01: five entries, no category
+    heading, a degraded page. It was the only one of 386 sections with the
+    defect, and nothing caught it — the version-pattern fix made for it was
+    verified by a test that drives the first pre-release *with entries*, which
+    silently selected a different, healthy section.
+    """
+    offenders: list[str] = []
+    heads = list(re.finditer(r"^## \[([^\]]+)\][^\n]*$", text, re.MULTILINE))
+    for idx, head in enumerate(heads):
+        end = heads[idx + 1].start() if idx + 1 < len(heads) else len(text)
+        body = text[head.end():end]
+        has_entries = re.search(r"^- \*\*", body, re.MULTILINE) is not None
+        has_category = re.search(r"^### ", body, re.MULTILINE) is not None
+        if has_entries and not has_category:
+            offenders.append(head.group(1))
+    return offenders
+
+
 def check(text: str, baseline: str | None) -> list[str]:
     problems: list[str] = []
 
@@ -274,6 +299,15 @@ def check(text: str, baseline: str | None) -> list[str]:
                     f"line {num}: an unresolved conflict marker ({marker}) is "
                     "still in the file"
                 )
+
+    for name in sections_without_a_category(text):
+        problems.append(
+            f'section "{name}" has entries but no "### " category heading, so '
+            "build_release_notes parses it as zero entries and the release "
+            "page says the change list could not be generated. Add the "
+            "category headings its neighbours use (### Behoben / Fixed, "
+            "### Hinzugefügt / Added, ### Geändert / Changed)."
+        )
 
     # Only the FIRST Unreleased heading is examined, so a second one hides
     # everything under it from check 2. That is what a merge resolved by

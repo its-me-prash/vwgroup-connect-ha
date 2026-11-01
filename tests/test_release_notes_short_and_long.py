@@ -608,19 +608,28 @@ def test_a_prerelease_section_is_found_and_compared_against_the_last_stable() ->
     )
 
     changelog = _changelog()
+    # The NEWEST pre-release, not the first one that happens to have entries.
+    # The original selection had "and brn.split_entries(...)" in it, and that
+    # silently chose a healthy 4.10.0b5 while the section this test was written
+    # for — 5.2.3b1, five entries and no "### " category heading — parsed to
+    # zero and stayed unexamined. Choosing the input by the property under test
+    # is how a test passes on a case it was meant to catch.
     beta = next(
         (
             name
             for name in _HEADINGS.findall(changelog)
             if re.fullmatch(r"\d+\.\d+\.\d+(?:a|b|rc|pre)\d*", name)
-            and brn.split_entries(brn.section_for(changelog, name))
         ),
         None,
     )
     assert beta is not None, (
-        "no pre-release section with entries in the changelog to drive — this "
-        "test is the only thing standing between a beta and a degraded page, so "
-        "it must not quietly skip itself"
+        "no pre-release section in the changelog to drive — this test must not "
+        "quietly skip itself"
+    )
+    assert brn.split_entries(brn.section_for(changelog, beta)), (
+        f"the newest pre-release section ({beta}) parses to zero entries, which "
+        "is exactly the degraded-page defect. check_changelog_structure refuses "
+        "that state, so reaching here means that gate regressed too"
     )
     last_stable = next(
         (n for n in _HEADINGS.findall(changelog) if re.fullmatch(r"\d+\.\d+\.\d+", n)),
