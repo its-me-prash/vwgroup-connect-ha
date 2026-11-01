@@ -346,6 +346,26 @@ class SkodaOfficialClient:
             d.electric_range_km = int(batt["remainingCruisingRangeInMeters"] // 1000)
         if isinstance(cset.get("targetStateOfChargeInPercent"), (int, float)):
             d.target_soc = int(cset["targetStateOfChargeInPercent"])
+        # The official spec grew ``plugConnectionState`` and ``plugLockState`` on
+        # ``ChargingStatus`` (live spec fetched 2026-11-01, 83120 bytes, 12 routes
+        # against the 9 this file was written from). Both are declared as plain
+        # strings with **no enum**, so the allowed values are not specified and are
+        # deliberately NOT mapped here: the raw token goes onto the model and the
+        # coordinator's ``normalize_enum_states`` folds it onto the sensor's own
+        # declared options, turning anything unrecognised into no value rather than
+        # a wrong one. That is the same tolerant path the mysmob dialect uses for
+        # the identical datum, and it is why no guess about the token spelling is
+        # needed on this side.
+        #
+        # ``drop_charge_sentinel`` first, for the same reason it guards
+        # ``chargeType`` below: a documented no-reading token must not become a
+        # confident state (#1104).
+        _plug = drop_charge_sentinel(cstat.get("plugConnectionState"))
+        if isinstance(_plug, str) and _plug.strip():
+            d.plug_state = _plug
+        _plug_lock = drop_charge_sentinel(cstat.get("plugLockState"))
+        if isinstance(_plug_lock, str) and _plug_lock.strip():
+            d.plug_lock_state = _plug_lock
         if isinstance(cset.get("batteryCareModeTargetValueInPercent"), (int, float)):
             d.battery_care_target_soc_pct = int(cset["batteryCareModeTargetValueInPercent"])
         if isinstance(cset.get("preferredChargeMode"), str):

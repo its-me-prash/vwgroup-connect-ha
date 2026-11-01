@@ -46,6 +46,46 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+- **The official Škoda API grew three write routes and two plug fields; the
+  fields are read, the writes deliberately are not (#1286).** Re-fetched the live
+  OpenAPI spec the research note names as its source of truth: **83120 bytes and
+  12 routes**, against the 66993 bytes and 9 routes the note was written from.
+  `ChargingStatus` gained `plugConnectionState` and `plugLockState`, and three
+  `PUT` routes appeared — `charging/limit` (`targetStateOfChargeInPercent`,
+  integer, required), `charging/mode` and `charging-profiles/{id}`.
+
+  The two read fields are now parsed, and **no mapping is invented**: the spec
+  declares both as plain strings with *no enum*, so the raw token goes onto the
+  model and `normalize_enum_states` folds it onto the sensor's own options —
+  an unrecognised value becomes no value rather than a wrong one, which is the
+  same tolerant path the mysmob dialect uses for the identical datum.
+  `drop_charge_sentinel` runs first, for the reason it already guards
+  `chargeType`: a documented no-reading token must not become a confident state.
+
+  The three writes are **not** implemented, and that is a decision rather than a
+  gap. There is no caller: `official_only` mode changes *reads*, while commands
+  go through an explicit six-command allowlist whose stated entry condition is
+  the same signature as the mysmob counterpart — vin and nothing else. A
+  target-SoC write takes a value, so wiring it means widening that allowlist, and
+  the allowlist is a safety boundary: the fallback fires only on 401/403/404, the
+  failures that *prove* the car never saw the command, because anything else may
+  have executed and sending a non-idempotent command twice on a second channel is
+  worse than reporting a failure. The routes and that reasoning are recorded
+  together in `docs/research/skoda-official-api.md`.
+
+  Also corrected there: the note said keys were mintable only from an unreleased
+  **v8.16**. They are mintable now. MyŠkoda **8.18.0** carries
+  `PublicApiKeysApi` over `POST /api/v2/public-api-keys` on mysmob — the same
+  route `mint_api_key` already uses, so the 8.16-derived implementation is still
+  correct. The user path is Settings → Smart Home, per vehicle; two distinct DTOs
+  confirm the secret is returned only at creation; and a `PUBLIC_API_KEY_MANAGEMENT`
+  flag suggests the menu is server-gated and may not be visible to everyone.
+
+  The dependency worth planning around, and the reason this was looked at at all:
+  **a key can only be minted through mysmob.** When the old API stops answering,
+  anyone without a key has no way left to get one, because the public API cannot
+  issue its own credentials.
+
 - **A batch capture stamp outranked a live clock, and dated a whole car at 82
   hours (#1917, @InfObject).** He did not just report it, he diagnosed it: "the
   single available point timestamp... dates the whole merged vehicle despite the

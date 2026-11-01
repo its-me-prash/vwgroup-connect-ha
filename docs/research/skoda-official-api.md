@@ -1,13 +1,14 @@
 # Škoda official public vehicle API — grounded reference
 
-> Source of truth: the live OpenAPI spec at `https://public.api.connect.skoda-auto.cz/v3/api-docs` (fetched raw, 66993 bytes, openapi 3.1.0), cross-checked against the evcc write-up (https://docs.evcc.io/de/blog/2026/08/27/skoda-vehicle-api/) and the MyŠkoda 8.15.0 APK. This file is the complete surface, generated from the spec.
+> Source of truth: the live OpenAPI spec at `https://public.api.connect.skoda-auto.cz/v3/api-docs` (re-fetched 2026-11-01: **83120 bytes, 12 routes**, openapi 3.1.0 — it was 66993 bytes and 9 routes when this file was written), cross-checked against the evcc write-up (https://docs.evcc.io/de/blog/2026/08/27/skoda-vehicle-api/) and the MyŠkoda APK. This file is the complete surface, generated from the spec; the **Changes since 9 routes** section below records what grew.
 
 ## What this is (and is NOT)
 
 - **Official, first-party** end-customer API on Škoda's own zone `public.api.connect.skoda-auto.cz` (base `/api/v1`).
 - **NOT** the pan-VW EU Data Act endpoint (`cardata.apps.emea.vwapps.io`, still pre-launch) — a separate, brand-native gateway.
-- **NOT** our current channel: we read Škoda via the unofficial reverse-engineered `mysmob.api.connect.skoda-auto.cz` (51 routes). This official API is a smaller (9 routes) but durable, attestation-free alternative.
-- **Availability:** the API keys are minted inside the MyŠkoda app **v8.16+** (not yet released — latest on the mirrors is 8.15.0, which contains **no** reference to this host). So the docs are live but no key can be created yet (~early Sept 2026).
+- **NOT** our current channel: we read Škoda via the unofficial reverse-engineered `mysmob.api.connect.skoda-auto.cz` (51 routes). This official API is a smaller (**12 routes** as of 2026-11-01, 9 when this file was written) but durable, attestation-free alternative.
+- **Availability (updated 2026-11-01):** keys ARE mintable now. MyŠkoda **8.18.0** (versionCode 261012003, pulled 2026-11-01) carries the flow: `cz.myskoda.api.bff_public_api_keys.v2.ktor.data.PublicApiKeysApi` with `createPublicApiKey`, `deletePublicApiKey`, `getPublicApiKeys` and a validity check, over `POST /api/v2/public-api-keys` and `/api/v2/public-api-keys/{id}` on **mysmob** — the same route our `mint_api_key` uses, so the 8.16-derived implementation is still correct in 8.18. User path: **Settings → Smart Home**, per vehicle, with a delete confirmation. Two distinct DTOs (`CreatedApiKeyDto` vs `ApiKeyDto`) corroborate that the secret is returned only at creation. The build also carries a `PUBLIC_API_KEY_MANAGEMENT` flag, which looks like a server-side gate — the menu may not be visible for every account.
+- **The minting dependency is the thing to plan around:** the key can only be created THROUGH mysmob. When the old API stops answering, anyone without a key has no way left to obtain one, because the public API cannot issue its own credentials.
 
 ## Auth
 
@@ -42,6 +43,74 @@ silently mis-reports state, so they are pinned here (and in the client tests):
 - **Up to 5 access tokens per VIN**, minted in the app (v8.16+). Free.
 - **Data depends on the account's active Škoda Connect services.** Notably: **without a Remote Access license the parking position (GPS) is not returned** — so the GPS read is a bonus where licensed, not universal. Our parse already treats every field as optional.
 - Škoda is building its own dedicated HA integration (HA 2026.10) with the community; our use of this API is as an opt-in **resilience/failover** source inside a multi-brand integration, which is complementary rather than competing.
+
+## APK signing baseline (first recorded 2026-11-01)
+
+`apkget` ends with "verify the signing cert against a known-good copy before
+trusting the APK" — and when that was attempted there was **no known-good copy**:
+a search for any recorded Škoda signing-cert hash across the repo returned zero.
+So this is the baseline, recorded from the first pull, for the next one to be
+compared against. A changed hash on a later pull is not proof of tampering, but
+it is the point at which to stop and find out why.
+
+| Field | Value |
+|---|---|
+| Package | `cz.skodaauto.myskoda` |
+| versionName / versionCode | `8.18.0` / `261012003` |
+| Pulled | 2026-11-01, via `C:/tools/apkget.sh` (Google Play) |
+| APK SHA-256 | `06cedc1de59f1ee33d71f0967f2f81b7b528e9769d4ae7e9cd8bfdfe6c886f56` |
+| Signing cert SHA-256 | `960c025bd51d1ba21ed72df18a38a121191e185f8705ce5f4ccb8b21116df176` |
+| Signatures / DEX files | 1 / 4 (`dex
+039`, 35 MB total) |
+
+The APK itself was deleted after the strings were read: 130 MB, reproducible
+from the same command, and a downloaded binary is not something to keep lying
+around. The cert hash is the part worth keeping.
+
+## Changes since 9 routes (re-fetched 2026-11-01)
+
+Three **write** routes appeared, all `PUT`, all with a declared body:
+
+| Route | Body schema | Fields |
+|---|---|---|
+| `PUT /api/v1/vehicles/{vin}/charging/limit` | `ChargingLimit` | `targetStateOfChargeInPercent` — integer, **required** |
+| `PUT /api/v1/vehicles/{vin}/charging/mode` | `ChargeMode` | `chargeMode` — string, required, **no enum declared** |
+| `PUT /api/v1/vehicles/{vin}/charging-profiles/{id}` | `ChargingProfile` | `id`, `name`, `settings`, `preferredChargingTimes`, `timers` — all required |
+
+And `ChargingStatus` gained two read fields: **`plugConnectionState`** and
+**`plugLockState`**, both `string` with **no enum declared**.
+
+### What was implemented, and what deliberately was not
+
+**Implemented:** the two read fields, in `cariad/api/skoda_official.py`. They are
+passed through raw — no mapping is invented, because the spec declares no allowed
+values — and the coordinator's `normalize_enum_states` folds the token onto the
+sensor's declared options, so an unrecognised value becomes no value rather than
+a wrong one. `drop_charge_sentinel` runs first, for the same reason it guards
+`chargeType`. Pinned by `tests/test_1286_official_api_grew_the_plug_fields.py`.
+
+**Not implemented: the three write routes.** Not an oversight — there is no
+caller. `official_only` mode changes **reads**; commands are dispatched through
+`_skoda_official_command_fallback` against an explicit six-command allowlist
+(`_SKODA_OFFICIAL_COMMANDS`), and the comment there states the entry condition:
+those six have the *same signature* as their mysmob counterparts, vin and nothing
+else. A target-SoC write takes a value, so adding it means widening that
+allowlist — and that list is a deliberate safety boundary, not a backlog. The
+fallback fires only on 401/403/404, the failures that *prove* the car never saw
+the command; anything else may have executed, and sending a non-idempotent
+command twice on a second channel is worse than reporting a failure.
+
+So wiring these three is a design decision about the command fallback, not a
+parser addition. Recorded here so the next reader finds the routes and the reason
+together instead of only the gap.
+
+### A note on sources
+
+The APK does **not** carry `plugConnectionState`, `plugLockState` or
+`charging/limit` — checked in 8.18.0. That is consistent rather than
+contradictory: the app talks to mysmob, not to the public API. For this surface
+the spec is the authority and the app is not; the app is the authority for the
+*key-minting* route, which is why both were checked.
 
 ## Endpoints
 
