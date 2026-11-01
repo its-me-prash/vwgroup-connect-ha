@@ -46,6 +46,35 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+- **The refused-login message now names the one thing known to fix it (#1969,
+  @Ra72xx).** He answered the three questions the previous message asked, and the
+  third answer was the cause: signing in at volkswagen.de in a browser and
+  clicking away an advertising/consent prompt makes the integration log in again.
+  His own words for what he wanted instead of a bare status: "give a proper error
+  message in the first place", and "give a hint like: if login fails repeatedly,
+  you might have to log on to volkswagen.de and accept/reject advertising
+  consent".
+
+  That is now what the message says. It had been asking the reporter to *test*
+  whether a browser sign-in works, as a diagnostic — which wasted the finding,
+  because doing it is the remedy. The text also says that declining the prompt is
+  enough: he objected explicitly to the idea of having to accept advertising to
+  use his own car, and he is right.
+
+  Why the integration cannot do it for him, as far as it is measured: the code
+  already auto-skips VW's marketing-consent interstitial, and there is a
+  documented case where the identity provider errors out *before* rendering that
+  page — then there is nothing to skip and the login simply fails. Another
+  reporter's log on #584 landed on `identity.vwgroup.io/v2/login/ui/error` the
+  same way. Which of the two domains actually shows the prompt decides the fix,
+  and that question is with him; the remedy in the text holds either way.
+
+  The test that guarded the old wording demanded the literal phrase "no reason",
+  which would have blocked this text. It now checks the idea across several
+  phrasings — the same trap as a test that pins a spelling instead of an effect —
+  and a second test pins the remedy itself: the site, the browser, the prompt,
+  and that declining is presented as sufficient.
+
 - **The Charging Port sensor could never hold a value on portal cars, and the
   fix is deliberately one-way (#1739, @awood-ops).** The EU Data Act portal
   never delivers the `plug_state` label, only the boolean `plug_connected`, so

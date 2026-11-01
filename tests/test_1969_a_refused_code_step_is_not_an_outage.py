@@ -179,8 +179,48 @@ class TestTheKeyActuallyReachesTheUser:
         )
         text = d["config"]["error"][_KEY].lower()
         assert "exact reason" not in text, "the unkeepable promise is back"
-        assert "no reason" in text or "gives no reason" in text, (
-            "the text should say that the site usually gives us no reason here"
+        # Checked on the IDEA, not on one wording. The first version of this
+        # assertion demanded the literal "no reason", which then blocked the
+        # better text @Ra72xx's own finding made possible — the same trap as
+        # test_fixiert_implementierung. What must hold is that the text does not
+        # send the reporter hunting for a reason the parser cannot produce.
+        says_the_site_is_silent = any(
+            phrase in text
+            for phrase in (
+                "no reason",
+                "gives no reason",
+                "does not tell us",
+                "doesn't tell us",
+            )
+        )
+        assert says_the_site_is_silent, (
+            "the text must say, in some wording, that the site does not tell us "
+            f"what it wants; got: {text[:160]!r}"
+        )
+
+    def test_the_wording_names_the_one_thing_that_has_actually_helped(self) -> None:
+        """#1969 — @Ra72xx found the remedy, so the text has to carry it.
+
+        He reported that signing in at volkswagen.de in a browser and dismissing
+        an advertising/consent prompt makes the integration log in again. The
+        code already auto-skips VW's marketing-consent interstitial and has a
+        documented case where the identity provider errors out *before*
+        rendering it — then there is nothing to skip. Until that is fixed, the
+        browser detour is the only thing known to work, and a message that only
+        asks the user to *test* it wastes the finding.
+        """
+        d = json.loads(
+            io.open("custom_components/vag_connect/strings.json", encoding="utf-8").read()
+        )
+        text = d["config"]["error"][_KEY].lower()
+        assert "volkswagen.de" in text, "the remedy has to name the site"
+        assert "browser" in text, "the remedy is a browser sign-in"
+        assert "consent" in text or "advertising" in text, (
+            "the prompt that has to be cleared is the point of the remedy"
+        )
+        assert "declin" in text or "reject" in text, (
+            "accepting advertising must not be presented as the price of "
+            "logging in — he objected to that explicitly"
         )
 
     def test_the_parser_really_does_not_find_a_reason_in_these_bodies(self) -> None:
