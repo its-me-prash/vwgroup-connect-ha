@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.2.3b1] - 2026-11-01 — Only two hosts may ask for your password / Nur zwei Hosts dürfen nach deinem Passwort fragen
+
 - **The login chain may now only reach the identity provider or the portal
   (#1740).** Adopted from the portal operator's own reference implementation, as
   his service notice of 2026-10-06 asked: *"Maintainers of other integrations are
