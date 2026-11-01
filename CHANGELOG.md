@@ -46,6 +46,47 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **An endpoint that answers 500 on every attempt of every poll no longer gets
+  four requests for it (#1973).** @indigomejor measured the steady state on a
+  Škoda Octavia (petrol, MySkoda app login plus EU Data Act portal), parked,
+  over four polls, by temporarily adding the request path to the "Server error"
+  debug line. Two endpoints answered 500 every single time —
+  `connection-status/{vin}/readiness` and
+  `vehicle-information/{vin}/software-version/update-status` — and his
+  correction of the arithmetic is the substance of the fix: *"the 4th attempt
+  also goes out and then raises, so each chain is 4 requests and it is 8 failed
+  requests per poll"*. The issue was opened saying six.
+
+  The retry ladder in the shared request layer runs while `_attempt < 3` with
+  `(2 ** _attempt) * 3` seconds between, so attempts go out at 0/3/6/12 s. Four
+  requests therefore bought exactly what the first one had already said, on
+  every poll, against a portal the operator has asked community clients to put
+  less load on.
+
+  Now a URL that spends its **whole** budget on 5xx without once succeeding does
+  not get the retries again on the next poll: his two endpoints cost 2 requests
+  per poll instead of 8. Only the retries are withheld — **one attempt still
+  goes out every poll**, which is what makes this safe without answering the
+  question #1973 could not settle, namely whether such an endpoint is merely
+  unprovisioned for that car (permanent 500) or genuinely flapping. A transient
+  outage recovers on that single attempt and the mark is withdrawn, so it costs
+  the suppression only until the next good poll; a permanent one costs one
+  request instead of four. A 404 deliberately does **not** withdraw the mark: it
+  never consumed the 5xx budget, so it says nothing about it.
+
+  Skipping the call outright on a long streak is deliberately **not** done — it
+  would need a re-probe schedule and could only save one further request. The
+  key is the method plus the path with the query stripped, so a caller that puts
+  a cursor or timestamp in the query cannot grow the memory without bound while
+  never matching it; the key is never logged, and a test asserts the VIN does
+  not reach the suppression log line. 18 tests, and switching the guard off
+  fails seven of them while leaving the positive controls green.
+
+  Still open from #1973 and not addressed here: whether "more during a drive"
+  means more polls or more failures per poll. The measurement was a parked car.
+
 ## [5.2.3b1] - 2026-11-01 — Only two hosts may ask for your password / Nur zwei Hosts dürfen nach deinem Passwort fragen
 
 - **The login chain may now only reach the identity provider or the portal

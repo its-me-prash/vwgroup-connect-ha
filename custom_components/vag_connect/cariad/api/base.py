@@ -144,6 +144,34 @@ _PROBE_CB_THRESHOLD  = 3
 _RETRY_AFTER_MIN_S = 30
 _LOCKOUT_429_S = 1800   # 30 min once 429 retries are exhausted
 _LOCKOUT_430_S = 7200   # 2 h on a hard 430 (explicit lockout signal)
+# #1973 — a URL that spent its ENTIRE 5xx retry budget without once succeeding
+# does not get that budget again on the next poll. Measured by @indigomejor on a
+# Škoda Octavia: two endpoints answer 500 on all four attempts of every poll
+# (``connection-status/{vin}/readiness`` and
+# ``vehicle-information/{vin}/software-version/update-status``), so each poll
+# spent 8 requests to learn what the first one already said. A retry exists to
+# survive a TRANSIENT failure; 500-on-every-attempt-of-every-poll is not
+# transient, and the portal is known to be load-sensitive.
+#
+# Deliberately one single attempt still goes out every poll, so this needs no
+# answer to "is that endpoint merely unprovisioned for this car?" — the question
+# #1973 could not settle. Transient recovers on the next poll and clears the
+# mark; permanent costs one request instead of four. The next rung, skipping the
+# call outright on a long streak, is NOT taken: it would need a re-probe
+# schedule and it can only save one more request per poll.
+_5XX_SUPPRESS_RETRIES_AFTER = 1  # consecutive polls with the budget fully spent
+
+
+def _5xx_budget_key(method: str, url: str) -> str:
+    """Key for the 5xx retry-budget memory: method plus path, query stripped.
+
+    The query is dropped on purpose. ``trip-statistics/{vin}?offsetType=week``
+    is stable, but a caller that puts a timestamp or a cursor in the query would
+    otherwise mint a new key on every poll and the memory would grow without
+    bound while never matching. The VIN stays in the path, so the memory is
+    per-vehicle; the key is never logged.
+    """
+    return f"{method} {url.split('?', 1)[0]}"
 # VW EU Two-Way (650d46ca): the ~1 h device-grant Bearer is NON-refreshable, and
 # an EXPIRED bearer can come back 403 (not 401) from the CARIAD BFF, so the
 # reactive 401-retry re-mint can miss it and the entry freezes after ~1 h
@@ -319,6 +347,12 @@ class CariadBaseClient:
         # Pruned to the last `_REFRESH_WINDOW_S` on every refresh attempt.
         # Prevents the spiral documented in myskoda #976 / volkswagencarnet #683.
         self._refresh_history: list[float] = []
+        # #1973 — per (method, path) count of consecutive polls in which this URL
+        # spent its whole 5xx retry budget without once succeeding. Keyed on the
+        # PATH with the query stripped, so a changing query parameter cannot grow
+        # this without bound; the VIN in the path keeps it per-vehicle, and the
+        # key is never logged. Any non-5xx answer clears the entry.
+        self._5xx_spent: dict[str, int] = {}
         # v2.15.12 (#584) — SEPARATE storm budget for refreshes triggered by a
         # remote COMMAND (MBB lock/unlock/climate/charge). A failing command
         # (e.g. the MBB token exchange 500 or a data-plane 401) used to spend
@@ -1766,11 +1800,33 @@ class CariadBaseClient:
                 if resp.status == 430:
                     # explicit hard lockout signal — long account-scoped hold (B4)
                     self._enter_rate_lockout(_LOCKOUT_430_S, 430)
-                if resp.status in (500, 502, 503, 504) and _attempt < 3:
-                    wait = (2 ** _attempt) * 3
-                    _LOGGER.debug("Server error %d — retrying in %ds", resp.status, wait)
-                    await asyncio.sleep(wait)
-                    return await self._request(method, url, retry=retry, _attempt=_attempt + 1, **kwargs)
+                if resp.status in (500, 502, 503, 504):
+                    # #1973 — see ``_5XX_SUPPRESS_RETRIES_AFTER``. One attempt
+                    # always goes out; only the RETRIES are withheld, and only
+                    # from a URL that already spent the whole budget for nothing.
+                    _budget_key = _5xx_budget_key(method, url)
+                    _budget_memory = self._5xx_memory()
+                    _spent = _budget_memory.get(_budget_key, 0)
+                    if _attempt >= 3:
+                        # Budget fully spent on 5xx — remember it for next poll.
+                        _budget_memory[_budget_key] = _spent + 1
+                    elif _spent >= _5XX_SUPPRESS_RETRIES_AFTER:
+                        if _attempt == 0:
+                            _LOGGER.debug(
+                                "Server error %d — not retrying: this endpoint"
+                                " spent its whole retry budget on each of the"
+                                " last %d poll(s) without succeeding",
+                                resp.status, _spent,
+                            )
+                    else:
+                        wait = (2 ** _attempt) * 3
+                        _LOGGER.debug("Server error %d — retrying in %ds", resp.status, wait)
+                        await asyncio.sleep(wait)
+                        return await self._request(method, url, retry=retry, _attempt=_attempt + 1, **kwargs)
+                elif resp.status in (200, 201, 202, 204, 207):
+                    # #1973 — a real answer withdraws the mark, so a transient
+                    # outage costs the suppression only until the next good poll.
+                    self._5xx_memory().pop(_5xx_budget_key(method, url), None)
                 if resp.status == 204:
                     self._capture_rate_limit_headers(resp.headers)
                     return None
@@ -2151,6 +2207,21 @@ class CariadBaseClient:
         if not self._tokens:
             raise AuthenticationError("Not authenticated — call authenticate() first.")
         return self._tokens.access_token
+
+    def _5xx_memory(self) -> dict[str, int]:
+        """#1973 — per-URL count of polls that spent the whole 5xx budget.
+
+        Same defensive-getattr as ``_parser_job``: tolerate clients
+        instantiated via ``__new__`` in unit tests, where ``__init__``
+        never ran and the dict does not exist. Creating it on first use
+        keeps the suppression identical for those clients instead of
+        raising AttributeError inside ``_request``.
+        """
+        store = getattr(self, "_5xx_spent", None)
+        if store is None:
+            store = {}
+            self._5xx_spent = store  # type: ignore[attr-defined]
+        return store
 
     def _capture_rate_limit_headers(self, headers: Any) -> None:
         """v1.19.1 — Read X-RateLimit-* headers from a response.
