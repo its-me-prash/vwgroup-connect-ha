@@ -19,7 +19,7 @@ import hashlib
 import json
 import logging
 import threading
-from typing import Any
+from typing import Any, Final
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
@@ -272,6 +272,38 @@ def normalize_enum_states(data: dict[str, Any]) -> None:
         data[key] = folded if folded in allowed else None
 
 
+# #1917 — a batch channel hands us a FILE whose contents can be hours or days
+# older than the delivery; every other channel reads the car through a live
+# session. Both real tokens of that family carry this marker (``eu_data_act`` as
+# the merge contributor, ``data_act_portal`` as the auth strategy), so matching
+# the marker rather than listing tokens is what keeps a future variant covered.
+#
+# The asymmetry is deliberate: a new BATCH channel misread as live would weaken
+# the guard below, while a new LIVE channel misread as batch would re-open the
+# 82-hour verdict this exists to end. The marker catches the family that keeps
+# growing variants, and anything unrecognised stays on the old path.
+_BATCH_CHANNEL_MARKERS: Final[tuple[str, ...]] = ("data_act",)
+
+
+def _has_live_contributor(data: dict[str, Any]) -> bool:
+    """True when a channel other than a batch export supplied a value for this car.
+
+    ``source_channel`` is the "+"-joined set of tokens that actually contributed
+    (``cariad/_channel_merge.py``), so a merged car names every channel behind it.
+
+    Absent, blank or not a string returns **False**, which keeps the behaviour
+    that predates #1917: a car we cannot classify stays on the old path rather
+    than being moved silently onto the new one.
+    """
+    raw = data.get("source_channel")
+    if not isinstance(raw, str) or not raw.strip():
+        return False
+    return any(
+        tok and not any(marker in tok for marker in _BATCH_CHANNEL_MARKERS)
+        for tok in (part.strip().lower() for part in raw.split("+"))
+    )
+
+
 def _capture_age_s(data: dict[str, Any]) -> float | None:
     """Seconds since the car itself captured the data, or None.
 
@@ -343,7 +375,41 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
             # because then there is no sane stamp to prefer over it.
             sane = [a for a in ages if a >= 0]
             # smallest age == newest capture
-            return min(sane) if sane else min(ages)
+            stamp_age = min(sane) if sane else min(ages)
+
+            # #1917 (@InfObject) — he diagnosed the remaining half himself and
+            # his reading was right: on a car where the map holds ONE entry,
+            # "newest entry of the map" and "oldest thing we know" are the same
+            # number, and it beat a ``last_seen_at`` that was better evidence.
+            # His car: one portal stamp for target_soc at ~82.5 h against a
+            # ``last_seen_at`` of ~16.3 h from a live channel, so the verdict
+            # dated the whole merged vehicle at 82 h.
+            #
+            # Why the map is always the batch clock: ``field_captured_ts`` is
+            # WRITTEN in exactly one module, the EU Data Act mapper, and it
+            # records a stamp for seven values at most (battery level, odometer,
+            # range, target charge level, charging state, plug state, fuel
+            # level). ``last_seen_at`` is written by eight channels. So a stamp
+            # from the map may only override ``last_seen_at`` when that clock is
+            # itself batch; where a live channel contributed, the fresher of the
+            # two wins. The original portal-only case is untouched, because
+            # there every contributor is batch and the stamp still decides.
+            #
+            # The contributor set is the proxy used, not per-field provenance for
+            # ``last_seen_at`` itself — that does not exist, and inventing one
+            # for this would be a bigger change than the defect warrants. Stated
+            # here so nobody later reads the proxy as a guarantee.
+            #
+            # Deliberately NOT done here, both from the same comment on #1917:
+            # the map is not dropped (it is right for the case it was built
+            # for), and the age THRESHOLD is not touched — that is the open half
+            # of the original report, and mixing a correctness fix with a tuning
+            # decision would make both harder to judge.
+            if _has_live_contributor(data):
+                live_age = _age_s(data.get("last_seen_at"))
+                if live_age is not None and live_age >= 0:
+                    return min(stamp_age, live_age) if stamp_age >= 0 else stamp_age
+            return stamp_age
     # ``data_captured_at`` is deliberately NOT consulted. It is written in
     # exactly one place -- the KWP2000 dongle (``plugandplay.py``) -- and that
     # client documents it as refreshing "only when the car is driven / on

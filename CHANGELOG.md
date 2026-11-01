@@ -46,6 +46,38 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+- **A batch capture stamp outranked a live clock, and dated a whole car at 82
+  hours (#1917, @InfObject).** He did not just report it, he diagnosed it: "the
+  single available point timestamp... dates the whole merged vehicle despite the
+  newer web captures". Confirmed at the code. His car had **one** entry in the
+  capture-stamp map — `target_soc` from the EU Data Act portal at about 82.5 h —
+  against a `last_seen_at` of about 16.3 h from a live channel. Because the
+  verdict preferred "the newest entry of the map", and the newest entry of a
+  one-entry map is also its oldest, the 82-hour stamp won over the better
+  evidence.
+
+  What makes the rule safe is a property of the tree rather than a guess:
+  `field_captured_ts` is *written* in exactly one module, the EU Data Act mapper,
+  and holds at most seven values; `last_seen_at` is written by eight channels. So
+  the map is the batch clock by construction. A map stamp may now only override
+  `last_seen_at` when that clock is itself batch — where a live channel
+  contributed, the fresher of the two wins. The portal-only car the map was built
+  for is untouched, because there every contributor is batch and the stamp still
+  decides. The contributor set is a proxy, not per-field provenance for
+  `last_seen_at`, which does not exist; that is stated at the code so nobody
+  later reads the proxy as a guarantee.
+
+  Two things are deliberately left alone, both promised in that thread: the map
+  is not dropped, and the age **threshold** is not touched — that is the open
+  half of the original report, and mixing a correctness fix with a tuning
+  decision would make both harder to judge. This issue stays open for it.
+
+  Eighteen tests, including the #465 broken-clock guard in the new branch: a
+  future-dated stamp yields a negative age, and `min()` of two ages would let one
+  win outright, so an all-future map keeps the #465 behaviour instead of mixing
+  with the live clock. The eighteen existing #1917 tests pass unchanged, because
+  they pass no contributor set and an unclassifiable car stays on the old path.
+
 - **The refused-login message now names the one thing known to fix it (#1969,
   @Ra72xx).** He answered the three questions the previous message asked, and the
   third answer was the cause: signing in at volkswagen.de in a browser and
