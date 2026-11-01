@@ -53,17 +53,46 @@ jobs:
           version = os.environ["VERSION"]
           changelog = open("CHANGELOG.md").read()
 
-          # All previous semver versions, newest first. Date is captured
-          # from the `## [X.Y.Z] - YYYY-MM-DD` header when present.
+          # All released versions, newest first, INCLUDING pre-releases. Date is
+          # captured from the `## [X.Y.Z] - YYYY-MM-DD` header when present.
+          #
+          # The pattern used to be plain semver only, which meant a beta's own
+          # section could never be found: `## [5.2.3b1]` did not match, `version`
+          # was absent from the list, and the body came out degraded. No beta had
+          # hit it because the "Release-Notes vollständig?" gate below was added
+          # on 2026-10-21 and the previous beta was tagged on 2026-10-04 — so
+          # v5.2.3b1 was the first pre-release to run through the gate, and the
+          # gate did exactly its job: it refused to let a half-built page pass
+          # for a normal one. The tests did not catch it either, because the
+          # harness reads headings permissively and then filters its happy path
+          # down to plain semver.
           all_entries = re.findall(
-              r"## \[(\d+\.\d+\.\d+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?",
+              r"## \[(\d+\.\d+\.\d+(?:(?:a|b|rc|pre)\d*)?)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?",
               changelog,
           )
           versions_only = [v for v, _ in all_entries]
           idx = versions_only.index(version) if version in versions_only else -1
-          prev_version = versions_only[idx + 1] if idx + 1 < len(versions_only) else None
+          # ``prev_version`` and the "Recent releases" pointer stay on STABLE
+          # versions, deliberately, and that is what keeps a stable release's
+          # notes byte-identical to before this widening. Letting pre-releases
+          # into them would have been the easy edit and a silent change to every
+          # stable page: betas listed as recent releases, and a comparison link
+          # pointing at a beta instead of the previous stable. For a beta page
+          # the previous STABLE is also the more useful comparison — "what is new
+          # since 5.2.2" — so one rule serves both.
+          _is_stable = lambda v: re.fullmatch(r"\d+\.\d+\.\d+", v) is not None  # noqa: E731
+          stable = [(v, d) for v, d in all_entries if _is_stable(v)]
+          # POSITION-based, as before: the next stable BELOW this release in the
+          # file, not merely the newest stable that is not this one. The two are
+          # the same when the version being released is the newest section —
+          # which it is at tag time — and they differ on a re-run for an older
+          # tag. Keeping the position rule means this widening cannot change
+          # what such a re-run produces either.
+          prev_version = next(
+              (v for v, _ in all_entries[idx + 1:] if _is_stable(v)), None
+          ) if idx >= 0 else next((v for v, _ in stable if v != version), None)
           # Last 3 prior versions for the "Recent releases" pointer
-          recent_prior = [(v, d) for v, d in all_entries if v != version][:3]
+          recent_prior = [(v, d) for v, d in stable if v != version][:3]
 
           repo = "its-me-prash/vwgroup-connect-ha"
 

@@ -576,3 +576,86 @@ def test_the_builder_ships_with_the_repository() -> None:
     assert (REPO_ROOT / "scripts/build_release_notes.py").is_file()
     code = _workflow_code()
     assert 'sys.path.insert(0, "scripts")' in code
+
+
+def test_a_prerelease_section_is_found_and_compared_against_the_last_stable() -> None:
+    """A beta must not produce a degraded page — and v5.2.3b1 did.
+
+    The version pattern in ``release.yml`` was plain semver only, so
+    ``## [5.2.3b1]`` never matched, the version was absent from the list, and the
+    body came out as "The change list could not be generated". Nothing had
+    noticed because the "Release-Notes vollständig?" gate was added on
+    2026-10-21 while the previous beta was tagged on 2026-10-04, and because the
+    happy path above filters its driving heading down to plain semver — so the
+    harness never ran a pre-release through the block it tests.
+
+    This drives the real block with a pre-release heading and asserts three
+    things: the section is found, the page is not degraded, and the comparison
+    still points at the last STABLE version rather than at another beta.
+    """
+    import os
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+
+    yml = _workflow()
+    match = re.search(r"python3 << 'PYTHON'\n(.*?)\n          PYTHON", yml, re.DOTALL)
+    assert match, "could not find the python block in release.yml"
+    block = "\n".join(
+        ln[10:] if ln.startswith(" " * 10) else ln
+        for ln in match.group(1).split("\n")
+    )
+
+    changelog = _changelog()
+    beta = next(
+        (
+            name
+            for name in _HEADINGS.findall(changelog)
+            if re.fullmatch(r"\d+\.\d+\.\d+(?:a|b|rc|pre)\d*", name)
+            and brn.split_entries(brn.section_for(changelog, name))
+        ),
+        None,
+    )
+    assert beta is not None, (
+        "no pre-release section with entries in the changelog to drive — this "
+        "test is the only thing standing between a beta and a degraded page, so "
+        "it must not quietly skip itself"
+    )
+    last_stable = next(
+        (n for n in _HEADINGS.findall(changelog) if re.fullmatch(r"\d+\.\d+\.\d+", n)),
+        None,
+    )
+    assert last_stable is not None, "no stable section to compare against"
+
+    work = pathlib.Path(tempfile.mkdtemp())
+    (work / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
+    (work / "scripts").mkdir()
+    shutil.copy(REPO_ROOT / "scripts/build_release_notes.py", work / "scripts")
+    notes_path = str(work / "notes.md").replace("\\", "/")
+    (work / "block.py").write_text(
+        block.replace("/tmp/release_notes.md", notes_path), encoding="utf-8"
+    )
+    gh_output = work / "gh_output"
+    gh_output.write_text("", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "-I", "-X", "utf8=1", "block.py"],
+        cwd=work, capture_output=True, text=True, encoding="utf-8",
+        errors="replace", stdin=subprocess.DEVNULL,
+        env={**os.environ, "VERSION": beta, "GITHUB_OUTPUT": str(gh_output)},
+    )
+    assert proc.returncode == 0, proc.stderr[-800:]
+
+    notes = (work / "notes.md").read_text(encoding="utf-8")
+    assert "could not be generated" not in notes, (
+        f"the {beta} section was not found — the page is degraded"
+    )
+    assert "incomplete" not in notes.lower(), "the page still reports itself degraded"
+    assert gh_output.read_text(encoding="utf-8").strip() != "degraded=true", (
+        "the gate flag is still set"
+    )
+    assert f"v{beta}" in notes, "the notes must name the version they are for"
+    assert last_stable in notes, (
+        f"a beta page should compare against the last stable ({last_stable}); "
+        "pointing at another beta is what the position rule avoids"
+    )
