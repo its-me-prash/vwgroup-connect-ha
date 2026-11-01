@@ -709,6 +709,42 @@ def _portal_no_data_reason(client: Any) -> str | None:
     return reason or None
 
 
+def _refused_login_hosts(client: Any) -> dict[str, Any] | None:
+    """Login redirects the allowlist refused, if any — the fail-closed canary.
+
+    #1740 — the login chain may only reach the identity provider or the portal,
+    adopted from the portal operator's own reference implementation. That guard
+    is fail-closed, which is correct for a step that carries a password and
+    risky to ship blind: if the host list is ever wrong about a real flow, no
+    user gets through.
+
+    A silent fallback to the old permissive behaviour would not fix that, it
+    would void the guard — whoever can trigger a foreign redirect would simply
+    trigger the fallback. What makes fail-closed safe to ship instead is this
+    field: a wrong list shows up here within one poll, with the host that was
+    refused, instead of arriving as "login broken" weeks later.
+
+    So:
+
+    * absent or ``count`` 0 — the guard has never fired, which is the expected
+      state and says nothing needs widening;
+    * ``count`` above 0 — either someone tried to steer this login somewhere it
+      does not belong, or the operator moved an endpoint and the list is now
+      wrong. ``hosts`` says which, and that is the whole fix.
+
+    Host names only. A refused login URL can carry ``code`` and ``state``, so
+    the URL is never recorded — the same rule the transport-error field follows.
+    """
+    count = getattr(client, "refused_login_host_count", None)
+    if not isinstance(count, int):
+        return None
+    hosts = getattr(client, "refused_login_hosts", None)
+    return {
+        "count": count,
+        "hosts": sorted(hosts) if isinstance(hosts, (set, frozenset, list)) else None,
+    }
+
+
 def _portal_throttle(client: Any) -> dict[str, Any] | None:
     """Whether this portal has ever throttled US, and whether it said for how long.
 
@@ -1010,6 +1046,10 @@ async def async_get_config_entry_diagnostics(
         # portal's rate limits were measured by someone else, on their own
         # traffic" into something one report of ours can confirm or refute.
         "portal_throttle": _portal_throttle(client),
+        # #1740 — see _refused_login_hosts: the field that makes a fail-closed
+        # login guard safe to ship, because a wrong host list becomes visible
+        # here instead of silent.
+        "refused_login_hosts": _refused_login_hosts(client),
         "cloud_push_active": coordinator.cloud_push_active,
         "push_states": coordinator.push_states,
         "push_last_errors": coordinator.push_last_errors,

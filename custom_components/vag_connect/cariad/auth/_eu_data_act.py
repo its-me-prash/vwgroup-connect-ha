@@ -195,6 +195,103 @@ _PORTAL_CALLBACK_PATH = "/services/callbacklogin"
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 _MAX_LOGIN_REDIRECTS = 10
 
+# ── Login-redirect allowlist, ported from the operator's own reference ────────
+# The portal operator (@VWGroupDatahub) implemented this login flow in two
+# community projects himself and asked the remaining maintainers, in the service
+# notice of 2026-10-06, to "review and adopt the relevant login-flow changes
+# already implemented for EVCC and ioBroker.vw-connect". Those two carry one
+# guard this module did not: every login redirect must target the identity
+# provider or the portal, and nothing else.
+#
+# Why it matters here more than in their Go version: Go's http.Client applies the
+# RFC rules for us — body dropped on 301/302/303, kept on 307/308 — and the
+# reference rejects a foreign hop in CheckRedirect BEFORE the request is made, so
+# the question of what travels never arises. This module walks the chain itself
+# with allow_redirects=False, and measured before this guard existed:
+#
+#   * a 307/308 across a host boundary kept method AND body, and the body of the
+#     first hop is the username and password. The drop below only covers
+#     301/302/303, which is correct HTTP and was never the whole problem;
+#   * the Referer was set on every hop including a cross-host one, so the
+#     previous URL — which on an OIDC chain carries ``code`` and ``state`` —
+#     reached a foreign host even though Authorization and Cookie were stripped;
+#   * the foreign response's HTML was handed to the landing classifier, which
+#     lets whoever controls that host steer the login verdict.
+#
+# There is no PKCE on this path (none in the reference either — it is a property
+# of the portal's flow, not of this client), so a leaked ``code`` would be
+# redeemable. The allowlist closes all three at once by never making the request.
+#
+# Hosts are derived from the two base constants rather than written out again, so
+# a move of either leaves one place to change. Compared as ``netloc`` and
+# case-folded, which is what Go's ``strings.EqualFold(u.Host, …)`` does: a URL
+# carrying an explicit ``:443`` is a different Host there too, and matching the
+# reference matters more than being clever about it.
+_LOGIN_HOSTS: frozenset[str] = frozenset({
+    (urlparse(_IDENTITY_BASE).netloc or "").lower(),
+    (urlparse(_PORTAL_BASE).netloc or "").lower(),
+})
+
+# The portal's authenticated landing page. The reference pins this shape in a
+# table (``TestIsUserPage``) and the lookalikes it rejects are the point:
+# ``/content/euda-other/…`` is not this prefix, ``notuser.html`` is not this
+# filename, and ``…/user.html/`` with a trailing slash is not this page either.
+_USER_PAGE_PREFIX = "/content/euda/"
+_USER_PAGE_SUFFIX = "/user.html"
+
+# The two callbacks that complete the optional marketing-consent step without
+# granting anything. The reference validates scheme, host AND the exact path,
+# because "contains a callback parameter" is not the same as "is the callback".
+_MARKETING_CALLBACK_PATHS = (
+    "/oidc/v1/oauth/client/callback",
+    "/oidc/v1/oauth/client/callback/success",
+)
+
+
+def _is_login_host(netloc: str) -> bool:
+    """True when *netloc* is the identity provider or the portal.
+
+    ``isLoginHost`` in the reference. Everything else is refused rather than
+    contacted — see the note above ``_LOGIN_HOSTS``.
+    """
+    return (netloc or "").lower() in _LOGIN_HOSTS
+
+
+def _is_user_page(url: str) -> bool:
+    """True when *url* is the portal's authenticated landing page.
+
+    ``isUserPage`` in the reference, including the cases its table pins: query
+    and fragment are irrelevant, a trailing slash or an extra segment is not
+    this page, and a lookalike prefix, filename or host is not either.
+
+    Parsed components only, never substring tests on the raw URL: the reference
+    table contains ``<portal>.example.org`` precisely because a
+    ``startswith("https://portal")`` check would accept it.
+    """
+    parts = urlparse(url)
+    if parts.scheme != "https":
+        return False
+    if (parts.netloc or "").lower() != (urlparse(_PORTAL_BASE).netloc or "").lower():
+        return False
+    path = parts.path or ""
+    return path.startswith(_USER_PAGE_PREFIX) and path.endswith(_USER_PAGE_SUFFIX)
+
+
+def _valid_marketing_callback(url: str) -> bool:
+    """True when *url* is one of the two real marketing-consent callbacks.
+
+    ``validMarketingCallback`` in the reference: https, the identity provider's
+    host, and one of two exact paths. A callback parameter that points anywhere
+    else is refused — that is how a consent page would otherwise become a
+    redirect primitive.
+    """
+    parts = urlparse(url)
+    if parts.scheme != "https":
+        return False
+    if (parts.netloc or "").lower() != (urlparse(_IDENTITY_BASE).netloc or "").lower():
+        return False
+    return (parts.path or "") in _MARKETING_CALLBACK_PATHS
+
 # Junk sentinels the portal uses for state STRINGS (no active session / single-
 # port car / infra not up / no reading). Any of these means "no value" → the
 # field stays None instead of surfacing the literal token as a phantom reading.
@@ -5856,6 +5953,19 @@ class EUDataActConnector:
         self.throttle_count = 0
         self.last_retry_after_s: int | None = None
         self.last_throttle_honoured: bool | None = None
+        # #1740 — the login-redirect allowlist is fail-closed, which is the right
+        # direction for a step carrying a password and the wrong one to ship
+        # blind: if the host list is ever wrong about a real flow, nobody gets
+        # through. A silent fallback to the old permissive behaviour is NOT the
+        # answer — whoever can trigger a foreign redirect would simply trigger
+        # the fallback, and a gate with a bypass is not a gate. What makes
+        # fail-closed safe to ship is that a wrong list becomes VISIBLE within
+        # one poll instead of arriving as a bug report weeks later.
+        #
+        # Hosts only, never the URL. A refused login URL can carry ``code`` and
+        # ``state``; the same rule the transport-error field below follows.
+        self.refused_login_hosts: set[str] = set()
+        self.refused_login_host_count = 0
         # #1932/#1933 — a soft miss that never got a response AT ALL. The
         # handler for (TimeoutError, ClientConnectionError) returned None
         # without touching _last_soft_status, so a portal we could not reach
@@ -6013,6 +6123,44 @@ class EUDataActConnector:
                     "EU Data Act portal: refusing a non-https login redirect"
                 )
                 return response_url, response_html, status
+
+            if not _is_login_host(next_parsed.netloc):
+                # The operator's own guard, adopted from his reference
+                # implementation (see the note on ``_LOGIN_HOSTS``). A hop out of
+                # {identity provider, portal} is refused rather than followed,
+                # and refused LOUDLY rather than returned softly: handing a
+                # foreign landing to the classifier below is itself one of the
+                # three ways this leaked, alongside the 307/308 body and the
+                # Referer. The request is never made, so none of the three can
+                # happen.
+                #
+                # Fail-closed on purpose. If the operator moves the identity
+                # provider or the portal to a new host, every login stops here
+                # with the refused host in the message — which is the right
+                # failure for a step that carries a password, and the reason the
+                # host is named: it turns "login broken" into one grep.
+                _refused = (next_parsed.netloc or "?").lower()
+                self.refused_login_hosts.add(_refused)
+                self.refused_login_host_count += 1
+                # WARNING, not debug. A user locked out by a wrong host list must
+                # find the reason and the remedy in their own log rather than
+                # filing "login broken" — the host is the one thing needed to fix
+                # the list, and it is safe to print where the URL is not.
+                _LOGGER.warning(
+                    "EU Data Act portal: refused a login redirect to %s. The"
+                    " login chain may only reach the identity provider or the"
+                    " portal, so this hop was not followed and no credentials"
+                    " were sent to it. If this host is legitimate — the operator"
+                    " moving a login endpoint would look exactly like this —"
+                    " please report it with this host name; it is the only"
+                    " missing piece.",
+                    _refused,
+                )
+                raise AuthenticationError(
+                    "EU Data Act portal: refusing a login redirect to an"
+                    f" unexpected host ({_refused}) — the chain"
+                    " may only reach the identity provider or the portal"
+                )
 
             if next_parsed.netloc != parsed.netloc:
                 # Cross-host hop: drop anything credential-bearing we were

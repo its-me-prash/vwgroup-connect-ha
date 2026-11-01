@@ -46,6 +46,81 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+- **The login chain may now only reach the identity provider or the portal
+  (#1740).** Adopted from the portal operator's own reference implementation, as
+  his service notice of 2026-10-06 asked: *"Maintainers of other integrations are
+  encouraged to review and adopt the relevant login-flow changes already
+  implemented for EVCC and ioBroker.vw-connect."* All five commits on that evcc
+  pull request are his, including one answering their code review, so these are
+  his measures and not a third party's reading of them.
+
+  This module already had the core of his change, from his PR here: the chain
+  stops at `/services/callbacklogin`, the `Location` header decides the next hop,
+  there is a ten-redirect cap, and non-https is refused. The guard it lacked is
+  the one his Go version carries — **the host allowlist** — and its absence was
+  reachable in three ways, each measured before the fix:
+
+  * a **307/308 across a host boundary keeps method and body** by definition, and
+    the body of the first hop is the username and password. The existing drop
+    covers 301/302/303 only, which is correct HTTP and was never the whole
+    problem;
+  * the **Referer was set on every hop**, including a cross-host one, so the
+    previous URL — carrying `code` and `state` on an OIDC chain — reached the
+    foreign host even though `Authorization` and `Cookie` were stripped;
+  * the foreign response's **HTML went to the landing classifier**, which lets
+    whoever controls that host steer the login verdict.
+
+  There is no PKCE on this path, so a leaked `code` would be redeemable — and
+  there is none in the reference either, which makes it a property of the
+  portal's flow rather than of this client. His Go version needs none of the
+  bookkeeping above because the standard library applies the RFC rules and
+  `CheckRedirect` refuses a foreign hop *before* the request is made. The
+  allowlist closes all three here for the same reason: the request never happens.
+
+  A refused hop **raises** with the host named, rather than returning softly for
+  the classifier to judge — handing a foreign landing to the classifier is itself
+  one of the three. Fail-closed is the right direction for a step that carries a
+  password, and naming the host turns "login broken" into one grep. If the
+  operator moves either host, that is where it will say so.
+
+  Also ported: `_is_user_page` and `_valid_marketing_callback`, with his semantics
+  rather than an approximation — parsed components only, never substring tests,
+  because his own table contains `<portal>.example.org` precisely because a
+  `startswith` check would accept it.
+
+  **There is deliberately no fallback to the old behaviour, and that is the
+  point.** A guard that steps aside when it fires is not a guard: whoever can
+  trigger a foreign redirect would simply trigger the fallback. Widening the list
+  by wildcard or suffix fails the same way — a subdomain takeover is exactly the
+  case the allowlist exists for. So the list stays exact and the hop is refused.
+
+  What makes fail-closed safe to ship instead of risky is that a wrong list is now
+  **visible within one poll** rather than arriving as "login broken" weeks later.
+  The refusal logs at **warning** level with the refused host and says plainly that
+  no credentials were sent to it, so a locked-out user finds the reason and the one
+  missing piece in their own log; and `refused_login_hosts` in the diagnostics
+  carries the count and the host names. Absent or zero is the expected state and
+  says nothing needs widening. Above zero says either someone tried to steer this
+  login somewhere it does not belong, or the operator moved an endpoint — and the
+  host name is the whole fix either way.
+
+  Host names only, never the URL: a refused login URL can carry `code` and
+  `state`, and a test asserts that neither reaches the recorded data or the error
+  message, with the host itself as the positive control. The same rule the
+  transport-error field already follows.
+
+  It ships as a **beta** for the same reason. Stable users keep the 5.2.2
+  behaviour until the guard has run against real logins; that, and not a code
+  path, is the fallback.
+
+  **Tested with his tests.** His `TestIsUserPage` table and the callback and host
+  rows of his `TestLoginRedirects` are ported case for case, 44 of them, and run
+  green beside the 16 in the three test files he shipped with the original PR.
+  That the port was worth doing is itself measured: weakening the user-page check
+  from `endswith` to a substring test fails **exactly** the two cases a
+  hand-written table would have forgotten — `user.html/extra` and the trailing
+  slash. Switching the allowlist off fails fifteen, including both walker tests.
+
 - **The official Škoda API grew three write routes and two plug fields; the
   fields are read, the writes deliberately are not (#1286).** Re-fetched the live
   OpenAPI spec the research note names as its source of truth: **83120 bytes and
