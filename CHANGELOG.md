@@ -46,6 +46,33 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+- **The Charging Port sensor could never hold a value on portal cars, and the
+  fix is deliberately one-way (#1739, @awood-ops).** The EU Data Act portal
+  never delivers the `plug_state` label, only the boolean `plug_connected`, so
+  the enum sensor stayed empty while the cable was demonstrably in — from the
+  same poll his `charging_status` read `CHARGING_HV_BATTERY` and the
+  `charging_cable_connected` binary sensor read on. He diagnosed it himself,
+  down to the sensor reading one field only, and proposed the derivation.
+
+  It derives `connected` from a `plug_connected` of exactly `True`, and derives
+  **nothing** from a `False`. That asymmetry is the whole design. The boolean
+  has three producers: the plug enum itself, in which case the label is already
+  set and this never runs; a German-language negation heuristic over a different
+  signal field; and an inference from an active charging session. Charging
+  proves the cable is in. Not charging proves nothing, and a missing or
+  re-worded text makes the heuristic `False` just as readily as a real
+  disconnection does. A `disconnected` out of such a `False` would be #1403
+  again — a connected plug published as a confident `False` — and that comment
+  still stands: a definite wrong answer is worse than an absent one. A `False`
+  therefore leaves the sensor without a value, which Home Assistant renders as
+  `unknown`: the honest state for "we cannot tell".
+
+  The derived label is marked `derived:plug_connected` in `field_sources`, so
+  triage never mistakes it for a portal reading. `is True` rather than a
+  truthiness test, because the boolean is the contract and a stray `"1"` must
+  not read as connected. Fifteen tests, and the asymmetry is pinned by a
+  mutation: deriving both directions fails exactly the two tests that guard it.
+
 ## [5.2.2] - 2026-10-31 — What the message actually knows / Was die Meldung wirklich weiß
 
 ### Behoben / Fixed

@@ -7649,6 +7649,35 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # restore as well; see its docstring for why the restore path matters.
         normalize_enum_states(data)
 
+        # #1739 (@awood-ops) — on EU Data Act portal entries the portal never
+        # delivers the plug_state label, only the boolean plug_connected, so the
+        # enum sensor could never hold a value while the cable was demonstrably
+        # in (his charging_status read CHARGING_HV_BATTERY and the
+        # charging_cable_connected binary sensor read on, from the same poll).
+        #
+        # Derived ONLY in the positive direction, and that asymmetry is the
+        # point. plug_connected has three producers: the plug enum itself (in
+        # which case plug_state is already set and this never runs), a
+        # German-language negation heuristic on a different signal field, and an
+        # inference from an active charging session. Charging proves the cable is
+        # in; NOT charging proves nothing, and a missing or re-worded text makes
+        # the heuristic False just as readily as a real disconnection does. A
+        # "disconnected" out of such a False would be #1403 all over again, and
+        # that comment still stands: a definite wrong answer is worse than an
+        # absent one. So a False leaves the sensor without a value, which HA
+        # renders as unknown — the honest state for "we cannot tell".
+        #
+        # ``is True`` rather than a truthiness test: the boolean is the contract,
+        # and a stray "0"/"no" string must not read as connected.
+        if data.get("plug_state") is None and data.get("plug_connected") is True:
+            data["plug_state"] = "connected"
+            # Provenance, so triage never mistakes the derived label for a
+            # portal reading. field_sources is the established map (see
+            # _PROVENANCE_MAPS); the "derived:" prefix is new and deliberate.
+            _fs = data.get("field_sources")
+            if isinstance(_fs, dict):
+                _fs["plug_state"] = "derived:plug_connected"
+
         # Fuel-level % from a user-configured tank capacity + the litres reading.
         # acpp plug&play reports litres, not a %, and the tank size isn't in the
         # feed — so the user supplies it in Options (0 = off, litres only). Only
