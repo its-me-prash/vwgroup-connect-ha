@@ -23,6 +23,23 @@ NOT trigger (no false alarms). Output is machine-readable for the workflow:
 
     FOUND <version-or-none>
     TRIGGER  |  NO-TRIGGER
+    SEEING   |  BLIND
+
+**The third line exists because fail-soft without it is indistinguishable from
+"nothing new".** Measured on 2026-11-01: this watcher printed ``FOUND none`` on
+every run since 2026-10-29 (``FOUND 8.17.0`` as late as 2026-10-25) and each run
+still concluded *success*, so nothing said it had stopped looking. It never saw
+8.18.0, which was on the device by 2026-11-01. ``BLIND`` is what the workflow
+branches on to file a de-duplicated issue; it is a different claim from
+``NO-TRIGGER``, which means "read a version, it is below the trigger".
+
+Do NOT "fix" this by widening the pattern onto the page body. Measured the same
+day: the listing carries no parseable version slot any more (neither of the
+atlas scraper's two patterns matches a 1.17 MB body), while the page *does*
+contain 8.16.0, 8.15.0, 8.14.0 and so on as review metadata. A pattern over
+those would report 8.16.0 as current while the app is at 8.18.0 — a confidently
+wrong answer, which is worse than none. ``_VER_RE`` below filters the version
+the atlas scraper already extracted; it never sees the page.
 """
 from __future__ import annotations
 
@@ -30,10 +47,20 @@ import json
 import os
 import re
 import sys
+import time
 
 TRIGGER_VERSION = (8, 16, 0)
 _PKG = "cz.skodaauto.myskoda"
-_VER_RE = re.compile(r"\b(8\.\d{1,2}\.\d{1,2})\b")
+# Three numeric parts at the START of whatever the scraper extracted. The major
+# was hardcoded to 8 until 2026-11-01, which would have gone blind a second time
+# and silently on a 9.x release — the same failure mode in a different place.
+# Anchored, so Porsche-shaped "21.26.44-row+193583" parses to (21, 26, 44)
+# rather than being rejected.
+_VER_RE = re.compile(r"^(\d{1,3}\.\d{1,3}\.\d{1,3})")
+# One retry, because a single network blip must not file an issue. Two attempts
+# absorb that; a moved version slot fails both and is the case worth surfacing.
+_ATTEMPTS = 2
+_RETRY_SLEEP_S = 5.0
 
 
 def _package_id() -> str:
@@ -74,14 +101,33 @@ def _play_version(package_id: str) -> tuple[int, int, int] | None:
     return parts if len(parts) == 3 else None  # type: ignore[return-value]
 
 
+def _read_with_retry(package_id: str, sleep: float = _RETRY_SLEEP_S) -> tuple[int, int, int] | None:
+    """``_play_version`` up to ``_ATTEMPTS`` times; None only if all failed.
+
+    ``sleep`` is a parameter so a test does not have to wait for it.
+    """
+    for attempt in range(_ATTEMPTS):
+        got = _play_version(package_id)
+        if got is not None:
+            return got
+        if attempt + 1 < _ATTEMPTS:
+            time.sleep(sleep)
+    return None
+
+
 def main() -> int:
-    latest = _play_version(_package_id())
+    latest = _read_with_retry(_package_id())
     if latest is None:
         print("FOUND none")
         print("NO-TRIGGER")
+        # Not the same statement as NO-TRIGGER. See the module docstring: a
+        # watcher that cannot read its source must say so, or its silence reads
+        # as "nothing new" for as long as nobody checks the logs by hand.
+        print("BLIND")
         return 0
     print("FOUND " + ".".join(map(str, latest)))
     print("TRIGGER" if latest >= TRIGGER_VERSION else "NO-TRIGGER")
+    print("SEEING")
     return 0
 
 

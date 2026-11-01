@@ -29,10 +29,61 @@ jobs:
           echo "$out"
           ver="$(echo "$out" | sed -n 's/^FOUND //p')"
           state="$(echo "$out" | grep -E '^(TRIGGER|NO-TRIGGER)$' | head -1)"
+          sight="$(echo "$out" | grep -E '^(SEEING|BLIND)$' | head -1)"
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           echo "state=$state"  >> "$GITHUB_OUTPUT"
+          echo "sight=$sight"  >> "$GITHUB_OUTPUT"
 
-      - name: Open tracking issue when v8.16 is out
+      # Why this step exists at all: between 2026-10-25 and 2026-10-29 this
+      # watcher stopped being able to read the version, and every run since then
+      # concluded *success* while printing "FOUND none". It never saw 8.18.0.
+      # A watcher that cannot read its source has to say so somewhere a person
+      # looks, and nobody reads the log of a green scheduled run.
+      #
+      # Not a failing job: this fires every 4 hours, so a red run would be six
+      # red runs a day and would be muted within a week. One issue, instead.
+      - name: Say so when the version can no longer be read
+        if: steps.check.outputs.sight == 'BLIND'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="[Škoda] The official-API app watcher can no longer read the app version"
+          # De-duplicated on OPEN issues only, and that is deliberately the
+          # OPPOSITE of the version-trigger step below. There, a closed issue
+          # means "this version was evaluated", so re-filing it would be noise.
+          # Here, a closed issue means "the watcher was repaired", so if it goes
+          # blind again later that is a NEW fault and must be able to re-file.
+          existing="$(gh issue list --state open --search 'in:title can no longer read the app version' --json number --jq 'length')"
+          if [ "$existing" != "0" ]; then
+            echo "already filed and still open — not filing again"
+            exit 0
+          fi
+          gh issue create --title "$title" --label "bug" --body "$(cat <<'EOF'
+          The scheduled watcher ran, reached its source, and came back with no
+          version at all. It printed `FOUND none` and did not trigger.
+
+          **This is not "no new version".** It means the watcher stopped
+          looking, and it cannot tell the difference by itself — which is why
+          this issue exists rather than a line in a green run's log.
+
+          What it blocks: nothing automatically, but the key-minting evaluation
+          in #1286 depends on noticing a new MyŠkoda release, and while this is
+          open nobody is noticing.
+
+          **Known cause as of 2026-11-01:** the Google Play listing no longer
+          carries a parseable version slot. The page still contains strings like
+          8.16.0 and 8.15.0, but those are review metadata — reading them would
+          report a version several releases behind reality as if it were
+          current, so the watcher deliberately reports nothing instead.
+
+          Two attempts are made before this is filed, so a single network blip
+          does not reach here. If the next run (within 4 hours) recovers,
+          closing this is the right action — it will re-file if it goes blind
+          again.
+          EOF
+          )"
+
+      - name: Open tracking issue when the trigger version is out
         if: steps.check.outputs.state == 'TRIGGER'
         env:
           GH_TOKEN: ${{ github.token }}
