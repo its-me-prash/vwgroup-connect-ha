@@ -72,6 +72,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   half of the original report, and mixing a correctness fix with a tuning
   decision would make both harder to judge. This issue stays open for it.
 
+  **It also moves the poll cadence, which was not the goal.** Found by reading
+  the scheduler afterwards rather than before: ``coordinator`` rebuilds its
+  drop-anchored schedule from this same helper — the comment there says
+  "reconstructed from the same capture-age helper the staleness watchdog uses" —
+  so changing which clock wins changes when the next poll fires. Measured at a
+  600 s interval with a 180 s floor: the reported car sleeps 180 s either way,
+  because both clocks are long overdue, so its verdict moves and its cadence does
+  not. A car with a *fresh* live capture (3 min) behind an older stamp (2 h) goes
+  from 180 s to 480 s, because its next drop is no longer considered overdue. The
+  direction is the part worth stating: such a car now polls **less**, never more,
+  and a test asserts that over every pairing of the two clocks — a portal whose
+  operator has asked community clients to reduce traffic is not a place to add
+  any by accident.
+
   Eighteen tests, including the #465 broken-clock guard in the new branch: a
   future-dated stamp yields a negative age, and `min()` of two ages would let one
   win outright, so an all-future map keeps the #465 behaviour instead of mixing

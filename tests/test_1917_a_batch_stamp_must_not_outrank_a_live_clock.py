@@ -32,8 +32,29 @@ from datetime import datetime, timedelta, timezone
 
 from custom_components.vag_connect.coordinator import (
     _capture_age_s,
+    _drop_anchored_sleep_s,
     _has_live_contributor,
 )
+
+# The scheduler's own numbers, so the cadence tests below measure the real thing
+# rather than a second copy of the arithmetic.
+_INTERVAL_S = 600
+_FLOOR_S = 180
+
+
+def _sleep_for(snapshot: dict, now) -> float | None:
+    """The sleep the scheduler would pick for this snapshot.
+
+    Mirrors what ``coordinator`` does: rebuild the anchor from the capture age
+    this helper returns, then ask the real scheduler.
+    """
+    from datetime import timedelta
+
+    age = _capture_age_s(snapshot)
+    if age is None or age < 0:
+        return None
+    anchor = now - timedelta(seconds=age)
+    return _drop_anchored_sleep_s(_INTERVAL_S, anchor, now, _FLOOR_S, 0)
 
 H = 3600.0
 
@@ -189,3 +210,87 @@ class TestTheContributorTest:
             assert _has_live_contributor({"source_channel": token}) is expected, (
                 f"{token} classified wrongly"
             )
+
+
+class TestTheSideEffectOnThePollCadenceIsDeliberate:
+    """``_capture_age_s`` is not only the staleness verdict — it is also the
+    poll anchor.
+
+    ``coordinator.py`` rebuilds the drop-anchored schedule from this exact
+    helper ("reconstructed from the same capture-age helper the staleness
+    watchdog uses"), so changing which clock wins changes when the next poll
+    happens. That was not the goal of the #1917 fix and it was found by reading
+    the scheduler afterwards rather than before, so it is pinned here instead of
+    left to be discovered by whoever next touches the cadence.
+
+    Measured, with a 600 s interval and a 180 s floor:
+
+    * the reported car (stamp 82.5 h, live 16.3 h) sleeps 180 s either way — both
+      clocks are long overdue, so the verdict changes and the cadence does not;
+    * a car with a *fresh* live capture (3 min) behind an older stamp (2 h) goes
+      from 180 s to 480 s, because the drop is no longer considered overdue.
+
+    The direction matters: the change makes such a car poll **less**, not more.
+    A portal the operator has asked community clients to go easier on is not a
+    place to add traffic by accident, and this adds none.
+    """
+
+    def test_the_reported_car_keeps_its_cadence(self) -> None:
+        now = datetime.now(timezone.utc)
+        mixed = _sleep_for(
+            {
+                "source_channel": "eu_data_act+website_authproxy",
+                "last_seen_at": _ago(16.3),
+                "field_captured_ts": {"target_soc": _ago(82.5)},
+            },
+            now,
+        )
+        batch_only = _sleep_for(
+            {
+                "source_channel": "eu_data_act",
+                "last_seen_at": _ago(16.3),
+                "field_captured_ts": {"target_soc": _ago(82.5)},
+            },
+            now,
+        )
+        assert mixed == batch_only, (
+            f"the cadence must not move for this car: {mixed} vs {batch_only}"
+        )
+
+    def test_a_fresh_live_capture_stops_the_fast_retry(self) -> None:
+        now = datetime.now(timezone.utc)
+        snapshot = {
+            "last_seen_at": _ago(0.05),
+            "field_captured_ts": {"battery_soc": _ago(2)},
+        }
+        mixed = _sleep_for({**snapshot, "source_channel": "eu_data_act+mbb"}, now)
+        batch_only = _sleep_for({**snapshot, "source_channel": "eu_data_act"}, now)
+        assert batch_only is not None and mixed is not None
+        assert mixed > batch_only, (
+            "a fresh live capture must stand the poll down, not speed it up: "
+            f"{mixed} vs {batch_only}"
+        )
+
+    def test_the_change_never_polls_faster_than_before(self) -> None:
+        """The property that matters, over every pairing of the two clocks.
+
+        Whatever the two ages are, adding a live contributor may only leave the
+        sleep the same or make it longer. A shorter sleep would mean the fix
+        silently increased traffic.
+        """
+        now = datetime.now(timezone.utc)
+        for stamp_h in (0.02, 0.2, 2, 20, 82.5):
+            for live_h in (0.02, 0.2, 2, 20, 82.5):
+                snapshot = {
+                    "last_seen_at": _ago(live_h),
+                    "field_captured_ts": {"battery_soc": _ago(stamp_h)},
+                }
+                mixed = _sleep_for(
+                    {**snapshot, "source_channel": "eu_data_act+mbb"}, now)
+                batch_only = _sleep_for(
+                    {**snapshot, "source_channel": "eu_data_act"}, now)
+                assert mixed is not None and batch_only is not None
+                assert mixed >= batch_only, (
+                    f"stamp={stamp_h}h live={live_h}h: the live contributor made "
+                    f"it poll FASTER ({mixed} < {batch_only})"
+                )
