@@ -45,6 +45,83 @@ _UUID_RE = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
 )
+# #1378 — coordinates. The float branch of ``mask_value`` has rounded to 1
+# decimal from the start, which is what the Scout report's own privacy footer
+# promises its readers. The STRING branch never did, and the MEB portal ships
+# the vehicle position AS A STRING: ``persLocation`` = ``"[<lat>, <lon>]"``,
+# six decimals, around 0.1 m. So a reporter's parked position went into a
+# public issue, had to be hand-redacted there and the original revision
+# deleted. Measured on the unfixed masker: of nine shapes a coordinate arrives
+# in, six kept full precision — every one of them a string.
+#
+# A PAIR is the safe thing to key on. A lone decimal could be anything a car
+# reports (a timestamp's seconds, a consumption figure), but two
+# coordinate-shaped numbers side by side, both inside real-world bounds, are a
+# position. This covers the bracketed pair, a bare comma- or space-separated
+# pair, a hemisphere-suffixed pair and a ``?q=lat,lon`` URL. Both integer parts
+# are capped — two digits for latitude, three for longitude — so an odometer or
+# a money pair cannot match, and the bounds are checked again before replacing.
+_COORD_PAIR_RE = re.compile(
+    r"(?<![\d.])(-?\d{1,2}\.\d{2,})"      # latitude-shaped
+    r"\s*(?:([NnSs])\s*)?(?:[,;]|\s)\s*"  # separator, optional hemisphere
+    r"(-?\d{1,3}\.\d{2,})"                # longitude-shaped
+    r"(?:\s*([EeWw]))?(?![\d.])"
+)
+# A field NAME that says the value is a coordinate. Then a lone decimal is one
+# too, and the pair rule could not have seen it: a car that ships ``latitude``
+# and ``longitude`` as two separate leaves sends two lone values, and the
+# EU Data Act feed sends every leaf as a string. De-camelCased before matching,
+# and each token has to stand on its own so "related", "translation", "latch"
+# and "allocation" do not match it.
+_COORD_PATH_RE = re.compile(
+    r"(?:^|[^a-z])(?:lat|latitude|lon|lng|longitude|gps|geo|coord\w*"
+    r"|location|position)(?:[^a-z]|$)",
+    re.IGNORECASE,
+)
+_LONE_COORD_RE = re.compile(r"(?<![\d.])(-?\d{1,3}\.\d{2,})(?![\d.])")
+_CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+def _round_coord(value: str) -> str:
+    """``"50.123456"`` → ``"50.1"``. Unparseable input comes back unchanged."""
+    try:
+        return f"{float(value):.1f}"
+    except ValueError:
+        return value
+
+
+def mask_coordinate_pairs(text: str, *, mode: str = "round") -> str:
+    """Round or redact every coordinate pair in ``text``.
+
+    Only the two number substrings are swapped, so ``"[50.1, 4.4]"`` keeps its
+    brackets and ``50.1N 4.4E`` keeps its letters — a reader can still tell WHAT
+    the field was, just not where the car stood. Out-of-bounds matches are left
+    alone: they are not a position, and a sample that happens to hold two
+    decimals is worth more unrounded.
+
+    ``mode="round"`` keeps one decimal (~11 km), which is what the Scout report
+    promises its readers. ``mode="redact"`` replaces both numbers, for the
+    diagnostics export, whose rule is removal by default.
+
+    This lives here, next to the pattern, because the diagnostics scrubber needs
+    the same rule under a different policy and a second copy of it would be the
+    one that goes stale.
+    """
+    def _replace(m: re.Match[str]) -> str:
+        lat_s, _ns, lon_s, _ew = m.groups()
+        try:
+            lat, lon = float(lat_s), float(lon_s)
+        except ValueError:  # pragma: no cover — the pattern only matches numbers
+            return m.group(0)
+        if abs(lat) > 90 or abs(lon) > 180:
+            return m.group(0)
+        new_lat = f"{lat:.1f}" if mode == "round" else "REDACTED"
+        new_lon = f"{lon:.1f}" if mode == "round" else "REDACTED"
+        out = m.group(0).replace(lat_s, new_lat, 1)
+        head, _, tail = out.rpartition(lon_s)
+        return f"{head}{new_lon}{tail}"
+
+    return _COORD_PAIR_RE.sub(_replace, text)
 
 
 @dataclass(frozen=True)
@@ -1353,19 +1430,31 @@ def _encoded_document(text: str) -> tuple[str, int] | None:
     return None
 
 
-def mask_value(value: Any, *, max_len: int = 80) -> str:
+def mask_value(value: Any, *, max_len: int = 80, path_hint: str | None = None) -> str:
     """Anonymise a sample value for logging / external sharing.
 
     - VINs (17-char alphanumeric blocks) → ``***{last 6 chars}``
     - Email addresses → ``***@***``
     - JWT-shaped tokens → ``[token]``
     - UUIDs → ``[uuid]``
-    - Latitude/longitude pairs in numeric values → kept (rounded to 1
-      decimal place ≈ 11 km precision) — useful for "is this a EU vehicle"
-      kind of context without exposing precise location
+    - Coordinates → rounded to 1 decimal (≈ 11 km), which keeps the "is this a
+      EU vehicle" kind of context and drops the address. That holds for a float
+      value, and since #1378 for a coordinate-shaped PAIR anywhere inside a
+      string too — ``"[lat, lon]"``, ``lat,lon``, ``lat N lon E``,
+      ``?q=lat,lon``. Pass ``path_hint`` (the field's own path) and a LONE
+      decimal in a coordinate-named field is rounded as well.
     - Strings: redacted then truncated to ``max_len``
     - Numbers / bools / None: stringified (no leak risk)
     - Dicts / lists: shape only (e.g. ``{4 keys}`` or ``[3 items]``)
+
+    Three coordinate shapes are deliberately NOT covered, said here so the next
+    reader does not assume the rule is total: a lone decimal with no
+    ``path_hint`` to identify it (nothing in the value distinguishes a latitude
+    from a consumption figure), a pair that uses the comma as its DECIMAL
+    separator (indistinguishable from thousands separators, and rounding those
+    would corrupt ordinary numbers), and integer microdegrees (the scale would
+    have to be guessed). None of the three has been observed in a live feed; if
+    one shows up, it belongs here with a test, not in a hand-redaction.
     """
     if value is None:
         return "null"
@@ -1404,6 +1493,12 @@ def mask_value(value: Any, *, max_len: int = 80) -> str:
         s = _EMAIL_RE.sub("***@***", s)
         s = _JWT_RE.sub("[token]", s)
         s = _UUID_RE.sub("[uuid]", s)
+        # #1378 — see _COORD_PAIR_RE above. Runs BEFORE the truncation below,
+        # for the reason the hex-blob comment gives: truncation is not
+        # redaction, and a coordinate pair is short enough to survive it.
+        s = mask_coordinate_pairs(s)
+        if path_hint and _COORD_PATH_RE.search(_CAMEL_RE.sub("_", path_hint)):
+            s = _LONE_COORD_RE.sub(lambda m: _round_coord(m.group(1)), s)
         if len(s) > max_len:
             s = s[: max_len - 3] + "..."
         return f'"{s}"'
@@ -1462,7 +1557,9 @@ def detect_unexpected(
             if not _path_matches(child_path, expected):
                 yield UnexpectedField(
                     path=child_path,
-                    sample_masked=mask_value(val),
+                    # #1378 — the path is what lets the masker recognise a lone
+                    # coordinate; without it a bare "50.123456" is just a number.
+                    sample_masked=mask_value(val, path_hint=child_path),
                     endpoint=endpoint,
                     first_seen_at=now,
                 )

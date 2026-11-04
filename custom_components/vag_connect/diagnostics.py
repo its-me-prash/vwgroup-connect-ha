@@ -32,7 +32,12 @@ from .cariad._error_reporter import serialise_for_diagnostics
 # / UUID) for the new parser-health ``last_error`` redactor. Email is
 # handled by the partial-mask helper already defined below so we don't
 # import that pattern here.
-from .cariad._unexpected_keys import _JWT_RE, _UUID_RE, _VIN_RE
+from .cariad._unexpected_keys import (
+    _JWT_RE,
+    _UUID_RE,
+    _VIN_RE,
+    mask_coordinate_pairs,
+)
 from .cariad._util import mask_vin
 from .const import (
     CONF_ABRP_API_KEY,
@@ -512,6 +517,22 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
         # as the fallback for a URL under a key neither set lists, which is what
         # tests/test_1310_indigomejor_fixes.py measures.
         masked = _VIN_RE.sub(lambda m: mask_vin(m.group(0)), masked)
+        # #1378 — a coordinate pair inside a string VALUE, under any key name.
+        # ``_GPS_KEYS`` above is keyed on the field NAME, and the portal sends
+        # the vehicle position under a name in neither set: ``persLocation``,
+        # whose value is the string ``"[<lat>, <lon>]"``. Measured on the
+        # unfixed scrubber, both ``persLocation`` and
+        # ``eu_data_act.persLocation`` came through at six decimals in BOTH
+        # modes, while ``latitude`` and ``parking_position.latitude`` were
+        # handled correctly and the e-mail was masked — which is exactly why it
+        # would go unnoticed: the file looks scrubbed. Same shape as the
+        # dotted-name finding noted above, one step further: a name-keyed rule
+        # only guards the names it already knows, and an UNMAPPED portal field
+        # lands verbatim in ``raw_unmapped_fields``, which this module emits.
+        # Keying on the VALUE holds for a field name nobody has seen yet.
+        masked = mask_coordinate_pairs(
+            masked, mode="round" if gps_round else "redact"
+        )
         return _mask_location_qs(masked, gps_round=gps_round)
     return value
 

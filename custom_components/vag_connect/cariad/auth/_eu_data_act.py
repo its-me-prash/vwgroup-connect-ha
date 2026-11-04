@@ -1730,7 +1730,8 @@ def _overflow_flag(raw: str | None, current: bool | None) -> bool | None:
 def _parse_pers_location(value: Any) -> tuple[float | None, float | None]:
     """#1378/#923 — parse the MEB portal ``persLocation`` leaf into a validated
     ``(lat, lon)``. Škoda Elroq (and other MEB cars) DO ship the vehicle position
-    in the continuous feed under ``persLocation`` = ``"[50.799918, 4.408567]"`` —
+    in the continuous feed under ``persLocation`` = ``"[<lat>, <lon>]"`` (a bracketed decimal pair as a
+    *string*, six decimals) —
     the sample #923 was waiting for (the position module's docstring assumed the
     continuous feed carried none). Returns ``(None, None)`` unless the value is a
     two-element numeric pair inside real-world bounds and not the null-island

@@ -6030,7 +6030,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 path = f"eu_data_act.{name}"
                 per_vin.setdefault(path, UnexpectedField(
                     path=path,
-                    sample_masked=mask_value(value),
+                    # #1378 — this is the path the leak took: ``persLocation``
+                    # arrives here as the string "[<lat>, <lon>]", so the pair
+                    # rule in the masker is what has to hold. The hint covers
+                    # the neighbouring case of a car that splits the position
+                    # into separate ``latitude`` / ``longitude`` leaves.
+                    sample_masked=mask_value(value, path_hint=path),
                     endpoint="eu_data_act",
                     first_seen_at=now,
                 ))

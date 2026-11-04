@@ -6,6 +6,12 @@ the CONTINUOUS EU Data Act feed under ``persLocation`` = "[lat, lon]" (the sampl
 into latitude/longitude/heading — validated, in-range, not the 0/0 sentinel, so a
 charging/destination coordinate or a placeholder can never be mistaken for the
 car's own position.
+
+Every coordinate here is invented. `CONTRIBUTING.md` forbids GPS with more than
+one decimal place in the repository, and the one-decimal cases below honour that
+directly; the six-decimal pair is kept because the portal sends six and the
+parser's float handling is what this test covers — so it is a synthetic value,
+never a captured one. If you need a coordinate fixture, build it the same way.
 """
 from __future__ import annotations
 
@@ -24,7 +30,7 @@ def _map(points: list[dict]) -> VehicleData:
 
 # ── the parser helper ───────────────────────────────────────────────────────
 def test_parse_pers_location_accepts_a_valid_pair() -> None:
-    assert _parse_pers_location("[50.799918, 4.408567]") == (50.799918, 4.408567)
+    assert _parse_pers_location("[50.123456, 4.654321]") == (50.123456, 4.654321)
     assert _parse_pers_location("50.8,4.4") == (50.8, 4.4)
     assert _parse_pers_location([50.8, 4.4]) == (50.8, 4.4)
 
@@ -38,12 +44,12 @@ def test_parse_pers_location_rejects_junk_and_sentinels() -> None:
 # ── end to end ──────────────────────────────────────────────────────────────
 def test_persLocation_populates_latitude_longitude() -> None:
     d = _map([
-        {"dataFieldName": "persLocation", "value": "[50.799918, 4.408567]",
+        {"dataFieldName": "persLocation", "value": "[50.123456, 4.654321]",
          "key": "k1"},
         {"dataFieldName": "heading", "value": "326", "key": "k2"},
     ])
-    assert d.latitude == 50.799918
-    assert d.longitude == 4.408567
+    assert d.latitude == 50.123456
+    assert d.longitude == 4.654321
     assert d.heading == 326
 
 
