@@ -8295,8 +8295,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     ) -> dict[str, str | None] | None:
         """Reverse geocode lat/lon via Nominatim using HA's shared aiohttp session.
 
-        Coordinates are rounded to 3 decimals (~110m precision) for caching
-        so we do not hit Nominatim every poll for the same parking spot.
+        The coordinate is rounded to 3 decimals (~110m) BEFORE it is used, both
+        as the cache key and in the request, so we neither re-query the same
+        parking spot every poll nor hand a third party more precision than a
+        parking locality needs.
         """
         from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
             async_get_clientsession,
@@ -8306,7 +8308,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if not hasattr(self, "_geocode_cache"):
             self._geocode_cache = {}
 
-        cache_key = (round(lat, 3), round(lon, 3))
+        # Round ONCE, then use the rounded pair for everything below. Until
+        # 5.2.3b1 the rounding reached only the cache key and the request still
+        # carried `lat`/`lon` verbatim, so the full-precision parking position
+        # of the car went to a third party while this docstring, and PRIVACY.md,
+        # promised ~110m (#60 asked for the opt-in precisely because vehicle GPS
+        # is sensitive). Blunting the request is the whole point; the cache is a
+        # side benefit of using the same value twice.
+        q_lat, q_lon = round(lat, 3), round(lon, 3)
+        cache_key = (q_lat, q_lon)
         if cache_key in self._geocode_cache:
             return self._geocode_cache[cache_key]
 
@@ -8315,7 +8325,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         session = async_get_clientsession(self.hass)
         url = (
             "https://nominatim.openstreetmap.org/reverse"
-            f"?lat={lat}&lon={lon}&format=json&addressdetails=1"
+            f"?lat={q_lat}&lon={q_lon}&format=json&addressdetails=1"
         )
         headers = {"User-Agent": "VAGConnect/1.x (+https://github.com/its-me-prash/vwgroup-connect-ha)"}
         try:

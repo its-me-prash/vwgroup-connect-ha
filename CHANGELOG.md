@@ -307,6 +307,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   per-file ratchet in the tests so none of those files can quietly gain another.
   Its first catch was a fixture added earlier in this same change.
 
+- **The parking-address lookup sent your exact position, not the blunted one
+  (#60).** Reverse geocoding is opt-in precisely because vehicle GPS is
+  sensitive, and both the function's own docstring and `PRIVACY.md` promised
+  that the coordinate handed to OpenStreetMap was rounded to three decimals
+  (~110 m). The rounding reached only the cache key. The request URL two lines
+  below it was built from the raw `lat`/`lon`, so every lookup gave a third
+  party the car's exact parking spot — for anyone who had switched the feature
+  on, on every poll that found a new position. The coordinate is now rounded
+  once and that same value is used for both the cache and the request, so the
+  promise and the behaviour are the same thing. `PRIVACY.md` is corrected to
+  match, and now also describes the data paths it had never mentioned: the ABRP
+  service, Tibber, push registration, the companion channel, the EU Data Act
+  portal mode and its raw-dataset archive, what a removal leaves behind, and
+  the fact that a cached vehicle image is served under `/local/` with the VIN
+  in its filename.
+
 ## [5.2.3b1] - 2026-11-01 — Only two hosts may ask for your password / Nur zwei Hosts dürfen nach deinem Passwort fragen
 
 ### Behoben / Fixed
