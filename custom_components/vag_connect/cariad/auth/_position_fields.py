@@ -2,21 +2,75 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """EU Data Act portal — vehicle-position field map (issue #923).
 
-Grounding (2026-08-24, @naked-head): the portal publishes **two** dictionaries.
-The **Continuous** feed (what our auto-kickoff creates) carries *no* coordinates —
-only a GPS ``trueness`` quality flag. The vehicle's actual position lives only in
-the one-time **Historical export**, in a contiguous ``0x01010200 01``-``08`` block,
-plus a JSON ``history.[*].lat`` / ``.lon`` pair. Verified against the official
-V6.0 PDFs (2026-07-24) and cross-checked against our own diagnostics archive (no
-captured historical export yet — the continuous feed confirms coordinates are
-absent there).
+**What the dictionary documents, and what cars actually send, are two different
+statements. Both are true; neither answers the other.** An earlier version of
+this docstring collapsed them and said the continuous feed carries no
+coordinates full stop, which is wrong about real cars and was already
+contradicted inside this package.
 
-This module is the *field map* only. The parser that reads a real historical
-export is intentionally NOT built yet: we have no response sample, so the exact
-envelope shape (how the export wraps these values) is unknown. Building it blind
-would risk a wrong read — it waits on a schema-only sample on #923. Wiring must be
-an opt-in manual "refresh parked location", never an automatic kickoff, until it's
-settled whether an in-flight historical request suspends the continuous feed.
+**The dictionary (measured 2026-11-03, both copies).** ``eu_data_dictionary.json``
+beside this file — 7990 entries, 6618 distinct field names, ``_meta`` version
+V6.0, a curated V5.0 Continuous base merged with the full V6.0 Continuous +
+Historical dictionary — documents the vehicle position in its own cluster,
+``Vehicle Location (Historical Export)``, with exactly ten entries: the eight
+``HISTORICAL_POSITION_FIELDS`` plus the two ``HISTORY_PATH_POSITION_FIELDS``
+below, confirmed one-for-one. The **continuous** side documents none: its
+``Vehicle Location Tracking`` cluster holds exactly three members — ``mileage``,
+``outside_temperature`` and a GPS ``trueness`` quality flag — and every one of
+the 110 coordinate-named entries in the whole file sits in a Historical-Export
+cluster. Independently reproduced on a competing reader's 1141-entry copy of the
+same catalogue: same three-member cluster, same absence.
+
+**Real cars (issue #1378).** MEB portal cars — Škoda Elroq and others — ship the
+position in the **continuous** feed anyway, under a leaf named ``persLocation``
+whose value is a bracketed decimal pair as a *string* (``"[<lat>, <lon>]"``, six
+decimals), and which appears in **neither** copy of the dictionary: an
+undocumented field. That path is live and is read by
+``_parse_pers_location`` in ``_eu_data_act.py``; it validates the pair, rejects
+the ``0,0`` null-island and a charging/destination coordinate, and stamps the pin
+with its own capture time. **If you are looking for where portal position comes
+from today, that is the answer — not this module.**
+
+So the honest split: the dictionary is authoritative about what VW *documents*
+and says the continuous feed has no position; it is silent about undocumented
+leaves, and one of those is how the position actually arrives on MEB cars.
+
+This module remains the *field map* for the Historical export only, and nothing
+reads it yet. The parser is intentionally NOT built: we have no response sample
+of the **historical** envelope (how that export wraps these values), so building
+it blind would risk a wrong read. It waits on a schema-only sample on #923, and
+that wait is specific: the continuous envelope *was* sampled there in August —
+a flat JSON array of ``key`` / ``dataFieldName`` / ``value`` rows — but no
+historical package has ever arrived to be sampled, for the reason below.
+
+**Why the kickoff stays manual — reason corrected 2026-11-03.** An earlier
+wording here hung the opt-in on an open question: whether an in-flight
+historical request suspends the continuous feed. That question was settled on
+#923 in August and the answer is **no**. A reporter measured the feed running
+unchanged straight through a pending one-time request, then ran a control night
+with nothing pending and reproduced the same ~22:00–05:00 half-rate cadence,
+which identifies the overnight halving as the portal's own diurnal rhythm
+rather than anything our polling provokes. Citing a settled question as the
+blocker made the restriction look removable once it was answered. It is not,
+because the real constraint was found in the same measurements: a one-time
+request can **vanish** 24–36 h after submission — no package, no mail, no
+error, no failure state, the panel simply resets — while the recurring request
+for the same VIN keeps running normally. Nothing distinguishes "still
+processing" from "silently dropped", so an automatic kickoff can fire into a
+void and wait forever. Anything built on this path therefore needs its own
+client-side deadline and an explicit "no response — resubmit" state. Hence:
+opt-in manual "refresh parked location", never an automatic kickoff — for that
+reason, not the retracted one.
+
+Two neighbouring findings from those same measurements, recorded so they are
+not re-litigated. First, the portal's own format description ("a zip file that
+includes subfolders for each data cluster, containing machine-readable data
+including meta information") does **not** match what it delivers for the
+continuous package — one flat JSON, no subfolders, no meta file — and it is the
+*same* sentence for the historical request, so it cannot be used to predict
+that envelope either. Second, the "every 15 minutes" badge drifts (~16.6 min
+across 30 buffered files), which is why staleness keys off each reading's own
+``car_captured_time`` and never an assumed cadence.
 """
 from __future__ import annotations
 
@@ -47,7 +101,20 @@ HISTORY_PATH_POSITION_FIELDS: Final[dict[str, str]] = {
 # fleet charging-record coordinates (where a charge happened) and navigation
 # ``destination-memory`` / ``active-guidance`` coordinates (saved destinations, not
 # the car). A position parser must key on the UUIDs above, not on a name match for
-# "latitude"/"longitude", precisely because these exist:
+# "latitude"/"longitude", precisely because these exist.
+#
+# Counted 2026-11-03 over all 110 coordinate-named entries in the dictionary, so
+# the list is grounded rather than guessed:
+#   48  alert positions — GEOFEN / SPEEDA / VALETA ``occurrencePosition``
+#   24  navigation — destination-memory / active-guidance
+#   16  charging / wallbox telemetry — wallbox, flexpole, ocpi, csm, msp_, fleet
+#    8  RPT / RBC
+#   14  other
+#
+# The alert family was the largest and was NOT covered until that count: a
+# geofence, speed- or valet-alert ``occurrencePosition`` IS the car, which makes
+# it the most tempting of all to a name-matching reader — and still wrong, because
+# it is where an event fired, not where the car is parked now.
 POSITION_FALSE_FRIEND_NAME_MARKERS: Final[tuple[str, ...]] = (
     "charging_record",
     "charging_records",
@@ -60,6 +127,11 @@ POSITION_FALSE_FRIEND_NAME_MARKERS: Final[tuple[str, ...]] = (
     "locationtokens",
     "geolocations",
     "avoidedchargingstations",
+    # alert positions: the car's location when an alert fired, not its position
+    "geofencingalerts",
+    "speedalertalerts",
+    "valetalertalerts",
+    "occurrenceposition",
 )
 
 
