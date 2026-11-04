@@ -153,6 +153,28 @@ def test_a_number_in_the_title_moves_out_of_it() -> None:
     )
 
 
+def test_two_numbers_in_the_title_also_move_out_of_it() -> None:
+    """An entry about two issues writes both into its title.
+
+    The stripper matched a single ``(#NNN)`` only, so ``(#709, #1950)`` stayed
+    where it was and the generated line read ``… were locked (#709, #1950) —
+    #709 #1950 #958 #969``. Found by reading the real 5.2.3 body rather than by
+    a failing test: the six other entries in that release each cite one issue,
+    so nothing exercised the comma form.
+    """
+    entry = (
+        "- **A charging field decided the doors (#709, #1950).** The body also "
+        "cites #958 as an earlier report of the same thing."
+    )
+    line = brn.short_line(entry)
+    assert "(#709, #1950)" not in line, f"the numbers are still in the title: {line}"
+    assert line.count("#709") == 1, f"#709 is duplicated: {line}"
+    assert line.count("#1950") == 1, f"#1950 is duplicated: {line}"
+    assert "#709" in line and "#1950" in line, (
+        f"moving them out must not drop them: {line}"
+    )
+
+
 def test_the_subject_reference_comes_first() -> None:
     """Source order puts a cited precedent in front of the actual subject.
 
