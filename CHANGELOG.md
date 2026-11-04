@@ -46,6 +46,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.2.3] - 2026-11-04 — Rounded where we said it was / Gerundet, wo wir es behauptet haben
+
+The stable release that gathers 5.2.3b1. The headline is that three places
+promised your vehicle position was blunted before it left your machine, and all
+three were sending it at full precision: the diagnostics download, the Vehicle
+Data Scout, and the parking-address lookup that goes out to OpenStreetMap. If
+you have ever attached a diagnostics file to an issue, posted a Scout report, or
+switched reverse geocoding on, that is the reason to update.
+
+Alongside that, the beta line brought: the login chain restricted to the
+identity provider and the portal, a batch capture stamp that had dated a whole
+car 82 days old, a Charging Port sensor that can hold a value at all on portal
+cars, three write routes and two plug fields on the official Škoda API, and a
+refused-login message that names the one thing known to fix it.
+
+Seven more changes land on top of the beta.
+
 ### Behoben / Fixed
 
 - **Our own documentation said the portal's continuous feed cannot carry a
@@ -322,6 +339,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   portal mode and its raw-dataset archive, what a removal leaves behind, and
   the fact that a cached vehicle image is served under `/local/` with the VIN
   in its filename.
+
+### Notes
+
+- **Known issue: the Charging Port sensor can say a plug is connected on a car
+  that is not plugged in (#1739).** The beta taught that sensor to hold a value
+  at all on portal cars; this release carries that onto the stable channel, and
+  one Audi Q4 e-tron has since shown it standing at connected with three
+  independent confirmations that the cable was out — the wall charger reporting
+  unplugged for 40 hours, the energy supplier reporting no smart-charge control,
+  and the owner at the car. The cause looks like an inference drawn from the
+  charging scenario, which on that firmware reads as a charge-mode setting
+  rather than proof of a running session, while the car itself reported
+  NOT_READY_FOR_CHARGING with a charging-infrastructure error and zero power.
+  It is **not** fixed here. The existing cable binary sensor may share the
+  question, and both are being followed in #1739 — thanks @awood-ops for
+  testing the beta and for bringing three separate sources rather than one
+  reading.
 
 ## [5.2.3b1] - 2026-11-01 — Only two hosts may ask for your password / Nur zwei Hosts dürfen nach deinem Passwort fragen
 
