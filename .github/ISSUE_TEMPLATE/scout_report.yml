@@ -55,3 +55,5 @@ body:
       options:
         - label: I confirm the report contains only masked data (no full VIN / tokens / emails / precise GPS).
           required: true
+        - label: "If I attached a file, I checked the file itself. The masking above covers the pasted report, not an attachment: a diagnostics export carries the full VIN in its filename, and one from 5.2.2 or earlier can still contain a precise coordinate."
+          required: true

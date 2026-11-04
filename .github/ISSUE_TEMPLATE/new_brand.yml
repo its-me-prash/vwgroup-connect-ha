@@ -91,11 +91,17 @@ body:
         - **Email** → mask local part, e.g. `u***@***.com`
         - **Tokens / S-PIN** → never share
         - **GPS** → round to 1 decimal or remove
+        - **Filenames** → a portal export is named with your full VIN, so check the
+          name itself, and the names at the start of every line if you paste a file
+          listing or `grep` output. Masking the contents does not change the name.
 
         **Datenschutz — vor dem Posten Pflicht:**
         - **VIN** nur letzte 6 Zeichen, z.B. `***003577` (vollständige VIN ist mit Zulassung / Versicherung verknüpft)
         - **Email** lokalen Teil schwärzen, z.B. `u***@***.com`
         - **Tokens / S-PIN** nie teilen
         - **GPS** auf 1 Nachkommastelle runden oder löschen
+        - **Dateinamen** → ein Portal-Export ist nach deiner vollen VIN benannt; sieh
+          den Namen selbst an, und die Namen am Zeilenanfang, wenn du eine Dateiliste
+          oder `grep`-Ausgabe einfügst. Den Inhalt zu maskieren ändert den Namen nicht.
     validations:
       required: true
