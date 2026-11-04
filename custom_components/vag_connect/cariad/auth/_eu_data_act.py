@@ -3722,9 +3722,36 @@ def map_dataset_to_vehicle_data(
         if d.oil_service_at is None:
             d.oil_service_at = _svc(oil_days)
 
-    lock = first("lock_state", "central_lock_state")
-    if lock is not None and d.doors_locked is None:
-        d.doors_locked = str(lock).lower() in ("locked", "safe")
+    # ``lock_state`` is a CHARGING field and never decided the doors. Read and
+    # discarded, not mapped.
+    #
+    # The official data dictionary puts it in cluster "All Data, **Charging**",
+    # next to ``plug_lock_state`` (44534a85), ``charging_plug1_lock_state`` and
+    # ``charging_plug2_lock_state``. Every field that genuinely describes a door
+    # or a closure sits in "All Data, **Vehicle Access**" — all six
+    # ``locked_state_*``, all ``safe_state_*``, all ``open_state_*``, and
+    # ``flap_lock_state``. Cluster membership is the same argument the plug/flap
+    # targets in models.py already turn on, so it decides this too.
+    #
+    # The data agrees. In the two portal payloads on record that carry BOTH
+    # spellings, the string and the per-door enums disagree in OPPOSITE
+    # directions — which is what two different subjects look like, not a
+    # contradiction:
+    #   locked_state_* = 2 (locked) with lock_state = "unlocked"
+    #   locked_state_* = 3 (unlocked) with lock_state = "locked"   (#709)
+    # And the observed value set is ``locked`` / ``unlocked`` / **``new``** —
+    # "new" is not a state a door reports.
+    #
+    # What it actually names is NOT established: the dictionary says only
+    # "Describes the lock state", and ``plug_lock_state`` exists separately, so
+    # folding it into the plug would be a guess. We publish nothing rather than
+    # guess, and keep consuming it so the Scout does not re-file a KNOWN
+    # (catalogued) field on every poll — the #958/#969/#970 failure mode.
+    #
+    # ``central_lock_state`` is deliberately NOT consumed here any more: it
+    # appears nowhere in the dictionary, so if a car ever sends it that is a
+    # genuinely new field and the Scout should surface it for discovery.
+    first("lock_state")
 
     whf = first("window_heating_state_front")
     if whf is not None and d.window_heating_front is None:
@@ -4953,7 +4980,40 @@ def map_dataset_to_vehicle_data(
         )
     ]
     _safe_present = [v for v in _safe_vals if v in (2, 3)]
-    if _safe_present:
+    # An all-"3" door reading is not a verdict, so it must not produce one.
+    #
+    # Measured 2026-11-03 over every portal payload on this machine (4442 files:
+    # the attachment archive, our own tracker, and the competing readers' repos).
+    # Four deliveries carry safe_state at all, and in those four:
+    #
+    #   safe_state_front_right_door   3, 3, 3, 3   — a 2 has NEVER been seen
+    #   safe_state_rear_left_door     3, 3, 3, 3
+    #   safe_state_rear_right_door    3, 3, 3, 3
+    #
+    # and in THREE of the four the doors are demonstrably locked
+    # (``locked_state_* = 2``) with every ``open_state_* = 3`` (closed) and every
+    # window at 0. So the documented safe(2) is unobserved on the doors, and the
+    # old ``all(v == 2 …)`` could not be satisfied by any real car: the entity
+    # published "not secured" permanently, on locked and shut cars.
+    #
+    # This is the same rule v4.7.11 already applied to the bonnet and the
+    # tailgate, now reached by measurement instead of by the dictionary: a field
+    # that only ever reports its negative value carries no information. The
+    # difference is only HOW we know — for those two the dictionary documents no
+    # safe(2) at all; for the doors it documents one that no car sends.
+    #
+    # So require one observed 2 before claiming anything. A 2 proves the car
+    # implements the field, and from then on a 3 beside it is a real "unsafe"
+    # (that pairing keeps working, which is why the mixed 2/3 case still reads
+    # False). With no 2 anywhere the verdict stays None and the binary sensor
+    # simply does not appear — it is in the no-phantom list in binary_sensor.py.
+    #
+    # The trade-off, stated rather than hidden: a car that genuinely implements
+    # safe_state and reports every door unsafe would now say nothing instead of
+    # False. Nothing in the corpus looks like that, while "sends a constant 3"
+    # is 4 of 4 — and an actually open closure still surfaces on its own
+    # ``doors_open`` / ``trunk_open`` / ``hood_open`` entity.
+    if 2 in _safe_present:
         # Prash decision, 2026-10-28: this entity is published as "All closures
         # secured", and it was deciding that from three doors. Measured before
         # the change: three safe doors plus ``open_state_tailgate=2`` gave

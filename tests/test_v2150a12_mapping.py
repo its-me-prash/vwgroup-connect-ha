@@ -224,9 +224,23 @@ class TestB5MaintenanceLock:
         assert d.service_due_at == "2026-09-01"
         assert d.service_due_in_days == 155
 
-    def test_lock_state(self) -> None:
-        assert _map({"lock_state": "locked"}).doors_locked is True
-        assert _map({"lock_state": "unlocked"}).doors_locked is False
+    def test_lock_state_does_not_decide_the_doors(self) -> None:
+        """``lock_state`` is a CHARGING field, so it must not set ``doors_locked``.
+
+        This assertion used to be the other way round. The official data
+        dictionary puts ``lock_state`` in cluster "All Data, Charging", beside
+        ``plug_lock_state`` / ``charging_plug1_lock_state``, while every door
+        and closure field is in "All Data, Vehicle Access". Two real payloads
+        carry both spellings and they disagree in opposite directions, and the
+        observed value set includes ``new`` — which no door reports.
+
+        It is still CONSUMED: it is a catalogued field, so leaving it visible
+        would re-file it to the Scout on every poll (#958/#969/#970).
+        """
+        for value in ("locked", "unlocked", "new"):
+            d = _map({"lock_state": value})
+            assert d.doors_locked is None, f"lock_state={value!r} decided the doors"
+            assert "lock_state" not in d.raw_unmapped_fields
 
     def test_window_heating(self) -> None:
         d = _map({"window_heating_state_front": "on", "window_heating_state_rear": "off"})

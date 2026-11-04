@@ -2112,7 +2112,10 @@ class VehicleData:
     # B. Door / closure SAFE-state (2=safe / 3=unsafe — INVERSE polarity).
     # Front bonnet lock (locked_state_front_engine_bonnet 2=locked). binary_sensor.
     bonnet_locked: bool | None = None
-    # All present closures secured (safe_state_* rollup, all==2). binary_sensor.
+    # All present closures secured (door safe_state_* rollup, all==2, plus the
+    # boot and bonnet OPEN states). Stays None unless at least one door reports
+    # safe(2): measured, no car has ever sent that value, so an all-"3" reading
+    # is not a verdict. binary_sensor.
     closures_secured: bool | None = None
     # Service hatch open (state_service_hatch 2=open) — LOW. binary_sensor.
     service_hatch_open: bool | None = None
