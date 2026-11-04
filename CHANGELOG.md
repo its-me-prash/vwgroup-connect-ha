@@ -48,6 +48,83 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **Our own documentation said the portal's continuous feed cannot carry a
+  position, while the code that reads one sat two files away.** Nothing in the
+  integration behaved wrongly — this is a documentation correction, and it
+  matters because `_position_fields.py` is where anyone looks first.
+
+  That module's docstring claimed the vehicle position "lives only in the
+  one-time Historical export" and that the continuous feed "carries *no*
+  coordinates". `_parse_pers_location` in `_eu_data_act.py` has meanwhile been
+  reading exactly such a position out of the continuous feed since #1378 — MEB
+  cars (Škoda Elroq and others) ship it under an undocumented `persLocation`
+  leaf — and its own comment noted in passing that the position module's
+  docstring was wrong. The note was never carried back. The test file repeated
+  the superseded sentence too.
+
+  The two statements were about different things, and both are now written that
+  way. Measured against the shipped `eu_data_dictionary.json` (7990 entries,
+  6618 field names, V6.0 Continuous + Historical merge) and reproduced on a
+  second, independent copy of the same catalogue:
+
+  - the continuous side's `Vehicle Location Tracking` cluster has exactly three
+    members — `mileage`, `outside_temperature` and a GPS `trueness` quality
+    flag — and no coordinate;
+  - the `Vehicle Location (Historical Export)` cluster has exactly ten, which
+    are one-for-one the ten UUIDs this module already mapped;
+  - `persLocation` appears in neither copy. It is undocumented, and it is how
+    the position actually arrives on the cars that have one.
+
+  So the dictionary is authoritative about what Volkswagen *documents* and is
+  silent about undocumented leaves. Three new tests pin that split, so a future
+  dictionary merge that blurs the two clusters, or a release that starts
+  documenting `persLocation`, fails here instead of being discovered through a
+  missing map pin.
+
+  One measured gap closed while counting: of the 110 coordinate-named entries in
+  the dictionary, the **largest** family (48) is geofence / speed-alert /
+  valet-alert `occurrencePosition` — the car's location when an alert fired. It
+  was missing from the false-friend markers, and it is the most tempting family
+  of all to a name-matching reader precisely because it really is the car. It is
+  a marker now, with the count recorded beside the list. The historical parser
+  these maps exist for is still deliberately not built; nothing reads this
+  module yet.
+
+- **The same module justified its manual-only kickoff with a question #923 had
+  already answered.** Also documentation, and found while re-reading three
+  months of reporter threads rather than the code.
+
+  `_position_fields.py` said the position refresh must stay an opt-in manual
+  action "until it's settled whether an in-flight historical request suspends
+  the continuous feed". That was settled on #923 back in August, and the answer
+  is **no**: a reporter measured the continuous feed running unchanged straight
+  through a pending one-time request, then ran a control night with nothing
+  pending and reproduced the same ~22:00–05:00 half-rate cadence — which
+  identifies the overnight halving as the portal's own diurnal rhythm, not
+  something our polling provokes. Citing an answered question as the blocker
+  made the restriction look removable the moment anyone checked.
+
+  It is not removable, because the real constraint turned up in the same
+  measurements: a one-time request can **vanish** 24–36 h after submission with
+  no package, no mail, no error and no failure state — the portal panel simply
+  resets — while the recurring request for the same VIN keeps running normally.
+  Nothing distinguishes "still processing" from "silently dropped", so an
+  automatic kickoff can fire into a void and wait forever. The docstring now
+  gives that as the reason, and a test pins it so the retracted justification
+  cannot come back.
+
+  Two neighbouring findings from the same work are recorded there as well, so
+  they are not re-litigated: the portal's own format description ("subfolders
+  for each data cluster … including meta information") does not match what it
+  actually delivers for the continuous package, and it is the *same* sentence
+  for the historical request — so it cannot be used to predict that envelope
+  either; and the "every 15 minutes" badge drifts (~16.6 min across 30 buffered
+  files), which is why staleness keys off each reading's own
+  `car_captured_time` and never an assumed cadence. Two things that reporter
+  also flagged were checked and need no change: an omitted `value` key already
+  reads as absent (`.get("value")` plus a `"value" in node` guard), and no
+  staleness path assumes a fixed interval.
+
 - **An endpoint that answers 500 on every attempt of every poll no longer gets
   four requests for it (#1973).** @indigomejor measured the steady state on a
   Škoda Octavia (petrol, MySkoda app login plus EU Data Act portal), parked,
@@ -86,6 +163,149 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
   Still open from #1973 and not addressed here: whether "more during a drive"
   means more polls or more failures per poll. The measurement was a parked car.
+
+- **A charging field was deciding whether your doors were locked (#709, #1950).**
+  On portal cars whose payload carried `lock_state`, the door-lock state you saw
+  came from a field that does not describe a door. It is no longer read as one,
+  so on those cars the lock state now comes only from the per-door fields — and
+  where a car sends nothing else, the entity goes quiet instead of showing a
+  value from the wrong subject. This is the #1950 rule — a thing that is not a
+  door must not decide the door verdict — reaching a fifth field; the four
+  closure sites it already covered are unchanged.
+
+  Three independent lines say it is the wrong subject. The official data
+  dictionary files `lock_state` under cluster "All Data, **Charging**", beside
+  `plug_lock_state`, `charging_plug1_lock_state` and
+  `charging_plug2_lock_state`, while every field that genuinely describes a door
+  or a closure sits in "All Data, **Vehicle Access**" — all six `locked_state_*`,
+  all `safe_state_*`, all `open_state_*` and `flap_lock_state`. Cluster
+  membership is the same argument the plug and flap targets already turn on, so
+  it decides this too.
+
+  The payloads agree. In the two on record that carry both spellings, the string
+  and the per-door enums disagree in *opposite* directions — `locked_state_* = 2`
+  (locked) with `lock_state = "unlocked"`, and `locked_state_* = 3` (unlocked)
+  with `lock_state = "locked"` (#709). That is what two different subjects look
+  like, not a contradiction to be resolved. And the observed value set is
+  `locked` / `unlocked` / **`new`**; "new" is not a state a door reports.
+
+  What the field actually names is **not** established — the dictionary says
+  only "Describes the lock state", and `plug_lock_state` exists separately, so
+  folding it into the plug would be the same guess in a new place. Nothing is
+  published for it. It is still consumed, because it is a catalogued field and
+  leaving it visible would re-file it to the Vehicle Data Scout on every poll
+  (#958/#969/#970). `central_lock_state` is deliberately *not* consumed any
+  more: it appears nowhere in the dictionary, so a car that sends it has sent
+  something genuinely new and the Scout should surface it.
+
+- **"All closures secured" reported "not secured" on locked, shut cars — and
+  could never have said otherwise (#1950).** The binary sensor now stays absent
+  instead of answering wrongly, on every car that does not demonstrably
+  implement the field. This is a second, separate finding on the entity #1950
+  last touched; it is not the cause the reporter there described, and that
+  thread stays open.
+
+  It was computed as all three door `safe_state_*` reading `safe (2)`, plus the
+  boot and bonnet open states. Measured 2026-11-03 across every portal payload
+  on this machine — 4442 files spanning the attachment archive, our own tracker
+  dump and the competing readers' repositories — four deliveries carry
+  `safe_state` at all, and in all four the three door fields read `3, 3, 3, 3`.
+  A `2` has never been seen. In three of those four the car is demonstrably
+  locked (`locked_state_* = 2`) with every `open_state_* = 3` (closed) and every
+  window at 0. So the documented `safe (2)` is unobserved on the doors, and the
+  old condition could not be satisfied by any real car: the entity published
+  "not secured" permanently, on cars that were locked and shut.
+
+  This is the rule v4.7.11 already applied to the bonnet and the tailgate — a
+  field that only ever reports its negative value carries no information —
+  reached this time by measurement rather than by the dictionary. For those two
+  the dictionary documents no `safe (2)` at all; for the doors it documents one
+  that no car sends.
+
+  So one observed `2` is now required before anything is claimed. A `2` proves
+  the car implements the field, and from then on a `3` beside it is a real
+  "unsafe", which is why a mixed 2/3 reading still reads False. With no `2`
+  anywhere the verdict stays unset and the sensor does not appear at all.
+
+  The trade-off, stated rather than hidden: a car that genuinely implements
+  `safe_state` and reports every door unsafe would now say nothing instead of
+  False. Nothing in the corpus looks like that, while "sends a constant 3" is
+  four of four — and an actually open closure still surfaces on its own
+  `doors_open` / `trunk_open` / `hood_open` entity.
+
+### Sicherheit / Security
+
+- **Both places that promise a coordinate is blunted before it leaves your
+  machine could publish a precise one: the diagnostics download and the Vehicle
+  Data Scout (#1378).** Nothing about the integration's behaviour changes and no
+  sensor is affected — this is about what the two reports we ask you to attach
+  to an issue carry out of the house.
+
+  Each report rounds or removes GPS, and each did so by looking at a `float` or
+  at a field *name*. The portal does neither: MEB cars ship the vehicle position
+  as a **string**, under a leaf called `persLocation` whose value is
+  `"[<lat>, <lon>]"` with six decimals — roughly 0.1 m. A string is not a
+  `float`, and `persLocation` is not one of the names either report knows, so
+  the value walked past both.
+
+  Measured on the unfixed masker across seven shapes a coordinate arrives in —
+  bracketed pair, hemisphere letters, inside a sentence, a maps URL, a
+  comma-as-decimal pair, a lone decimal, and a `float` — **six kept full
+  precision, and every one of those six was a string**; the `float` was the only
+  one that rounded. Two controls in the same run came back masked (a VIN, a
+  UUID), so the masker was working. Measured on the diagnostics scrubber, both
+  `persLocation` and `eu_data_act.persLocation` came through at six decimals in
+  **both** modes — including the default, which promises removal rather than
+  rounding — while `latitude`, `parking_position.latitude` and an e-mail address
+  in the same payload were all handled correctly. That is exactly why it would
+  go unnoticed: the file looks redacted.
+
+  Both now go through one rule that keys on the **value**, not on a name or a
+  type: two coordinate-shaped numbers side by side, both integer parts capped
+  (two digits for latitude, three for longitude) and the real-world bounds
+  re-checked before anything is replaced. It covers the bracketed pair, a bare
+  or semicolon-separated pair, hemisphere letters, a pair inside a sentence and
+  a `?q=lat,lon` URL, and it holds for a field name nobody has seen yet. An
+  odometer, money or measurement pair is left alone, because rounding the wrong
+  number costs these reports the diagnostic value they exist for. Separator and
+  hemisphere letters survive, so a reader can still tell a position field from a
+  number field without learning where the car stood. The Scout rounds to one
+  decimal, as its footer has always promised; the diagnostics download removes
+  by default and rounds only under the existing opt-in, as its neighbouring
+  query-string rule already did. Where a car splits the position into separate
+  `latitude` and `longitude` leaves, the Scout now passes the field's own path
+  so a lone decimal is caught too; that name match is token-exact, so
+  `translation`, `related`, `doorLatch` and `allocation` do not trigger it.
+
+  Three shapes are deliberately **not** covered, named in the docstring and
+  pinned by a test so the limit is visible instead of silent: a lone decimal
+  with no field name to identify it, a pair that uses the comma as its decimal
+  separator (indistinguishable from thousands separators, and rounding those
+  would corrupt ordinary numbers), and integer microdegrees, where the scale
+  would have to be guessed. None has been observed in a live feed.
+
+  This is the defect fixed in #1690 twice over: a redaction rule that guards one
+  representation of a value and not the others. That one leaked a VIN five times
+  and was hand-redacted four times before the masker itself was fixed, and the
+  dotted-field-name finding recorded in `diagnostics.py` in October was the same
+  shape again. So the uncovered shapes above are written down rather than
+  assumed away, and the new test checks both whole chains — `detect_unexpected`
+  and `_scrub` — not just the shared helper. The example coordinate in
+  `_parse_pers_location`'s docstring and in the #1378 test is now a synthetic
+  placeholder, labelled as one, and the docstring carries only the shape
+  `"[<lat>, <lon>]"`.
+
+  One more thing was missing, and it is the reason this sat around for eight
+  weeks rather than eight minutes: `CONTRIBUTING.md` already forbade GPS with
+  more than one decimal place in the repo, "even from your own car", and nothing
+  checked. `scripts/check_no_precise_gps.py` checks now, built like the VIN
+  guard beside it — shape-based rather than a list, a coordinate word required
+  nearby so telemetry fixtures are not mistaken for positions, and the digits
+  masked in its own report so a CI log does not become the next leak. It gates
+  what a change *adds*; the 13 pairs already in the tree are public landmarks
+  used as test input and are named in the script rather than exempted, with a
+  per-file ratchet in the tests so none of those files can quietly gain another.
+  Its first catch was a fixture added earlier in this same change.
 
 ## [5.2.3b1] - 2026-11-01 — Only two hosts may ask for your password / Nur zwei Hosts dürfen nach deinem Passwort fragen
 

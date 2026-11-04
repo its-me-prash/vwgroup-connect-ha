@@ -171,11 +171,32 @@ visible via inline German callouts in the entries themselves.
 - Past entries (pre-v2.4.1) are preserved DE-primary for historical
   accuracy — never rewrite history.
 
-## Changelog format (v2.4.1+ — compact, user-focused)
+## Changelog format (v2.4.1+ — two forms, one source)
 
-CHANGELOG entries are **for end-users**, not for archeology. Keep them
-short. Technical detail belongs in commit messages, pull-request
-bodies, and inline code comments.
+**Corrected 2026-11-04.** What stood here told you to keep entries short
+because "technical detail belongs in commit messages". That stopped being true
+when the release notes were split out: `scripts/build_release_notes.py` reads
+this file and *generates* the short form, and its own docstring says the
+opposite of the old sentence — "CHANGELOG.md — unchanged, and still the long
+form: what broke, why, how". Following the sentence that stood here strips the
+detail out of the one place that keeps it, so the two documents now agree.
+
+Every entry carries **both** forms, and nothing is written twice:
+
+- The **bold title** is the short form. `build_release_notes.py` reads the
+  titles out of a section and builds the GitHub Release body from them — one
+  line per change, with its issue numbers and a thank-you. The title therefore
+  has to stand on its own, because a reader of the release body sees nothing
+  else of the entry. Write the issue number into the title; the builder moves
+  it to the end of the line itself.
+- The **paragraphs after the title** are the long form, and they belong here:
+  what broke, why, and how it was measured. They are for whoever hits the same
+  thing in six months, and they are deliberately *not* in the release body —
+  v5.1.0 pasted a whole section in once and produced a body of 44 681
+  characters over 653 lines, which Home Assistant shows in its update dialog.
+
+Either way an entry opens with `- **`; that is what both parsers split on
+(`build_release_notes.split_entries`, `check_changelog_structure.py`).
 
 **Per-release structure** (skip empty sections):
 
@@ -183,15 +204,16 @@ bodies, and inline code comments.
 ## [X.Y.Z] - YYYY-MM-DD — "Short codename"
 
 ### Fixed
-- One-line description per bug, ending with the issue number (#NNN)
+- **Bold title that stands on its own (#NNN)** — then the long form as
+  paragraphs: what broke, why, how it was measured.
 
 ### Added
-- One-line description per new entity, sensor, service, or capability
+- **Bold title for the new entity, sensor, service or capability (#NNN)** —
+  paragraphs as above.
 
 ### Changed
-- **Topic title** — 1–3 sentence explanation when end-user
-  behaviour changes (new options, new automatic behaviour, new
-  notifications). Otherwise one line.
+- **Bold title (#NNN)** — the paragraphs say what changes for the user (new
+  options, new automatic behaviour, new notifications).
 
 ### Notes
 - Anything noteworthy that doesn't fit above (release-process
