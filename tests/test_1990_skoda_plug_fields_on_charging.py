@@ -2,26 +2,30 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """#1990 — Škoda started shipping the plug fields on the CHARGING endpoint.
 
-Fifteen owners filed the same report between 12:44 and 14:46 on 2026-11-05
-(#1990 … #2004, five different models, one of them twice by the same reporter
-three minutes apart): ``status.plugConnectionState``,
-``status.plugLockState`` and ``status.chargingErrorReason`` arriving with no
-reader, so the Scout called them unmapped.
+Seventeen Scout reports were filed between 12:44 and 15:12 on 2026-11-05, #1990
+through #2006 without a gap. Fifteen were still open and their bodies were read;
+the two the reporters had already closed themselves (#1995, #1998) were not, so
+every count below is over the fifteen that were read. One owner filed the same
+observation twice, three minutes apart, both bodies carrying the identical
+``Reported at``. What they report: ``status.plugConnectionState``,
+``status.plugLockState`` and — in one body — ``status.chargingErrorReason``,
+arriving with no reader on that endpoint, so the Scout called them unmapped.
 
-Nothing was broken. This parser had always read the plug off the
-AIR-CONDITIONING endpoint under Škoda's own names (``chargerConnectionState`` /
-``chargerLockState``); the backend simply began offering the CARIAD spelling on
-the charging endpoint as well.
+Nothing was broken. This parser reads the plug off the AIR-CONDITIONING endpoint
+under Škoda's own names (``chargerConnectionState`` / ``chargerLockState``) and
+has since 2026-04-26; the backend simply began offering the CARIAD spelling on
+the charging endpoint as well. (``skoda_official.py`` has read these same two
+field names since #1286 — what had no reader was the mysmob charging endpoint,
+not the field names as such.)
 
 **The raw token is passed through and NOT folded into a boolean.** That is the
 #1286 decision for these two exact field names: the official spec declares both
 as plain strings with no enum, so the allowed values are not specified, and
-``skoda_official.py`` deliberately hands the token to the coordinator's
-``normalize_enum_states`` — where an unrecognised value becomes no value rather
-than a wrong one. Deriving ``plug_connected`` from "CONNECTED" here would be
+``skoda_official.py`` deliberately hands the token to the entity layer instead
+of interpreting it. Deriving ``plug_connected`` from "CONNECTED" here would be
 inventing that mapping, so the tests below pin the absence of the boolean just
-as firmly as the presence of the string. The fifteen reports do not settle the
-vocabulary: measured across all of them each field shows exactly two values
+as firmly as the presence of the string. The fifteen bodies that were read do
+not settle the vocabulary: across them each field shows exactly two values
 (CONNECTED/DISCONNECTED 7:8, LOCKED/UNLOCKED 4:11), and two values seen is not
 the same fact as two values existing.
 
@@ -31,7 +35,15 @@ options ``["connected", "disconnected"]``, ``normalize_enum_states`` folds with
 ``.strip().lower()``, and it runs on both paths that reach the entities — the
 poll and the cache restore. So "CONNECTED" lands as ``connected`` instead of
 being folded away. ``plug_lock_state`` and ``charging_error_code`` declare no
-options, so their raw token passes through as-is.
+options, so nothing folds them and their raw token passes through as-is.
+
+That paragraph records how the chain was checked, not what this file asserts:
+the tests below drive ``SkodaClient.get_status`` and assert on ``VehicleData``,
+and the fold itself is guarded by
+``tests/test_1739_enum_states_normalised_on_every_path.py``. Also worth knowing
+for a reader of the entity list: all three sensors already existed, so this adds
+no entity — ``plug_state`` and ``charging_error_code`` are enabled by default
+and ``plug_lock_state`` is not.
 """
 from __future__ import annotations
 

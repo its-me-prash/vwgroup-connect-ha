@@ -45,7 +45,7 @@ by default follow in the second table.
 
 | Feature | Goes to | Default | What is sent |
 |---|---|---|---|
-| Reverse geocoding (parking address) | `nominatim.openstreetmap.org` (OpenStreetMap) | **OFF** | The vehicle coordinate rounded to 3 decimals (~110 m), plus a `User-Agent` naming the integration. Results are cached per cell, so the same parking spot is not re-queried. **Up to and including 5.2.3b1 this was not true:** the rounding reached only the cache key and the request carried the full-precision coordinate. That is fixed in the repository but is not yet in a released version. |
+| Reverse geocoding (parking address) | `nominatim.openstreetmap.org` (OpenStreetMap) | **OFF** | The vehicle coordinate rounded to 3 decimals (~110 m), plus a `User-Agent` naming the integration. Results are cached per cell, so the same parking spot is not re-queried. **Up to and including 5.2.3b1 this was not true:** the rounding reached only the cache key and the request carried the full-precision coordinate. Fixed as of 5.2.3. |
 | ABRP telemetry | `api.iternio.com` (A Better Route Planner) | **OFF** | Only when your own automation calls the `vag_connect.abrp_send` service — there is no automatic feed. Then: time, state of charge, charging and parked flags, position, heading, battery capacity and temperature, outside temperature, estimated range and odometer, under the ABRP token you supply. Speed is never sent. |
 | Tibber as a supplementary source | `thewall.tibber.com` (Tibber) | **OFF** | An OAuth sign-in to your own Tibber account, to read vehicle data Tibber already holds. Tibber tokens are stored in the HA config entry. |
 | Push notifications | Brand push infrastructure — Firebase Cloud Messaging (Audi/VW, CUPRA/SEAT) or MQTT (Škoda) | **OFF** | A push registration token, so the brand's service can wake the integration instead of it polling. Separate switches per brand. |
@@ -137,11 +137,12 @@ HA, and cancel the data request in the manufacturer's portal.
   station names and addresses, your preferred workshop's name, address, phone
   and coordinates, the driver score, or the heading. None of those identify you
   directly, but together they describe where you drive. Always read an export
-  before sharing it. A GPS-precision defect on two report surfaces is fixed in
-  the repository but is **not yet in a released version**
-  ([#1378](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1378)), so
-  an export made with 5.2.3b1 or earlier can still contain a precise
-  coordinate.
+  before sharing it. A GPS-precision defect on two report surfaces
+  ([#1378](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1378)) is
+  fixed **as of 5.2.3**, so an export made with **5.2.3b1 or earlier can still
+  contain a precise coordinate** — including one you have already attached to
+  an issue. Deleting the comment does not remove the attached file; ask for it
+  to be removed if that matters to you.
 - **Watch out for filenames when you share files.** A manufacturer portal export
   is named with your **full VIN**, so the filename carries it even when the
   file's contents are masked. The same is true of the cached image files above.
@@ -188,4 +189,4 @@ data is handled. The change log of this file is the git history of `PRIVACY.md`.
 
 ---
 
-*Last updated: 2026-11-04 — describes the repository state after v5.2.3b1.*
+*Last updated: 2026-11-05 — describes the repository state after v5.2.3.*

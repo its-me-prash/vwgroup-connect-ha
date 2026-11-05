@@ -46,29 +46,70 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **PRIVACY.md still told you the GPS-precision fix was unreleased, a day after
+  it shipped — and a test now holds that sentence so it cannot happen again
+  (#1378).** In two places the privacy document said the defect was "fixed in
+  the repository but **not yet in a released version**". That was true when it
+  was written on 2026-11-04 and false by the evening: `git tag --contains`
+  reports **v5.2.3** for both fixes (`44d2a7d6`, `2b274626`). So the document
+  was withholding an all-clear that already applied, and telling you to be
+  careful about a version that no longer had the defect. Corrected to name
+  5.2.3, with the part that still matters kept: an export made with 5.2.3b1 or
+  **earlier** can still carry a precise coordinate, including one already
+  attached to an issue — and deleting the comment does not remove the file.
+
+  The interesting half is why the careful wording failed. It was chosen
+  *because* naming a version would have been wrong at the time, and the note
+  prescribing it also says to follow it up at release. That follow-up was
+  missed within a day, by its author. A rule enforced by someone remembering at
+  the right moment is not a gate, so
+  `tests/test_release_claims_in_docs_do_not_go_stale.py` is now the gate: it
+  reads every user-facing document, finds each claim that something is **not**
+  released, resolves the issue it cites, and goes red if `CHANGELOG.md` puts
+  that issue's newest entry in a shipped version. It checks the opposite
+  direction too — an "as of 5.2.3" promise whose issue still sits under
+  `[Unreleased]` is a false all-clear, which is the direction that put live
+  session cookies into public issues for four months (#923) — and it fails a
+  caution that cites nothing at all, because an unverifiable sentence is
+  exactly the one that rots unnoticed.
+
+  It compares two documents rather than git, deliberately: `ci.yml` checks out
+  shallow with no tags, so `git tag --contains` would find neither commit nor
+  tag and would answer "unreleased" for everything — a gate that passes
+  silently in the only place it runs. `CHANGELOG.md` is in the checkout and is
+  the file the release process already rewrites. The guard is proven by
+  reintroducing the real sentence, verbatim, and watching it fail.
+
 ### Hinzugefügt / Added
 
-- **Škoda began shipping the plug fields on the charging endpoint, where
-  nothing read them; they are read now (#1990).** Seventeen owners filed the
-  same report between 12:44 and 15:12 on 2026-11-05 — #1990 through #2006,
-  across Elroq, Enyaq, Superb, Octavia and one unnamed car, one reporter twice
-  three minutes apart. Measured across all seventeen bodies rather than read
-  off the first: every one of them names exactly `status.plugConnectionState`
-  and `status.plugLockState` on the `charging` endpoint, and one (#1999) adds
-  `status.chargingErrorReason`, which the official spec does not list at all.
-  So the seventeen reports are one backend change, not seventeen findings.
+- **Škoda began shipping the plug fields on the charging endpoint, which had no
+  reader for them; they are read now (#1990).** Seventeen of these were filed
+  between 12:44 and 15:12 on 2026-11-05, #1990 through #2006 without a gap.
+  **Fifteen were still open and their bodies were read; the two the reporters
+  had already closed themselves (#1995, #1998) were not** — for those only the
+  titles speak, and both say `2 new field(s) on skoda`. Across the fifteen that
+  were read, every single one names exactly `status.plugConnectionState` and
+  `status.plugLockState` on the `charging` endpoint, and one (#1999) adds
+  `status.chargingErrorReason`, for which the Scout's own "spec field (official)"
+  column is blank. One backend change, then, rather than fifteen findings — one
+  owner even filed the same observation twice, three minutes apart, both bodies
+  carrying the identical `Reported at` of 12:41:46.
 
-  **Nothing was broken.** This parser has always read the plug off the
-  *air-conditioning* endpoint under Škoda's own names
-  (`chargerConnectionState` / `chargerLockState`); the backend simply started
-  offering the CARIAD spelling on the charging endpoint as well, where no
-  reader existed — so the Vehicle Data Scout correctly called it unmapped.
+  **Nothing was broken.** This parser reads the plug off the *air-conditioning*
+  endpoint under Škoda's own names (`chargerConnectionState` /
+  `chargerLockState`), and has since 2026-04-26; the backend simply started
+  offering the CARIAD spelling on the charging endpoint as well, where no reader
+  existed — so the Vehicle Data Scout correctly called it unmapped. (The
+  official-API parser has read these same two field names since #1286; what
+  changed here is the mysmob path.)
 
   **The raw token is passed through and no boolean is invented**, which is the
   #1286 decision for these two exact field names: the official spec declares
   both as plain strings with *no enum*, so the allowed values are not
-  specified. The seventeen reports do not settle that either — each field
-  shows exactly two values across them (`CONNECTED`/`DISCONNECTED` 7:8,
+  specified. The fifteen bodies do not settle that either — across them each
+  field shows exactly two values (`CONNECTED`/`DISCONNECTED` 7:8,
   `LOCKED`/`UNLOCKED` 4:11), and two values seen is not the same fact as two
   values existing. `plug_connected` and `connector_locked` therefore keep
   coming from the air-conditioning block, off a vocabulary that *is* known;
@@ -76,14 +117,24 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   the honest outcome rather than a guessed one. A test pins the absence of
   those booleans as firmly as the presence of the strings.
 
-  The delivery chain was measured end to end instead of assumed, because a
+  **No new entities.** All three sensors existed already; what is new is that
+  they get a value on this path. `plug_state` is enabled by default,
+  `charging_error_code` is diagnostic and also enabled, and `plug_lock_state`
+  is diagnostic and **off** by default — switch that one on in the entity list
+  if you want it. All three are electric-only, and that gate is decided by
+  whether the same charging payload carried a battery state of charge, not by
+  the model name, so the Superb and the Octavia in this wave are not excluded
+  for being a Superb or an Octavia.
+
+  The delivery chain was measured link by link instead of assumed, because a
   token that misses by case costs the whole sensor (#1739): `plug_state` is an
   enum with the lower-case options `connected` / `disconnected`,
   `normalize_enum_states` folds with `.strip().lower()`, and it runs on both
   paths that reach the entities — the poll and the cache restore. `CONNECTED`
   therefore lands as `connected` rather than being folded to nothing.
-  `plug_lock_state` and `charging_error_code` declare no options, so their
-  token passes through as-is; both are diagnostic and off by default.
+  `plug_lock_state` and `charging_error_code` declare no options, so
+  `normalize_enum_states` does not touch them at all and their token reaches
+  the entity exactly as Škoda sent it.
 
 ## [5.2.3] - 2026-11-04 — Rounded where we said it was / Gerundet, wo wir es behauptet haben
 

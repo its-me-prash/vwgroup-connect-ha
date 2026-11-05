@@ -1747,15 +1747,17 @@ class SkodaClient(CariadBaseClient):
             # v3.0.2 (#1104) — screen the no-reading sentinel (see vw_eu).
             d.charging_type = drop_charge_sentinel(v(c, "chargeType"))
 
-            # Plug state on the CHARGING endpoint (#1990 and fourteen more,
-            # all 2026-11-05 between 12:44 and 14:46). Skoda began shipping
-            # the plug fields here in the CARIAD spelling, while this parser
-            # has always read them off the AIR-CONDITIONING endpoint under
-            # Skoda's own names (``chargerConnectionState`` /
-            # ``chargerLockState``, further down this method). Nothing was
-            # broken — the fields simply had no reader, so the Scout called
-            # them unmapped and fifteen owners filed the same report in two
-            # hours.
+            # Plug state on the CHARGING endpoint. Seventeen Scout reports were
+            # filed on 2026-11-05 between 12:44 and 15:12, #1990 through #2006
+            # without a gap; fifteen were still open and read, the two already
+            # closed by their reporters (#1995, #1998) were not. Skoda began
+            # shipping the plug fields here in the CARIAD spelling, while this
+            # parser reads them off the AIR-CONDITIONING endpoint under Skoda's
+            # own names (``chargerConnectionState`` / ``chargerLockState``,
+            # further down this method) and has since 2026-04-26. Nothing was
+            # broken — the fields simply had no reader on THIS endpoint, so the
+            # Scout called them unmapped. (``skoda_official.py`` has read the
+            # same two field names since #1286; this is the mysmob path.)
             #
             # The raw token goes onto the model and is NOT folded into a
             # boolean here. That is the #1286 decision for these two exact
@@ -1763,16 +1765,20 @@ class SkodaClient(CariadBaseClient):
             # spec declares both as plain strings with **no enum**, so the
             # allowed values are not specified, and ``skoda_official.py``
             # (around its ChargingStatus block) deliberately passes the token
-            # through for the coordinator's ``normalize_enum_states`` to fold
-            # onto the sensor's declared options — where an unrecognised value
-            # becomes no value rather than a wrong one. Deriving
+            # through to the entity layer rather than interpreting it. Only
+            # ``plug_state`` is then folded by the coordinator's
+            # ``normalize_enum_states``, because it is the only one of the three
+            # whose sensor declares options (lower-case ``connected`` /
+            # ``disconnected``) — there an unrecognised value becomes no value
+            # rather than a wrong one. ``plug_lock_state`` declares none, so
+            # nothing folds it and the token reaches the entity verbatim.
+            # Deriving
             # ``plug_connected``/``connector_locked`` from "CONNECTED" and
             # "UNLOCKED" here would be inventing exactly the mapping that
-            # decision refuses. The fifteen reports do NOT settle the
-            # vocabulary either: measured across them, each field shows
-            # exactly two values (CONNECTED/DISCONNECTED 7:8,
-            # LOCKED/UNLOCKED 4:11), and two values seen is not the same
-            # fact as two values existing.
+            # decision refuses. The fifteen bodies that were read do NOT settle
+            # the vocabulary either: across them each field shows exactly two
+            # values (CONNECTED/DISCONNECTED 7:8, LOCKED/UNLOCKED 4:11), and
+            # two values seen is not the same fact as two values existing.
             #
             # ``plug_connected`` therefore keeps coming from the
             # air-conditioning block further down, off Skoda's own
