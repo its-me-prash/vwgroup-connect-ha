@@ -1747,10 +1747,10 @@ class SkodaClient(CariadBaseClient):
             # v3.0.2 (#1104) — screen the no-reading sentinel (see vw_eu).
             d.charging_type = drop_charge_sentinel(v(c, "chargeType"))
 
-            # Plug state on the CHARGING endpoint. Seventeen Scout reports were
-            # filed on 2026-11-05 between 12:44 and 15:12, #1990 through #2006
-            # without a gap; fifteen were still open and read, the two already
-            # closed by their reporters (#1995, #1998) were not. Skoda began
+            # Plug state on the CHARGING endpoint. More than thirty Scout
+            # reports were filed on 2026-11-05, #1990 through #2021, from 12:44
+            # until past 20:45; thirty bodies were read, the two already closed
+            # by their reporters (#1995, #1998) were not. Skoda began
             # shipping the plug fields here in the CARIAD spelling, while this
             # parser reads them off the AIR-CONDITIONING endpoint under Skoda's
             # own names (``chargerConnectionState`` / ``chargerLockState``,
@@ -1775,10 +1775,12 @@ class SkodaClient(CariadBaseClient):
             # Deriving
             # ``plug_connected``/``connector_locked`` from "CONNECTED" and
             # "UNLOCKED" here would be inventing exactly the mapping that
-            # decision refuses. The fifteen bodies that were read do NOT settle
-            # the vocabulary either: across them each field shows exactly two
-            # values (CONNECTED/DISCONNECTED 7:8, LOCKED/UNLOCKED 4:11), and
-            # two values seen is not the same fact as two values existing.
+            # decision refuses. The thirty bodies that were read do NOT settle
+            # the vocabulary either: across all of them each field still shows
+            # exactly two values (CONNECTED/DISCONNECTED 12:18,
+            # LOCKED/UNLOCKED 6:23), and two values seen is not the same fact
+            # as two values existing. Thirty cars agreeing says what the
+            # backend sends today, not what the field may contain.
             #
             # ``plug_connected`` therefore keeps coming from the
             # air-conditioning block further down, off Skoda's own

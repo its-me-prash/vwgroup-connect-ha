@@ -2,14 +2,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """#1990 — Škoda started shipping the plug fields on the CHARGING endpoint.
 
-Seventeen Scout reports were filed between 12:44 and 15:12 on 2026-11-05, #1990
-through #2006 without a gap. Fifteen were still open and their bodies were read;
-the two the reporters had already closed themselves (#1995, #1998) were not, so
-every count below is over the fifteen that were read. One owner filed the same
-observation twice, three minutes apart, both bodies carrying the identical
-``Reported at``. What they report: ``status.plugConnectionState``,
-``status.plugLockState`` and — in one body — ``status.chargingErrorReason``,
-arriving with no reader on that endpoint, so the Scout called them unmapped.
+More than thirty Scout reports were filed on 2026-11-05, #1990 through #2021,
+from 12:44 until past 20:45. Thirty bodies were read; the only ones not read are
+the two their reporters had already closed (#1995, #1998), so every count below
+is over the thirty. One owner filed the same observation twice, three minutes
+apart, both bodies carrying the identical ``Reported at``. What they report:
+``status.plugConnectionState``, ``status.plugLockState`` and — in four of the
+thirty — ``status.chargingErrorReason``, arriving with no reader on that
+endpoint, so the Scout called them unmapped. The lower bound is deliberate: an
+exact count here was wrong three times in the course of that one evening.
 
 Nothing was broken. This parser reads the plug off the AIR-CONDITIONING endpoint
 under Škoda's own names (``chargerConnectionState`` / ``chargerLockState``) and
@@ -24,10 +25,10 @@ as plain strings with no enum, so the allowed values are not specified, and
 ``skoda_official.py`` deliberately hands the token to the entity layer instead
 of interpreting it. Deriving ``plug_connected`` from "CONNECTED" here would be
 inventing that mapping, so the tests below pin the absence of the boolean just
-as firmly as the presence of the string. The fifteen bodies that were read do
-not settle the vocabulary: across them each field shows exactly two values
-(CONNECTED/DISCONNECTED 7:8, LOCKED/UNLOCKED 4:11), and two values seen is not
-the same fact as two values existing.
+as firmly as the presence of the string. The thirty bodies that were read do
+not settle the vocabulary: across all of them each field still shows exactly two
+values (CONNECTED/DISCONNECTED 12:18, LOCKED/UNLOCKED 6:23), and two values seen
+is not the same fact as two values existing.
 
 The chain was measured end to end rather than assumed, because a token that
 misses by case costs the whole sensor (#1739): ``plug_state`` is an ENUM with

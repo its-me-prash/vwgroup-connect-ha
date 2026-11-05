@@ -85,17 +85,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Hinzugefügt / Added
 
 - **Škoda began shipping the plug fields on the charging endpoint, which had no
-  reader for them; they are read now (#1990).** Seventeen of these were filed
-  between 12:44 and 15:12 on 2026-11-05, #1990 through #2006 without a gap.
-  **Fifteen were still open and their bodies were read; the two the reporters
-  had already closed themselves (#1995, #1998) were not** — for those only the
-  titles speak, and both say `2 new field(s) on skoda`. Across the fifteen that
-  were read, every single one names exactly `status.plugConnectionState` and
-  `status.plugLockState` on the `charging` endpoint, and one (#1999) adds
-  `status.chargingErrorReason`, for which the Scout's own "spec field (official)"
-  column is blank. One backend change, then, rather than fifteen findings — one
-  owner even filed the same observation twice, three minutes apart, both bodies
-  carrying the identical `Reported at` of 12:41:46.
+  reader for them; they are read now (#1990).** **More than thirty** of these
+  were filed on 2026-11-05, #1990 through #2021, starting at 12:44 and still
+  arriving at 20:45. Thirty bodies were read — the only ones not read are two
+  that their reporters had already closed (#1995, #1998), and for those the
+  titles say `2 new field(s) on skoda` like the rest. The count is given as a
+  lower bound on purpose: an exact figure in this paragraph would have been
+  wrong three times over the course of that one evening.
+
+  Of the thirty bodies read, **every single one names only**
+  `status.plugConnectionState` and `status.plugLockState` on the `charging`
+  endpoint, with four of them adding `status.chargingErrorReason` (#1999,
+  #2011, #2017, #2020), for which the Scout's own "spec field (official)"
+  column is blank. Not one named a fourth field. So this is one backend change
+  rather than thirty findings — one owner even filed the same observation
+  twice, three minutes apart, both bodies carrying the identical `Reported at`
+  of 12:41:46. It is not confined to the EV models either: #2008 is a Kodiaq.
 
   **Nothing was broken.** This parser reads the plug off the *air-conditioning*
   endpoint under Škoda's own names (`chargerConnectionState` /
@@ -108,10 +113,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   **The raw token is passed through and no boolean is invented**, which is the
   #1286 decision for these two exact field names: the official spec declares
   both as plain strings with *no enum*, so the allowed values are not
-  specified. The fifteen bodies do not settle that either — across them each
-  field shows exactly two values (`CONNECTED`/`DISCONNECTED` 7:8,
-  `LOCKED`/`UNLOCKED` 4:11), and two values seen is not the same fact as two
-  values existing. `plug_connected` and `connector_locked` therefore keep
+  specified. Thirty bodies do not settle it either — across all of them each
+  field still shows exactly two values (`CONNECTED`/`DISCONNECTED` 12:18,
+  `LOCKED`/`UNLOCKED` 6:23, the one missing lock reading being #2008, which
+  sent only the connection state), and two values seen is not the same fact as
+  two values existing. Thirty cars agreeing is evidence about the backend's
+  current behaviour, not about what the field is allowed to contain. `plug_connected` and `connector_locked` therefore keep
   coming from the air-conditioning block, off a vocabulary that *is* known;
   a car whose ac block is silent gains the raw state and no boolean, which is
   the honest outcome rather than a guessed one. A test pins the absence of
