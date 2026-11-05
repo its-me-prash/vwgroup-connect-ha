@@ -49,8 +49,10 @@ def _load(pkg, file_path):
 
 
 _C = _REPO / "custom_components" / "vag_connect" / "cariad"
-sys.modules["c"] = types.ModuleType("c"); sys.modules["c"].__path__ = [str(_C)]
-sys.modules["c.auth"] = types.ModuleType("c.auth"); sys.modules["c.auth"].__path__ = [str(_C / "auth")]
+sys.modules["c"] = types.ModuleType("c")
+sys.modules["c"].__path__ = [str(_C)]
+sys.modules["c.auth"] = types.ModuleType("c.auth")
+sys.modules["c.auth"].__path__ = [str(_C / "auth")]
 _load("c.exceptions", _C / "exceptions.py")
 _models = _load("c.models", _C / "models.py")
 _idk = _load("c.auth.idk", _C / "auth" / "idk.py")

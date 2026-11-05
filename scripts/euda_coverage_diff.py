@@ -31,7 +31,7 @@ import argparse
 import ast
 import json
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent

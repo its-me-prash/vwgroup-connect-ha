@@ -309,8 +309,8 @@ def main() -> int:
                 file=sys.stderr,
             )
         print(
-            f"\n→ Next: open Bruno, select environment 'mbb.local', run "
-            f"'01_POST_token_exchange.bru'",
+            "\n→ Next: open Bruno, select environment 'mbb.local', run "
+            "'01_POST_token_exchange.bru'",
             file=sys.stderr,
         )
         print(
@@ -333,11 +333,11 @@ def main() -> int:
     print("\n" + "=" * 60)
     print("SUCCESS — Tokens received")
     print("=" * 60)
-    print(f"\nid_token (für mbb.local.bru → idk_id_token):")
+    print("\nid_token (für mbb.local.bru → idk_id_token):")
     print(f"\n{id_tok}\n")
-    print(f"access_token (CARIAD-side, NICHT MBB):")
+    print("access_token (CARIAD-side, NICHT MBB):")
     print(f"\n{access_tok[:60]}...{access_tok[-20:]}\n")
-    print(f"refresh_token (CARIAD-side, gilt 90 Tage):")
+    print("refresh_token (CARIAD-side, gilt 90 Tage):")
     print(f"\n{refresh_tok[:60]}...{refresh_tok[-20:]}\n")
     print("=" * 60)
     print("\nNext: paste id_token into Bruno mbb.local.bru → idk_id_token,")

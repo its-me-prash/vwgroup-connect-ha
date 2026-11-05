@@ -207,7 +207,7 @@ async def _run() -> int:
     print()
     print(f"Brand: {brand}")
     print(f"Account: {email}")
-    print(f"Authenticating against the manufacturer API...")
+    print("Authenticating against the manufacturer API...")
     print()
 
     async with aiohttp.ClientSession() as session:

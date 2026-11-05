@@ -32,8 +32,16 @@ jobs:
             mypy \
             homeassistant
 
+      # scripts/ is included deliberately, added 2026-11-06 together with the
+      # 22 findings it had accumulated. It was never excluded by configuration —
+      # there is no ruff config in this repo at all — it was simply never passed
+      # in, so nothing looked at 45 files. Cleaning them up without adding them
+      # here would have been pointless: the findings were the kind that
+      # accumulate one quick probe script at a time, so they would be back.
+      # The default rule set is small (E4/E7/E9 plus F), which is why this costs
+      # a probe script almost nothing.
       - name: Ruff Lint
-        run: ruff check custom_components/ tests/
+        run: ruff check custom_components/ tests/ scripts/
 
       - name: mypy strict
         run: |

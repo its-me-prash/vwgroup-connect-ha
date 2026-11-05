@@ -142,7 +142,7 @@ async def main(vin: str) -> int:
         # ── reads ────────────────────────────────────────────────────────────
         st, body = await _get(session, bearer, cid, uid,
                               f"{MAL}/api/rolesrights/operationlist/v3/vehicles/{V}")
-        svc_n, sub = "?", "?"
+        svc_n = "?"
         try:
             ops = json.loads(body).get("operationList", {})
             svc_n = len(ops.get("serviceInfo", []) or [])

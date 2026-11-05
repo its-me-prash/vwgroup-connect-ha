@@ -341,7 +341,7 @@ async def _run(email: str, password: str, mfa: str | None, brand_choice: str = "
         print(f"✗ IDK-Auth fehlgeschlagen: {exc}", file=sys.stderr)
         return 6
     except RuntimeError as exc:
-        print(f"\n└─ FAILURE ──────────────────────────────────────────────────────",
+        print("\n└─ FAILURE ──────────────────────────────────────────────────────",
               file=sys.stderr)
         print(f"\n✗ {exc}\n", file=sys.stderr)
         if "MBB token exchange" in str(exc):

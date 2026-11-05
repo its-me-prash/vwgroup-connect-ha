@@ -15,9 +15,14 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-import aiohttp
+# Die beiden Importe unten stehen absichtlich NICHT oben: sie brauchen den
+# sys.path-Eintrag von der Zeile darueber, sonst findet Python das Paket
+# custom_components nicht. Umsortieren waere hier kein Lint-Fix, sondern ein
+# Defekt - darum noqa mit Grund statt Verschieben.
 
-from custom_components.vag_connect.cariad.auth._eu_data_act import (
+import aiohttp  # noqa: E402 - nach dem sys.path.insert oben
+
+from custom_components.vag_connect.cariad.auth._eu_data_act import (  # noqa: E402
     EUDataActConnector,
     _safe_url,
 )

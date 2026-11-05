@@ -289,7 +289,7 @@ async def _run(email: str, password: str, pin: str, country: str, args_verbose: 
                     print(f"    ✗ {type(exc).__name__}: {exc}")
                     continue
                 _display_vehicle_data(vehicle_data)
-                print(f"    ✓ data retrieved")
+                print("    ✓ data retrieved")
 
     print("\n" + "-" * 68)
     print("Connection test finished OK.")
