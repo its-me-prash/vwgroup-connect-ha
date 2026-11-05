@@ -1746,6 +1746,51 @@ class SkodaClient(CariadBaseClient):
             d.charging_rate_kmh = v(c, "chargingRateInKilometersPerHour")
             # v3.0.2 (#1104) — screen the no-reading sentinel (see vw_eu).
             d.charging_type = drop_charge_sentinel(v(c, "chargeType"))
+
+            # Plug state on the CHARGING endpoint (#1990 and fourteen more,
+            # all 2026-11-05 between 12:44 and 14:46). Skoda began shipping
+            # the plug fields here in the CARIAD spelling, while this parser
+            # has always read them off the AIR-CONDITIONING endpoint under
+            # Skoda's own names (``chargerConnectionState`` /
+            # ``chargerLockState``, further down this method). Nothing was
+            # broken — the fields simply had no reader, so the Scout called
+            # them unmapped and fifteen owners filed the same report in two
+            # hours.
+            #
+            # The raw token goes onto the model and is NOT folded into a
+            # boolean here. That is the #1286 decision for these two exact
+            # field names, four days old at the time of writing: the official
+            # spec declares both as plain strings with **no enum**, so the
+            # allowed values are not specified, and ``skoda_official.py``
+            # (around its ChargingStatus block) deliberately passes the token
+            # through for the coordinator's ``normalize_enum_states`` to fold
+            # onto the sensor's declared options — where an unrecognised value
+            # becomes no value rather than a wrong one. Deriving
+            # ``plug_connected``/``connector_locked`` from "CONNECTED" and
+            # "UNLOCKED" here would be inventing exactly the mapping that
+            # decision refuses. The fifteen reports do NOT settle the
+            # vocabulary either: measured across them, each field shows
+            # exactly two values (CONNECTED/DISCONNECTED 7:8,
+            # LOCKED/UNLOCKED 4:11), and two values seen is not the same
+            # fact as two values existing.
+            #
+            # ``plug_connected`` therefore keeps coming from the
+            # air-conditioning block further down, off Skoda's own
+            # ``chargerConnectionState``, whose vocabulary IS known. Cars
+            # whose ac block is silent gain the raw state and no boolean,
+            # which is the honest outcome rather than a guessed one.
+            _plug = drop_charge_sentinel(v(c, "plugConnectionState"))
+            if isinstance(_plug, str) and _plug.strip():
+                d.plug_state = _plug
+            _plug_lock = drop_charge_sentinel(v(c, "plugLockState"))
+            if isinstance(_plug_lock, str) and _plug_lock.strip():
+                d.plug_lock_state = _plug_lock
+            # ``chargingErrorReason`` is not in #1286's scope and has no
+            # sibling anywhere else, so this is its only reader. Raw token
+            # again, same reasoning. Sample seen: "ERROR_CHARGING_SYSTEM".
+            _charge_err = drop_charge_sentinel(v(c, "chargingErrorReason"))
+            if isinstance(_charge_err, str) and _charge_err.strip():
+                d.charging_error_code = _charge_err
             fully_at = v(c, "fullyChargedAt")
             if isinstance(fully_at, str):
                 try:

@@ -46,6 +46,45 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **Škoda began shipping the plug fields on the charging endpoint, where
+  nothing read them; they are read now (#1990).** Seventeen owners filed the
+  same report between 12:44 and 15:12 on 2026-11-05 — #1990 through #2006,
+  across Elroq, Enyaq, Superb, Octavia and one unnamed car, one reporter twice
+  three minutes apart. Measured across all seventeen bodies rather than read
+  off the first: every one of them names exactly `status.plugConnectionState`
+  and `status.plugLockState` on the `charging` endpoint, and one (#1999) adds
+  `status.chargingErrorReason`, which the official spec does not list at all.
+  So the seventeen reports are one backend change, not seventeen findings.
+
+  **Nothing was broken.** This parser has always read the plug off the
+  *air-conditioning* endpoint under Škoda's own names
+  (`chargerConnectionState` / `chargerLockState`); the backend simply started
+  offering the CARIAD spelling on the charging endpoint as well, where no
+  reader existed — so the Vehicle Data Scout correctly called it unmapped.
+
+  **The raw token is passed through and no boolean is invented**, which is the
+  #1286 decision for these two exact field names: the official spec declares
+  both as plain strings with *no enum*, so the allowed values are not
+  specified. The seventeen reports do not settle that either — each field
+  shows exactly two values across them (`CONNECTED`/`DISCONNECTED` 7:8,
+  `LOCKED`/`UNLOCKED` 4:11), and two values seen is not the same fact as two
+  values existing. `plug_connected` and `connector_locked` therefore keep
+  coming from the air-conditioning block, off a vocabulary that *is* known;
+  a car whose ac block is silent gains the raw state and no boolean, which is
+  the honest outcome rather than a guessed one. A test pins the absence of
+  those booleans as firmly as the presence of the strings.
+
+  The delivery chain was measured end to end instead of assumed, because a
+  token that misses by case costs the whole sensor (#1739): `plug_state` is an
+  enum with the lower-case options `connected` / `disconnected`,
+  `normalize_enum_states` folds with `.strip().lower()`, and it runs on both
+  paths that reach the entities — the poll and the cache restore. `CONNECTED`
+  therefore lands as `connected` rather than being folded to nothing.
+  `plug_lock_state` and `charging_error_code` declare no options, so their
+  token passes through as-is; both are diagnostic and off by default.
+
 ## [5.2.3] - 2026-11-04 — Rounded where we said it was / Gerundet, wo wir es behauptet haben
 
 The stable release that gathers 5.2.3b1. The headline is that three places
