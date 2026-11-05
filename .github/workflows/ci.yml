@@ -11,7 +11,14 @@ jobs:
     name: Lint & Validate
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 is required by the GPS gate below, which asks what a
+      # change ADDS and therefore needs a baseline to diff against. The default
+      # shallow checkout has neither history nor origin/main, and the gate is
+      # deliberately loud about a missing baseline rather than permissive — so
+      # without this it would fail every run instead of passing silently.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Python 3.14 einrichten
         uses: actions/setup-python@v7
@@ -80,6 +87,44 @@ jobs:
       # protect a fork PR at all.
       - name: Keine echten VINs im Repo
         run: python3 scripts/check_no_real_vins.py
+
+      # The same rule for coordinates, which CONTRIBUTING.md forbids beyond one
+      # decimal. It runs with --base rather than as an audit because the tracked
+      # tree holds 13 pairs that are deliberate — public landmarks used as test
+      # inputs, named in the script's docstring. An audit run would fail on
+      # those every time, and a required check that always fails gets deleted,
+      # so this one gates what a change ADDS. Measured before wiring it: replayed
+      # over the last 120 main commits against their real parents it would have
+      # refused 0 of them, which is the number that decides whether a gate may
+      # be required at all.
+      #
+      # The base differs by event, and that is not cosmetic. On a pull request
+      # the merge base with main is the right comparison. On a direct push to
+      # main, origin/main IS the new HEAD, so merge-base would return HEAD, the
+      # diff would be empty and the gate would pass on anything — a gate that
+      # does not gate. The pushed-from commit is the only honest baseline there.
+      #
+      # Refs go through the environment instead of ${{ }} in the script body:
+      # on a fork they are attacker-controlled and would otherwise be spliced
+      # straight into the shell.
+      - name: Keine präzisen GPS-Koordinaten in neuen Zeilen
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "push" ]; then
+            BASE="$PUSH_BEFORE"
+            if [ -z "$BASE" ] \
+               || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+               || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+              echo "Vorgänger-SHA des Push nicht nutzbar — vergleiche HEAD~1."
+              BASE="HEAD~1"
+            fi
+          else
+            BASE="origin/main"
+          fi
+          echo "Basis: $BASE"
+          python3 scripts/check_no_precise_gps.py --base "$BASE"
 
       - name: CHANGELOG.md enthält aktuelle Version
         run: |

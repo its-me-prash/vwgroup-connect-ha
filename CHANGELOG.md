@@ -46,6 +46,66 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Sicherheit / Security
+
+- **The coordinate guard was written, tested and invoked by nothing; it is a
+  required check now (#1378).** `scripts/check_no_precise_gps.py` has existed
+  since 2026-11-04, enforcing the rule in CONTRIBUTING.md that forbids a
+  coordinate beyond one decimal anywhere in the repo. Its only reader was its
+  own unit test. The reason it was never wired is worth recording, because it
+  is not laziness: its sibling `check_no_real_vins.py` runs in `ci.yml` as a
+  whole-tree audit, which works because the VIN tree scans clean — while this
+  tree holds **13** deliberate pairs (public landmarks used as test inputs,
+  named in the script's docstring), so an audit run fails on every commit, and
+  a required check that always fails gets deleted rather than fixed.
+
+  So it runs in its `--base` form, which asks only what a change **adds**. A
+  guard that refuses legitimate work gets switched off, so whether it does was
+  measured rather than assumed, in the shape the changelog gate's own history
+  demanded: replayed over `main` commit by commit, each against its real parent,
+  driven by the script's own predicates rather than a re-implementation.
+
+  | window | commits | would have been refused |
+  |---|---|---|
+  | since 2026-10-20 | 120 | **0** |
+  | since 2026-08-25 | 700 | **8** — of which 4 are merge commits |
+
+  The 700-commit figure is given because quoting only the first would be a
+  chosen window. Four of the eight are merge commits, and those are an artefact
+  of the replay rather than gate behaviour: it diffs a merge against its *first*
+  parent and so sees the other branch's additions, which neither of the real
+  baselines does — a pull request is judged against its merge base and a push
+  against the commit it came from. The remaining four are ordinary commits from
+  2026-08-26 and 2026-09-08/09, and each one added a public-landmark coordinate
+  to a test fixture; between them they are how most of the 13-pair baseline
+  entered the tree. Nothing in the two months since would have been refused.
+
+  Those four are also what a future false positive looks like, and the cost is
+  the one the script's docstring already accepts: a fixture whose value is
+  arbitrary needs a marker word or rounder digits, one line, against a false
+  negative that publishes where a stranger parks.
+
+  Two ways this could have been wired and quietly protected nothing, both now
+  held by a test that fails if it is undone:
+
+  * **A shallow checkout.** `actions/checkout` defaults to depth 1, with no
+    history and no `origin/main`, so there is nothing to diff against. The job
+    now sets `fetch-depth: 0`.
+  * **A direct push comparing `main` against itself.** On a push, `origin/main`
+    *is* the new `HEAD`, so the merge base is `HEAD`, the diff is empty and the
+    gate accepts any coordinate. The step therefore uses the commit the branch
+    pointed at before the push on a push event, and the merge base with `main`
+    on a pull request.
+
+  Each of the four wiring assertions was proven by breaking the workflow in
+  exactly its own way and watching that one test go red. One of them did not:
+  the shallow-checkout test asserted `fetch-depth: 0` appeared anywhere in the
+  job and passed with the setting deleted, because the explanatory comment above
+  the checkout names the setting itself. **The test was satisfied by its own
+  documentation.** It now ignores comment lines, and the episode is recorded in
+  its docstring rather than tidied away, because a presence check that its own
+  prose can satisfy is not a rare mistake.
+
 ### Behoben / Fixed
 
 - **PRIVACY.md still told you the GPS-precision fix was unreleased, a day after
