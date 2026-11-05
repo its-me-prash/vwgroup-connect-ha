@@ -38,6 +38,7 @@ import os
 import re
 import sys
 import urllib.request
+from typing import TypedDict
 from pathlib import Path
 
 URL = "https://eu-data-act.drivesomethinggreater.com/content/euda/de/de/service/data-dictionary"
@@ -54,7 +55,21 @@ def _fetch(url: str) -> str:
 _DAM = "https://eu-data-act.drivesomethinggreater.com/content/dam/datahub/pdf/data-dictionary"
 
 
-def _signals(html: str) -> dict[str, object]:
+class _Signals(TypedDict):
+    """Was _signals liefert, praezise statt dict[str, object].
+
+    Der lose Typ hat vier mypy-Befunde erzeugt, sobald scripts/ am
+    06.11.2026 in die Typpruefung kam: ein `object` ist nicht indizierbar
+    und hat kein .get(). Die Felder sind JSON-serialisierbar, der Typ
+    aendert also nichts am Schreiben der Sperrdatei.
+    """
+
+    svk_versions: list[str]
+    download_urls: dict[str, str]
+    page_sha256: str
+
+
+def _signals(html: str) -> _Signals:
     # The AEM page embeds the DAM asset name (date-prefix + version), e.g.
     # ``251022_01_SVK_DataDictionary_V4.0_Continous_Data.pdf`` — and that DAM
     # asset is publicly downloadable (verified: HTTP 200, application/pdf, no
@@ -84,7 +99,7 @@ def _signals(html: str) -> dict[str, object]:
 
 
 def _classify(
-    now: dict[str, object], base: dict[str, object]
+    now: _Signals, base: dict[str, object]
 ) -> tuple[bool, list[str], list[str]]:
     """Split the signals into what warrants a PR vs. what is merely informational.
 

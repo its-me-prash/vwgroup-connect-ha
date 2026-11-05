@@ -219,6 +219,15 @@ async def _host_discovery(
     )
 
     aud_str = _mbb_aud(id_token)
+    if aud_str is None:
+        # Not just a typing nicety. Without this, `cid` stays None through
+        # `cid = reg_cid or aud_str` and every probe below sends None as the
+        # X-Client-Id header value. Refusing here is also what #464 asks for:
+        # the harness must not fall back to aud[0], because that pins something
+        # production never pins and the resulting 403 says nothing.
+        print("    [!] this id_token carries no MBB delivery audience, so there "
+              "is nothing to pin register/exchange to. Nothing to probe.")
+        return
     # Mint with retries — this sandbox has flaky DNS to the vwg-connect hosts;
     # a transient timeout must not abort the whole (browser-confirmed) run.
     mbb = None

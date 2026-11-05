@@ -780,6 +780,11 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     findings = None
                 if findings:
+                    # should_extract above contains `and current`, so this
+                    # branch cannot be reached with current=None. mypy
+                    # cannot follow the narrowing through that intermediate
+                    # boolean, so the invariant is stated here.
+                    assert current is not None
                     _save_apk_findings(brand, findings, current)
                     _LOGGER.info("Brand %s: APK extraction OK — %d headers, %d hosts found",
                                  brand, len(findings.get("headers", [])),

@@ -142,7 +142,9 @@ async def main(vin: str) -> int:
         # ── reads ────────────────────────────────────────────────────────────
         st, body = await _get(session, bearer, cid, uid,
                               f"{MAL}/api/rolesrights/operationlist/v3/vehicles/{V}")
-        svc_n = "?"
+        # int ODER "?": der Platzhalter steht, bis der Parse unten
+        # gelingt, und dann ist es eine Anzahl.
+        svc_n: int | str = "?"
         try:
             ops = json.loads(body).get("operationList", {})
             svc_n = len(ops.get("serviceInfo", []) or [])

@@ -52,6 +52,28 @@ jobs:
             --warn-return-any \
             --no-error-summary
 
+      # scripts/ gets mypy too, added 2026-11-06, but NOT with the strict flags
+      # above — and that difference is measured, not a shrug. With
+      # --disallow-untyped-defs/--warn-return-any the 45 probe scripts produce
+      # 55 findings, every single one of them no-untyped-def (36) or
+      # no-any-return (19): annotation pressure, not one type defect. Without
+      # them the count is 0, and the run still catches the classes that matter.
+      # It had caught three real defects within the hour it was first run:
+      #   * vwde_masterdata_probe.py imported two constants removed from
+      #     _website_authproxy on 2026-09-09, so it died on ImportError the
+      #     moment main() ran — unnoticed for two months;
+      #   * test_vw_ca_connection.py read exc.headers/exc.body off an exception
+      #     that carries neither, i.e. AttributeError inside the error handler,
+      #     on the failure path only;
+      #   * get_idk_token.py declared `-> int` while returning three tokens.
+      # Demanding full annotations on throwaway probe scripts would buy nothing
+      # on top of that and would get this step deleted the first busy evening.
+      - name: mypy auf scripts/
+        run: |
+          mypy scripts/ \
+            --ignore-missing-imports \
+            --no-error-summary
+
       - name: manifest.json validieren
         run: |
           python3 -c "

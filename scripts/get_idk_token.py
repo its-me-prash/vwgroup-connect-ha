@@ -129,7 +129,14 @@ _BRANDS = {
 }
 
 
-async def _run(brand_key: str, email: str, password: str, mfa: str | None) -> int:
+async def _run(
+    brand_key: str, email: str, password: str, mfa: str | None,
+) -> int | tuple[str, str, str]:
+    # The annotation said `-> int` while the success path returns the three
+    # tokens; the int returns are the failure exit codes. main() has always
+    # handled both (`if isinstance(result, int): return result`), so the code
+    # was right and only the annotation was wrong. Found when scripts/ was
+    # added to the type check on 2026-11-06.
     brand = _BRANDS[brand_key]
     # mbb_mode (hybrid flow) was tried first but produced id_tokens that MBB
     # also rejected — turns out the issue is SCOPE: the id_token must be

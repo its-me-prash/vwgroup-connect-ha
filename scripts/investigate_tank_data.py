@@ -17,6 +17,7 @@ Tests:
 from __future__ import annotations
 
 import asyncio
+import io
 import getpass
 import importlib.util
 import json
@@ -26,7 +27,13 @@ from pathlib import Path
 
 import aiohttp
 
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+# Die isinstance-Pruefung ist nicht nur fuer den Typpruefer: sys.stdout ist
+# als TextIO typisiert und hat dort kein reconfigure(), und die Methode
+# fehlt wirklich, sobald der Strom ersetzt ist - unter pytest-Capture oder
+# durch einen Wrapper in einer CI-Umgebung. Der nackte Aufruf wuerde dann
+# AttributeError werfen, bevor das Skript ueberhaupt etwas ausgegeben hat.
+if (sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8"
+        and isinstance(sys.stdout, io.TextIOWrapper)):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 _REPO = Path(__file__).resolve().parent.parent

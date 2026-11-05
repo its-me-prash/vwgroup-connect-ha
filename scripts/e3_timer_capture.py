@@ -39,7 +39,12 @@ import re
 try:
     from mitmproxy import http
 except Exception:  # noqa: BLE001
-    http = None  # allows `python scripts/e3_timer_capture.py` to print help
+    # Der Import oben typisiert `http` als Modul; None ist der bewusste
+    # Fallback, damit das Skript ohne mitmproxy noch seine Hilfe ausgibt.
+    # Die Unterdrueckung steht AM AUFRUF, nicht als eigene Zeile: eine
+    # Kommentarzeile, die mit type: ignore beginnt, liest mypy als
+    # Datei-Direktive und lehnt sie mit [syntax] ab.
+    http = None  # type: ignore[assignment]
 
 # Path fragments that identify a timer / departure request.
 _TIMER_HINTS = (

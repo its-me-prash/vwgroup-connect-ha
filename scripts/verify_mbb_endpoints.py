@@ -12,15 +12,23 @@ by the actual data endpoints (not just the OAuth one).
 from __future__ import annotations
 
 import asyncio
+import io
 import sys
 from pathlib import Path
 
 import aiohttp
 
-# Force UTF-8 output on Windows (default cp1252 chokes on ✓ ✗ box-drawing)
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+# Force UTF-8 output on Windows (default cp1252 chokes on ✓ ✗ box-drawing).
+# The isinstance check is not only for the type checker: sys.stdout is typed
+# TextIO, which has no reconfigure(), and the method really is absent when the
+# stream has been replaced — under pytest capture, or by a wrapper in a CI
+# harness. The bare call would then raise AttributeError before the script has
+# printed anything at all.
+if (sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8"
+        and isinstance(sys.stdout, io.TextIOWrapper)):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
+if (sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8"
+        and isinstance(sys.stderr, io.TextIOWrapper)):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 

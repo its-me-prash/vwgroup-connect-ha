@@ -76,9 +76,22 @@ async def main(email: str) -> int:
     from custom_components.vag_connect.cariad import _authproxy as ap
     from custom_components.vag_connect.cariad.auth._website_authproxy import (
         WebsiteAuthProxyConnector,
-        _CHARGING_PATH,
-        _MAINTENANCE_PATH,
         _SITE_BASE,
+    )
+
+    # _CHARGING_PATH und _MAINTENANCE_PATH wurden am 09.09.2026 in
+    # 20e07846 aus _website_authproxy entfernt (der #1357-Fix stellte
+    # charging/maintenance auf gdc + resourceHost um). Dieses Skript
+    # importierte sie weiter und stirbt seitdem an diesem ImportError,
+    # sobald main() laeuft - zwei Monate unbemerkt, weil
+    # scripts/ bis zum 06.11.2026 in keiner Pruefung lag. Die Werte sind
+    # aus 20e07846^ uebernommen, nicht geraten; die Probe fragt die
+    # Pfade absichtlich OHNE gdc ab, denn genau das ist ihr Zweck.
+    _CHARGING_PATH = (
+        "/app/authproxy/vwag-weconnect/proxy/vehicles/{vin}/charging/status"
+    )
+    _MAINTENANCE_PATH = (
+        "/app/authproxy/vw-de/proxy/vehicles/{vin}/maintenance/status"
     )
 
     password = getpass.getpass("volkswagen.de password (hidden): ")
