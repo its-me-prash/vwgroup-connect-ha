@@ -108,6 +108,50 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **The Charging Port sensor died on 5.2.3 for Škoda cars with an EU-Data-Act
+  export, and the guard that was supposed to prevent it covered two paths out of
+  six (#2030, @Kaputnixx).** Home Assistant refuses an enum entity outright when
+  it receives a value outside its options — it does not degrade it to
+  unavailable. So an upper-case `DISCONNECTED` reaching a sensor whose options
+  are `connected` / `disconnected` cost the whole entity, and logged a
+  `ValueError` on **every** update: 112 of them in 22 hours at the reporter's
+  12-minute scan interval.
+
+  **The path, which the reporter deduced from the symptom before anyone read the
+  code.** He had already checked that `normalize_enum_states` exists and is
+  called in the enrichment step and in the cache restore, and concluded that
+  *some other path* must be handing the entity the raw value. It does:
+  `_poll_loop` calls `_advance_historical_exports` on every iteration, which
+  imports a pending EU-Data-Act export, writes the parsed snapshot straight into
+  `self.vehicles[vin]` — or gap-fills the current one from it — and pushes with
+  `async_set_updated_data(dict(self.vehicles))`, bypassing both the enrichment
+  step and `_async_push_update`. The export dialect carries `plug_state` and
+  publishes the verbose upper-case token. That is also why reloading fixed it
+  until the next poll: the restore path folds, the export path did not.
+
+  **Why #1739's guard missed it, which is the part worth keeping.** That fix put
+  the fold in two places and its test asserts the call is present in both — while
+  its docstring claims "EVERY path that reaches the platforms". It checked the
+  paths it *named* instead of enumerating the paths that *exist*, so a third one
+  was invisible to it. There were six `async_set_updated_data` call sites and
+  four pushed `dict(self.vehicles)` with nothing in between.
+
+  So the fold moves to the one place every path must pass: an override of
+  `async_set_updated_data` on the coordinator. A seventh call site added next
+  year inherits it without anyone remembering. It folds in place on a shallow
+  copy, so the stored snapshot is cleaned too and the raw token is not persisted
+  and restored later; folding an already-folded value is a no-op, so the paths
+  that normalise earlier are unaffected.
+
+  Proven against two mutants rather than asserted: removing the fold fails four
+  behaviour tests, and reversing fold and delegation fails the order test. **The
+  order test was vacuous on its first attempt** — it compared string positions in
+  a dump of the function body, and the override's own docstring mentions
+  `normalize_enum_states`, so the fold always appeared to come first whatever the
+  code did. It now compares statement indices with the docstring dropped. Recorded
+  rather than tidied away, because that is the second time in two days that a
+  check was satisfied by its own prose.
+
 - **PRIVACY.md still told you the GPS-precision fix was unreleased, a day after
   it shipped — and a test now holds that sentence so it cannot happen again
   (#1378).** In two places the privacy document said the defect was "fixed in

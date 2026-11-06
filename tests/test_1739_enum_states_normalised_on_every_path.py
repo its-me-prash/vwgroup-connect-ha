@@ -18,6 +18,22 @@ lined up to allow it, and each one is pinned by a test here:
 
 Point 2 is the one that actually broke his car, and it is the one a
 ``plug_state``-shaped test would have missed entirely.
+
+**Correction, 2026-11-06 (#2030).** The title of this file and the first line of
+this docstring claim "EVERY path". That was not true, and this file could not
+have found out: it asserts the fold is present at the two paths it *names*,
+without ever enumerating the paths that exist. There were six
+``async_set_updated_data`` call sites in the coordinator, four of them pushing
+``dict(self.vehicles)`` with no enrichment — and one of those four runs on a
+timer, so @Kaputnixx watched his Charging Port entity die 112 times in 22 hours
+on 5.2.3 while this file was green.
+
+The fold now lives in a single override of ``async_set_updated_data``, which
+every path must pass, and the structural guarantee — "no site can bypass it",
+proven by enumerating the call sites from the parse tree — is in
+``test_2030_enum_fold_at_the_choke_point.py``. The two assertions below stay:
+they still document where the fold used to be needed, and the enrichment and
+restore paths still call it directly.
 """
 
 from __future__ import annotations

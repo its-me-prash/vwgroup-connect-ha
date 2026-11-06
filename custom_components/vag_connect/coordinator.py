@@ -7555,6 +7555,46 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             parsed.get("active_charging_profile_name", "none"),
         )
 
+    def async_set_updated_data(self, data: Any) -> None:
+        """Fold every enum value onto its options before HA sees the data.
+
+        **#2030 (@Kaputnixx) — the third path.** #1739 put the fold in two
+        places, the enrichment step and the cache restore, and its test asserts
+        the call is present in both. The docstring of that test claims "EVERY
+        path that reaches the platforms", and the claim was wrong: it checks the
+        two paths it knows rather than enumerating the paths that exist. There
+        are **six** ``async_set_updated_data`` call sites in this module, and
+        four of them push ``dict(self.vehicles)`` without enriching.
+
+        One of those four runs on a timer. ``_poll_loop`` calls
+        ``_advance_historical_exports`` on every iteration; that imports a
+        pending EU-Data-Act export, writes the parsed snapshot straight into
+        ``self.vehicles[vin]`` (or gap-fills the current one from it) and pushes.
+        The export dialect carries ``plug_state`` and publishes the verbose
+        upper-case token, so a Škoda on 5.2.3 got ``'DISCONNECTED'`` handed to a
+        sensor whose options are lower-case — 112 ValueErrors in 22 hours at the
+        reporter's 12-minute scan interval, the Charging Port entity dead, and a
+        reload fixing it only until the next poll. He deduced the existence of
+        this path from the symptom before anyone read the code.
+
+        So the fold moves to the one place every path must pass instead of being
+        repeated at each producer. That is the difference between a guard that
+        covers the sites someone remembered and a guard that cannot be bypassed:
+        a seventh call site added next year inherits it for free.
+
+        ``normalize_enum_states`` mutates in place, and the pushes pass a
+        *shallow* copy of ``self.vehicles``, so the stored snapshot is cleaned
+        too rather than only the copy on its way out — which is what stops the
+        raw token from being written back to disk and restored later. Folding an
+        already-folded value is a no-op, so the paths that normalise earlier are
+        unaffected.
+        """
+        if isinstance(data, dict):
+            for vehicle in data.values():
+                if isinstance(vehicle, dict):
+                    normalize_enum_states(vehicle)
+        super().async_set_updated_data(data)
+
     async def _async_push_update(self, data: dict, success: bool = True) -> None:
         """Push vehicle data to HA.
 
