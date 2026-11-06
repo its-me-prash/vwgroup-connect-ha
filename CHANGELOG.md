@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
+
 ### Behoben / Fixed
 
 - **The empty-screen-dump error guessed at the cause and threw away the answer
