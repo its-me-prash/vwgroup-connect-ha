@@ -161,7 +161,11 @@ def test_a_frozen_feed_does_not_look_like_a_fresh_drop_every_poll() -> None:
 
     # A real drop lands minutes later and does count.
     assert _drop_anchor_advanced(base, base + timedelta(minutes=15)) is True
-    # The first anchor of an entry's life counts, so the budget starts full.
+    # With no previous anchor at all, the first one counts and the budget starts
+    # full. The predicate is unchanged by #1850's second round; what changed is
+    # that "no previous anchor" now means what it says — the high-water mark is
+    # persisted, so it is None only on an entry that has genuinely never
+    # captured anything, not after every restart.
     assert _drop_anchor_advanced(None, base) is True
     # No capture at all is not a drop.
     assert _drop_anchor_advanced(base, None) is False
@@ -207,14 +211,25 @@ def test_the_poll_loop_actually_feeds_the_streak_in() -> None:
     # with them swapped, and swapped they turn the predicate inside out: the
     # recovery case (a feed delivering again, one drop late) would then keep
     # standing down instead of resuming the alignment.
+    #
+    # CHANGED for #1850's second round: the first argument used to be
+    # ``_prev_anchor``, the previous poll's anchor. That field was reset to None
+    # by every Home Assistant restart, which refilled the budget on every
+    # restart — the whole of the second round. It is now the persisted
+    # high-water mark. The predicate itself is untouched; only what is handed to
+    # it as "previous" changed. Rationale and the measurement that rules out
+    # simply persisting the old field are in
+    # ``test_1850b_drop_state_survives_restart.py``.
     assert any(
-        "_drop_anchor_advanced(_prev_anchor, _cap_anchor)" in ln for ln in window
+        "_drop_anchor_advanced(self._drop_anchor_high_water, _cap_anchor)" in ln
+        for ln in window
     ), window
 
-    # The one line that makes the streak a streak. Deleting it leaves
-    # _drop_anchor_seen at its __init__ value of None forever, so
-    # _drop_anchor_advanced(None, anything) is True on every poll, the streak
-    # resets every poll, and #1850 is back in full — with every other test in
-    # this file, and the rest of the suite, still green. Measured: the suite
-    # passes with that single line removed.
-    assert any("self._drop_anchor_seen = _cap_anchor" in ln for ln in window), window
+    # The one line that makes the streak a streak. Deleting it leaves the mark
+    # at its restored value (or at None on a new entry), so the predicate reads
+    # "advanced" on every poll, the streak resets every poll, and #1850 is back
+    # in full — with every other test in this file, and the rest of the suite,
+    # still green. Measured for the previous form of this line: the suite passes
+    # with it removed.
+    assert any("self._drop_anchor_high_water = _cap_anchor" in ln
+               for ln in window), window
