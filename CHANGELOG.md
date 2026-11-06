@@ -48,6 +48,50 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **The empty-screen-dump error guessed at the cause and threw away the answer
+  (#1913, @stephanlasso).** His phone was awake, unlocked and showing the app,
+  and the Companion read still got no screen dump. The message offered three
+  causes — asleep, not in the foreground, secured screen — and he had ruled out
+  all three. Two defects, both in one line of shell:
+
+  **It omitted the cause the code itself documents.** `uiautomator dump` gives
+  up when the phone's UI does not go **idle**, and a single animation or a
+  transient toast is enough. The comment saying so sits twenty lines above the
+  message that did not mention it. On a phone that is awake, unlocked and in the
+  app, that is the only candidate the other three leave out — and it matches the
+  animated-advert case traced on #968. The message now names it.
+
+  **And it discarded the reason.** `uiautomator dump` prints its status,
+  including *why* it gave up, to stdout; the command sent that to `/dev/null`
+  and read the dump file instead. So in the one case where the reason is
+  printed, it was thrown away and then guessed at. The status now goes to its
+  own file and is read back only after the dump has failed twice, and it is
+  quoted in the error.
+
+  Its own file rather than the same stdout, deliberately: merging them would put
+  a status line in front of the XML on the **success** path, and that path feeds
+  a parser. The successful output is byte-identical to before, and the extra
+  round trip lands only where the read was already failing and already sleeping
+  for its retry. The `rm` that stops a failed dump returning the previous run's
+  XML now covers the status file too, or a stale reason would be reported as
+  this run's.
+
+  The status is cut to its first line and 120 characters. `_redact` caps the
+  whole exception message at 500, so an unbounded status — uiautomator can
+  answer with a Java stack trace — would push the message that matters out of
+  the record; the same reasoning the error reporter already applies to an HTTP
+  response body. It is **not** logged: `_redact` strips VINs, e-mails, JWTs,
+  UUIDs and tokens from the exception message, which is what makes it safe to
+  publish, and `_LOGGER` has no such filter.
+
+  One earlier test counted every shell call to pin "one retry, not a loop". The
+  status read is not a retry, so that count now measures the dump command and
+  asserts the status is read exactly once; the intent is unchanged. Seven
+  mutations of the new code were seeded and all seven are caught.
+
+  Also corrected publicly in the thread: my first reply called the message
+  "already the diagnosis rather than a symptom". It was not — it was three
+  guesses.
 - **A Home Assistant restart handed the drop-retry budget back, so every restart
   produced three fast polls (#1850, @indigomejor).** He measured it on a parked
   Škoda Octavia: four restarts, each with the same sequence — startup poll, one
