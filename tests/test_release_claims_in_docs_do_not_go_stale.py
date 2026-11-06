@@ -360,29 +360,34 @@ def test_a_caution_without_a_reference_is_itself_the_finding(
 def test_a_false_all_clear_is_caught(
     changelog: tuple[dict[str, str], list[str], set[str]]
 ) -> None:
-    """The dangerous direction, driven by real data.
+    """The dangerous direction, on a synthetic index.
 
-    The fixture needs a reference the changelog knows but no release carries —
-    #1990 is one as this is written, being brand new in the `[Unreleased]` block.
-    The reference is looked up rather than hard-coded, so when it eventually
-    ships the control picks another pending one; and if nothing is pending at all
-    it says so instead of passing on an empty set.
+    **This control used to read the live changelog**, picking a reference it knew
+    but no release carried — which worked only while something sat in the
+    `[Unreleased]` block. Cutting 5.2.4 emptied that block, every referenced
+    issue moved into a released section, and the control failed with its own
+    "cannot be exercised on an empty set" message. It was right to refuse, and
+    the flaw was mine: a control must not depend on a *transient* property of
+    the repository, or it goes red at every release boundary and gets deleted
+    for being flaky rather than fixed for being wrong.
+
+    So the index is built here. The detector is exercised identically and the
+    live documents are still covered by the parametrized test above.
     """
-    shipped, headings, known = changelog
-    pending_only = sorted(known - set(shipped))
-    assert pending_only, (
-        "every issue CHANGELOG.md references now appears in some release, so "
-        "this control cannot be exercised. Point it at a pending reference or "
-        "remove it — do not leave it passing on an empty set."
-    )
-    ref = pending_only[0]
-    released = [h for h in headings if h != _UNRELEASED_LABEL]
-    text = f"The leak is fixed as of {released[0]} ([#{ref}](x))."
+    shipped = {"1378": "5.2.3"}          # knows it, and it shipped
+    known = {"1378", "9999"}             # 9999 is referenced but in no release
+    headings = [_UNRELEASED_LABEL, "5.2.3", "5.2.2"]
+
+    text = "The leak is fixed as of 5.2.3 ([#9999](x))."
     problems = audit(text, shipped, headings, known)
     assert any("false all-clear" in p for p in problems), (
-        f"claiming #{ref} shipped in {released[0]} was not reported. "
-        f"Problems: {problems}"
+        "claiming a pending issue shipped in a released version was not "
+        f"reported. Problems: {problems}"
     )
+
+    # Negative half, same index: a reference that DID ship must stay quiet.
+    ok = audit("The leak is fixed as of 5.2.3 ([#1378](x)).", shipped, headings, known)
+    assert not ok, f"a truthful all-clear was reported as a problem: {ok}"
 
 
 def test_a_version_that_was_never_released_is_caught(
