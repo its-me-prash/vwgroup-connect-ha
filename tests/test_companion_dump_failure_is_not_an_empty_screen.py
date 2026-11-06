@@ -163,7 +163,18 @@ def test_two_empty_dumps_raise_and_the_message_says_it_tried_twice() -> None:
     assert "twice" in text
     # The diagnosis the old message carried is the useful half; keep it.
     assert "asleep" in text
-    assert len(phone.calls) == 2, "exactly one retry, not a loop"
+    # Counted on the DUMP command, not on every shell call. #1913 added one
+    # further call on this path — reading uiautomator's own status, which used
+    # to go to /dev/null — and that is not a retry. A plain call count made
+    # this fail for the wrong reason: the intent here is "one retry, not a
+    # loop", and that intent is unchanged.
+    dumps = [c for c in phone.calls if "uiautomator dump" in c]
+    assert len(dumps) == 2, f"exactly one retry, not a loop: {phone.calls}"
+    status_reads = [c for c in phone.calls
+                    if c.strip().startswith("cat /sdcard/vag_connect_ui.status")]
+    assert len(status_reads) == 1, (
+        f"the reason is read exactly once, after the retry: {phone.calls}"
+    )
 
 
 def test_a_shell_that_raises_is_not_retried() -> None:
