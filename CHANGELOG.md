@@ -92,6 +92,54 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   Also corrected publicly in the thread: my first reply called the message
   "already the diagnosis rather than a symptom". It was not — it was three
   guesses.
+- **A Home Assistant restart handed the drop-retry budget back, so every restart
+  produced three fast polls (#1850, @indigomejor).** He measured it on a parked
+  Škoda Octavia: four restarts, each with the same sequence — startup poll, one
+  poll at the configured interval, then exactly three at the 180 s floor, then
+  the stand-down — and his debug log showing the **same** capture anchor on every
+  poll of the burst. His control is what isolated the trigger: without a restart
+  the slow poll still appears about every six hours and no burst follows, because
+  by then the streak is already spent.
+
+  The budget itself works, and he confirmed that on a real drive. What it did not
+  survive was a restart: the newest capture time, the anchor the last decision
+  compared against, and the overdue streak were all set in `__init__` and written
+  nowhere. The predicate then read "no memory yet" as "a drop landed" — and the
+  test pinning that behaviour records why it looked right at the time: *"The
+  first anchor of an entry's life counts, so the budget starts full."* The
+  premise holds. The word that was wrong is **life**: with nothing persisted,
+  "an entry's life" meant "since the last restart".
+
+  Both halves now live in the per-entry vehicle cache, which already survived a
+  restart. The anchor became a **high-water mark** — the newest capture ever
+  seen, monotone and never cleared — because persisting the old field would not
+  have fixed this, and that is measured rather than assumed: the first poll after
+  a restart has not read the portal yet, so it wrote `None` over the restored
+  value and the second poll refilled the budget exactly as before. The streak is
+  persisted as well, and it is the half that actually holds the budget down; with
+  only the mark restored, a restart starts at zero and the three fast polls
+  happen anyway.
+
+  A restored anchor dated in the future is clamped to now. That is the one way
+  this change could be worse than the bug it fixes: a stamp written while the
+  host clock was wrong, or an edited store, would keep the mark ahead of every
+  real capture and the budget would never arm again. Clamped, the worst case is
+  one skipped refill.
+
+  Two structural tests from the first round are superseded rather than deleted,
+  each saying so in its own docstring: one pinned the predicate's first argument
+  as the previous poll's anchor, and one pinned that the anchor was assigned
+  *outside* the retry gate. Both were right for the field they guarded; the
+  high-water mark has the inverse invariant, because assigning it
+  unconditionally would let a single poll that computes no capture set it to
+  `None` and hand the budget back mid-run, without a restart. Five mutations of
+  the new code were seeded and all five are caught.
+
+  **Not claimed:** that this caused his HTTP 430 account lockout. His own numbers
+  argue against a simple rate explanation — three identical sequences passed
+  without one, busier hours passed without one, and the count covers polls rather
+  than requests. #1973 remains open on exactly that: a single poll can carry six
+  extra requests of its own.
 
 ## [5.2.4] - 2026-11-06 — Two entities people watch / Zwei Entitäten, auf die man schaut
 
