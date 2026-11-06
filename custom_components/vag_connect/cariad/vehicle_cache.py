@@ -99,6 +99,21 @@ STATIC_MASTER_FIELDS: frozenset[str] = frozenset({
     "license_plate", "vehicle_nickname", "image_urls",
 })
 
+# #1950 — facts a car has PROVED about itself, as opposed to master data a
+# channel supplies. Same carry semantics as STATIC_MASTER_FIELDS (immutable
+# per car, truthy wins, a poll that omits it must not blank it) and a
+# separate set because the meaning is different: these are not vw.de master
+# data, and the #465 test enumerates that set against a vw.de fixture. A
+# capability shoehorned in there fails that test for the right reason — the
+# set names a source, not just a behaviour.
+#
+# Deliberately NOT in CARRY_FORWARD_FIELDS, which is staleness-bounded: a
+# capability cannot go stale, while a carried VALUE can — that is the trap
+# that latched a suppressed 12V SoC at 100 % for good.
+CAPABILITY_FIELDS: frozenset[str] = frozenset({
+    "safe_state_implemented",
+})
+
 # #923 — the parked position belongs in the "old but visible" class too: a
 # degraded parkingposition response that omits the coordinates does NOT mean the
 # car moved, and blanking them sent the device_tracker to "unknown" mid-outage.
@@ -360,9 +375,32 @@ def reconcile(
     # poll's value is FALSY (None / "" / {} / []) but a truthy one was recorded. A
     # fresh truthy value always wins. Truthiness (not ``is None``) is deliberate so
     # a blanked image_urls == {} is held, not published as "no renders".
-    for field in STATIC_MASTER_FIELDS:
+    for field in STATIC_MASTER_FIELDS | CAPABILITY_FIELDS:
         if not merged.get(field) and previous.get(field):
             merged[field] = previous[field]
+    # #1950 (@Adcad1970) — finalise "all closures secured" now that the carried
+    # capability is in hand. The mapper cannot do this: it is handed a fresh
+    # VehicleData and sees one delivery, so it only knows whether a safe(2)
+    # arrived in THIS one.
+    #
+    # The rule the mapper's own comment states is "a 2 proves the car implements
+    # the field, and from then on a 3 beside it is a real unsafe". The
+    # implementation scoped "from then on" to the same delivery. The reporter's
+    # car does send the 2 — his sensor reached ``on`` — so every delivery with the
+    # doors unlocked or open lost the proof and published unknown where off was
+    # the honest answer, for hours at a time on a security-facing entity.
+    #
+    # Only the NEGATIVE verdict is reached here, and only from a positive
+    # observation: this delivery carried door safe_state readings and none was a
+    # 2. Absence still says nothing — a car that has never sent a 2 keeps its
+    # None and no entity appears, which is the measured behaviour that #1739 and
+    # the 4442-payload survey established and this does not touch.
+    if (
+        merged.get("closures_secured") is None
+        and merged.get("safe_state_implemented")
+        and merged.get("safe_state_all_unsafe")
+    ):
+        merged["closures_secured"] = False
     # #1195 partial-dataset SoC guard. The reliable live SoC is the single-
     # occurrence VALID ``battery_level_HV`` pair; a poll that OMITS it carries
     # only the ``battery_state_report.soc`` leaf, which VW stamps with a fresh-

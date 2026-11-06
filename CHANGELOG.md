@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.2.4] - 2026-11-06 — Two entities people watch / Zwei Entitäten, auf die man schaut
+
 ### Sicherheit / Security
 
 - **The coordinate guard was written, tested and invoked by nothing; it is a
@@ -107,6 +109,58 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   prose can satisfy is not a rare mistake.
 
 ### Behoben / Fixed
+
+- **"All closures secured" said *unknown* where *off* was the honest answer,
+  because the proof that a car implements the field was thrown away between
+  deliveries (#1950, @Adcad1970).** The aggregate only reaches a verdict when a
+  delivery carries at least one door `safe_state_*` reading of 2 — a rule that
+  exists because across 4442 payloads those fields only ever carried 3, which
+  made the old arithmetic report "not secured" permanently on locked, shut cars.
+  The comment on that rule says a 2 "proves the car implements the field, and
+  **from then on** a 3 beside it is a real unsafe". The implementation scoped
+  "from then on" to the *same* delivery, because the mapper is handed a fresh
+  `VehicleData` and sees one dataset.
+
+  **His car does send the 2** — his sensor reached `on`, which by the gate's own
+  logic can only happen when one arrives. So for a car like his the entity could
+  read `on` or `unknown` and never `off`: every delivery with the doors unlocked
+  lost the proof. He watched HA show the car open and unlocked for nearly two
+  hours while it had been shut since 08:28, and asked the right question —
+  *"Should an observed open door give 'not secured' rather than unknown?"*
+
+  The capability is now remembered per car and the verdict finalised in
+  `reconcile`, the one function every path runs after the mapper. Only the
+  negative verdict is reached there, and only from a positive observation; a car
+  that has never sent a 2 keeps its `None` and no entity appears, which is
+  #1739's measured behaviour and is untouched.
+
+  It carries in a new `CAPABILITY_FIELDS` — immutable per car, truthy wins, never
+  blanked by a poll that omits it — and deliberately not in
+  `CARRY_FORWARD_FIELDS`, which is staleness-bounded: a capability cannot go
+  stale, while a carried *value* can, and that is the trap that once latched a
+  suppressed 12V SoC at 100 % for good. **The first attempt put it in
+  `STATIC_MASTER_FIELDS` instead, and the #465 test refused it** — it enumerates
+  that set against a vw.de master-data fixture and raised a `KeyError`. It was
+  right to: that set names a *source* ("only the vw.de channel supplies these"),
+  not merely a carry behaviour, and a fact the car proves about itself is neither
+  master data nor vw.de-supplied. Same mechanics, different meaning, separate
+  set — a completeness test earning its keep by rejecting a shortcut rather than
+  a bug.
+
+  **What was NOT done, and why.** The first proposal was to let an observed open
+  door force `off` directly. An independent review of the proposal refused it,
+  with the objection that killed it: the entity would be *created* by an open
+  door and fall back to `unknown` as soon as the car was shut and locked, and a
+  security sensor that says "no idea" right after you lock up is worse than one
+  that stays absent. The same review also established that the reporter's car
+  sends the 2 — the premise the first draft had got wrong.
+
+  **The residual risk, stated rather than hidden:** a car that once sent a 2 and
+  then stops sending it for good — a firmware change, say — keeps the capability
+  flag and would read `off` on every all-3 delivery. Nothing in the corpus looks
+  like that, and the pre-#1739 state was worse for everyone, but it is the one
+  case this design cannot distinguish. Raised by that same review as not provable
+  from the information available, which is the honest verdict.
 
 - **The Charging Port sensor died on 5.2.3 for Škoda cars with an EU-Data-Act
   export, and the guard that was supposed to prevent it covered two paths out of
