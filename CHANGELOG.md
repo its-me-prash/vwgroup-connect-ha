@@ -46,6 +46,29 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **The parked-car step never matched on a German phone (#1963, #1981,
+  @Snaker86).** The map element the step looks for is found by its
+  accessibility label, and that label is translated: the English screen dump
+  reads `Google Map`, the German one `Google Maps`. The pattern was anchored on
+  the singular, so on a German phone the step found nothing and the walk
+  stopped — correct by its own rule, and on a screen where the marker was
+  plainly visible. He had already ruled out everything else: phone connected,
+  app in the foreground, marker tappable by hand, and the parking details
+  opening normally when he tapped it himself.
+
+  **A measurement changed the diagnosis.** The first suspect was the app
+  version. That was wrong. His dump and this repository's own test fixture are
+  both app **4.8.1**, and the fixture is the English one — same version, two
+  languages, two labels. So the difference tracks the UI language alone, and
+  nothing about his app build was unusual. The plural is now optional. Both
+  anchors stay, so the labels sitting beside it on that same screen
+  (`Map settings`, `Karteneinstellungen`, `Karte Tab`) still cannot match, and
+  a test pins exactly which two labels the widening added rather than leaving
+  the blast radius to inspection. Both real label sets are now in the suite:
+  his ten German ones and the fixture's English nine.
+
 ## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
 
 ### Behoben / Fixed
