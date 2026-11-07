@@ -69,6 +69,29 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   the blast radius to inspection. Both real label sets are now in the suite:
   his ten German ones and the fixture's English nine.
 
+- **A third spelling of the same map label, and the previous fix did not cover
+  it (#968, @Odatas).** The entry above accepted `Google Map` and
+  `Google Maps`. His German phone, on the same app version 4.8.1, says
+  **`Google-Karte`** — with a hyphen, which `\s*` does not match. So the
+  parking walk still stopped for him.
+
+  **Nine of his ten accessibility labels are identical to the other German
+  phone's, character for character.** The only one that differs is the Google
+  attribution. Two German phones, one app version, one differing label: that
+  rules out the app version *and* the UI language as the whole explanation and
+  points at whatever draws that attribution. The pattern now allows a hyphen
+  wherever it allowed a space, for every alternative it already had.
+
+  Both anchors stay, and the tests pin the two steps separately: what the
+  previous entry added, and what this one adds. Neither step may widen further
+  without a test saying so.
+
+  **How this was found is the part worth writing down.** He attached a full
+  dump set to his report on 23 October — fifteen days before the same dump was
+  asked for on another thread, and it was never opened. The evidence was in the
+  tracker the whole time. Before asking anyone for a measurement, search the
+  tracker for one that has already been delivered.
+
 ## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
 
 ### Behoben / Fixed
