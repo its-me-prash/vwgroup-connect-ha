@@ -999,7 +999,14 @@ _VW = BrandPreset(
                 ),
                 ActionSelector(
                     action="open_parking_marker",
-                    content_desc_re=r"^(?:Google\s*Map|Google\s*Karte)$",
+                    # #1963 / #1981 — the label differs by app LANGUAGE, not
+                    # by version. Two real 4.8.1 dumps: the English one says
+                    # "Google Map", the German one "Google Maps". Hence the
+                    # optional s. The anchor stays, so the labels next to it
+                    # on the same screen (Map settings, Karteneinstellungen,
+                    # Karte Tab) still cannot match. tests/test_1963_* holds
+                    # both label sets.
+                    content_desc_re=r"^(?:Google\s*Maps?|Google\s*Karte)$",
                     tap_fraction=(0.5, 0.43),
                 ),
                 ActionSelector(
