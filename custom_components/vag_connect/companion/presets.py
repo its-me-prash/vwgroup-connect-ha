@@ -999,14 +999,21 @@ _VW = BrandPreset(
                 ),
                 ActionSelector(
                     action="open_parking_marker",
-                    # #1963 / #1981 — the label differs by app LANGUAGE, not
-                    # by version. Two real 4.8.1 dumps: the English one says
-                    # "Google Map", the German one "Google Maps". Hence the
-                    # optional s. The anchor stays, so the labels next to it
-                    # on the same screen (Map settings, Karteneinstellungen,
-                    # Karte Tab) still cannot match. tests/test_1963_* holds
-                    # both label sets.
-                    content_desc_re=r"^(?:Google\s*Maps?|Google\s*Karte)$",
+                    # #1963 / #1981 / #968 — three real spellings of this one
+                    # label, all on app 4.8.1, so neither the version nor the
+                    # language explains it on its own:
+                    #   "Google Map"   English dump (tests/fixtures)
+                    #   "Google Maps"  German phone, #1981
+                    #   "Google-Karte" German phone, #968 — with a HYPHEN
+                    # Two German phones, same version, nine of ten labels
+                    # identical and only this one different: whatever renders
+                    # the Google attribution decides it, not the VW app's own
+                    # translation. Hence the optional plural and [-\s]* rather
+                    # than \s*. Both anchors stay, so the labels next to it on
+                    # that screen (Map settings, Karteneinstellungen, Karte
+                    # Tab) still cannot match, and tests/test_1963_* pins what
+                    # each step added — it holds all three label sets.
+                    content_desc_re=r"^Google[-\s]*(?:Maps?|Karte)$",
                     tap_fraction=(0.5, 0.43),
                 ),
                 ActionSelector(

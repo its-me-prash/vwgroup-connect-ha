@@ -194,3 +194,123 @@ def test_the_fix_admits_exactly_two_more_labels():
     lost = [c for c in candidates
             if re.search(before, c, re.I) and not re.search(after, c, re.I)]
     assert lost == []
+
+
+# ---------------------------------------------------------------------------
+# #968 — a THIRD real spelling, and it is not a whitespace variant.
+#
+# @Odatas attached a full dump set to #968 on 2026-10-23, fifteen days before
+# the #1981 dump was asked for. Measured from that archive on 2026-11-07: his
+# map screen carries `Google-Karte`, with a HYPHEN. The pattern's `\s*` matches
+# whitespace only, so the #1963 fix does not help him.
+#
+# Nine of his ten labels are identical to the #1981 set, character for
+# character. The ONE that differs is the Google attribution. So the label
+# varies between two German phones on the same app version 4.8.1 — which rules
+# out both version and language as the whole story, and points at whatever
+# renders that attribution rather than at the VW app's own translation.
+#
+# His dump is not added as a fixture here: it is his data, and the one fixture
+# this repository holds was a deliberate contribution with a sources.json
+# entry. These ten labels are what the measurement produced.
+ODATAS_LABELS = (
+    'Google-Karte',
+    'Karteneinstellungen',
+    'Fahrzeugstandort',
+    'Ihr Standort',
+    'Bottom sheet collapsed',
+    'Schnellfilter',
+    'Fahrzeug Tab',
+    'Karte Tab',
+    'Volkswagen entdecken Tab',
+    'Profil Tab',
+)
+
+#: The pattern before #1963, and the one #1963 shipped. Kept as literals so the
+#: delta tests below state what each step added instead of re-deriving it.
+_BEFORE_1963 = r"^(?:Google\s*Map|Google\s*Karte)$"
+_AFTER_1963 = r"^(?:Google\s*Maps?|Google\s*Karte)$"
+
+
+def test_odatas_label_resolves_the_map_element():
+    """The hyphen form must match. RED before the fix, by one character class."""
+    tree = [replace(MAP_NODE, content_desc='Google-Karte')]
+    node = _channel()._step_node(tree, STEP)
+    assert node is not None, "'Google-Karte' did not match the map element"
+    assert tap_point_for(node, STEP.tap_fraction) == tap_point_for(
+        MAP_NODE, STEP.tap_fraction
+    )
+
+
+def test_his_full_label_set_matches_exactly_one_element():
+    tree = [replace(MAP_NODE, content_desc=label) for label in ODATAS_LABELS]
+    matched = [n for n in tree
+               if _channel()._step_node([n], STEP) is not None]
+    assert [n.content_desc for n in matched] == ['Google-Karte']
+
+
+def test_the_two_german_sets_differ_in_exactly_one_label():
+    """The premise of this whole block, asserted rather than assumed.
+
+    Both sets come from German phones on app 4.8.1. If a future edit makes
+    them differ in more than the Google attribution, the reasoning above no
+    longer holds and this test says so.
+    """
+    a, b = set(GERMAN_LABELS), set(ODATAS_LABELS)
+    assert len(a) == len(b) == 10
+    assert a - b == {'Google Maps'}
+    assert b - a == {'Google-Karte'}
+
+
+@pytest.mark.parametrize('labels', [
+    [n.content_desc for n in MAP_481 if n.content_desc],
+    list(GERMAN_LABELS),
+    list(ODATAS_LABELS),
+])
+def test_all_three_real_label_sets_contain_the_element(labels):
+    tree = [replace(MAP_NODE, content_desc=label) for label in labels]
+    assert _channel()._step_node(tree, STEP) is not None
+
+
+@pytest.mark.parametrize('label', [
+    'Google-Karten-Einstellungen',   # the anchor must still bite
+    'Googlemaps-Karte',
+    'Google-',
+    '-Karte',
+    'Google - Karte Tab',
+])
+def test_hyphen_does_not_open_the_pattern_up(label):
+    tree = [replace(MAP_NODE, content_desc=label)]
+    assert _channel()._step_node(tree, STEP) is None
+
+
+def test_each_step_added_only_what_it_was_for():
+    """Two deltas, pinned separately, so neither step can be widened silently."""
+    import re
+    candidates = [
+        'Google Map', 'Google Maps', 'Googlemap', 'Googlemaps',
+        'Google Karte', 'GoogleKarte', 'Google-Karte', 'Google-Maps',
+        'Google-Map', 'Google-karte', 'Googlekarte',
+        'Google Maps Timeline', 'Open Google Maps', 'Maps', 'Map',
+        'Map settings', 'Karteneinstellungen', 'Karte Tab',
+        'Google-Karten-Einstellungen', 'Googlemaps-Karte',
+        *[n.content_desc for n in MAP_481 if n.content_desc],
+        *GERMAN_LABELS,
+        *ODATAS_LABELS,
+    ]
+
+    def hits(pattern):
+        return {c for c in candidates if re.search(pattern, c, re.I)}
+
+    before, after_1963, now = (hits(_BEFORE_1963), hits(_AFTER_1963),
+                               hits(STEP.content_desc_re))
+
+    # #1963 added the plural, and `\s*` carried the spaceless form along.
+    assert sorted(after_1963 - before) == ['Google Maps', 'Googlemaps']
+    # #968 adds the hyphen, for every alternative the pattern already had.
+    assert sorted(now - after_1963) == [
+        'Google-Karte', 'Google-Map', 'Google-Maps', 'Google-karte',
+    ]
+    # Neither step lost anything.
+    assert not before - after_1963
+    assert not after_1963 - now
