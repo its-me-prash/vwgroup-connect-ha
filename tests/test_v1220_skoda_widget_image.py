@@ -11,7 +11,7 @@ VIN). Instead, the v1.20.0 widget endpoint already populated
 Differences from VagRenderImageEntity (Audi/VW):
 - 1 image per VIN (not 7)
 - Reads from ``data["render_url"]`` not ``image_urls`` dict
-- Cached locally as ``{vin}_widget.png``
+- Cached locally as ``{hash_vin(vin)}_widget.png``
 """
 
 from __future__ import annotations
