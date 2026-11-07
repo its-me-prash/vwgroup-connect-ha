@@ -2117,6 +2117,27 @@ class VehicleData:
     # safe(2): measured, no car has ever sent that value, so an all-"3" reading
     # is not a verdict. binary_sensor.
     closures_secured: bool | None = None
+    # #1950 (@Adcad1970) — the two ingredients the verdict above needs but a
+    # single delivery cannot supply. NEITHER is a sensor: no description exists
+    # for them in binary_sensor.py, so no entity appears.
+    #
+    # ``safe_state_implemented`` is a CAPABILITY, not a reading: once a car has
+    # sent safe(2) it implements the field, and that cannot become untrue. It
+    # therefore rides in STATIC_MASTER_FIELDS (carried forward indefinitely,
+    # truthy wins) rather than in CARRY_FORWARD_FIELDS, where a *value* carried
+    # forward can go stale — the trap that latched a 12V SoC at 100 % for good.
+    #
+    # Why they are needed: the comment above promises "a 3 beside a 2 is a real
+    # unsafe from then on", but the implementation scoped "from then on" to the
+    # same delivery. @Adcad1970's car does send the 2 (his sensor reached `on`),
+    # so every delivery with the doors unlocked lost the proof and read unknown
+    # where off was the honest answer. ``reconcile`` finalises the verdict once
+    # the carried capability is in hand, because that is the one function every
+    # path runs after the mapper.
+    safe_state_implemented: bool | None = None
+    #: This delivery carried door safe_state readings and NONE of them was a 2.
+    #: Per-delivery, deliberately not carried forward.
+    safe_state_all_unsafe: bool | None = None
     # Service hatch open (state_service_hatch 2=open) — LOW. binary_sensor.
     service_hatch_open: bool | None = None
     # Rear spoiler deployed (state_spoiler 2=open) — LOW. binary_sensor.

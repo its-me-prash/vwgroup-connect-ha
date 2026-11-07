@@ -23,6 +23,20 @@ _LOGGER = logging.getLogger(__name__)
 
 # uiautomator writes the dump here, then we read it back over the same shell.
 _DUMP_PATH = "/sdcard/vag_connect_ui.xml"
+# #1913 (@stephanlasso) — and uiautomator's own status goes here. It prints the
+# REASON it gave up to stdout, which this command used to send to /dev/null; the
+# error message then offered three guesses, and his case was none of them.
+#
+# Its own file rather than the same stdout: merging them would put a status line
+# in front of the XML on the SUCCESS path, and that path feeds a parser. This
+# way the successful output stays byte-identical to what it was, and the extra
+# round trip lands only where we are already failing and already sleeping.
+_DUMP_STATUS_PATH = "/sdcard/vag_connect_ui.status"
+# uiautomator can answer with a Java stack trace. ``_redact`` caps the whole
+# exception message at 500 chars, so an unbounded status would push the message
+# that matters out of the record — the same reasoning ``_BODY_MAX_LEN`` applies
+# to an HTTP body in the error reporter.
+_DUMP_STATUS_MAX = 120
 # The hidden-node helper (a11y/README.md): pushed for a departure timer edit on
 # VW app 4.8.1 and removed afterwards. The hash pins the shipped build.
 A11Y_DEX_SHA256 = "a43e3c09d05340fb862d019d14def5b03de4c24b5f8b1b4104006c9f8a5f992d"
@@ -232,8 +246,13 @@ class NetworkAdbTransport:
         # dump into an honest no-data (empty cat, guard raises) instead.
         # One shell round trip for all three steps; the dump itself (~1.5 s,
         # uiautomator waits for the UI to go idle) is the cost that remains.
+        # #1913 — the status is captured to its own file instead of discarded.
+        # The ``rm`` covers it too: without that, a failed dump would report the
+        # PREVIOUS run's reason as this one's, which is the same stale-data trap
+        # the ``rm`` of the XML was added for.
         cmd = (
-            f"rm -f {_DUMP_PATH}; uiautomator dump {_DUMP_PATH} >/dev/null; "
+            f"rm -f {_DUMP_PATH} {_DUMP_STATUS_PATH}; "
+            f"uiautomator dump {_DUMP_PATH} >{_DUMP_STATUS_PATH} 2>&1; "
             f"cat {_DUMP_PATH}"
         )
         xml = await self.shell(cmd, timeout_s)
@@ -260,12 +279,46 @@ class NetworkAdbTransport:
             await asyncio.sleep(_DUMP_RETRY_DELAY_S)
             xml = await self.shell(cmd, timeout_s)
             if "<hierarchy" not in xml:
+                # #1913 — read the reason now that we keep it, and name the
+                # cause this file documents twenty lines up but the message
+                # never mentioned: uiautomator gives up when the UI does not go
+                # idle, and one animation or toast is enough. On a phone that is
+                # awake, unlocked and in the app, that is the only candidate the
+                # old three left out.
+                status = await self._dump_status(timeout_s)
+                detail = f" (uiautomator said: {status})" if status else ""
                 raise CompanionTransportError(
                     "uiautomator returned no screen dump twice; the phone may "
-                    "be asleep, the app may not be in the foreground, or the "
-                    "screen may be secured"
+                    "be asleep, the app may not be in the foreground, the "
+                    "screen may be secured, or the UI never went idle — an "
+                    "animation or a toast is enough" + detail
                 )
         return xml
+
+    async def _dump_status(self, timeout_s: float) -> str:
+        """uiautomator's own status line, bounded to one short line, or ``""``.
+
+        Read only after the dump has failed twice, so the successful path keeps
+        its single round trip.
+
+        **Deliberately not logged.** The Error Reporter runs ``_redact`` over the
+        exception message — VINs, e-mails, JWTs, UUIDs, Bearer and opaque tokens
+        — and that is what makes this safe to publish. ``_LOGGER`` has no such
+        filter, so a debug line carrying the raw status would be a second,
+        unredacted copy of device text.
+
+        A failure here returns ``""`` rather than propagating: the reason is a
+        nice-to-have and must never replace the error it was meant to explain.
+        """
+        try:
+            raw = await self.shell(f"cat {_DUMP_STATUS_PATH}", timeout_s)
+        except Exception:  # noqa: BLE001 — see docstring
+            return ""
+        for line in (raw or "").splitlines():
+            stripped = line.strip()
+            if stripped:
+                return stripped[:_DUMP_STATUS_MAX]
+        return ""
 
     async def foreground_app(self, package: str, timeout_s: float = 10.0) -> None:
         """Bring the app to the front and let it settle.

@@ -159,13 +159,36 @@ def test_a_prior_verdict_is_not_clobbered_by_an_all_three_delivery() -> None:
 
 
 def test_the_gate_is_in_the_source() -> None:
-    """Pins the gate itself, not just one of its outcomes."""
+    """Pins the gate itself, not just one of its outcomes.
+
+    **The prohibition is anchored on a line, not on a substring (#1950c).** It
+    used to read ``assert "if _safe_present:" not in src``, which also matched
+    ``elif _safe_present:`` — a branch added in #1950c that records *whether this
+    delivery was all-unsafe* and assigns no verdict at all. The check forbade
+    legitimate code because the forbidden text is a substring of it, the same
+    shape as a prohibition tripping over its own explanatory comment.
+
+    What must stay forbidden is an **un-gated verdict**: a bare
+    ``if _safe_present:`` as a statement of its own, which would let any
+    safe_state reading produce one and bring back the permanent "not secured" on
+    locked, shut cars. So the match is on a stripped line.
+    """
     import inspect
 
     from custom_components.vag_connect.cariad.auth import _eu_data_act
 
     src = inspect.getsource(_eu_data_act.map_dataset_to_vehicle_data)
     assert "if 2 in _safe_present:" in src
-    assert "if _safe_present:" not in src
+    ungated = [ln for ln in src.splitlines() if ln.strip() == "if _safe_present:"]
+    assert not ungated, (
+        "an un-gated 'if _safe_present:' is back, so any safe_state reading can "
+        "produce a verdict again — that is the permanent 'not secured' this file "
+        f"exists to prevent: {ungated}"
+    )
     # positive control: the aggregate this file is about is still here
     assert "all(v == 2 for v in _safe_present)" in src
+    # and the ingredient branch #1950c added is a RECORD, not a verdict
+    assert "elif _safe_present:" in src, (
+        "the all-unsafe observation is no longer recorded, so reconcile can "
+        "never finalise the verdict for a car that proved the field earlier"
+    )

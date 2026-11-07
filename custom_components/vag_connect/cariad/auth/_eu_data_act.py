@@ -5014,6 +5014,13 @@ def map_dataset_to_vehicle_data(
     # False. Nothing in the corpus looks like that, while "sends a constant 3"
     # is 4 of 4 — and an actually open closure still surfaces on its own
     # ``doors_open`` / ``trunk_open`` / ``hood_open`` entity.
+    # #1950 — record the two ingredients before the gate decides, because the
+    # gate can only see this delivery. The capability is what survives (carried
+    # in STATIC_MASTER_FIELDS); the all-unsafe observation is per delivery.
+    if 2 in _safe_present:
+        d.safe_state_implemented = True
+    elif _safe_present:
+        d.safe_state_all_unsafe = True
     if 2 in _safe_present:
         # Prash decision, 2026-10-28: this entity is published as "All closures
         # secured", and it was deciding that from three doors. Measured before

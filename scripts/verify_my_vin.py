@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+import io
 import importlib.util
 import os
 import sys
@@ -65,10 +66,17 @@ import types
 from dataclasses import asdict
 from pathlib import Path
 
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+# The isinstance check replaces a `# type: ignore[attr-defined]` that named the
+# wrong code: mypy reports this as `union-attr`, so the suppression covered
+# nothing and the error was invisible until scripts/ entered the type check on
+# 2026-11-06. sys.stdout is typed TextIO, which has no reconfigure(); the method
+# really is absent once the stream is replaced. The try stays for OSError, which
+# a closed or redirected stream can still raise.
+if (sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8"
+        and isinstance(sys.stdout, io.TextIOWrapper)):
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
-    except (AttributeError, OSError):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except OSError:
         pass
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -207,7 +215,7 @@ async def _run() -> int:
     print()
     print(f"Brand: {brand}")
     print(f"Account: {email}")
-    print(f"Authenticating against the manufacturer API...")
+    print("Authenticating against the manufacturer API...")
     print()
 
     async with aiohttp.ClientSession() as session:

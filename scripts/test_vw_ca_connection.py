@@ -42,6 +42,7 @@ sys.path.insert(0, str(_REPO))
 import aiohttp  # noqa: E402
 
 from custom_components.vag_connect.cariad.api.vw_na import VWNAClient  # noqa: E402
+from custom_components.vag_connect.cariad.models import VehicleData  # noqa: E402
 from custom_components.vag_connect.cariad.exceptions import (  # noqa: E402
     AuthenticationError,
     CariadError,
@@ -104,7 +105,7 @@ def _setup_logging(verbose: bool) -> None:
     logging.getLogger("custom_components.vag_connect.cariad.api.base").setLevel(level)
 
 
-def _display_vehicle_data(d: object) -> None:
+def _display_vehicle_data(d: VehicleData) -> None:
     """Pretty-print all non-None fields from a VehicleData dataclass.
 
     Groups fields into logical sections for readability. VIN is masked;
@@ -201,21 +202,28 @@ async def _run(email: str, password: str, pin: str, country: str, args_verbose: 
                 "\n  to see which exact HTTP call (email POST / password POST /"
                 "\n  token exchange) returned the 5xx. Wait a while and retry."
             )
-            interesting_headers = {
-                k: v for k, v in exc.headers.items()
-                if k.lower() in (
-                    "server", "via", "x-request-id", "x-amzn-requestid",
-                    "x-amzn-trace-id", "x-amz-cf-id", "cf-ray", "retry-after",
-                    "x-correlation-id", "date", "content-type",
-                )
-            }
-            if interesting_headers:
-                print("\n  Response headers:")
-                for k, v in interesting_headers.items():
-                    print(f"    {k}: {v}")
-            if exc.body:
-                print(f"\n  Response body ({len(exc.body)} chars):")
-                print("  " + exc.body.replace("\n", "\n  "))
+            # This block used to read ``exc.headers`` and ``exc.body`` and
+            # print the interesting response headers. UpstreamUnavailableError
+            # has never carried either: its signature is
+            # ``(status: int, brand: str = "")``, and none of its four raise
+            # sites passes anything else. So the code could not work — it would
+            # have raised AttributeError *inside the error handler*, turning a
+            # readable "VW's backend is down" message into a crash, and only
+            # ever on the failure path where nobody tries it twice. Found by
+            # mypy when scripts/ was added to the type check on 2026-11-06.
+            #
+            # Printing what the exception actually knows, and saying plainly
+            # where the rest has to come from, beats inventing it here: adding
+            # the fields to the exception would be a change to the integration,
+            # and the raise sites would have to start passing them.
+            print(f"\n  HTTP status: {exc.status}")
+            if exc.brand:
+                print(f"  Brand:       {exc.brand}")
+            print(
+                "\n  Response headers and body are not carried by this"
+                "\n  exception. For those, re-run with --verbose and read the"
+                "\n  aiohttp log lines around the failing call."
+            )
             return 2
         except TwoFactorRequiredError as exc:
             print(f"\n  ✗ Two-factor auth required: {type(exc).__name__}: {exc}")
@@ -289,7 +297,7 @@ async def _run(email: str, password: str, pin: str, country: str, args_verbose: 
                     print(f"    ✗ {type(exc).__name__}: {exc}")
                     continue
                 _display_vehicle_data(vehicle_data)
-                print(f"    ✓ data retrieved")
+                print("    ✓ data retrieved")
 
     print("\n" + "-" * 68)
     print("Connection test finished OK.")

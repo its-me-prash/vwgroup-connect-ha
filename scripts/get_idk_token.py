@@ -129,7 +129,14 @@ _BRANDS = {
 }
 
 
-async def _run(brand_key: str, email: str, password: str, mfa: str | None) -> int:
+async def _run(
+    brand_key: str, email: str, password: str, mfa: str | None,
+) -> int | tuple[str, str, str]:
+    # The annotation said `-> int` while the success path returns the three
+    # tokens; the int returns are the failure exit codes. main() has always
+    # handled both (`if isinstance(result, int): return result`), so the code
+    # was right and only the annotation was wrong. Found when scripts/ was
+    # added to the type check on 2026-11-06.
     brand = _BRANDS[brand_key]
     # mbb_mode (hybrid flow) was tried first but produced id_tokens that MBB
     # also rejected — turns out the issue is SCOPE: the id_token must be
@@ -309,8 +316,8 @@ def main() -> int:
                 file=sys.stderr,
             )
         print(
-            f"\n→ Next: open Bruno, select environment 'mbb.local', run "
-            f"'01_POST_token_exchange.bru'",
+            "\n→ Next: open Bruno, select environment 'mbb.local', run "
+            "'01_POST_token_exchange.bru'",
             file=sys.stderr,
         )
         print(
@@ -333,11 +340,11 @@ def main() -> int:
     print("\n" + "=" * 60)
     print("SUCCESS — Tokens received")
     print("=" * 60)
-    print(f"\nid_token (für mbb.local.bru → idk_id_token):")
+    print("\nid_token (für mbb.local.bru → idk_id_token):")
     print(f"\n{id_tok}\n")
-    print(f"access_token (CARIAD-side, NICHT MBB):")
+    print("access_token (CARIAD-side, NICHT MBB):")
     print(f"\n{access_tok[:60]}...{access_tok[-20:]}\n")
-    print(f"refresh_token (CARIAD-side, gilt 90 Tage):")
+    print("refresh_token (CARIAD-side, gilt 90 Tage):")
     print(f"\n{refresh_tok[:60]}...{refresh_tok[-20:]}\n")
     print("=" * 60)
     print("\nNext: paste id_token into Bruno mbb.local.bru → idk_id_token,")

@@ -11,6 +11,7 @@ list to map out which jobs work for this VIN and what data they return.
 from __future__ import annotations
 
 import asyncio
+import io
 import getpass
 import importlib.util
 import json
@@ -20,7 +21,13 @@ from pathlib import Path
 
 import aiohttp
 
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+# Die isinstance-Pruefung ist nicht nur fuer den Typpruefer: sys.stdout ist
+# als TextIO typisiert und hat dort kein reconfigure(), und die Methode
+# fehlt wirklich, sobald der Strom ersetzt ist - unter pytest-Capture oder
+# durch einen Wrapper in einer CI-Umgebung. Der nackte Aufruf wuerde dann
+# AttributeError werfen, bevor das Skript ueberhaupt etwas ausgegeben hat.
+if (sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8"
+        and isinstance(sys.stdout, io.TextIOWrapper)):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -41,8 +48,10 @@ def _load(pkg, file_path):
 
 
 _C = _REPO / "custom_components" / "vag_connect" / "cariad"
-sys.modules["c"] = types.ModuleType("c"); sys.modules["c"].__path__ = [str(_C)]
-sys.modules["c.auth"] = types.ModuleType("c.auth"); sys.modules["c.auth"].__path__ = [str(_C / "auth")]
+sys.modules["c"] = types.ModuleType("c")
+sys.modules["c"].__path__ = [str(_C)]
+sys.modules["c.auth"] = types.ModuleType("c.auth")
+sys.modules["c.auth"].__path__ = [str(_C / "auth")]
 _load("c.exceptions", _C / "exceptions.py")
 _models = _load("c.models", _C / "models.py")
 _idk = _load("c.auth.idk", _C / "auth" / "idk.py")

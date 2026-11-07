@@ -101,6 +101,15 @@ body:
     id: description
     attributes:
       label: What happened? / Was ist passiert?
+      description: |
+        If you paste output from a file listing or a `grep`, look at the **filenames**
+        in it, not only at the values: a portal export is named with your full VIN, so
+        the start of every pasted line can carry it even when the contents are masked.
+
+        Wenn du Ausgaben einer Dateiliste oder eines `grep` einfügst, sieh dir die
+        **Dateinamen** darin an, nicht nur die Werte: ein Portal-Export ist nach deiner
+        vollen VIN benannt, der Zeilenanfang kann sie also mittragen, auch wenn der
+        Inhalt maskiert ist.
     validations:
       required: true
 
@@ -174,4 +183,6 @@ body:
       description: Required / Pflicht
       options:
         - label: "My diagnostics file is from 5.2.2 or newer, or I opened it and checked it by hand; and I have masked VIN to last 6 chars and removed email, GPS and S-PIN from any logs I pasted. / Meine Diagnose-Datei ist von 5.2.2 oder neuer, oder ich habe sie geöffnet und von Hand geprüft; und ich habe in eingefügten Logs die VIN auf die letzten 6 Zeichen gekürzt und Email, GPS und S-PIN entfernt."
+          required: true
+        - label: "If anything I pasted or attached includes filenames, I checked the filenames too — a portal export carries the full VIN in its name, and masking the contents does not change that. / Falls etwas, das ich eingefügt oder angehängt habe, Dateinamen enthält, habe ich auch die Dateinamen geprüft — ein Portal-Export trägt die volle VIN im Namen, und den Inhalt zu maskieren ändert das nicht."
           required: true

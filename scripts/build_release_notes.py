@@ -56,7 +56,11 @@ _REF_RE = re.compile(r"#(\d{2,6})\b")
 #: A GitHub handle. Not ``@`` inside an e-mail address or a code span.
 _HANDLE_RE = re.compile(r"(?<![\w.@/])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)\b")
 #: A reference an entry writes into its own bold title, e.g. ``(#1902)``.
-_TITLE_REF_RE = re.compile(r"\s*\(#\d{2,6}\)\s*$")
+#: One OR MORE comma-separated numbers. The single-number form was all this
+#: matched until 5.2.3, so a title ending ``(#709, #1950)`` kept its numbers and
+#: the line then carried them twice — once in the title, once in the reference
+#: list the builder appends.
+_TITLE_REF_RE = re.compile(r"\s*\(#\d{2,6}(?:,\s*#\d{2,6})*\)\s*$")
 #: A reference whose link target is a **Discussion**. GitHub numbers
 #: Discussions separately from issues and pull requests, so a bare ``#1415`` in
 #: a release body autolinks to *issue* 1415 — a different object, and in this

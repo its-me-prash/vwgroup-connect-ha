@@ -204,3 +204,93 @@ def test_the_instrument_still_sees_the_baseline() -> None:
 def test_the_guard_does_not_exempt_its_own_test() -> None:
     assert "tests/test_no_precise_gps.py" not in _SKIP_FILES
     assert _SKIP_FILES == {"scripts/check_no_precise_gps.py"}
+
+
+class TestTheGateIsActuallyWired:
+    """The script existed and ran clean; nothing invoked it.
+
+    Until 2026-11-05 ``check_no_precise_gps.py`` was referenced by no workflow
+    and no hook — a guard whose only reader was its own unit test. Its sibling
+    ``check_no_real_vins.py`` has sat in ``ci.yml`` since it was written, and
+    the difference was not a decision: the VIN tree scans clean, so the audit
+    form works there, while this tree holds 13 deliberate pairs and an audit
+    run would fail on every commit. A required check that always fails gets
+    deleted, so the gate needed the ``--base`` form before it could be required.
+
+    This class holds the three properties that form actually depends on. Each
+    one, removed, turns the gate into something that cannot refuse anything —
+    and the comment in the workflow would not stop it, which is why the test
+    exists instead of only the comment.
+    """
+
+    WF = _ROOT / ".github" / "workflows" / "ci.yml"
+
+    def _text(self) -> str:
+        return self.WF.read_text(encoding="utf-8")
+
+    def _invocations(self) -> list[str]:
+        return [
+            ln for ln in self._text().splitlines()
+            if "check_no_precise_gps.py" in ln and not ln.lstrip().startswith("#")
+        ]
+
+    def test_the_workflow_invokes_the_gate(self) -> None:
+        assert self._invocations(), (
+            "ci.yml no longer runs scripts/check_no_precise_gps.py. The script "
+            "then guards nothing but itself, which is the state this class was "
+            "written to end."
+        )
+
+    def test_every_invocation_passes_a_baseline(self) -> None:
+        """Without ``--base`` the run is an audit and fails on the 13 known
+        pairs, every time, on every branch. That is the shape that gets a step
+        commented out a week later."""
+        for ln in self._invocations():
+            assert "--base" in ln, (
+                f"invoked without a baseline: {ln.strip()!r}. The tracked tree "
+                "holds 13 deliberate pairs (public landmarks, named in the "
+                "script's docstring), so an audit run cannot pass."
+            )
+
+    def test_the_checkout_is_not_shallow(self) -> None:
+        """``--base`` needs history. The default checkout has depth 1 and no
+        origin/main, and the gate is deliberately loud about a missing baseline
+        rather than permissive — so a shallow checkout breaks every run.
+
+        **Comment lines are excluded, and that is the whole point of this
+        method.** The first version asserted the string anywhere in the job
+        head and passed with the setting deleted, because the explanatory
+        comment above the checkout names ``fetch-depth: 0`` itself. The test was
+        satisfied by its own documentation — proven by removing the setting and
+        watching it stay green.
+        """
+        head = self._text().split("- name: Python 3.14 einrichten", 1)[0]
+        wirksam = [
+            ln for ln in head.splitlines()
+            if "fetch-depth" in ln and not ln.lstrip().startswith("#")
+        ]
+        assert wirksam, (
+            "the lint-and-validate checkout lost fetch-depth: 0 on an effective "
+            "line, so the GPS gate has no baseline to diff against. A mention "
+            "in a comment does not configure anything."
+        )
+        assert any("0" in ln.split(":", 1)[1] for ln in wirksam), (
+            f"fetch-depth is set but not to 0: {wirksam!r}"
+        )
+
+    def test_a_direct_push_does_not_compare_against_itself(self) -> None:
+        """On a push to main, origin/main is the new HEAD: merge-base returns
+        HEAD, the diff is empty and the gate passes on anything. The commit the
+        branch pointed at before the push is the only honest baseline there, so
+        the step has to distinguish the two event kinds."""
+        step = self._text().split("Keine präzisen GPS-Koordinaten", 1)
+        assert len(step) == 2, "the GPS step was renamed or removed"
+        body = step[1]
+        assert "github.event.before" in body, (
+            "the step no longer uses the pushed-from commit as the baseline on "
+            "a push, so a direct push to main would compare main against "
+            "itself and the gate would accept any coordinate"
+        )
+        assert "github.event_name" in body, (
+            "the step no longer distinguishes push from pull_request"
+        )

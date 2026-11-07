@@ -1629,7 +1629,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # drop-retry from pinning the cadence at the floor on a feed that has
         # stopped delivering; see _DROP_RETRY_MAX_STREAK.
         self._drop_overdue_streak = 0
-        self._drop_anchor_seen: datetime | None = None
+        # #1850 (second round, @indigomejor) — the HIGH-WATER mark: the newest
+        # capture anchor ever seen, monotone and never cleared. It replaces the
+        # earlier ``_drop_anchor_seen``, which held the previous poll's anchor
+        # including None. That field could not survive a restart even if it were
+        # persisted: the first poll after a restart has not read the portal yet,
+        # so it wrote None over the restored value and the second poll refilled
+        # the budget exactly as before. Restored from the vehicle cache below.
+        self._drop_anchor_high_water: datetime | None = None
         # Consecutive EU-DA portal 5xx outages → escalating poll backoff (5/15/30m).
         self._consecutive_portal_5xx = 0
         # #1941 — the push gate warns once per entry when the brand's client has
@@ -2044,6 +2051,30 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             cached = await self._vehicle_store.async_load()
         except Exception:  # noqa: BLE001
             cached = None
+        # #1850 (second round, @indigomejor) — restore the drop-retry budget
+        # BEFORE the vehicle restore and independently of it: a store that holds
+        # the budget but no vehicles still has to stop a restart handing the
+        # three fast polls back. Defensive by contract; see the helper.
+        if isinstance(cached, dict):
+            from .cariad.vehicle_cache import (  # noqa: PLC0415
+                drop_state_from_cache,
+            )
+            (
+                self._drop_anchor_high_water,
+                self._drop_overdue_streak,
+            ) = drop_state_from_cache(
+                cached.get("drop_state"),
+                datetime.now(tz=timezone.utc),
+                _DROP_RETRY_MAX_STREAK,
+            )
+            if self._drop_anchor_high_water is not None:
+                _LOGGER.debug(
+                    "EU Data Act portal: restored the drop-retry budget "
+                    "(anchor %s, %d/%d polls spent) — a restart no longer "
+                    "refills it (#1850)",
+                    self._drop_anchor_high_water.isoformat(),
+                    self._drop_overdue_streak, _DROP_RETRY_MAX_STREAK,
+                )
         if cached and isinstance(cached.get("vehicles"), dict):
             _restored_vins: list[str] = []
             with self._vehicles_lock:
@@ -5099,16 +5130,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # attribute read here raises AttributeError for them. The previous
             # revision of this block happened to survive that only because its
             # `and` short-circuited before touching the attribute.
-            _prev_anchor = getattr(self, "_drop_anchor_seen", None)
+            self._drop_anchor_high_water = getattr(
+                self, "_drop_anchor_high_water", None)
             self._drop_overdue_streak = getattr(self, "_drop_overdue_streak", 0)
+            _streak_before = self._drop_overdue_streak
+            _mark_before = self._drop_anchor_high_water
             # #1850 — only count, and only speak, where the drop-retry is
             # actually in play. The same two conditions the scheduling gate
             # below uses, because a budget spent on polls that never used the
             # retry is not a budget, and a stand-down message about a retry
             # that never ran is not information.
             if not nightly and _portal is not None:
-                if _drop_anchor_advanced(_prev_anchor, _cap_anchor):
+                if _drop_anchor_advanced(self._drop_anchor_high_water, _cap_anchor):
                     self._drop_overdue_streak = 0
+                    # Move the mark with the drop that just refilled the budget.
+                    # Without this line the mark stays at its restored value (or
+                    # at None on a new entry), every poll reads "advanced", the
+                    # streak resets every time, and #1850 is back in full.
+                    self._drop_anchor_high_water = _cap_anchor
                 elif _drop_overdue(interval_s, _cap_anchor, _decision_now):
                     self._drop_overdue_streak += 1
                     if self._drop_overdue_streak == _DROP_RETRY_MAX_STREAK:
@@ -5118,11 +5157,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             "%ds until one lands (#1850)",
                             self._drop_overdue_streak, _DROP_RETRY_S, interval_s,
                         )
-            # Tracked unconditionally on purpose. The anchor is what the NEXT
-            # decision compares against, so letting it go stale while the
-            # portal is off would make the first armed poll read "no drop since
-            # forever" and spend the budget it was just spared.
-            self._drop_anchor_seen = _cap_anchor
+            # #1850 (second round) — persist on every change, not only when a
+            # poll brought fresh vehicle data. The STREAK is the half that
+            # actually holds the budget down: with only the mark persisted, a
+            # restart restores a streak of 0 and the three fast polls happen
+            # anyway. Reuses the existing debounced vehicle-cache store (one
+            # write per 30 s at most, and polls are at least 180 s apart), so
+            # this adds no store and no timer of its own.
+            if (self._drop_overdue_streak != _streak_before
+                    or self._drop_anchor_high_water != _mark_before):
+                try:
+                    self._save_vehicle_cache()
+                except Exception:  # noqa: BLE001 — scheduling must not fail a poll
+                    pass
             # #1850 (@indigomejor) — the streak block above counts and LOGS a
             # stand-down from the drop-retry on entries where the drop-retry
             # never ran: it sits before this gate, so a portal-less entry (and
@@ -7555,6 +7602,46 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             parsed.get("active_charging_profile_name", "none"),
         )
 
+    def async_set_updated_data(self, data: Any) -> None:
+        """Fold every enum value onto its options before HA sees the data.
+
+        **#2030 (@Kaputnixx) — the third path.** #1739 put the fold in two
+        places, the enrichment step and the cache restore, and its test asserts
+        the call is present in both. The docstring of that test claims "EVERY
+        path that reaches the platforms", and the claim was wrong: it checks the
+        two paths it knows rather than enumerating the paths that exist. There
+        are **six** ``async_set_updated_data`` call sites in this module, and
+        four of them push ``dict(self.vehicles)`` without enriching.
+
+        One of those four runs on a timer. ``_poll_loop`` calls
+        ``_advance_historical_exports`` on every iteration; that imports a
+        pending EU-Data-Act export, writes the parsed snapshot straight into
+        ``self.vehicles[vin]`` (or gap-fills the current one from it) and pushes.
+        The export dialect carries ``plug_state`` and publishes the verbose
+        upper-case token, so a Škoda on 5.2.3 got ``'DISCONNECTED'`` handed to a
+        sensor whose options are lower-case — 112 ValueErrors in 22 hours at the
+        reporter's 12-minute scan interval, the Charging Port entity dead, and a
+        reload fixing it only until the next poll. He deduced the existence of
+        this path from the symptom before anyone read the code.
+
+        So the fold moves to the one place every path must pass instead of being
+        repeated at each producer. That is the difference between a guard that
+        covers the sites someone remembered and a guard that cannot be bypassed:
+        a seventh call site added next year inherits it for free.
+
+        ``normalize_enum_states`` mutates in place, and the pushes pass a
+        *shallow* copy of ``self.vehicles``, so the stored snapshot is cleaned
+        too rather than only the copy on its way out — which is what stops the
+        raw token from being written back to disk and restored later. Folding an
+        already-folded value is a no-op, so the paths that normalise earlier are
+        unaffected.
+        """
+        if isinstance(data, dict):
+            for vehicle in data.values():
+                if isinstance(vehicle, dict):
+                    normalize_enum_states(vehicle)
+        super().async_set_updated_data(data)
+
     async def _async_push_update(self, data: dict, success: bool = True) -> None:
         """Push vehicle data to HA.
 
@@ -8295,8 +8382,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     ) -> dict[str, str | None] | None:
         """Reverse geocode lat/lon via Nominatim using HA's shared aiohttp session.
 
-        Coordinates are rounded to 3 decimals (~110m precision) for caching
-        so we do not hit Nominatim every poll for the same parking spot.
+        The coordinate is rounded to 3 decimals (~110m) BEFORE it is used, both
+        as the cache key and in the request, so we neither re-query the same
+        parking spot every poll nor hand a third party more precision than a
+        parking locality needs.
         """
         from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
             async_get_clientsession,
@@ -8306,7 +8395,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if not hasattr(self, "_geocode_cache"):
             self._geocode_cache = {}
 
-        cache_key = (round(lat, 3), round(lon, 3))
+        # Round ONCE, then use the rounded pair for everything below. Until
+        # 5.2.3b1 the rounding reached only the cache key and the request still
+        # carried `lat`/`lon` verbatim, so the full-precision parking position
+        # of the car went to a third party while this docstring, and PRIVACY.md,
+        # promised ~110m (#60 asked for the opt-in precisely because vehicle GPS
+        # is sensitive). Blunting the request is the whole point; the cache is a
+        # side benefit of using the same value twice.
+        q_lat, q_lon = round(lat, 3), round(lon, 3)
+        cache_key = (q_lat, q_lon)
         if cache_key in self._geocode_cache:
             return self._geocode_cache[cache_key]
 
@@ -8315,7 +8412,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         session = async_get_clientsession(self.hass)
         url = (
             "https://nominatim.openstreetmap.org/reverse"
-            f"?lat={lat}&lon={lon}&format=json&addressdetails=1"
+            f"?lat={q_lat}&lon={q_lon}&format=json&addressdetails=1"
         )
         headers = {"User-Agent": "VAGConnect/1.x (+https://github.com/its-me-prash/vwgroup-connect-ha)"}
         try:
@@ -8413,7 +8510,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return
 
         def _snapshot() -> dict[str, Any]:
-            from .cariad.vehicle_cache import strip_runtime  # noqa: PLC0415
+            from .cariad.vehicle_cache import (  # noqa: PLC0415
+                drop_state_to_cache,
+                strip_runtime,
+            )
             with self._vehicles_lock:
                 vehicles = {
                     vin: strip_runtime(v)
@@ -8423,6 +8523,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return {
                 "saved_at": datetime.now(tz=timezone.utc).isoformat(),
                 "vehicles": vehicles,
+                # #1850 (second round) — the drop-retry budget. Two scalars, no
+                # vehicle data; see ``drop_state_to_cache``.
+                "drop_state": drop_state_to_cache(
+                    getattr(self, "_drop_anchor_high_water", None),
+                    getattr(self, "_drop_overdue_streak", 0),
+                ),
             }
 
         store.async_delay_save(_snapshot, 30)

@@ -48,6 +48,398 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **The parked-car step never matched on a German phone (#1963, #1981,
+  @Snaker86).** The map element the step looks for is found by its
+  accessibility label, and that label is translated: the English screen dump
+  reads `Google Map`, the German one `Google Maps`. The pattern was anchored on
+  the singular, so on a German phone the step found nothing and the walk
+  stopped — correct by its own rule, and on a screen where the marker was
+  plainly visible. He had already ruled out everything else: phone connected,
+  app in the foreground, marker tappable by hand, and the parking details
+  opening normally when he tapped it himself.
+
+  **A measurement changed the diagnosis.** The first suspect was the app
+  version. That was wrong. His dump and this repository's own test fixture are
+  both app **4.8.1**, and the fixture is the English one — same version, two
+  languages, two labels. So the difference tracks the UI language alone, and
+  nothing about his app build was unusual. The plural is now optional. Both
+  anchors stay, so the labels sitting beside it on that same screen
+  (`Map settings`, `Karteneinstellungen`, `Karte Tab`) still cannot match, and
+  a test pins exactly which two labels the widening added rather than leaving
+  the blast radius to inspection. Both real label sets are now in the suite:
+  his ten German ones and the fixture's English nine.
+
+## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
+
+### Behoben / Fixed
+
+- **The empty-screen-dump error guessed at the cause and threw away the answer
+  (#1913, @stephanlasso).** His phone was awake, unlocked and showing the app,
+  and the Companion read still got no screen dump. The message offered three
+  causes — asleep, not in the foreground, secured screen — and he had ruled out
+  all three. Two defects, both in one line of shell:
+
+  **It omitted the cause the code itself documents.** `uiautomator dump` gives
+  up when the phone's UI does not go **idle**, and a single animation or a
+  transient toast is enough. The comment saying so sits twenty lines above the
+  message that did not mention it. On a phone that is awake, unlocked and in the
+  app, that is the only candidate the other three leave out — and it matches the
+  animated-advert case traced on #968. The message now names it.
+
+  **And it discarded the reason.** `uiautomator dump` prints its status,
+  including *why* it gave up, to stdout; the command sent that to `/dev/null`
+  and read the dump file instead. So in the one case where the reason is
+  printed, it was thrown away and then guessed at. The status now goes to its
+  own file and is read back only after the dump has failed twice, and it is
+  quoted in the error.
+
+  Its own file rather than the same stdout, deliberately: merging them would put
+  a status line in front of the XML on the **success** path, and that path feeds
+  a parser. The successful output is byte-identical to before, and the extra
+  round trip lands only where the read was already failing and already sleeping
+  for its retry. The `rm` that stops a failed dump returning the previous run's
+  XML now covers the status file too, or a stale reason would be reported as
+  this run's.
+
+  The status is cut to its first line and 120 characters. `_redact` caps the
+  whole exception message at 500, so an unbounded status — uiautomator can
+  answer with a Java stack trace — would push the message that matters out of
+  the record; the same reasoning the error reporter already applies to an HTTP
+  response body. It is **not** logged: `_redact` strips VINs, e-mails, JWTs,
+  UUIDs and tokens from the exception message, which is what makes it safe to
+  publish, and `_LOGGER` has no such filter.
+
+  One earlier test counted every shell call to pin "one retry, not a loop". The
+  status read is not a retry, so that count now measures the dump command and
+  asserts the status is read exactly once; the intent is unchanged. Seven
+  mutations of the new code were seeded and all seven are caught.
+
+  Also corrected publicly in the thread: my first reply called the message
+  "already the diagnosis rather than a symptom". It was not — it was three
+  guesses.
+- **A Home Assistant restart handed the drop-retry budget back, so every restart
+  produced three fast polls (#1850, @indigomejor).** He measured it on a parked
+  Škoda Octavia: four restarts, each with the same sequence — startup poll, one
+  poll at the configured interval, then exactly three at the 180 s floor, then
+  the stand-down — and his debug log showing the **same** capture anchor on every
+  poll of the burst. His control is what isolated the trigger: without a restart
+  the slow poll still appears about every six hours and no burst follows, because
+  by then the streak is already spent.
+
+  The budget itself works, and he confirmed that on a real drive. What it did not
+  survive was a restart: the newest capture time, the anchor the last decision
+  compared against, and the overdue streak were all set in `__init__` and written
+  nowhere. The predicate then read "no memory yet" as "a drop landed" — and the
+  test pinning that behaviour records why it looked right at the time: *"The
+  first anchor of an entry's life counts, so the budget starts full."* The
+  premise holds. The word that was wrong is **life**: with nothing persisted,
+  "an entry's life" meant "since the last restart".
+
+  Both halves now live in the per-entry vehicle cache, which already survived a
+  restart. The anchor became a **high-water mark** — the newest capture ever
+  seen, monotone and never cleared — because persisting the old field would not
+  have fixed this, and that is measured rather than assumed: the first poll after
+  a restart has not read the portal yet, so it wrote `None` over the restored
+  value and the second poll refilled the budget exactly as before. The streak is
+  persisted as well, and it is the half that actually holds the budget down; with
+  only the mark restored, a restart starts at zero and the three fast polls
+  happen anyway.
+
+  A restored anchor dated in the future is clamped to now. That is the one way
+  this change could be worse than the bug it fixes: a stamp written while the
+  host clock was wrong, or an edited store, would keep the mark ahead of every
+  real capture and the budget would never arm again. Clamped, the worst case is
+  one skipped refill.
+
+  Two structural tests from the first round are superseded rather than deleted,
+  each saying so in its own docstring: one pinned the predicate's first argument
+  as the previous poll's anchor, and one pinned that the anchor was assigned
+  *outside* the retry gate. Both were right for the field they guarded; the
+  high-water mark has the inverse invariant, because assigning it
+  unconditionally would let a single poll that computes no capture set it to
+  `None` and hand the budget back mid-run, without a restart. Five mutations of
+  the new code were seeded and all five are caught.
+
+  **Not claimed:** that this caused his HTTP 430 account lockout. His own numbers
+  argue against a simple rate explanation — three identical sequences passed
+  without one, busier hours passed without one, and the count covers polls rather
+  than requests. #1973 remains open on exactly that: a single poll can carry six
+  extra requests of its own.
+
+## [5.2.4] - 2026-11-06 — Two entities people watch / Zwei Entitäten, auf die man schaut
+
+### Sicherheit / Security
+
+- **The coordinate guard was written, tested and invoked by nothing; it is a
+  required check now (#1378).** `scripts/check_no_precise_gps.py` has existed
+  since 2026-11-04, enforcing the rule in CONTRIBUTING.md that forbids a
+  coordinate beyond one decimal anywhere in the repo. Its only reader was its
+  own unit test. The reason it was never wired is worth recording, because it
+  is not laziness: its sibling `check_no_real_vins.py` runs in `ci.yml` as a
+  whole-tree audit, which works because the VIN tree scans clean — while this
+  tree holds **13** deliberate pairs (public landmarks used as test inputs,
+  named in the script's docstring), so an audit run fails on every commit, and
+  a required check that always fails gets deleted rather than fixed.
+
+  So it runs in its `--base` form, which asks only what a change **adds**. A
+  guard that refuses legitimate work gets switched off, so whether it does was
+  measured rather than assumed, in the shape the changelog gate's own history
+  demanded: replayed over `main` commit by commit, each against its real parent,
+  driven by the script's own predicates rather than a re-implementation.
+
+  | window | commits | would have been refused |
+  |---|---|---|
+  | since 2026-10-20 | 120 | **0** |
+  | since 2026-08-25 | 700 | **8** — of which 4 are merge commits |
+
+  The 700-commit figure is given because quoting only the first would be a
+  chosen window. Four of the eight are merge commits, and those are an artefact
+  of the replay rather than gate behaviour: it diffs a merge against its *first*
+  parent and so sees the other branch's additions, which neither of the real
+  baselines does — a pull request is judged against its merge base and a push
+  against the commit it came from. The remaining four are ordinary commits from
+  2026-08-26 and 2026-09-08/09, and each one added a public-landmark coordinate
+  to a test fixture; between them they are how most of the 13-pair baseline
+  entered the tree. Nothing in the two months since would have been refused.
+
+  Those four are also what a future false positive looks like, and the cost is
+  the one the script's docstring already accepts: a fixture whose value is
+  arbitrary needs a marker word or rounder digits, one line, against a false
+  negative that publishes where a stranger parks.
+
+  Two ways this could have been wired and quietly protected nothing, both now
+  held by a test that fails if it is undone:
+
+  * **A shallow checkout.** `actions/checkout` defaults to depth 1, with no
+    history and no `origin/main`, so there is nothing to diff against. The job
+    now sets `fetch-depth: 0`.
+  * **A direct push comparing `main` against itself.** On a push, `origin/main`
+    *is* the new `HEAD`, so the merge base is `HEAD`, the diff is empty and the
+    gate accepts any coordinate. The step therefore uses the commit the branch
+    pointed at before the push on a push event, and the merge base with `main`
+    on a pull request.
+
+  Each of the four wiring assertions was proven by breaking the workflow in
+  exactly its own way and watching that one test go red. One of them did not:
+  the shallow-checkout test asserted `fetch-depth: 0` appeared anywhere in the
+  job and passed with the setting deleted, because the explanatory comment above
+  the checkout names the setting itself. **The test was satisfied by its own
+  documentation.** It now ignores comment lines, and the episode is recorded in
+  its docstring rather than tidied away, because a presence check that its own
+  prose can satisfy is not a rare mistake.
+
+### Behoben / Fixed
+
+- **"All closures secured" said *unknown* where *off* was the honest answer,
+  because the proof that a car implements the field was thrown away between
+  deliveries (#1950, @Adcad1970).** The aggregate only reaches a verdict when a
+  delivery carries at least one door `safe_state_*` reading of 2 — a rule that
+  exists because across 4442 payloads those fields only ever carried 3, which
+  made the old arithmetic report "not secured" permanently on locked, shut cars.
+  The comment on that rule says a 2 "proves the car implements the field, and
+  **from then on** a 3 beside it is a real unsafe". The implementation scoped
+  "from then on" to the *same* delivery, because the mapper is handed a fresh
+  `VehicleData` and sees one dataset.
+
+  **His car does send the 2** — his sensor reached `on`, which by the gate's own
+  logic can only happen when one arrives. So for a car like his the entity could
+  read `on` or `unknown` and never `off`: every delivery with the doors unlocked
+  lost the proof. He watched HA show the car open and unlocked for nearly two
+  hours while it had been shut since 08:28, and asked the right question —
+  *"Should an observed open door give 'not secured' rather than unknown?"*
+
+  The capability is now remembered per car and the verdict finalised in
+  `reconcile`, the one function every path runs after the mapper. Only the
+  negative verdict is reached there, and only from a positive observation; a car
+  that has never sent a 2 keeps its `None` and no entity appears, which is
+  #1739's measured behaviour and is untouched.
+
+  It carries in a new `CAPABILITY_FIELDS` — immutable per car, truthy wins, never
+  blanked by a poll that omits it — and deliberately not in
+  `CARRY_FORWARD_FIELDS`, which is staleness-bounded: a capability cannot go
+  stale, while a carried *value* can, and that is the trap that once latched a
+  suppressed 12V SoC at 100 % for good. **The first attempt put it in
+  `STATIC_MASTER_FIELDS` instead, and the #465 test refused it** — it enumerates
+  that set against a vw.de master-data fixture and raised a `KeyError`. It was
+  right to: that set names a *source* ("only the vw.de channel supplies these"),
+  not merely a carry behaviour, and a fact the car proves about itself is neither
+  master data nor vw.de-supplied. Same mechanics, different meaning, separate
+  set — a completeness test earning its keep by rejecting a shortcut rather than
+  a bug.
+
+  **What was NOT done, and why.** The first proposal was to let an observed open
+  door force `off` directly. An independent review of the proposal refused it,
+  with the objection that killed it: the entity would be *created* by an open
+  door and fall back to `unknown` as soon as the car was shut and locked, and a
+  security sensor that says "no idea" right after you lock up is worse than one
+  that stays absent. The same review also established that the reporter's car
+  sends the 2 — the premise the first draft had got wrong.
+
+  **The residual risk, stated rather than hidden:** a car that once sent a 2 and
+  then stops sending it for good — a firmware change, say — keeps the capability
+  flag and would read `off` on every all-3 delivery. Nothing in the corpus looks
+  like that, and the pre-#1739 state was worse for everyone, but it is the one
+  case this design cannot distinguish. Raised by that same review as not provable
+  from the information available, which is the honest verdict.
+
+- **The Charging Port sensor died on 5.2.3 for Škoda cars with an EU-Data-Act
+  export, and the guard that was supposed to prevent it covered two paths out of
+  six (#2030, @Kaputnixx).** Home Assistant refuses an enum entity outright when
+  it receives a value outside its options — it does not degrade it to
+  unavailable. So an upper-case `DISCONNECTED` reaching a sensor whose options
+  are `connected` / `disconnected` cost the whole entity, and logged a
+  `ValueError` on **every** update: 112 of them in 22 hours at the reporter's
+  12-minute scan interval.
+
+  **The path, which the reporter deduced from the symptom before anyone read the
+  code.** He had already checked that `normalize_enum_states` exists and is
+  called in the enrichment step and in the cache restore, and concluded that
+  *some other path* must be handing the entity the raw value. It does:
+  `_poll_loop` calls `_advance_historical_exports` on every iteration, which
+  imports a pending EU-Data-Act export, writes the parsed snapshot straight into
+  `self.vehicles[vin]` — or gap-fills the current one from it — and pushes with
+  `async_set_updated_data(dict(self.vehicles))`, bypassing both the enrichment
+  step and `_async_push_update`. The export dialect carries `plug_state` and
+  publishes the verbose upper-case token. That is also why reloading fixed it
+  until the next poll: the restore path folds, the export path did not.
+
+  **Why #1739's guard missed it, which is the part worth keeping.** That fix put
+  the fold in two places and its test asserts the call is present in both — while
+  its docstring claims "EVERY path that reaches the platforms". It checked the
+  paths it *named* instead of enumerating the paths that *exist*, so a third one
+  was invisible to it. There were six `async_set_updated_data` call sites and
+  four pushed `dict(self.vehicles)` with nothing in between.
+
+  So the fold moves to the one place every path must pass: an override of
+  `async_set_updated_data` on the coordinator. A seventh call site added next
+  year inherits it without anyone remembering. It folds in place on a shallow
+  copy, so the stored snapshot is cleaned too and the raw token is not persisted
+  and restored later; folding an already-folded value is a no-op, so the paths
+  that normalise earlier are unaffected.
+
+  Proven against two mutants rather than asserted: removing the fold fails four
+  behaviour tests, and reversing fold and delegation fails the order test. **The
+  order test was vacuous on its first attempt** — it compared string positions in
+  a dump of the function body, and the override's own docstring mentions
+  `normalize_enum_states`, so the fold always appeared to come first whatever the
+  code did. It now compares statement indices with the docstring dropped. Recorded
+  rather than tidied away, because that is the second time in two days that a
+  check was satisfied by its own prose.
+
+- **PRIVACY.md still told you the GPS-precision fix was unreleased, a day after
+  it shipped — and a test now holds that sentence so it cannot happen again
+  (#1378).** In two places the privacy document said the defect was "fixed in
+  the repository but **not yet in a released version**". That was true when it
+  was written on 2026-11-04 and false by the evening: `git tag --contains`
+  reports **v5.2.3** for both fixes (`44d2a7d6`, `2b274626`). So the document
+  was withholding an all-clear that already applied, and telling you to be
+  careful about a version that no longer had the defect. Corrected to name
+  5.2.3, with the part that still matters kept: an export made with 5.2.3b1 or
+  **earlier** can still carry a precise coordinate, including one already
+  attached to an issue — and deleting the comment does not remove the file.
+
+  The interesting half is why the careful wording failed. It was chosen
+  *because* naming a version would have been wrong at the time, and the note
+  prescribing it also says to follow it up at release. That follow-up was
+  missed within a day, by its author. A rule enforced by someone remembering at
+  the right moment is not a gate, so
+  `tests/test_release_claims_in_docs_do_not_go_stale.py` is now the gate: it
+  reads every user-facing document, finds each claim that something is **not**
+  released, resolves the issue it cites, and goes red if `CHANGELOG.md` puts
+  that issue's newest entry in a shipped version. It checks the opposite
+  direction too — an "as of 5.2.3" promise whose issue still sits under
+  `[Unreleased]` is a false all-clear, which is the direction that put live
+  session cookies into public issues for four months (#923) — and it fails a
+  caution that cites nothing at all, because an unverifiable sentence is
+  exactly the one that rots unnoticed.
+
+  It compares two documents rather than git, deliberately: `ci.yml` checks out
+  shallow with no tags, so `git tag --contains` would find neither commit nor
+  tag and would answer "unreleased" for everything — a gate that passes
+  silently in the only place it runs. `CHANGELOG.md` is in the checkout and is
+  the file the release process already rewrites. The guard is proven by
+  reintroducing the real sentence, verbatim, and watching it fail.
+
+### Hinzugefügt / Added
+
+- **Škoda began shipping the plug fields on the charging endpoint, which had no
+  reader for them; they are read now (#1990).** **More than thirty** of these
+  were filed on 2026-11-05, #1990 through #2021, starting at 12:44 and still
+  arriving at 20:45. Thirty bodies were read — the only ones not read are two
+  that their reporters had already closed (#1995, #1998), and for those the
+  titles say `2 new field(s) on skoda` like the rest. The count is given as a
+  lower bound on purpose: an exact figure in this paragraph would have been
+  wrong three times over the course of that one evening.
+
+  Of the thirty bodies read, **every single one names only**
+  `status.plugConnectionState` and `status.plugLockState` on the `charging`
+  endpoint, with four of them adding `status.chargingErrorReason` (#1999,
+  #2011, #2017, #2020), for which the Scout's own "spec field (official)"
+  column is blank. Not one named a fourth field. So this is one backend change
+  rather than thirty findings — one owner even filed the same observation
+  twice, three minutes apart, both bodies carrying the identical `Reported at`
+  of 12:41:46. It is not confined to the EV models either: #2008 is a Kodiaq.
+
+  **Nothing was broken.** This parser reads the plug off the *air-conditioning*
+  endpoint under Škoda's own names (`chargerConnectionState` /
+  `chargerLockState`), and has since 2026-04-26; the backend simply started
+  offering the CARIAD spelling on the charging endpoint as well, where no reader
+  existed — so the Vehicle Data Scout correctly called it unmapped. (The
+  official-API parser has read these same two field names since #1286; what
+  changed here is the mysmob path.)
+
+  **The raw token is passed through and no boolean is invented**, which is the
+  #1286 decision for these two exact field names: the official spec declares
+  both as plain strings with *no enum*, so the allowed values are not
+  specified. Thirty bodies do not settle it either — across all of them each
+  field still shows exactly two values (`CONNECTED`/`DISCONNECTED` 12:18,
+  `LOCKED`/`UNLOCKED` 6:23, the one missing lock reading being #2008, which
+  sent only the connection state), and two values seen is not the same fact as
+  two values existing. Thirty cars agreeing is evidence about the backend's
+  current behaviour, not about what the field is allowed to contain. `plug_connected` and `connector_locked` therefore keep
+  coming from the air-conditioning block, off a vocabulary that *is* known;
+  a car whose ac block is silent gains the raw state and no boolean, which is
+  the honest outcome rather than a guessed one. A test pins the absence of
+  those booleans as firmly as the presence of the strings.
+
+  **No new entities.** All three sensors existed already; what is new is that
+  they get a value on this path. `plug_state` is enabled by default,
+  `charging_error_code` is diagnostic and also enabled, and `plug_lock_state`
+  is diagnostic and **off** by default — switch that one on in the entity list
+  if you want it. All three are electric-only, and that gate is decided by
+  whether the same charging payload carried a battery state of charge, not by
+  the model name, so the Superb and the Octavia in this wave are not excluded
+  for being a Superb or an Octavia.
+
+  The delivery chain was measured link by link instead of assumed, because a
+  token that misses by case costs the whole sensor (#1739): `plug_state` is an
+  enum with the lower-case options `connected` / `disconnected`,
+  `normalize_enum_states` folds with `.strip().lower()`, and it runs on both
+  paths that reach the entities — the poll and the cache restore. `CONNECTED`
+  therefore lands as `connected` rather than being folded to nothing.
+  `plug_lock_state` and `charging_error_code` declare no options, so
+  `normalize_enum_states` does not touch them at all and their token reaches
+  the entity exactly as Škoda sent it.
+
+## [5.2.3] - 2026-11-04 — Rounded where we said it was / Gerundet, wo wir es behauptet haben
+
+The stable release that gathers 5.2.3b1. The headline is that three places
+promised your vehicle position was blunted before it left your machine, and all
+three were sending it at full precision: the diagnostics download, the Vehicle
+Data Scout, and the parking-address lookup that goes out to OpenStreetMap. If
+you have ever attached a diagnostics file to an issue, posted a Scout report, or
+switched reverse geocoding on, that is the reason to update.
+
+Alongside that, the beta line brought: the login chain restricted to the
+identity provider and the portal, a batch capture stamp that had dated a whole
+car 82 days old, a Charging Port sensor that can hold a value at all on portal
+cars, three write routes and two plug fields on the official Škoda API, and a
+refused-login message that names the one thing known to fix it.
+
+Seven more changes land on top of the beta.
+
+### Behoben / Fixed
+
 - **Our own documentation said the portal's continuous feed cannot carry a
   position, while the code that reads one sat two files away.** Nothing in the
   integration behaved wrongly — this is a documentation correction, and it
@@ -306,6 +698,39 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   used as test input and are named in the script rather than exempted, with a
   per-file ratchet in the tests so none of those files can quietly gain another.
   Its first catch was a fixture added earlier in this same change.
+
+- **The parking-address lookup sent your exact position, not the blunted one
+  (#60).** Reverse geocoding is opt-in precisely because vehicle GPS is
+  sensitive, and both the function's own docstring and `PRIVACY.md` promised
+  that the coordinate handed to OpenStreetMap was rounded to three decimals
+  (~110 m). The rounding reached only the cache key. The request URL two lines
+  below it was built from the raw `lat`/`lon`, so every lookup gave a third
+  party the car's exact parking spot — for anyone who had switched the feature
+  on, on every poll that found a new position. The coordinate is now rounded
+  once and that same value is used for both the cache and the request, so the
+  promise and the behaviour are the same thing. `PRIVACY.md` is corrected to
+  match, and now also describes the data paths it had never mentioned: the ABRP
+  service, Tibber, push registration, the companion channel, the EU Data Act
+  portal mode and its raw-dataset archive, what a removal leaves behind, and
+  the fact that a cached vehicle image is served under `/local/` with the VIN
+  in its filename.
+
+### Notes
+
+- **Known issue: the Charging Port sensor can say a plug is connected on a car
+  that is not plugged in (#1739).** The beta taught that sensor to hold a value
+  at all on portal cars; this release carries that onto the stable channel, and
+  one Audi Q4 e-tron has since shown it standing at connected with three
+  independent confirmations that the cable was out — the wall charger reporting
+  unplugged for 40 hours, the energy supplier reporting no smart-charge control,
+  and the owner at the car. The cause looks like an inference drawn from the
+  charging scenario, which on that firmware reads as a charge-mode setting
+  rather than proof of a running session, while the car itself reported
+  NOT_READY_FOR_CHARGING with a charging-infrastructure error and zero power.
+  It is **not** fixed here. The existing cable binary sensor may share the
+  question, and both are being followed in #1739 — thanks @awood-ops for
+  testing the beta and for bringing three separate sources rather than one
+  reading.
 
 ## [5.2.3b1] - 2026-11-01 — Only two hosts may ask for your password / Nur zwei Hosts dürfen nach deinem Passwort fragen
 
