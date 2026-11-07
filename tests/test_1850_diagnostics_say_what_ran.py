@@ -70,29 +70,76 @@ def test_the_streak_is_only_counted_where_the_retry_runs() -> None:
     assert guard < bump, "the guard sits after the increment it is meant to gate"
 
 
-def test_the_anchor_is_still_tracked_unconditionally() -> None:
-    """The half that must NOT be gated.
+def test_the_mark_moves_only_when_a_drop_actually_landed() -> None:
+    """SUPERSEDES ``test_the_anchor_is_still_tracked_unconditionally``.
 
-    The anchor is what the next decision compares against. Letting it go stale
-    while the portal is off would make the first armed poll read "no drop since
-    forever" and spend the budget the gate just saved — turning this fix into
-    the bug it is fixing, one poll later.
+    That test guarded the opposite shape, and it was right for the field it
+    guarded: ``_drop_anchor_seen`` held the previous poll's anchor including
+    None, and tracking it unconditionally was deliberate. #1850's second round
+    (@indigomejor, four restarts with the same anchor on every poll of the
+    burst) retired that field. It could not survive a restart even if it were
+    persisted — the first poll after one has not read the portal yet, so the
+    unconditional write put None over the restored value and the second poll
+    refilled the budget exactly as before.
+
+    The replacement is a monotone high-water mark, and its invariant is the
+    inverse: it must move ONLY inside the branch that found a real advance, and
+    must never be assigned unconditionally. Unconditionally, a single poll that
+    computes no capture at all would set it to None, and the next poll with an
+    ordinary old capture would read "advanced" and hand the budget back — the
+    restart bug replayed mid-run, without a restart.
     """
     src = _loop_source()
-    assign = src.index("self._drop_anchor_seen = _cap_anchor")
-    guard = src.index("if not nightly and _portal is not None:")
-    block_end = src.index("# Tracked unconditionally on purpose")
-    assert guard < block_end < assign, (
-        "the anchor assignment moved inside the gate; see the comment there"
+    lines = src.splitlines()
+    assigns = [ln for ln in lines
+               if ln.strip() == "self._drop_anchor_high_water = _cap_anchor"]
+    assert len(assigns) == 1, (
+        f"expected exactly one high-water assignment, found {len(assigns)}"
     )
-    # it must not be indented deeper than the gate's own level
-    line = next(
-        ln for ln in src.splitlines()
-        if ln.strip() == "self._drop_anchor_seen = _cap_anchor"
+    gate = next(ln for ln in lines
+                if ln.strip() == "if not nightly and _portal is not None:")
+    gate_indent = len(gate) - len(gate.lstrip())
+    assign_indent = len(assigns[0]) - len(assigns[0].lstrip())
+    assert assign_indent > gate_indent + 4, (
+        f"the high-water assignment sits at indent {assign_indent} against a "
+        f"gate at {gate_indent}; it must be inside the advance branch, not at "
+        "the gate's level and not outside it"
     )
-    assert len(line) - len(line.lstrip()) == 12, (
-        f"unexpected indentation ({len(line) - len(line.lstrip())}); the "
-        "assignment may have been moved into the guarded block"
+    # And it has to be the advance branch specifically, not the overdue one.
+    advance = src.index("if _drop_anchor_advanced(")
+    overdue = src.index("elif _drop_overdue(")
+    mark = src.index("self._drop_anchor_high_water = _cap_anchor")
+    assert advance < mark < overdue, (
+        "the high-water assignment is not inside the advance branch"
+    )
+
+
+def test_a_change_to_the_budget_is_persisted() -> None:
+    """#1850 second round — the streak is the half that holds the budget down.
+
+    With only the mark persisted, a restart restores a streak of zero and the
+    three fast polls happen anyway. So any change to either value has to reach
+    the store, and it has to be reached from the decision block rather than
+    only from the fresh-data path: a poll that brings no new snapshot is exactly
+    when the streak climbs.
+    """
+    src = _loop_source()
+    assert "self._drop_overdue_streak != _streak_before" in src, (
+        "nothing detects a streak change, so nothing persists it"
+    )
+    # Scoped to the decision block, not to the whole loop. A bare presence
+    # check passed with the call in this block replaced by ``pass``, because
+    # the loop calls ``_save_vehicle_cache`` elsewhere too (after a poll that
+    # brought fresh data) — measured with a mutation, which is the only reason
+    # this is a window and not a substring.
+    lines = src.splitlines()
+    call = next(i for i, ln in enumerate(lines)
+                if "sleep_s: float = _drop_anchored_sleep_s(" in ln)
+    start = next(i for i, ln in enumerate(lines)
+                 if "_decision_now = datetime.now(" in ln)
+    window = [ln.strip() for ln in lines[start:call]]
+    assert any("self._save_vehicle_cache()" in ln for ln in window), (
+        f"the decision block never asks for a save: {window}"
     )
 
 

@@ -46,6 +46,126 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **The parked-car step never matched on a German phone (#1963, #1981,
+  @Snaker86).** The map element the step looks for is found by its
+  accessibility label, and that label is translated: the English screen dump
+  reads `Google Map`, the German one `Google Maps`. The pattern was anchored on
+  the singular, so on a German phone the step found nothing and the walk
+  stopped — correct by its own rule, and on a screen where the marker was
+  plainly visible. He had already ruled out everything else: phone connected,
+  app in the foreground, marker tappable by hand, and the parking details
+  opening normally when he tapped it himself.
+
+  **A measurement changed the diagnosis.** The first suspect was the app
+  version. That was wrong. His dump and this repository's own test fixture are
+  both app **4.8.1**, and the fixture is the English one — same version, two
+  languages, two labels. So the difference tracks the UI language alone, and
+  nothing about his app build was unusual. The plural is now optional. Both
+  anchors stay, so the labels sitting beside it on that same screen
+  (`Map settings`, `Karteneinstellungen`, `Karte Tab`) still cannot match, and
+  a test pins exactly which two labels the widening added rather than leaving
+  the blast radius to inspection. Both real label sets are now in the suite:
+  his ten German ones and the fixture's English nine.
+
+## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
+
+### Behoben / Fixed
+
+- **The empty-screen-dump error guessed at the cause and threw away the answer
+  (#1913, @stephanlasso).** His phone was awake, unlocked and showing the app,
+  and the Companion read still got no screen dump. The message offered three
+  causes — asleep, not in the foreground, secured screen — and he had ruled out
+  all three. Two defects, both in one line of shell:
+
+  **It omitted the cause the code itself documents.** `uiautomator dump` gives
+  up when the phone's UI does not go **idle**, and a single animation or a
+  transient toast is enough. The comment saying so sits twenty lines above the
+  message that did not mention it. On a phone that is awake, unlocked and in the
+  app, that is the only candidate the other three leave out — and it matches the
+  animated-advert case traced on #968. The message now names it.
+
+  **And it discarded the reason.** `uiautomator dump` prints its status,
+  including *why* it gave up, to stdout; the command sent that to `/dev/null`
+  and read the dump file instead. So in the one case where the reason is
+  printed, it was thrown away and then guessed at. The status now goes to its
+  own file and is read back only after the dump has failed twice, and it is
+  quoted in the error.
+
+  Its own file rather than the same stdout, deliberately: merging them would put
+  a status line in front of the XML on the **success** path, and that path feeds
+  a parser. The successful output is byte-identical to before, and the extra
+  round trip lands only where the read was already failing and already sleeping
+  for its retry. The `rm` that stops a failed dump returning the previous run's
+  XML now covers the status file too, or a stale reason would be reported as
+  this run's.
+
+  The status is cut to its first line and 120 characters. `_redact` caps the
+  whole exception message at 500, so an unbounded status — uiautomator can
+  answer with a Java stack trace — would push the message that matters out of
+  the record; the same reasoning the error reporter already applies to an HTTP
+  response body. It is **not** logged: `_redact` strips VINs, e-mails, JWTs,
+  UUIDs and tokens from the exception message, which is what makes it safe to
+  publish, and `_LOGGER` has no such filter.
+
+  One earlier test counted every shell call to pin "one retry, not a loop". The
+  status read is not a retry, so that count now measures the dump command and
+  asserts the status is read exactly once; the intent is unchanged. Seven
+  mutations of the new code were seeded and all seven are caught.
+
+  Also corrected publicly in the thread: my first reply called the message
+  "already the diagnosis rather than a symptom". It was not — it was three
+  guesses.
+- **A Home Assistant restart handed the drop-retry budget back, so every restart
+  produced three fast polls (#1850, @indigomejor).** He measured it on a parked
+  Škoda Octavia: four restarts, each with the same sequence — startup poll, one
+  poll at the configured interval, then exactly three at the 180 s floor, then
+  the stand-down — and his debug log showing the **same** capture anchor on every
+  poll of the burst. His control is what isolated the trigger: without a restart
+  the slow poll still appears about every six hours and no burst follows, because
+  by then the streak is already spent.
+
+  The budget itself works, and he confirmed that on a real drive. What it did not
+  survive was a restart: the newest capture time, the anchor the last decision
+  compared against, and the overdue streak were all set in `__init__` and written
+  nowhere. The predicate then read "no memory yet" as "a drop landed" — and the
+  test pinning that behaviour records why it looked right at the time: *"The
+  first anchor of an entry's life counts, so the budget starts full."* The
+  premise holds. The word that was wrong is **life**: with nothing persisted,
+  "an entry's life" meant "since the last restart".
+
+  Both halves now live in the per-entry vehicle cache, which already survived a
+  restart. The anchor became a **high-water mark** — the newest capture ever
+  seen, monotone and never cleared — because persisting the old field would not
+  have fixed this, and that is measured rather than assumed: the first poll after
+  a restart has not read the portal yet, so it wrote `None` over the restored
+  value and the second poll refilled the budget exactly as before. The streak is
+  persisted as well, and it is the half that actually holds the budget down; with
+  only the mark restored, a restart starts at zero and the three fast polls
+  happen anyway.
+
+  A restored anchor dated in the future is clamped to now. That is the one way
+  this change could be worse than the bug it fixes: a stamp written while the
+  host clock was wrong, or an edited store, would keep the mark ahead of every
+  real capture and the budget would never arm again. Clamped, the worst case is
+  one skipped refill.
+
+  Two structural tests from the first round are superseded rather than deleted,
+  each saying so in its own docstring: one pinned the predicate's first argument
+  as the previous poll's anchor, and one pinned that the anchor was assigned
+  *outside* the retry gate. Both were right for the field they guarded; the
+  high-water mark has the inverse invariant, because assigning it
+  unconditionally would let a single poll that computes no capture set it to
+  `None` and hand the budget back mid-run, without a restart. Five mutations of
+  the new code were seeded and all five are caught.
+
+  **Not claimed:** that this caused his HTTP 430 account lockout. His own numbers
+  argue against a simple rate explanation — three identical sequences passed
+  without one, busier hours passed without one, and the count covers polls rather
+  than requests. #1973 remains open on exactly that: a single poll can carry six
+  extra requests of its own.
+
 ## [5.2.4] - 2026-11-06 — Two entities people watch / Zwei Entitäten, auf die man schaut
 
 ### Sicherheit / Security
