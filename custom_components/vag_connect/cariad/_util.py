@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -387,6 +388,26 @@ def mask_vin(vin: str | None) -> str:
     if len(vin) <= 6:
         return f"***{vin}"
     return f"***{vin[-6:]}"
+
+
+def hash_vin(vin: str | None) -> str:
+    """Stable, non-reversible name for a VIN, for use in a path or a URL.
+
+    ``mask_vin`` above is for text a human reads. This is for a filename a
+    machine builds, and that is a different job: the render-image cache
+    directory is web-served and the file's URL is published as an entity
+    attribute, so a filename is not a private place.
+
+    Not a secret, and worth stating rather than implying: a VIN is structured,
+    so a short digest of one could be brute-forced by somebody who already
+    suspects a particular vehicle. What this defeats is reading the value
+    straight off a path.
+
+    ``cariad/dataset_archive.py`` made exactly this trade for its directory
+    names, with the same reasoning, and the rule was never carried across to
+    the image cache. This function is that rule in one place instead of two.
+    """
+    return hashlib.sha256((vin or "").encode("utf-8")).hexdigest()[:16]
 
 
 def mask_email(value: str | None) -> str:

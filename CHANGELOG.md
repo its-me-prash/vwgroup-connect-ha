@@ -92,6 +92,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   tracker the whole time. Before asking anyone for a measurement, search the
   tracker for one that has already been delivered.
 
+- **Image cache hardening after a privacy review (#2057).** The local render-image cache now
+  derives its filenames from a non-reversible digest instead of from an
+  identifier that does not belong in a path, and files written by earlier
+  versions under the old naming are removed once at startup.
+
+  Two visible consequences, both harmless. The files in
+  `/config/www/vehicles/` change name, so a Lovelace card that hard-codes a
+  cached filename needs its URL updated — cards that reference the image
+  *entity* are unaffected and need nothing. And the first start after updating
+  clears the old cached files; they are fetched again on the next poll.
+
+  The same hardening already existed for the diagnostics dataset archive. It is
+  now one shared helper used by both, rather than a decision taken in one place
+  and missed in the other.
+
+  Entity unique IDs are deliberately unchanged: they are keys in Home
+  Assistant's own registry, are never served, and renaming them would orphan
+  every existing entity.
+
 ## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
 
 ### Behoben / Fixed

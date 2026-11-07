@@ -11,8 +11,11 @@ Creates one ImageEntity per MediaType per vehicle:
   image.{vehicle}_render_angle_hd   (MYAAN3NB, 1.7 MB)
   image.{vehicle}_render_angle_lg   (MYAAN8NB, 879 KB)
 
-All images are cached locally under /config/www/vehicles/{vin}_{tag}.png
-for offline use and fast Lovelace card loading.
+All images are cached locally under /config/www/vehicles/{hash}_{tag}.png for
+offline use and fast Lovelace card loading, where {hash} is a non-reversible
+digest of the VIN: that directory is web-served and the file's URL is published
+as an entity attribute, so the VIN must not be in the filename. See hash_vin in
+cariad/_util.py.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ import logging
 
 import asyncio
 import os
+from typing import Iterable
 from datetime import datetime, timezone
 
 from homeassistant.components.image import ImageEntity
@@ -28,7 +32,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .cariad._util import mask_vin
+from .cariad._util import hash_vin, mask_vin
 from .cariad.api.graphql import RENDER_IMAGE_TYPES, RENDER_TYPE_BY_MEDIA
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity
@@ -42,12 +46,54 @@ _CACHE_SUBDIR = "vehicles"
 def _local_path(hass: HomeAssistant, vin: str, tag: str) -> str:
     """Return absolute path to local cached PNG file."""
     www_dir = hass.config.path("www", _CACHE_SUBDIR)
-    return os.path.join(www_dir, f"{vin}_{tag}.png")
+    return os.path.join(www_dir, f"{hash_vin(vin)}_{tag}.png")
 
 
 def _local_url(vin: str, tag: str) -> str:
     """Return HA /local/ URL for the cached image (for Lovelace use)."""
-    return f"/local/{_CACHE_SUBDIR}/{vin}_{tag}.png"
+    return f"/local/{_CACHE_SUBDIR}/{hash_vin(vin)}_{tag}.png"
+
+
+def _purge_legacy_vin_files(www_dir: str, vins: "Iterable[str | None]") -> int:
+    """Remove cache files an earlier version named with the full VIN.
+
+    This is the half of the change that reaches an install that already ran.
+    Renaming future files does nothing about the one already sitting in
+    ``/config/www/vehicles/`` and still served at ``/local/`` under its VIN.
+
+    Deletes only ``{vin}_*.png`` for a VIN it was actually handed, so three
+    things are left alone by construction rather than by luck: a file the user
+    put in that directory themselves, a vehicle on somebody else's account
+    whose VIN we were not given, and the hashed names this version writes. A
+    blank or ``None`` VIN is skipped rather than becoming a prefix that matches
+    every file in the directory.
+
+    Returns the number removed. A missing directory is not an error — setup
+    calls this before the first poll on a fresh install.
+    """
+    prefixes = tuple(f"{vin}_" for vin in vins if vin)
+    if not prefixes:
+        return 0
+    try:
+        names = os.listdir(www_dir)
+    except OSError:
+        return 0
+    removed = 0
+    for name in names:
+        if not (name.endswith(".png") and name.startswith(prefixes)):
+            continue
+        try:
+            os.remove(os.path.join(www_dir, name))
+        except OSError:  # noqa: PERF203
+            # A file we cannot remove is worth reporting, but it must not stop
+            # the others from going.
+            _LOGGER.warning(
+                "vag_connect image cache: could not remove legacy file in %s",
+                www_dir,
+            )
+            continue
+        removed += 1
+    return removed
 
 
 def _safe_slug(s: str) -> str:
@@ -155,6 +201,21 @@ async def async_setup_entry(
     # Ensure cache dir exists
     www_dir = hass.config.path("www", _CACHE_SUBDIR)
     await hass.async_add_executor_job(os.makedirs, www_dir, 0o755, True)
+
+    # Files an earlier version named with the full VIN are still sitting in
+    # that directory and still served at /local/ under that name. Removing
+    # them is what makes this reach an install that already ran; renaming
+    # future files alone would leave the exposed one in place. Once per setup,
+    # before any entity publishes a URL.
+    purged = await hass.async_add_executor_job(
+        _purge_legacy_vin_files, www_dir, list(coordinator.vehicles)
+    )
+    if purged:
+        _LOGGER.info(
+            "image cache: removed %d file(s) written by an earlier version with "
+            "an identifier in their name",
+            purged,
+        )
 
     def _add_entities_for_vin(vin: str, vehicle: dict) -> list[ImageEntity]:
         image_urls: dict[str, str] = vehicle.get("image_urls") or {}
@@ -373,7 +434,7 @@ class VagRenderImageEntity(VagConnectEntity, ImageEntity):
 
     Attributes expose all metadata for Lovelace use:
       - source_url: the original public URL from mediaservice
-      - local_path: /local/vehicles/{vin}_{tag}.png (usable in picture-entity)
+      - local_path: /local/vehicles/{hash}_{tag}.png (usable in picture-entity)
       - tag, media_type, view_description, recommended_use, file_size_approx
       - vehicle_name, vin, media_short_name, media_long_name
     """
@@ -473,7 +534,7 @@ class VagSkodaWidgetImageEntity(VagConnectEntity, ImageEntity):
       Audi/VW GraphQL)
     - URL refresh check uses ``data["render_url"]`` instead of
       ``image_urls`` dict lookup
-    - Cached locally as ``{vin}_widget.png`` (single file per VIN)
+    - Cached locally as ``{hash_vin(vin)}_widget.png`` (single file per VIN)
     """
 
     _attr_content_type = "image/png"
