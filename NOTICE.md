@@ -22,6 +22,7 @@ The following MIT/Apache-2.0 licensed projects were used as **reference only**
 | pycupra | Apache-2.0 | SEAT/CUPRA API reference |
 | [pyporscheconnectapi](https://github.com/CJNE/pyporscheconnectapi) | MIT | Porsche API reference (v0.15.0) |
 | [CarConnectivity-connector-audi](https://github.com/acfischer42/CarConnectivity-connector-audi) | MIT | Audi client_id reference |
+| [audi_connect_ha PR #905](https://github.com/audiconnect/audi_connect_ha/pull/905) by [@majd](https://github.com/majd) | MIT | myAudi Auth0 authorization-code + PKCE sign-in: tenant, audience, scope, registered `localhost` callback, paste-the-callback-URL flow, Auth0 token refresh (ported to `cariad/auth/_audi_auth0.py`) |
 | [CarConnectivity-connector-volkswagen-na](https://github.com/zackcornelius/CarConnectivity-connector-volkswagen-na) | MIT | VW NA auth reference (v0.16.0) |
 
 All API endpoints, authentication methods, and client IDs are functional

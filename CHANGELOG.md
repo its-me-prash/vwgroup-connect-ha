@@ -57,9 +57,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   tenant at `group.identity.vwgroup.io`, with the myAudi public client, PKCE,
   and a `localhost` callback registered on that client — and that token
   endpoint asks for no attestation. The access token it issues is accepted by
-  the CARIAD vehicle API directly (no AZS / MBB exchange in between). Ported
-  from audiconnect/audi_connect_ha#905, where it was validated against a live
-  EU account.
+  the CARIAD vehicle API directly (no AZS / MBB exchange in between).
+
+  **The solution is @majd's.** It was worked out and shipped in
+  [audiconnect/audi_connect_ha#905](https://github.com/audiconnect/audi_connect_ha/pull/905)
+  (MIT): the Auth0 tenant, audience and scope, the registered `localhost`
+  callback, the paste-the-callback-URL flow, the Auth0 refresh, and the
+  `invalid assertion headers` → reauth migration. This entry ports that
+  design into this integration's auth/strategy model; the credit for finding
+  the open door belongs there.
 
   **How it looks.** *Add integration → Browser login → Audi* now shows a
   myAudi sign-in link. Sign in in any browser; Audi redirects to a

@@ -11,8 +11,10 @@ endpoint of that tenant does not ask for an assertion header, and the access
 token it issues (audience ``https://api.cariad.com``) is accepted by the
 CARIAD vehicle API directly — no AZS / MBB exchange in between.
 
-Ported from audiconnect/audi_connect_ha#905 (MIT), where it was validated
-against a live EU account on 2026-11.
+The solution is @majd's: worked out and shipped in audiconnect/audi_connect_ha
+PR #905 (MIT, merged 2026-11-08) — tenant, audience, scope, the registered
+localhost callback, the paste-the-callback-URL flow and the Auth0 refresh.
+This module ports that design into this integration's auth/strategy model.
 
 Flow (config_flow ``audi_auth0`` step):
 
