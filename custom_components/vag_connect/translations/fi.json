@@ -181,6 +181,34 @@
           "mbb_vins": "Jätä tämä tyhjäksi, ellei käyttöönotto pyydä sitä.",
           "spin": "Audi-S-PINisi — koodi, jota käytät etälukitukseen/-avaukseen."
         }
+      },
+      "audi_auth0": {
+        "title": "Kirjaudu myAudilla selaimessa",
+        "description": "Audi ei enää anna tämän integraation kirjautua sähköpostilla ja salasanalla — viimeinen vaihe vaatii nyt laitetarkistuksen, jonka vain virallinen sovellus läpäisee. Audin oma kirjautumissivu toimii yhä:\n\n1. Avaa tämä linkki, mieluiten yksityisessä selainikkunassa: [{authorization_url}]({authorization_url})\n2. Kirjaudu myAudi-tililläsi.\n3. Audi ohjaa selaimesi osoitteeseen `localhost:8080/myaudi-callback`, jota ei voi ladata. **Tuo yhteysvirhe on odotettu.**\n4. Kopioi koko osoite selaimen osoiteriviltä ja liitä se alle.\n\nLinkki koskee vain tätä yritystä; jos se epäonnistuu, näytetään uusi.",
+        "data": {
+          "callback_url": "Osoite selaimen osoiteriviltä"
+        },
+        "data_description": {
+          "callback_url": "Alkaa localhost:8080/myaudi-callback ja sisältää code= ja state=."
+        }
+      },
+      "reauth_audi_auth0": {
+        "title": "Kirjaudu uudelleen myAudilla selaimessa",
+        "description": "Audi ei enää anna tämän integraation kirjautua sähköpostilla ja salasanalla — viimeinen vaihe vaatii nyt laitetarkistuksen, jonka vain virallinen sovellus läpäisee. Audin oma kirjautumissivu toimii yhä:\n\n1. Avaa tämä linkki, mieluiten yksityisessä selainikkunassa: [{authorization_url}]({authorization_url})\n2. Kirjaudu myAudi-tililläsi.\n3. Audi ohjaa selaimesi osoitteeseen `localhost:8080/myaudi-callback`, jota ei voi ladata. **Tuo yhteysvirhe on odotettu.**\n4. Kopioi koko osoite selaimen osoiteriviltä ja liitä se alle.\n\nLinkki koskee vain tätä yritystä; jos se epäonnistuu, näytetään uusi.",
+        "data": {
+          "callback_url": "Osoite selaimen osoiteriviltä"
+        },
+        "data_description": {
+          "callback_url": "Alkaa localhost:8080/myaudi-callback ja sisältää code= ja state=."
+        }
+      },
+      "reauth_audi_menu": {
+        "title": "Kirjaudu uudelleen — Audi",
+        "description": "Audi estää tämän integraation kirjautumisen sähköpostilla + salasanalla (laitetarkistus). Kirjautuminen Audin omalla kirjautumissivulla selaimessa toimii yhä. Miten haluat kirjautua uudelleen?",
+        "menu_options": {
+          "reauth_audi_auth0": "Kirjaudu myAudilla selaimessa (suositus)",
+          "reauth_credentials": "Syötä sähköposti + salasana (vain EU Data Act -portaali)"
+        }
       }
     },
     "error": {
@@ -213,7 +241,10 @@
       "captcha_retry": "Ratkaise yllä näkyvä captcha jatkaaksesi.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toimittanut mitään — eikä tämä ilmoitus osaa kertoa syytä. Avaa portaali selaimessa: jos se latautuu, tarkista, että tietojen jakaminen on käytössä autollesi. Jos se ei lataudu, portaali itse on alhaalla eikä omalla puolellasi tarvitse muuttaa mitään. (Seurataan: #1712.)"
+      "eu_signin_attestation": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toimittanut mitään — eikä tämä ilmoitus osaa kertoa syytä. Avaa portaali selaimessa: jos se latautuu, tarkista, että tietojen jakaminen on käytössä autollesi. Jos se ei lataudu, portaali itse on alhaalla eikä omalla puolellasi tarvitse muuttaa mitään. (Seurataan: #1712.) Audi: valitse Korjaa ja sitten selainkirjautuminen myAudilla — se ohittaa tämän esteen.",
+      "invalid_auth0_callback": "Tämä ei ole tämän kirjautumisyrityksen osoite. Liitä koko localhost:8080/myaudi-callback-osoite osoiteriviltä kirjauduttuasi yllä olevan linkin kautta.",
+      "auth0_denied": "Kirjautuminen peruttiin tai hylättiin Audin sivulla. Avaa linkki uudelleen ja kirjaudu.",
+      "auth0_auth_failed": "Audi hylkäsi kirjautumiskoodin — koodia voi käyttää vain kerran. Avaa yllä oleva uusi linkki ja kirjaudu uudelleen."
     },
     "abort": {
       "already_configured": "Tämä tili on jo määritetty.",
@@ -2686,7 +2717,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen estää kirjautumisen: {brand}",
-      "description": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toimittanut mitään — eikä tämä ilmoitus osaa kertoa syytä. Avaa portaali selaimessa: jos se latautuu, tarkista, että tietojen jakaminen on käytössä autollesi. Jos se ei lataudu, portaali itse on alhaalla eikä omalla puolellasi tarvitse muuttaa mitään. (Seurataan: #1712.)"
+      "description": "Sähköpostiosoitteesi ja salasanasi ovat kunnossa — kirjautuminen onnistui ja valtuutuskoodi palautui. Volkswagen hylkää nyt viimeisen vaiheen, kyseisen koodin vaihtamisen tunnisteeseen, koska se vaatii Googlen allekirjoittaman laitetodistuksen (Play Integrity), jonka voi tuottaa vain virallinen sovellus aidossa puhelimessa. Salasanan syöttäminen uudelleen ei auta, eikä uusi yritys myöskään. Vain luku -tilassa oleva EU Data Act -portaali, joka tässä tilanteessa yleensä ottaa tehtävän hoitaakseen, ei toimittanut mitään — eikä tämä ilmoitus osaa kertoa syytä. Avaa portaali selaimessa: jos se latautuu, tarkista, että tietojen jakaminen on käytössä autollesi. Jos se ei lataudu, portaali itse on alhaalla eikä omalla puolellasi tarvitse muuttaa mitään. (Seurataan: #1712.) Audi: valitse Korjaa ja sitten selainkirjautuminen myAudilla — se ohittaa tämän esteen."
     }
   },
   "services": {

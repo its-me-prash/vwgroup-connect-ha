@@ -46,6 +46,54 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **Audi EU: a browser sign-in that gets past the attestation wall (#1712,
+  #2051, #1964).** Since October the CARIAD token exchange refuses this
+  integration's sign-in with `invalid assertion headers`, and the QR /
+  device-code grant was withdrawn for Audi before that (#1364). Audi EU
+  entries have been running on the read-only EU Data Act portal since. What
+  the vendor left open is the login the myAudi app itself uses: its Auth0
+  tenant at `group.identity.vwgroup.io`, with the myAudi public client, PKCE,
+  and a `localhost` callback registered on that client — and that token
+  endpoint asks for no attestation. The access token it issues is accepted by
+  the CARIAD vehicle API directly (no AZS / MBB exchange in between). Ported
+  from audiconnect/audi_connect_ha#905, where it was validated against a live
+  EU account.
+
+  **How it looks.** *Add integration → Browser login → Audi* now shows a
+  myAudi sign-in link. Sign in in any browser; Audi redirects to a
+  `localhost:8080/myaudi-callback` address that cannot load — that error is
+  expected — and you paste the full address from the address bar into the
+  form. The flow checks the OAuth `state` it issued, trades the one-time code
+  for tokens, and stamps the session `strategy="audi_auth0"`. Refreshes go to
+  the same Auth0 endpoint; a dead refresh token raises a reauth instead of
+  re-running the walled password login.
+
+  **Migration, in both directions.** A fresh browser sign-in for an account
+  that already has an email + password Audi entry attaches its tokens to that
+  entry (matched on the e-mail claim) instead of creating a second one, and
+  keeps the stored password: the EU Data Act portal channel still signs in
+  with it. The reauth flow for an Audi entry now offers a choice — the browser
+  sign-in, or the old credentials form — and the *Volkswagen blocks the
+  sign-in* repair notice gained a **Repair** button that opens it. The
+  `device_grant_retired` dead end for Audi (#2051) is gone: Audi no longer
+  reaches that error from the browser-login picker.
+
+  **What it cannot do, measured rather than assumed.** Live on an EU account
+  (Audi e-tron, DK): the Auth0 token reads the CARIAD vehicle API and lists
+  the garage, but the vehicle **render images** are out of reach — the AZS
+  proxy refuses the token with `client does not have access to the IDP for
+  token exchange`, and the vgql endpoint answers the same message as a 401
+  for every `vehicle { … }` sub-field. The myAudi public client may not make
+  the exchange those resolvers need. So an Auth0 session skips the image
+  fetch, says so once in the log, and leaves vehicle data untouched.
+
+  Ported and live-tested by @woopstar (sign-in, one hour of polling, and the
+  first Auth0 token refresh on a real Audi), with an AI assistant on the
+  port. Reports that this answers: @starwarsfan (#2051), the #1964 and #1712
+  threads.
+
 ### Behoben / Fixed
 
 - **The parked-car step never matched on a German phone (#1963, #1981,

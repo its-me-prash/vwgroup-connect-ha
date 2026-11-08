@@ -181,6 +181,34 @@
           "mbb_vins": "Zostaw to pole puste, chyba że konfiguracja o nie poprosi.",
           "spin": "Twój S-PIN do Audi — kod, którego używasz do zdalnego ryglowania/odryglowania."
         }
+      },
+      "audi_auth0": {
+        "title": "Zaloguj się przez myAudi w przeglądarce",
+        "description": "Audi nie pozwala już tej integracji logować się e-mailem i hasłem — ostatni krok wymaga teraz sprawdzenia urządzenia, które przechodzi tylko oficjalna aplikacja. Własna strona logowania Audi nadal działa:\n\n1. Otwórz ten link, najlepiej w prywatnym oknie przeglądarki: [{authorization_url}]({authorization_url})\n2. Zaloguj się kontem myAudi.\n3. Audi przekieruje przeglądarkę na adres `localhost:8080/myaudi-callback`, którego nie da się wczytać. **Ten błąd połączenia jest oczekiwany.**\n4. Skopiuj pełny adres z paska adresu przeglądarki i wklej go poniżej.\n\nLink dotyczy tylko tej próby; jeśli się nie powiedzie, pojawi się nowy.",
+        "data": {
+          "callback_url": "Adres z paska adresu przeglądarki"
+        },
+        "data_description": {
+          "callback_url": "Zaczyna się od localhost:8080/myaudi-callback i zawiera code= oraz state=."
+        }
+      },
+      "reauth_audi_auth0": {
+        "title": "Zaloguj się ponownie przez myAudi w przeglądarce",
+        "description": "Audi nie pozwala już tej integracji logować się e-mailem i hasłem — ostatni krok wymaga teraz sprawdzenia urządzenia, które przechodzi tylko oficjalna aplikacja. Własna strona logowania Audi nadal działa:\n\n1. Otwórz ten link, najlepiej w prywatnym oknie przeglądarki: [{authorization_url}]({authorization_url})\n2. Zaloguj się kontem myAudi.\n3. Audi przekieruje przeglądarkę na adres `localhost:8080/myaudi-callback`, którego nie da się wczytać. **Ten błąd połączenia jest oczekiwany.**\n4. Skopiuj pełny adres z paska adresu przeglądarki i wklej go poniżej.\n\nLink dotyczy tylko tej próby; jeśli się nie powiedzie, pojawi się nowy.",
+        "data": {
+          "callback_url": "Adres z paska adresu przeglądarki"
+        },
+        "data_description": {
+          "callback_url": "Zaczyna się od localhost:8080/myaudi-callback i zawiera code= oraz state=."
+        }
+      },
+      "reauth_audi_menu": {
+        "title": "Zaloguj się ponownie — Audi",
+        "description": "Audi blokuje logowanie e-mailem + hasłem dla tej integracji (sprawdzenie urządzenia). Logowanie przez własną stronę logowania Audi w przeglądarce nadal działa. Jak chcesz zalogować się ponownie?",
+        "menu_options": {
+          "reauth_audi_auth0": "Zaloguj się przez myAudi w przeglądarce (zalecane)",
+          "reauth_credentials": "Wpisz e-mail + hasło (tylko portal EU Data Act)"
+        }
       }
     },
     "error": {
@@ -213,7 +241,10 @@
       "captcha_retry": "Rozwiąż captchę widoczną powyżej, aby kontynuować.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Twój e-mail i hasło są poprawne — samo logowanie się powiodło, a kod autoryzacyjny wrócił. Volkswagen odmawia teraz ostatniego kroku, wymiany tego kodu na token, ponieważ wymaga podpisanego przez Google poświadczenia urządzenia (Play Integrity), które potrafi wytworzyć tylko oficjalna aplikacja na prawdziwym telefonie. Ponowne wpisanie hasła nie pomoże, kolejna próba również nie. Portal EU Data Act tylko do odczytu, który zwykle przejmuje dane w takiej sytuacji, również nic nie dostarczył — a ten komunikat nie potrafi powiedzieć dlaczego. Otwórz portal w przeglądarce: jeśli się wczyta, sprawdź, czy udostępnianie danych jest włączone dla Twojego auta. Jeśli się nie wczyta, to sam portal jest niedostępny i po Twojej stronie nic nie trzeba zmieniać. (Śledzone: #1712.)"
+      "eu_signin_attestation": "Twój e-mail i hasło są poprawne — samo logowanie się powiodło, a kod autoryzacyjny wrócił. Volkswagen odmawia teraz ostatniego kroku, wymiany tego kodu na token, ponieważ wymaga podpisanego przez Google poświadczenia urządzenia (Play Integrity), które potrafi wytworzyć tylko oficjalna aplikacja na prawdziwym telefonie. Ponowne wpisanie hasła nie pomoże, kolejna próba również nie. Portal EU Data Act tylko do odczytu, który zwykle przejmuje dane w takiej sytuacji, również nic nie dostarczył — a ten komunikat nie potrafi powiedzieć dlaczego. Otwórz portal w przeglądarce: jeśli się wczyta, sprawdź, czy udostępnianie danych jest włączone dla Twojego auta. Jeśli się nie wczyta, to sam portal jest niedostępny i po Twojej stronie nic nie trzeba zmieniać. (Śledzone: #1712.) Audi: wybierz Napraw, a następnie logowanie w przeglądarce przez myAudi — omija tę blokadę.",
+      "invalid_auth0_callback": "To nie jest adres z tej próby logowania. Wklej pełny adres localhost:8080/myaudi-callback z paska adresu po zalogowaniu przez powyższy link.",
+      "auth0_denied": "Logowanie zostało anulowane lub odrzucone na stronie Audi. Otwórz link ponownie i zaloguj się.",
+      "auth0_auth_failed": "Audi odrzuciło kod logowania — kodu można użyć tylko raz. Otwórz nowy link powyżej i zaloguj się ponownie."
     },
     "abort": {
       "already_configured": "To konto jest już skonfigurowane.",
@@ -2686,7 +2717,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen blokuje logowanie dla {brand}",
-      "description": "Twój e-mail i hasło są poprawne — samo logowanie się powiodło, a kod autoryzacyjny wrócił. Volkswagen odmawia teraz ostatniego kroku, wymiany tego kodu na token, ponieważ wymaga podpisanego przez Google poświadczenia urządzenia (Play Integrity), które potrafi wytworzyć tylko oficjalna aplikacja na prawdziwym telefonie. Ponowne wpisanie hasła nie pomoże, kolejna próba również nie. Portal EU Data Act tylko do odczytu, który zwykle przejmuje dane w takiej sytuacji, również nic nie dostarczył — a ten komunikat nie potrafi powiedzieć dlaczego. Otwórz portal w przeglądarce: jeśli się wczyta, sprawdź, czy udostępnianie danych jest włączone dla Twojego auta. Jeśli się nie wczyta, to sam portal jest niedostępny i po Twojej stronie nic nie trzeba zmieniać. (Śledzone: #1712.)"
+      "description": "Twój e-mail i hasło są poprawne — samo logowanie się powiodło, a kod autoryzacyjny wrócił. Volkswagen odmawia teraz ostatniego kroku, wymiany tego kodu na token, ponieważ wymaga podpisanego przez Google poświadczenia urządzenia (Play Integrity), które potrafi wytworzyć tylko oficjalna aplikacja na prawdziwym telefonie. Ponowne wpisanie hasła nie pomoże, kolejna próba również nie. Portal EU Data Act tylko do odczytu, który zwykle przejmuje dane w takiej sytuacji, również nic nie dostarczył — a ten komunikat nie potrafi powiedzieć dlaczego. Otwórz portal w przeglądarce: jeśli się wczyta, sprawdź, czy udostępnianie danych jest włączone dla Twojego auta. Jeśli się nie wczyta, to sam portal jest niedostępny i po Twojej stronie nic nie trzeba zmieniać. (Śledzone: #1712.) Audi: wybierz Napraw, a następnie logowanie w przeglądarce przez myAudi — omija tę blokadę."
     }
   },
   "services": {

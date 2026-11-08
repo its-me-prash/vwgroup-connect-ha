@@ -181,6 +181,34 @@
           "mbb_vins": "Laat dit leeg, tenzij de installatie erom vraagt.",
           "spin": "Je Audi S-PIN — de code die je gebruikt voor vergrendelen/ontgrendelen op afstand."
         }
+      },
+      "audi_auth0": {
+        "title": "Inloggen met myAudi in de browser",
+        "description": "Audi laat deze integratie niet meer inloggen met e-mail en wachtwoord — de laatste stap vereist nu een apparaatcontrole die alleen de officiële app doorstaat. Audi's eigen inlogpagina werkt nog wel:\n\n1. Open deze link, bij voorkeur in een privévenster van je browser: [{authorization_url}]({authorization_url})\n2. Log in met je myAudi-account.\n3. Audi stuurt je browser daarna naar een adres op `localhost:8080/myaudi-callback` dat niet kan laden. **Die verbindingsfout is verwacht.**\n4. Kopieer het volledige adres uit de adresbalk van de browser en plak het hieronder.\n\nDe link geldt alleen voor deze poging; mislukt die, dan verschijnt een nieuwe.",
+        "data": {
+          "callback_url": "Adres uit de adresbalk van de browser"
+        },
+        "data_description": {
+          "callback_url": "Begint met localhost:8080/myaudi-callback en bevat code= en state=."
+        }
+      },
+      "reauth_audi_auth0": {
+        "title": "Opnieuw inloggen met myAudi in de browser",
+        "description": "Audi laat deze integratie niet meer inloggen met e-mail en wachtwoord — de laatste stap vereist nu een apparaatcontrole die alleen de officiële app doorstaat. Audi's eigen inlogpagina werkt nog wel:\n\n1. Open deze link, bij voorkeur in een privévenster van je browser: [{authorization_url}]({authorization_url})\n2. Log in met je myAudi-account.\n3. Audi stuurt je browser daarna naar een adres op `localhost:8080/myaudi-callback` dat niet kan laden. **Die verbindingsfout is verwacht.**\n4. Kopieer het volledige adres uit de adresbalk van de browser en plak het hieronder.\n\nDe link geldt alleen voor deze poging; mislukt die, dan verschijnt een nieuwe.",
+        "data": {
+          "callback_url": "Adres uit de adresbalk van de browser"
+        },
+        "data_description": {
+          "callback_url": "Begint met localhost:8080/myaudi-callback en bevat code= en state=."
+        }
+      },
+      "reauth_audi_menu": {
+        "title": "Opnieuw inloggen — Audi",
+        "description": "Audi blokkeert inloggen met e-mail + wachtwoord voor deze integratie (apparaatcontrole). Inloggen via Audi's eigen inlogpagina in een browser werkt nog wel. Hoe wil je opnieuw inloggen?",
+        "menu_options": {
+          "reauth_audi_auth0": "Inloggen met myAudi in de browser (aanbevolen)",
+          "reauth_credentials": "E-mail + wachtwoord invoeren (alleen EU Data Act-portaal)"
+        }
       }
     },
     "error": {
@@ -213,7 +241,10 @@
       "captcha_retry": "Los de captcha hierboven op om door te gaan.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Je e-mailadres en wachtwoord kloppen — het inloggen zelf werkte en de autorisatiecode kwam terug. Volkswagen weigert nu de laatste stap, het inwisselen van die code voor een token, omdat het een door Google ondertekende apparaatverklaring (Play Integrity) verlangt die alleen de officiële app op een echte telefoon kan maken. Je wachtwoord opnieuw invoeren helpt niet, opnieuw proberen ook niet. Het alleen-lezen EU Data Act-portaal, dat in dit geval normaal het overneemt, leverde ook niets — en deze melding kan niet zeggen waarom. Open het portaal in een browser: laadt het, controleer dan of het delen van gegevens voor je auto is ingeschakeld. Laadt het niet, dan ligt het portaal zelf eruit en hoeft er aan jouw kant niets te veranderen. (Gevolgd: #1712.)"
+      "eu_signin_attestation": "Je e-mailadres en wachtwoord kloppen — het inloggen zelf werkte en de autorisatiecode kwam terug. Volkswagen weigert nu de laatste stap, het inwisselen van die code voor een token, omdat het een door Google ondertekende apparaatverklaring (Play Integrity) verlangt die alleen de officiële app op een echte telefoon kan maken. Je wachtwoord opnieuw invoeren helpt niet, opnieuw proberen ook niet. Het alleen-lezen EU Data Act-portaal, dat in dit geval normaal het overneemt, leverde ook niets — en deze melding kan niet zeggen waarom. Open het portaal in een browser: laadt het, controleer dan of het delen van gegevens voor je auto is ingeschakeld. Laadt het niet, dan ligt het portaal zelf eruit en hoeft er aan jouw kant niets te veranderen. (Gevolgd: #1712.) Audi: kies Repareren en daarna inloggen in de browser met myAudi — dat komt langs deze blokkade.",
+      "invalid_auth0_callback": "Dat is niet het adres van deze inlogpoging. Plak het volledige localhost:8080/myaudi-callback-adres uit de adresbalk, nadat je via de link hierboven bent ingelogd.",
+      "auth0_denied": "Het inloggen is op Audi's pagina geannuleerd of geweigerd. Open de link opnieuw en log in.",
+      "auth0_auth_failed": "Audi heeft de inlogcode geweigerd — een code is maar één keer bruikbaar. Open de nieuwe link hierboven en log opnieuw in."
     },
     "abort": {
       "already_configured": "Dit account is al geconfigureerd.",
@@ -2686,7 +2717,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen blokkeert de aanmelding voor {brand}",
-      "description": "Je e-mailadres en wachtwoord kloppen — het inloggen zelf werkte en de autorisatiecode kwam terug. Volkswagen weigert nu de laatste stap, het inwisselen van die code voor een token, omdat het een door Google ondertekende apparaatverklaring (Play Integrity) verlangt die alleen de officiële app op een echte telefoon kan maken. Je wachtwoord opnieuw invoeren helpt niet, opnieuw proberen ook niet. Het alleen-lezen EU Data Act-portaal, dat in dit geval normaal het overneemt, leverde ook niets — en deze melding kan niet zeggen waarom. Open het portaal in een browser: laadt het, controleer dan of het delen van gegevens voor je auto is ingeschakeld. Laadt het niet, dan ligt het portaal zelf eruit en hoeft er aan jouw kant niets te veranderen. (Gevolgd: #1712.)"
+      "description": "Je e-mailadres en wachtwoord kloppen — het inloggen zelf werkte en de autorisatiecode kwam terug. Volkswagen weigert nu de laatste stap, het inwisselen van die code voor een token, omdat het een door Google ondertekende apparaatverklaring (Play Integrity) verlangt die alleen de officiële app op een echte telefoon kan maken. Je wachtwoord opnieuw invoeren helpt niet, opnieuw proberen ook niet. Het alleen-lezen EU Data Act-portaal, dat in dit geval normaal het overneemt, leverde ook niets — en deze melding kan niet zeggen waarom. Open het portaal in een browser: laadt het, controleer dan of het delen van gegevens voor je auto is ingeschakeld. Laadt het niet, dan ligt het portaal zelf eruit en hoeft er aan jouw kant niets te veranderen. (Gevolgd: #1712.) Audi: kies Repareren en daarna inloggen in de browser met myAudi — dat komt langs deze blokkade."
     }
   },
   "services": {

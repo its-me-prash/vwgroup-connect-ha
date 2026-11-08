@@ -98,6 +98,9 @@ _FIXABLE_REASONS: dict[str, str] = {
     # updates with {**reauth_entry.data, ...} and leaves the unique id alone.
     "device_login_expired":  "reauth",
     "device_login_grant_retired": "reauth",
+    # #1712 — the reauth flow now offers the myAudi browser (Auth0/PKCE)
+    # sign-in for Audi, which gets past the attestation wall.
+    "eu_signin_attestation": "reauth",
 }
 
 # v1.19.4 Bundle 1 — Brand-aware deeplinks für T&C-Repair-Issue.

@@ -181,6 +181,34 @@
           "mbb_vins": "Lad feltet stå tomt, medmindre opsætningen beder om det.",
           "spin": "Din Audi-S-PIN — koden, du bruger til at låse og låse op på afstand."
         }
+      },
+      "audi_auth0": {
+        "title": "Log ind med myAudi i browseren",
+        "description": "Audi lader ikke længere denne integration logge ind med e-mail og adgangskode — det sidste trin kræver nu et enhedstjek, som kun den officielle app kan bestå. Audis egen loginside virker stadig:\n\n1. Åbn dette link, helst i et privat browservindue: [{authorization_url}]({authorization_url})\n2. Log ind med din myAudi-konto.\n3. Audi sender derefter din browser til en adresse på `localhost:8080/myaudi-callback`, som ikke kan indlæses. **Den forbindelsesfejl er forventet.**\n4. Kopiér hele adressen fra browserens adresselinje, og indsæt den herunder.\n\nLinket gælder kun for dette forsøg; mislykkes det, vises et nyt.",
+        "data": {
+          "callback_url": "Adresse fra browserens adresselinje"
+        },
+        "data_description": {
+          "callback_url": "Begynder med localhost:8080/myaudi-callback og indeholder code= og state=."
+        }
+      },
+      "reauth_audi_auth0": {
+        "title": "Log ind igen med myAudi i browseren",
+        "description": "Audi lader ikke længere denne integration logge ind med e-mail og adgangskode — det sidste trin kræver nu et enhedstjek, som kun den officielle app kan bestå. Audis egen loginside virker stadig:\n\n1. Åbn dette link, helst i et privat browservindue: [{authorization_url}]({authorization_url})\n2. Log ind med din myAudi-konto.\n3. Audi sender derefter din browser til en adresse på `localhost:8080/myaudi-callback`, som ikke kan indlæses. **Den forbindelsesfejl er forventet.**\n4. Kopiér hele adressen fra browserens adresselinje, og indsæt den herunder.\n\nLinket gælder kun for dette forsøg; mislykkes det, vises et nyt.",
+        "data": {
+          "callback_url": "Adresse fra browserens adresselinje"
+        },
+        "data_description": {
+          "callback_url": "Begynder med localhost:8080/myaudi-callback og indeholder code= og state=."
+        }
+      },
+      "reauth_audi_menu": {
+        "title": "Log ind igen — Audi",
+        "description": "Audi blokerer login med e-mail + adgangskode for denne integration (enhedstjek). Login via Audis egen loginside i en browser virker stadig. Hvordan vil du logge ind igen?",
+        "menu_options": {
+          "reauth_audi_auth0": "Log ind med myAudi i browseren (anbefalet)",
+          "reauth_credentials": "Indtast e-mail + adgangskode (kun EU Data Act-portal)"
+        }
       }
     },
     "error": {
@@ -213,7 +241,10 @@
       "captcha_retry": "Løs den viste captcha ovenfor for at fortsætte.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Din e-mail og din adgangskode er i orden — selve logindet virkede, og autorisationskoden kom tilbage. Volkswagen afviser nu det sidste trin, at bytte den kode til et token, fordi der kræves en Google-signeret enhedsattestering (Play Integrity), som kun den officielle app på en ægte telefon kan lave. At indtaste adgangskoden igen hjælper ikke, og det gør et nyt forsøg heller ikke. Den skrivebeskyttede EU Data Act-portal, som normalt tager over i dette tilfælde, leverede heller ikke noget — og denne besked kan ikke sige hvorfor. Åbn portalen i en browser: hvis den indlæses, så tjek, at datadeling er slået til for din bil. Hvis den ikke indlæses, er portalen selv nede, og der skal ikke ændres noget hos dig. (Følges: #1712.)"
+      "eu_signin_attestation": "Din e-mail og din adgangskode er i orden — selve logindet virkede, og autorisationskoden kom tilbage. Volkswagen afviser nu det sidste trin, at bytte den kode til et token, fordi der kræves en Google-signeret enhedsattestering (Play Integrity), som kun den officielle app på en ægte telefon kan lave. At indtaste adgangskoden igen hjælper ikke, og det gør et nyt forsøg heller ikke. Den skrivebeskyttede EU Data Act-portal, som normalt tager over i dette tilfælde, leverede heller ikke noget — og denne besked kan ikke sige hvorfor. Åbn portalen i en browser: hvis den indlæses, så tjek, at datadeling er slået til for din bil. Hvis den ikke indlæses, er portalen selv nede, og der skal ikke ændres noget hos dig. (Følges: #1712.) Audi: vælg Reparer og vælg browser-login med myAudi — det kommer forbi denne mur.",
+      "invalid_auth0_callback": "Det er ikke adressen fra dette loginforsøg. Indsæt hele localhost:8080/myaudi-callback-adressen fra adresselinjen, efter du har logget ind via linket ovenfor.",
+      "auth0_denied": "Login blev afbrudt eller afvist på Audis side. Åbn linket igen, og log ind.",
+      "auth0_auth_failed": "Audi afviste loginkoden — en kode kan kun bruges én gang. Åbn det nye link ovenfor, og log ind igen."
     },
     "abort": {
       "already_configured": "Denne konto er allerede konfigureret.",
@@ -2686,7 +2717,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen blokerer login for {brand}",
-      "description": "Din e-mail og din adgangskode er i orden — selve logindet virkede, og autorisationskoden kom tilbage. Volkswagen afviser nu det sidste trin, at bytte den kode til et token, fordi der kræves en Google-signeret enhedsattestering (Play Integrity), som kun den officielle app på en ægte telefon kan lave. At indtaste adgangskoden igen hjælper ikke, og det gør et nyt forsøg heller ikke. Den skrivebeskyttede EU Data Act-portal, som normalt tager over i dette tilfælde, leverede heller ikke noget — og denne besked kan ikke sige hvorfor. Åbn portalen i en browser: hvis den indlæses, så tjek, at datadeling er slået til for din bil. Hvis den ikke indlæses, er portalen selv nede, og der skal ikke ændres noget hos dig. (Følges: #1712.)"
+      "description": "Din e-mail og din adgangskode er i orden — selve logindet virkede, og autorisationskoden kom tilbage. Volkswagen afviser nu det sidste trin, at bytte den kode til et token, fordi der kræves en Google-signeret enhedsattestering (Play Integrity), som kun den officielle app på en ægte telefon kan lave. At indtaste adgangskoden igen hjælper ikke, og det gør et nyt forsøg heller ikke. Den skrivebeskyttede EU Data Act-portal, som normalt tager over i dette tilfælde, leverede heller ikke noget — og denne besked kan ikke sige hvorfor. Åbn portalen i en browser: hvis den indlæses, så tjek, at datadeling er slået til for din bil. Hvis den ikke indlæses, er portalen selv nede, og der skal ikke ændres noget hos dig. (Følges: #1712.) Audi: vælg Reparer og vælg browser-login med myAudi — det kommer forbi denne mur."
     }
   },
   "services": {

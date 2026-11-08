@@ -154,7 +154,8 @@ _SETUP_ERRORS: dict[str, str] = {
         "this message cannot tell you why. Open the portal in a browser: if "
         "it loads, check that data sharing is enabled for your car, then "
         "reauthenticate. If it does not load, the portal itself is down and "
-        "nothing on your side needs changing."
+        "nothing on your side needs changing. Audi: reauthenticate and pick "
+        "the browser sign-in with myAudi — it gets past this wall."
     ),
     # #1813 follow-up — the same expiry on a brand whose app device-code client
     # the manufacturer retired. The sentence above would send that user into the

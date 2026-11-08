@@ -181,6 +181,34 @@
           "mbb_vins": "Nechte prázdné, pokud si to nastavení nevyžádá.",
           "spin": "Vaše S-PIN k Audi — kód, který používáte pro dálkové zamykání/odemykání."
         }
+      },
+      "audi_auth0": {
+        "title": "Přihlásit se přes myAudi v prohlížeči",
+        "description": "Audi už této integraci nedovolí přihlášení e-mailem a heslem — poslední krok nyní vyžaduje kontrolu zařízení, kterou projde jen oficiální aplikace. Vlastní přihlašovací stránka Audi stále funguje:\n\n1. Otevřete tento odkaz, nejlépe v anonymním okně prohlížeče: [{authorization_url}]({authorization_url})\n2. Přihlaste se svým účtem myAudi.\n3. Audi poté přesměruje prohlížeč na adresu `localhost:8080/myaudi-callback`, kterou nelze načíst. **Tato chyba připojení je očekávaná.**\n4. Zkopírujte celou adresu z adresního řádku prohlížeče a vložte ji níže.\n\nOdkaz platí jen pro tento pokus; pokud selže, zobrazí se nový.",
+        "data": {
+          "callback_url": "Adresa z adresního řádku prohlížeče"
+        },
+        "data_description": {
+          "callback_url": "Začíná na localhost:8080/myaudi-callback a obsahuje code= a state=."
+        }
+      },
+      "reauth_audi_auth0": {
+        "title": "Znovu se přihlásit přes myAudi v prohlížeči",
+        "description": "Audi už této integraci nedovolí přihlášení e-mailem a heslem — poslední krok nyní vyžaduje kontrolu zařízení, kterou projde jen oficiální aplikace. Vlastní přihlašovací stránka Audi stále funguje:\n\n1. Otevřete tento odkaz, nejlépe v anonymním okně prohlížeče: [{authorization_url}]({authorization_url})\n2. Přihlaste se svým účtem myAudi.\n3. Audi poté přesměruje prohlížeč na adresu `localhost:8080/myaudi-callback`, kterou nelze načíst. **Tato chyba připojení je očekávaná.**\n4. Zkopírujte celou adresu z adresního řádku prohlížeče a vložte ji níže.\n\nOdkaz platí jen pro tento pokus; pokud selže, zobrazí se nový.",
+        "data": {
+          "callback_url": "Adresa z adresního řádku prohlížeče"
+        },
+        "data_description": {
+          "callback_url": "Začíná na localhost:8080/myaudi-callback a obsahuje code= a state=."
+        }
+      },
+      "reauth_audi_menu": {
+        "title": "Znovu se přihlásit — Audi",
+        "description": "Audi blokuje přihlášení e-mailem + heslem pro tuto integraci (kontrola zařízení). Přihlášení přes vlastní přihlašovací stránku Audi v prohlížeči stále funguje. Jak se chcete znovu přihlásit?",
+        "menu_options": {
+          "reauth_audi_auth0": "Přihlásit se přes myAudi v prohlížeči (doporučeno)",
+          "reauth_credentials": "Zadat e-mail + heslo (pouze portál EU Data Act)"
+        }
       }
     },
     "error": {
@@ -213,7 +241,10 @@
       "captcha_retry": "Pro pokračování vyřeš captcha zobrazenou výše.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Váš e-mail i heslo jsou v pořádku — samotné přihlášení proběhlo a autorizační kód se vrátil. Volkswagen nyní odmítá poslední krok, výměnu tohoto kódu za token, protože vyžaduje Googlem podepsané ověření zařízení (Play Integrity), které dokáže vytvořit jen oficiální aplikace na skutečném telefonu. Opětovné zadání hesla nepomůže a další pokus také ne. Portál EU Data Act určený jen pro čtení, který v takovém případě obvykle převezme data, také nic nedodal — a toto hlášení nedokáže říct proč. Otevřete portál v prohlížeči: pokud se načte, zkontrolujte, že je pro váš vůz zapnuté sdílení dat. Pokud se nenačte, je mimo provoz sám portál a na vaší straně není potřeba nic měnit. (Sledováno: #1712.)"
+      "eu_signin_attestation": "Váš e-mail i heslo jsou v pořádku — samotné přihlášení proběhlo a autorizační kód se vrátil. Volkswagen nyní odmítá poslední krok, výměnu tohoto kódu za token, protože vyžaduje Googlem podepsané ověření zařízení (Play Integrity), které dokáže vytvořit jen oficiální aplikace na skutečném telefonu. Opětovné zadání hesla nepomůže a další pokus také ne. Portál EU Data Act určený jen pro čtení, který v takovém případě obvykle převezme data, také nic nedodal — a toto hlášení nedokáže říct proč. Otevřete portál v prohlížeči: pokud se načte, zkontrolujte, že je pro váš vůz zapnuté sdílení dat. Pokud se nenačte, je mimo provoz sám portál a na vaší straně není potřeba nic měnit. (Sledováno: #1712.) Audi: zvolte Opravit a vyberte přihlášení v prohlížeči přes myAudi — to tuto bariéru obejde.",
+      "invalid_auth0_callback": "Toto není adresa z tohoto pokusu o přihlášení. Vložte celou adresu localhost:8080/myaudi-callback z adresního řádku po přihlášení přes odkaz výše.",
+      "auth0_denied": "Přihlášení bylo na stránce Audi zrušeno nebo odmítnuto. Otevřete odkaz znovu a přihlaste se.",
+      "auth0_auth_failed": "Audi odmítlo přihlašovací kód — kód lze použít jen jednou. Otevřete nový odkaz výše a přihlaste se znovu."
     },
     "abort": {
       "already_configured": "Tento účet je již nastaven.",
@@ -2686,7 +2717,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen blokuje přihlášení pro {brand}",
-      "description": "Váš e-mail i heslo jsou v pořádku — samotné přihlášení proběhlo a autorizační kód se vrátil. Volkswagen nyní odmítá poslední krok, výměnu tohoto kódu za token, protože vyžaduje Googlem podepsané ověření zařízení (Play Integrity), které dokáže vytvořit jen oficiální aplikace na skutečném telefonu. Opětovné zadání hesla nepomůže a další pokus také ne. Portál EU Data Act určený jen pro čtení, který v takovém případě obvykle převezme data, také nic nedodal — a toto hlášení nedokáže říct proč. Otevřete portál v prohlížeči: pokud se načte, zkontrolujte, že je pro váš vůz zapnuté sdílení dat. Pokud se nenačte, je mimo provoz sám portál a na vaší straně není potřeba nic měnit. (Sledováno: #1712.)"
+      "description": "Váš e-mail i heslo jsou v pořádku — samotné přihlášení proběhlo a autorizační kód se vrátil. Volkswagen nyní odmítá poslední krok, výměnu tohoto kódu za token, protože vyžaduje Googlem podepsané ověření zařízení (Play Integrity), které dokáže vytvořit jen oficiální aplikace na skutečném telefonu. Opětovné zadání hesla nepomůže a další pokus také ne. Portál EU Data Act určený jen pro čtení, který v takovém případě obvykle převezme data, také nic nedodal — a toto hlášení nedokáže říct proč. Otevřete portál v prohlížeči: pokud se načte, zkontrolujte, že je pro váš vůz zapnuté sdílení dat. Pokud se nenačte, je mimo provoz sám portál a na vaší straně není potřeba nic měnit. (Sledováno: #1712.) Audi: zvolte Opravit a vyberte přihlášení v prohlížeči přes myAudi — to tuto bariéru obejde."
     }
   },
   "services": {

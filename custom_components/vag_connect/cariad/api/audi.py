@@ -156,7 +156,28 @@ class AudiClient(VWEUClient):
         await self._post(f"{_ENGINE_BASE}/{vin_u}/stop")
 
     async def fetch_images(self) -> None:
-        """Override: exchange IDK→AZS token, call app-api.live-my.audi.com."""
+        """Override: exchange IDK→AZS token, call app-api.live-my.audi.com.
+
+        #1712 — a browser (Auth0/PKCE) session cannot fetch render images, so
+        the call is skipped for it rather than failing on every poll. Measured
+        live (2026-11-08, EU account): the AZS proxy refuses the Auth0 token
+        with ``client does not have access to the IDP for token exchange``, and
+        the vgql endpoint accepts it for ``userVehicles { vin }`` but answers
+        the same message, as a 401, for every ``vehicle { … }`` sub-field —
+        ``brand``, ``core``, ``media``, ``renderPictures`` all come back null.
+        The picture needs a token exchange the myAudi public client is not
+        allowed to make; nothing on this side changes that.
+        """
+        if self._tokens and self._tokens.strategy == "audi_auth0":
+            if not getattr(self, "_auth0_images_noted", False):
+                self._auth0_images_noted = True
+                _LOGGER.info(
+                    "Audi images: not available on a browser (Auth0) sign-in — "
+                    "the vgql vehicle media needs a token exchange that client "
+                    "may not make. Vehicle data is unaffected."
+                )
+            self._image_data = {}
+            return
         if not self._azs_token:
             self._azs_token = await self._exchange_azs_token()
 
