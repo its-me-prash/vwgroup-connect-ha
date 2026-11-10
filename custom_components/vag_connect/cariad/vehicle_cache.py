@@ -12,6 +12,7 @@ This module is the pure reconcile/serialise logic; the coordinator owns the
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,6 +24,32 @@ VEHICLE_CACHE_VERSION = 1
 def vehicle_cache_key(entry_id: str) -> str:
     """`.storage` key for an entry's last-known-good vehicle snapshot."""
     return f"vag_connect_vehicles_{entry_id}"
+
+
+def account_identity_hash(identity: str | None) -> str | None:
+    """A stable, privacy-safe fingerprint of the account a cached snapshot
+    belongs to, used to discard that snapshot when an entry is re-authenticated
+    onto a DIFFERENT account while keeping the same entry id (#1878).
+
+    ``identity`` is the entry's account handle — its username / e-mail for a
+    credential or token strategy, the BrandID ``sub`` UUID for a device login, or
+    the VIN for a companion (ADB) entry, whichever the caller has. It is
+    normalised ``strip().lower()`` (the same compare the config flow uses on
+    usernames) so a cosmetic re-type of the same e-mail never triggers a false
+    discard; lower-casing a UUID / VIN is harmless. Only a fingerprint is stored,
+    never the handle itself.
+
+    Returns ``None`` when there is no identity to hash. The load-side rule is to
+    discard ONLY when a STORED hash is present and differs from the current one;
+    an absent stored hash (a pre-#1878 snapshot) is kept and backfilled on the
+    next save, so this never wipes every existing user's cache once on upgrade.
+    """
+    if not identity:
+        return None
+    norm = str(identity).strip().lower()
+    if not norm:
+        return None
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:16]
 
 
 def drop_state_to_cache(

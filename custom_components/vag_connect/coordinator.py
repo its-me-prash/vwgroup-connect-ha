@@ -2055,8 +2055,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # BEFORE the vehicle restore and independently of it: a store that holds
         # the budget but no vehicles still has to stop a restart handing the
         # three fast polls back. Defensive by contract; see the helper.
+        _identity_ok = True
         if isinstance(cached, dict):
             from .cariad.vehicle_cache import (  # noqa: PLC0415
+                account_identity_hash,
                 drop_state_from_cache,
             )
             (
@@ -2075,7 +2077,28 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._drop_anchor_high_water.isoformat(),
                     self._drop_overdue_streak, _DROP_RETRY_MAX_STREAK,
                 )
-        if cached and isinstance(cached.get("vehicles"), dict):
+            # #1878 — only resurrect the VEHICLE snapshot (SoC / position / …)
+            # when it belongs to THIS entry's current account. A reauth onto a
+            # different account keeps the same entry id, so the stored snapshot
+            # would otherwise carry the old account's values. Discard ONLY on a
+            # present-and-different stored fingerprint; an absent one (a pre-#1878
+            # snapshot) is kept and backfilled on the next save, so no existing
+            # cache is wiped once on upgrade. The drop-retry budget above is
+            # account-independent and is never gated.
+            from .const import CONF_VIN  # noqa: PLC0415
+            _stored_identity = cached.get("identity_hash")
+            _current_identity = account_identity_hash(
+                self.entry.data.get(CONF_USERNAME)
+                or self.entry.data.get(CONF_VIN)
+            )
+            if _stored_identity is not None and _stored_identity != _current_identity:
+                _identity_ok = False
+                _LOGGER.info(
+                    "VW Group Connect: discarding the cached vehicle snapshot "
+                    "for %s — it belongs to a different account than this "
+                    "re-authenticated entry (#1878).", brand,
+                )
+        if _identity_ok and cached and isinstance(cached.get("vehicles"), dict):
             _restored_vins: list[str] = []
             with self._vehicles_lock:
                 for vin, vdata in cached["vehicles"].items():
@@ -8517,9 +8540,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         def _snapshot() -> dict[str, Any]:
             from .cariad.vehicle_cache import (  # noqa: PLC0415
+                account_identity_hash,
                 drop_state_to_cache,
                 strip_runtime,
             )
+            from .const import CONF_VIN  # noqa: PLC0415
             with self._vehicles_lock:
                 vehicles = {
                     vin: strip_runtime(v)
@@ -8534,6 +8559,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "drop_state": drop_state_to_cache(
                     getattr(self, "_drop_anchor_high_water", None),
                     getattr(self, "_drop_overdue_streak", 0),
+                ),
+                # #1878 — fingerprint of the account this snapshot belongs to, so
+                # a reauth onto a DIFFERENT account (same entry id) discards it
+                # rather than resurrecting the old account's SoC / position.
+                "identity_hash": account_identity_hash(
+                    self.entry.data.get(CONF_USERNAME)
+                    or self.entry.data.get(CONF_VIN)
                 ),
             }
 
