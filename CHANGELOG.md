@@ -170,6 +170,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   car on a scheduled plan that charges without ever reporting power would now read
   not-charging until power appears — re-verify with the #632 reporter.*
 
+- **The per-point cruising-range unit companion was ignored (#1960).** A car
+  that reports its distance unit only via `estimatedcruisingrange*.unit` (not the
+  global `mileage.unit`) had its ranges left unconverted, and the `.unit` leaf
+  kept re-surfacing to the Scout. That companion is now a second miles signal, so
+  a miles car is detected and converted even when it ships only this field.
+
 - **The nested `parkinglightstate` dialect never reached the per-side sensors
   (#1949, #2064, #2066).** VW / CUPRA / VW-commercial ship the left/right parking
   lights nested under a `parkinglightstate` container, which no parser key

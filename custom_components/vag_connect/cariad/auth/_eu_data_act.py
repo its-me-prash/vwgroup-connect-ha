@@ -4159,7 +4159,14 @@ def map_dataset_to_vehicle_data(
     # start scaling values nobody has evidence about — but it does mean a new
     # distance mapping added BELOW this point silently opts out. Add it above,
     # or record its source leaf.
-    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")):
+    # #1960 — the per-point cruising-range ``.unit`` companions are a second
+    # miles signal. Reading them here consumes them (so the Scout stops re-filing
+    # ``estimatedcruisingrange*.unit`` as unmapped) and lets a car that ships only
+    # this companion — not ``mileage.unit`` — still be detected as miles. A car
+    # reports one display unit, so OR-ing the two sources cannot mix km and miles.
+    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")) or \
+            _is_miles(first("estimatedcruisingrangeprimary.unit",
+                            "estimatedcruisingrangesecondary.unit")):
         for _attr in ("odometer_km", "range_km", "electric_range_km",
                       "combustion_range_km", "secondary_engine_range_km",
                       "total_range_km", "service_km", "oil_service_km",
