@@ -203,6 +203,13 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "status.chargeType", "status.fullyChargedAt",
             "status.remainingTimeToFullyChargedInMinutes",
             "status.carCapturedTimestamp",
+            # #2059/#2061/#2062/#2063/#2065/#2070 — Skoda moved the plug fields
+            # onto the charging endpoint. skoda.py has read them since v32392abb
+            # (plug_state / plug_lock_state / charging_error_code, with sensors),
+            # but EXPECTED_KEYS lagged the parser (the pattern this file keeps
+            # catching), so the Scout kept re-filing them as new on every car.
+            "status.plugConnectionState", "status.plugLockState",
+            "status.chargingErrorReason",
             "settings", "settings.targetStateOfChargeInPercent",
             "settings.autoUnlockPlugWhenChargedAC",
             "settings.maxChargeCurrentAC",

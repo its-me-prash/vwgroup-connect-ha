@@ -170,6 +170,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   car on a scheduled plan that charges without ever reporting power would now read
   not-charging until power appears — re-verify with the #632 reporter.*
 
+- **The nested `parkinglightstate` dialect never reached the per-side sensors
+  (#1949, #2064, #2066).** VW / CUPRA / VW-commercial ship the left/right parking
+  lights nested under a `parkinglightstate` container, which no parser key
+  covered — so the `parking_light_left` / `_right` sensors stayed empty on those
+  cars and the Scout re-filed the fields on every poll. The nested spelling now
+  maps onto the existing sensors.
+
+- **The Vehicle Data Scout kept re-filing already-mapped Skoda plug fields
+  (#2059, #2061, #2062, #2063, #2065, #2070).** Skoda moved
+  `plugConnectionState` / `plugLockState` / `chargingErrorReason` onto the
+  charging endpoint; the parser has read them (→ `plug_state` / `plug_lock_state`
+  / `charging_error_code`, with sensors) since v5.2.5, but the Scout's
+  expected-keys table lagged the parser and re-opened the same six issues across
+  cars. The keys are now registered, so the data stays surfaced and the noise
+  stops.
+
 - **The parked-car step never matched on a German phone (#1963, #1981,
   @Snaker86).** The map element the step looks for is found by its
   accessibility label, and that label is translated: the English screen dump

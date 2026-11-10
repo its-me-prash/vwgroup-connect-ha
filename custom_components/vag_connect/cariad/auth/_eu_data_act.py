@@ -4535,10 +4535,16 @@ def map_dataset_to_vehicle_data(
     # #1780 — the one-time export spells these per side under its own container
     # and sends ON / OFF, which ``_truthy_light`` below already reads correctly.
     _pll = first(
-        "parking_light_left", "parking_lights_info.left_status.value"
+        "parking_light_left", "parking_lights_info.left_status.value",
+        # #1949/#2064/#2066 — the dialect that nests the per-side lights under a
+        # ``parkinglightstate`` container (VW / CUPRA / VW-commercial). Reads onto
+        # the existing parking_light_left/_right binary sensors and stops the
+        # Scout re-filing the nested spelling as new.
+        "parkinglightstate.parking_light_left",
     )
     _plr = first(
-        "parking_light_right", "parking_lights_info.right_status.value"
+        "parking_light_right", "parking_lights_info.right_status.value",
+        "parkinglightstate.parking_light_right",
     )
 
     def _truthy_light(raw: str | None) -> bool | None:
