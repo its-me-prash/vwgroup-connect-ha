@@ -655,7 +655,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._auth0_tokens: Any = None
         self._auth0_user_input: dict[str, Any] = {}
         self._auth0_reauth_entry_id: str = ""
-        self._reauth_skip_audi_menu: bool = False
+        self._auth0_brand: str = ""
+        self._auth0_route: Any = None
+        self._reauth_skip_auth0_menu: bool = False
 
         # v2.7.0 — Device Authorization Grant (browser-login) state.
         # Two-phase flow so HA's show_progress can re-render with the
@@ -1513,13 +1515,25 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
         if user_input is not None:
             brand = user_input[CONF_BRAND]
-            if brand == "audi":
-                # #1712 — Audi's device-code grant is retired (#1364); the
-                # browser sign-in for Audi is the myAudi Auth0/PKCE login.
+            from .cariad.auth._auth0 import is_offered  # noqa: PLC0415
+
+            # #1712 — the browser (Auth0/PKCE) sign-in. Audi's device-code grant
+            # is retired (#1364), so Audi takes the browser sign-in straight
+            # away. SEAT and CUPRA keep their working device-code grant by
+            # default; a tester opts into the (still unverified) Auth0 route with
+            # the checkbox. Volkswagen is NOT offered: its exchange never
+            # completes (AUTH0_DENIED), so is_offered() returns False and a
+            # crafted VW payload falls through to an honest not-eligible error
+            # rather than a guaranteed-failing Auth0 attempt.
+            _want_auth0 = bool(user_input.get("use_browser_auth0"))
+            _dag_works = brand in DAG_ENABLED_BRANDS and brand != "audi"
+            if is_offered(brand, include_unproven=True) and (_want_auth0 or not _dag_works):
+                self._auth0_brand = brand
                 self._auth0_user_input = dict(user_input)
                 self._auth0_reauth_entry_id = ""
                 self._auth0_url = ""
-                return await self.async_step_audi_auth0()
+                self._auth0_route = None
+                return await self.async_step_auth0()
             if brand == "skoda":
                 # v3.0.1 — VW revoked Škoda's device_code grant (403
                 # unauthorized_client on identity.vwgroup.io). QR is dead for
@@ -1549,9 +1563,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 return await self.async_step_browser_login_pending()
 
         # DAG-eligible brand options only (subset of the standard list).
+        from .cariad.auth._auth0 import AUTH0_BRANDS, is_offered  # noqa: PLC0415
+
+        # #1712 — the picker offers DAG-eligible brands plus every brand with an
+        # OFFERED browser (Auth0) sign-in. Volkswagen is reachable but its
+        # exchange never completes (AUTH0_DENIED), so is_offered() drops it and it
+        # never appears. The submit handler routes each brand to the right login.
+        _auth0_offered = {
+            b for b in AUTH0_BRANDS if is_offered(b, include_unproven=True)
+        }
+        _login_brands = set(DAG_ENABLED_BRANDS) | _auth0_offered
         dag_brand_options: list[SelectOptionDict] = [
             opt for opt in _BRAND_OPTIONS
-            if opt["value"] in DAG_ENABLED_BRANDS
+            if opt["value"] in _login_brands
         ]
         dag_brand_selector = SelectSelector(
             SelectSelectorConfig(
@@ -1575,6 +1599,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_SCAN_INTERVAL,
                     default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 ): _INTERVAL_SELECTOR,
+                vol.Optional(
+                    "use_browser_auth0",
+                    default=bool(suggested.get("use_browser_auth0", False)),
+                ): _BOOL_SELECTOR,
             }),
             errors=errors,
         )
@@ -2237,13 +2265,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
     # browser, the redirect to localhost fails to load (expected), and they paste
     # that URL here. We check the OAuth ``state`` and trade the code for tokens.
 
-    async def async_step_audi_auth0(
+    async def async_step_auth0(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Initial setup: show the myAudi sign-in URL, take the callback URL."""
-        return await self._audi_auth0_form("audi_auth0", user_input)
+        """Initial setup: show the brand's sign-in URL, take the pasted callback."""
+        return await self._auth0_form("auth0", user_input)
 
-    async def async_step_reauth_audi_auth0(
+    async def async_step_reauth_auth0(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Reauth: same form, but the tokens land on the existing entry."""
@@ -2253,39 +2281,33 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if reauth_entry is None:
             return self.async_abort(reason="reconfigure_failed")
         self._auth0_reauth_entry_id = reauth_entry.entry_id
-        return await self._audi_auth0_form("reauth_audi_auth0", user_input)
+        if not self._auth0_brand:
+            self._auth0_brand = str(reauth_entry.data.get(CONF_BRAND, "") or "")
+        return await self._auth0_form("reauth_auth0", user_input)
 
-    async def async_step_reauth_audi_menu(
+    async def async_step_reauth_auth0_menu(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Reauth for an Audi entry that was not set up through the browser
-        sign-in: let the user pick the browser sign-in or the credentials form."""
+        """Reauth for an entry that was not set up through the browser sign-in:
+        let the user pick the browser sign-in or the credentials form."""
         return self.async_show_menu(
-            step_id="reauth_audi_menu",
-            menu_options=["reauth_audi_auth0", "reauth_credentials"],
+            step_id="reauth_auth0_menu",
+            menu_options=["reauth_auth0", "reauth_credentials"],
         )
 
     async def async_step_reauth_credentials(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Menu target: the classic email + password reauth form."""
-        self._reauth_skip_audi_menu = True
+        self._reauth_skip_auth0_menu = True
         return await self.async_step_reauth_confirm(user_input)
 
-    async def _audi_auth0_form(
+    async def _auth0_form(
         self, step_id: str, user_input: dict[str, Any] | None
     ) -> config_entries.ConfigFlowResult:
         import aiohttp  # noqa: PLC0415
 
-        from .cariad.auth._audi_auth0 import (  # noqa: PLC0415
-            ERR_DENIED,
-            ERR_INVALID_CALLBACK,
-            AudiAuth0Grant,
-            audi_auth0_client_id,
-            build_authorization_url,
-            generate_pkce,
-            parse_callback_url,
-        )
+        from .cariad.auth import _auth0  # noqa: PLC0415
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             TokenRefreshRetryError,
@@ -2294,47 +2316,78 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         errors: dict[str, str] = {}
 
         def _new_attempt() -> None:
-            verifier, challenge, state = generate_pkce()
+            verifier, challenge = _auth0.new_pkce_pair()
             self._auth0_verifier = verifier
-            self._auth0_state = state
+            self._auth0_state = _auth0.new_state()
+            # Audi has a catchable localhost callback (copy the address bar);
+            # the others only an app-scheme one (a tester reads the code from
+            # the browser's dev tools). Pick the catchable route when there is
+            # one, so the UX is the friendliest the brand allows.
+            routes = _auth0.routes_for(self._auth0_brand)
+            self._auth0_route = next(
+                (r for r in routes if r.catchable), routes[0]
+            )
             hass_cfg = getattr(self.hass, "config", None)
             lang = str(getattr(hass_cfg, "language", "") or "en")
             country = str(getattr(hass_cfg, "country", "") or "")
             ui_locales = f"{lang}-{country.upper()}" if country else lang
-            self._auth0_url = build_authorization_url(
-                audi_auth0_client_id(), challenge, state, ui_locales=ui_locales,
+            self._auth0_url = _auth0.authorization_url_for(
+                self._auth0_route,
+                code_challenge=challenge,
+                state=self._auth0_state,
+                nonce=_auth0.new_state(),
+                ui_locales=ui_locales,
             )
 
-        if not self._auth0_url:
+        if not self._auth0_url or self._auth0_route is None:
             _new_attempt()
 
         if user_input is not None:
-            callback_url = str(user_input.get("callback_url", "") or "")
+            pasted = str(user_input.get("callback_url", "") or "")
             try:
-                code = parse_callback_url(callback_url, self._auth0_state)
-            except ValueError as err:
-                errors["base"] = str(err) if str(err) in (
-                    ERR_DENIED, ERR_INVALID_CALLBACK
-                ) else ERR_INVALID_CALLBACK
+                code = _auth0.parse_redirect(
+                    pasted,
+                    expected_redirect_uri=self._auth0_route.redirect_uri,
+                    expected_state=self._auth0_state,
+                )
+            except _auth0.Auth0Denied:
+                errors["base"] = "auth0_denied"
+            except _auth0.Auth0RedirectInvalid:
+                errors["base"] = "invalid_auth0_callback"
             else:
                 try:
                     async with aiohttp.ClientSession() as session:
-                        self._auth0_tokens = await AudiAuth0Grant(
-                            session
-                        ).exchange_code(code, self._auth0_verifier)
+                        self._auth0_tokens = await _auth0.Auth0Grant(
+                            session, brand=self._auth0_brand
+                        ).exchange_code(
+                            self._auth0_route, code, self._auth0_verifier
+                        )
                 except AuthenticationError:
                     # The code is single-use and bound to this verifier: once
-                    # Auth0 refused it, the attempt is spent — start a fresh one.
+                    # the provider refused it, the attempt is spent — start a
+                    # fresh one.
                     errors["base"] = "auth0_auth_failed"
                     _new_attempt()
                 except TokenRefreshRetryError:
                     errors["base"] = "cannot_connect"
                 except Exception:  # noqa: BLE001 — flow-level catch
-                    _LOGGER.exception("Audi Auth0 token exchange failed")
+                    _LOGGER.exception("Auth0 token exchange failed")
                     errors["base"] = "unknown"
                 else:
-                    return await self._finish_audi_auth0()
+                    return await self._finish_auth0()
 
+        # An unverified brand (anything but Audi) carries a tester notice, so a
+        # sign-in that may not complete reads as an experiment, not a defect.
+        note = ""
+        if not _auth0.is_offered(self._auth0_brand):
+            note = (
+                "⚠ This brand's browser sign-in has not been verified yet — you "
+                "are helping test it. After you sign in, your browser is sent to "
+                "an app link that will not open; open your browser's developer "
+                "tools, find the redirect, and paste the whole address (or just "
+                "its code= value) below. Please report the result and your logs "
+                "on the project issue.\n\n"
+            )
         return self.async_show_form(
             step_id=step_id,
             data_schema=vol.Schema({
@@ -2342,11 +2395,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     TextSelectorConfig()
                 ),
             }),
-            description_placeholders={"authorization_url": self._auth0_url},
+            description_placeholders={
+                "authorization_url": self._auth0_url,
+                "brand": _brand_label(self._auth0_brand),
+                "note": note,
+            },
             errors=errors,
         )
 
-    async def _finish_audi_auth0(self) -> config_entries.ConfigFlowResult:
+    async def _finish_auth0(self) -> config_entries.ConfigFlowResult:
         """Persist the Auth0 token set: onto the reauth entry, onto an existing
         entry for the same account, or into a new entry.
 
@@ -2358,7 +2415,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         """
         from homeassistant.helpers.storage import Store  # noqa: PLC0415
 
-        from .cariad.auth._audi_auth0 import id_token_claims  # noqa: PLC0415
+        from .cariad.auth._auth0 import id_token_claims  # noqa: PLC0415
         from .cariad.auth._token_storage import (  # noqa: PLC0415
             _STORAGE_VERSION,
             TokenStorage,
@@ -2369,6 +2426,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if tokens is None:
             return self.async_abort(reason="dag_no_tokens")
 
+        brand = self._auth0_brand
         claims = id_token_claims(tokens.id_token)
         email = claims.get("email")
         sub = claims.get("sub")
@@ -2377,7 +2435,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         elif isinstance(sub, str) and sub:
             ident = sub
         else:
-            ident = "audi_auth0"
+            ident = f"{brand}_auth0"
 
         dag_block = {
             "access_token": tokens.access_token,
@@ -2404,22 +2462,22 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 return self.async_abort(reason="reconfigure_failed")
             return await _attach(entry, "reauth_successful")
 
-        # A fresh sign-in for an account that already has an Audi entry (set up
-        # with email + password, now walled) attaches to that entry instead of
-        # creating a second one — this is the migration path for #1712.
+        # A fresh sign-in for an account that already has an entry for this brand
+        # (set up with email + password, now walled) attaches to that entry
+        # instead of creating a second one — the migration path for #1712.
         for existing in self._async_current_entries(include_ignore=False):
-            if existing.data.get(CONF_BRAND) != "audi":
+            if existing.data.get(CONF_BRAND) != brand:
                 continue
             if str(existing.data.get(CONF_USERNAME, "")).strip().lower() == ident.lower():
                 return await _attach(existing, "reconfigure_successful")
 
-        await self.async_set_unique_id(f"audi_{ident}")
+        await self.async_set_unique_id(f"{brand}_{ident}")
         self._abort_if_unique_id_configured()
 
-        entry_data = self._build_entry_data("audi", ident, "", self._auth0_user_input)
+        entry_data = self._build_entry_data(brand, ident, "", self._auth0_user_input)
         entry_data["dag_initial_tokens"] = dag_block
         return self.async_create_entry(
-            title=f"{_brand_label('audi')} — {ident}",
+            title=f"{_brand_label(brand)} — {ident}",
             data=entry_data,
         )
 
@@ -2897,19 +2955,40 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # `sub`, not an email address, so a password-only form cannot succeed
         # either. ``_needs_username`` carries that one bit to the form and to the
         # update below.
-        # #1712 — Audi EU. An entry signed in through the myAudi browser login
-        # renews the same way. Every other Audi entry gets a choice first: the
-        # browser sign-in (which gets past the attestation wall) or the old
-        # email + password form — the latter is what the reauth would have
-        # shown before, and the EU Data Act portal still needs it.
-        if reauth_entry is not None and reauth_entry.data.get(CONF_BRAND) == "audi":
+        # #1712 — EU browser sign-in. An entry that signed in through the
+        # browser login renews the same way. Every other entry for an
+        # Auth0-capable brand gets a choice first: the browser sign-in (which
+        # gets past the attestation wall) or the old email + password form — the
+        # latter is what the reauth would have shown before, and the EU Data Act
+        # portal still needs it. A brand without an OFFERED browser sign-in falls
+        # straight through to the credential form — this uses is_offered(), not a
+        # raw AUTH0_BRANDS membership, so a denied brand (Volkswagen, whose
+        # exchange never completes) is never steered into the always-failing
+        # Auth0 menu on reauth, exactly as it is kept out of the setup picker.
+        from .cariad.auth._auth0 import is_offered  # noqa: PLC0415
+        from .cariad.auth._device_grant import qr_signin_live  # noqa: PLC0415
+
+        if (
+            reauth_entry is not None
+            and is_offered(
+                reauth_entry.data.get(CONF_BRAND) or "", include_unproven=True
+            )
+        ):
+            self._auth0_brand = str(reauth_entry.data.get(CONF_BRAND, "") or "")
             _auth0_strategy = (reauth_entry.data.get("dag_initial_tokens") or {}).get(
                 "strategy", ""
             )
-            if _auth0_strategy == "audi_auth0":
-                return await self.async_step_reauth_audi_auth0()
-            if user_input is None and not self._reauth_skip_audi_menu:
-                return await self.async_step_reauth_audi_menu()
+            if _auth0_strategy == "auth0":
+                return await self.async_step_reauth_auth0()
+            # A live device-code / durable-MBB entry keeps its own QR reauth
+            # (routed below); the Auth0 menu is only for an entry with no working
+            # browser login — Audi (device grant retired) and classic password
+            # entries. SEAT and CUPRA, whose device-code grant still works, fall
+            # through to that QR reauth here.
+            if not qr_signin_live(self._auth0_brand, _auth0_strategy) and (
+                user_input is None and not self._reauth_skip_auth0_menu
+            ):
+                return await self.async_step_reauth_auth0_menu()
 
         _needs_username = False
         if (

@@ -721,11 +721,13 @@ def qr_signin_live(brand_name: str, strategy: str) -> bool:
     brand = brand_name.lower()
     if strategy == "mbb":
         return brand in MBB_DAG_BRANDS
-    if strategy == "audi_auth0":
-        # #1712 — the myAudi browser (Auth0/PKCE) sign-in; the config flow's
-        # ``reauth_audi_auth0`` step can start it again, so the expired-session
-        # notice may say so.
-        return brand == "audi"
+    if strategy == "auth0":
+        # #1712 — the EU browser (Auth0/PKCE) sign-in; the config flow's
+        # ``reauth_auth0`` step can start it again for any offered brand, so
+        # the expired-session notice may say so.
+        from ._auth0 import AUTH0_BRANDS  # noqa: PLC0415
+
+        return brand in AUTH0_BRANDS
     if strategy in ("device_grant", "device_grant_portal"):
         return brand in DAG_ENABLED_BRANDS and brand not in DAG_RETIRED_BRANDS
     return False

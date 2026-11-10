@@ -117,12 +117,14 @@
         "data": {
           "brand": "Marke",
           "spin": "S-PIN",
-          "scan_interval": "Aktualisierungsintervall"
+          "scan_interval": "Aktualisierungsintervall",
+          "use_browser_auth0": "Experimentell: Browser-Anmeldung (Auth0)"
         },
         "data_description": {
-          "brand": "Es werden nur Marken mit Browser-Login-Unterstützung angezeigt. Für Volkswagen EU und Porsche 'E-Mail + Passwort' verwenden.",
+          "brand": "Es werden nur Marken mit Browser-Anmeldung angezeigt. Für Porsche 'E-Mail + Passwort' verwenden.",
           "scan_interval": "Minuten zwischen den Datenabfragen des Fahrzeugs.",
-          "spin": "Optionale 4-stellige Sicherheits-PIN für Fernaktionen (Verriegeln, Entriegeln, Klima)."
+          "spin": "Optionale 4-stellige Sicherheits-PIN für Fernaktionen (Verriegeln, Entriegeln, Klima).",
+          "use_browser_auth0": "Nur SEAT und CUPRA: Browser-Anmeldung (Auth0) statt Geräte-Code-Login verwenden. Dieser Weg ist für diese Marken noch nicht verifiziert — Tester, bitte meldet euer Ergebnis. Audi nutzt ihn immer."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Deine Audi-S-PIN — der Code fürs Fern-Ver-/Entriegeln."
         }
       },
-      "audi_auth0": {
-        "title": "Mit myAudi im Browser anmelden",
-        "description": "Audi lässt diese Integration nicht mehr mit E-Mail und Passwort anmelden — der letzte Schritt verlangt jetzt eine Geräteprüfung, die nur die offizielle App besteht. Audis eigene Anmeldeseite funktioniert weiterhin:\n\n1. Öffne diesen Link, am besten in einem privaten Browserfenster: [{authorization_url}]({authorization_url})\n2. Melde dich mit deinem myAudi-Konto an.\n3. Audi schickt deinen Browser danach auf eine Adresse unter `localhost:8080/myaudi-callback`, die nicht geladen werden kann. **Dieser Verbindungsfehler ist erwartet.**\n4. Kopiere die vollständige Adresse aus der Adressleiste des Browsers und füge sie unten ein.\n\nDer Link gilt nur für diesen Versuch; schlägt er fehl, wird ein neuer angezeigt.",
+      "auth0": {
+        "title": "Im Browser bei {brand} anmelden",
+        "description": "{note}Diese Integration kann sich nicht mehr allein mit E-Mail und Passwort bei {brand} anmelden — der letzte Schritt verlangt jetzt eine Geräteprüfung, die nur die offizielle App besteht. Die eigene Anmeldeseite der Marke funktioniert weiterhin:\n\n1. Öffne diesen Link, am besten in einem privaten Browserfenster: [{authorization_url}]({authorization_url})\n2. Melde dich mit deinem {brand}-Konto an.\n3. Dein Browser wird danach auf eine Callback-Adresse weitergeleitet, die sich nicht laden lässt. **Dieser Verbindungsfehler ist erwartet.**\n4. Kopiere die vollständige Adresse aus der Adressleiste des Browsers — oder, falls der Browser keine anzeigt, den code-Wert daraus — und füge es unten ein.\n\nDer Link gilt nur für diesen Versuch; schlägt er fehl, wird ein neuer angezeigt.",
         "data": {
-          "callback_url": "Adresse aus der Adressleiste des Browsers"
+          "callback_url": "Adresse aus dem Browser oder der code-Wert"
         },
         "data_description": {
-          "callback_url": "Beginnt mit localhost:8080/myaudi-callback und enthält code= und state=."
+          "callback_url": "Enthält code= und state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Erneut mit myAudi im Browser anmelden",
-        "description": "Audi lässt diese Integration nicht mehr mit E-Mail und Passwort anmelden — der letzte Schritt verlangt jetzt eine Geräteprüfung, die nur die offizielle App besteht. Audis eigene Anmeldeseite funktioniert weiterhin:\n\n1. Öffne diesen Link, am besten in einem privaten Browserfenster: [{authorization_url}]({authorization_url})\n2. Melde dich mit deinem myAudi-Konto an.\n3. Audi schickt deinen Browser danach auf eine Adresse unter `localhost:8080/myaudi-callback`, die nicht geladen werden kann. **Dieser Verbindungsfehler ist erwartet.**\n4. Kopiere die vollständige Adresse aus der Adressleiste des Browsers und füge sie unten ein.\n\nDer Link gilt nur für diesen Versuch; schlägt er fehl, wird ein neuer angezeigt.",
+      "reauth_auth0": {
+        "title": "Erneut im Browser bei {brand} anmelden",
+        "description": "{note}Diese Integration kann sich nicht mehr allein mit E-Mail und Passwort bei {brand} anmelden — der letzte Schritt verlangt jetzt eine Geräteprüfung, die nur die offizielle App besteht. Die eigene Anmeldeseite der Marke funktioniert weiterhin:\n\n1. Öffne diesen Link, am besten in einem privaten Browserfenster: [{authorization_url}]({authorization_url})\n2. Melde dich mit deinem {brand}-Konto an.\n3. Dein Browser wird danach auf eine Callback-Adresse weitergeleitet, die sich nicht laden lässt. **Dieser Verbindungsfehler ist erwartet.**\n4. Kopiere die vollständige Adresse aus der Adressleiste des Browsers — oder, falls der Browser keine anzeigt, den code-Wert daraus — und füge es unten ein.\n\nDer Link gilt nur für diesen Versuch; schlägt er fehl, wird ein neuer angezeigt.",
         "data": {
-          "callback_url": "Adresse aus der Adressleiste des Browsers"
+          "callback_url": "Adresse aus dem Browser oder der code-Wert"
         },
         "data_description": {
-          "callback_url": "Beginnt mit localhost:8080/myaudi-callback und enthält code= und state=."
+          "callback_url": "Enthält code= und state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Erneut anmelden — Audi",
-        "description": "Audi blockiert die Anmeldung mit E-Mail + Passwort für diese Integration (Geräteprüfung). Die Anmeldung über Audis eigene Anmeldeseite im Browser funktioniert weiterhin. Wie möchtest du dich erneut anmelden?",
+      "reauth_auth0_menu": {
+        "title": "Erneut anmelden",
+        "description": "Die Anmeldung mit E-Mail + Passwort funktioniert für diese Marke nicht mehr (Geräteprüfung). Die Anmeldung über die eigene Anmeldeseite der Marke im Browser funktioniert weiterhin. Wie möchtest du dich erneut anmelden?",
         "menu_options": {
-          "reauth_audi_auth0": "Mit myAudi im Browser anmelden (empfohlen)",
+          "reauth_auth0": "Über den Browser anmelden (empfohlen)",
           "reauth_credentials": "E-Mail + Passwort eingeben (nur EU-Data-Act-Portal)"
         }
       }

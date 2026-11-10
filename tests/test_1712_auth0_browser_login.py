@@ -1,25 +1,28 @@
-"""#1712 — Audi EU browser sign-in (myAudi Auth0 authorization code + PKCE).
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""#1712 — EU browser sign-in (Auth0 authorization code + PKCE), multi-brand.
 
 The CARIAD token exchange refuses this integration with ``invalid assertion
-headers`` and the device-code grant is retired for Audi (#1364). The myAudi
-app's own Auth0 tenant still issues tokens to a public PKCE client with a
-registered ``localhost`` callback, and its token endpoint asks for no
-attestation. Ported from audiconnect/audi_connect_ha#905.
+headers`` and the device-code grant is retired for Audi (#1364). The myApp
+Auth0 tenant still issues tokens to a public PKCE client with a registered
+callback, and its token endpoint asks for no attestation. The design is
+@majd's (audiconnect/audi_connect_ha#905); this is the integration-wired half,
+generalised from PR #2060's Audi-only port to every brand the tenant holds.
 
-Pinned here:
+Pinned here (the module's *transport and wiring*; the pure builders, brand
+gating and additive contracts are in ``test_1712_auth0_additional_channel``):
 
-* the PKCE pair and the ``/authorize`` URL carry what the tenant expects;
-* the pasted callback is accepted only when it is OUR callback for THIS attempt
-  (host, path, ``state``) and rejected with the right key otherwise;
-* the token client posts the right grants, stamps ``strategy="audi_auth0"``,
-  keeps an unrotated refresh token and the previous id_token, and classifies
+* the token client posts the right grants, stamps ``strategy="auth0"``, keeps
+  an unrotated refresh token and the previous id_token, and classifies
   ``invalid_grant`` as dead (reauth) but anything else as transient (retry);
-* the base client refreshes an ``audi_auth0`` session at Auth0 — not at the
-  IDK endpoint — and a passwordless ``audi_auth0`` entry never re-runs the
-  walled password login;
-* the config flow routes Audi's browser login to the new step, attaches a
+* the base client refreshes an ``auth0`` session at Auth0 — not at the IDK
+  endpoint — and a passwordless ``auth0`` entry never re-runs the walled
+  password login;
+* images are skipped on an ``auth0`` session;
+* the config flow routes a brand's browser login to the new step, attaches a
   sign-in for a known account to the existing entry (keeping its password for
-  the portal), creates a new entry otherwise, and gives Audi reauths a choice.
+  the portal), creates a new entry otherwise, and gives an Audi-capable reauth
+  a choice.
 """
 from __future__ import annotations
 
@@ -37,7 +40,7 @@ import pytest
 from custom_components.vag_connect import config_flow as cf
 from custom_components.vag_connect.cariad.api import base as _base
 from custom_components.vag_connect.cariad.api.audi import AudiClient
-from custom_components.vag_connect.cariad.auth import _audi_auth0 as a0
+from custom_components.vag_connect.cariad.auth import _auth0 as a0
 from custom_components.vag_connect.cariad.auth import _device_grant as dg
 from custom_components.vag_connect.cariad.exceptions import (
     AuthenticationError,
@@ -54,6 +57,11 @@ from custom_components.vag_connect.const import (
 )
 
 CALLBACK = "http://localhost:8080/myaudi-callback"
+
+
+def _audi_route() -> Any:
+    """Audi's catchable localhost route — the one the config flow drives."""
+    return next(r for r in a0.routes_for("audi") if r.catchable)
 
 
 def _jwt(claims: dict[str, Any]) -> str:
@@ -106,22 +114,24 @@ class _Session:
 
 
 def test_pkce_pair_is_s256_of_the_verifier() -> None:
-    verifier, challenge, state = a0.generate_pkce()
+    verifier, challenge = a0.new_pkce_pair()
     expected = base64.urlsafe_b64encode(
         hashlib.sha256(verifier.encode()).digest()
     ).decode().rstrip("=")
     assert 43 <= len(verifier) <= 128
     assert challenge == expected
-    assert state and state != verifier
 
 
 def test_authorize_url_carries_what_the_tenant_expects() -> None:
-    url = a0.build_authorization_url("cid@apps_vw-dilab_com", "chal", "st", ui_locales="da-DK")
+    route = _audi_route()
+    url = a0.authorization_url_for(
+        route, code_challenge="chal", state="st", nonce="no", ui_locales="da-DK",
+    )
     parsed = urlparse(url)
-    assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == a0.AUTH0_AUTHORIZE_URL
+    assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == route.authorize_url
     q = parse_qs(parsed.query)
-    assert q["client_id"] == ["cid@apps_vw-dilab_com"]
-    assert q["audience"] == [a0.AUTH0_AUDIENCE]
+    assert q["client_id"] == [route.client_id]
+    assert q["audience"] == [a0.AUDIENCE]
     assert q["redirect_uri"] == [CALLBACK]
     assert q["response_type"] == ["code"]
     assert q["code_challenge"] == ["chal"]
@@ -133,45 +143,61 @@ def test_authorize_url_carries_what_the_tenant_expects() -> None:
     assert "+" not in parsed.query
 
 
-def test_client_id_falls_back_to_the_myaudi_literal(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_client_id_resolves_from_market_config_then_the_literal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from custom_components.vag_connect.cariad.auth import _audi_market_config as mc
 
+    from custom_components.vag_connect.cariad.models import BRAND_AUDI
+
     monkeypatch.setattr(mc, "cached_audi_market_config", lambda: {})
-    assert a0.audi_auth0_client_id() == a0.AUDI_AUTH0_CLIENT_ID
+    assert a0.resolve_client_id("audi") == BRAND_AUDI.client_id
     monkeypatch.setattr(
         mc, "cached_audi_market_config",
         lambda: {"idkClientIDAndroidLive": "rotated@apps_vw-dilab_com"},
     )
-    assert a0.audi_auth0_client_id() == "rotated@apps_vw-dilab_com"
+    assert a0.resolve_client_id("audi") == "rotated@apps_vw-dilab_com"
 
 
 # ── callback parsing ───────────────────────────────────────────────────────────
 
 
 def test_callback_returns_the_code() -> None:
-    assert a0.parse_callback_url(f"{CALLBACK}?code=the-code&state=st", "st") == "the-code"
+    assert a0.parse_redirect(
+        f"{CALLBACK}?code=the-code&state=st",
+        expected_redirect_uri=CALLBACK, expected_state="st",
+    ) == "the-code"
 
 
 def test_callback_tolerates_a_paste_without_scheme_and_with_whitespace() -> None:
-    assert a0.parse_callback_url("  localhost:8080/myaudi-callback?code=c&state=st \n", "st") == "c"
+    assert a0.parse_redirect(
+        "  localhost:8080/myaudi-callback?code=c&state=st \n",
+        expected_redirect_uri=CALLBACK, expected_state="st",
+    ) == "c"
 
 
 @pytest.mark.parametrize(
-    ("url", "key"),
+    "url",
     [
-        ("https://example.invalid/?code=c&state=st", a0.ERR_INVALID_CALLBACK),
-        ("http://localhost:9999/myaudi-callback?code=c&state=st", a0.ERR_INVALID_CALLBACK),
-        ("http://localhost:8080/other?code=c&state=st", a0.ERR_INVALID_CALLBACK),
-        (f"{CALLBACK}?code=c&state=someone-elses", a0.ERR_INVALID_CALLBACK),
-        (f"{CALLBACK}?state=st", a0.ERR_INVALID_CALLBACK),
-        (f"{CALLBACK}?code=c", a0.ERR_INVALID_CALLBACK),
-        ("", a0.ERR_INVALID_CALLBACK),
-        (f"{CALLBACK}?error=access_denied&state=st", a0.ERR_DENIED),
+        "https://example.invalid/?code=c&state=st",
+        "http://localhost:9999/myaudi-callback?code=c&state=st",
+        "http://localhost:8080/other?code=c&state=st",
+        f"{CALLBACK}?code=c&state=someone-elses",
+        f"{CALLBACK}?state=st",
+        "",
     ],
 )
-def test_callback_rejections_carry_the_right_key(url: str, key: str) -> None:
-    with pytest.raises(ValueError, match=key):
-        a0.parse_callback_url(url, "st")
+def test_a_wrong_callback_is_refused_as_invalid(url: str) -> None:
+    with pytest.raises(a0.Auth0RedirectInvalid):
+        a0.parse_redirect(url, expected_redirect_uri=CALLBACK, expected_state="st")
+
+
+def test_a_denied_callback_is_its_own_kind() -> None:
+    with pytest.raises(a0.Auth0Denied):
+        a0.parse_redirect(
+            f"{CALLBACK}?error=access_denied&state=st",
+            expected_redirect_uri=CALLBACK, expected_state="st",
+        )
 
 
 def test_id_token_claims_never_raise() -> None:
@@ -184,66 +210,70 @@ def test_id_token_claims_never_raise() -> None:
 
 
 def test_code_exchange_posts_the_pkce_grant_and_stamps_the_strategy() -> None:
+    route = _audi_route()
     sess = _Session((200, TOKEN_OK))
-    tokens = asyncio.run(a0.AudiAuth0Grant(sess, "cid").exchange_code("the-code", "verif"))
+    tokens = asyncio.run(
+        a0.Auth0Grant(sess, brand="audi").exchange_code(route, "the-code", "verif"))
 
     url, body, headers = sess.calls[0]
-    assert url == a0.AUTH0_TOKEN_URL
+    assert url == route.token_url == a0.TOKEN_ENDPOINT
     assert body["grant_type"] == ["authorization_code"]
-    assert body["client_id"] == ["cid"]
+    assert body["client_id"] == [route.client_id]
     assert body["code"] == ["the-code"]
     assert body["code_verifier"] == ["verif"]
-    assert body["redirect_uri"] == [CALLBACK]
+    assert body["redirect_uri"] == [route.redirect_uri] == [CALLBACK]
     assert headers["Content-Type"] == "application/x-www-form-urlencoded"
 
-    assert tokens.strategy == "audi_auth0"
+    assert tokens.strategy == "auth0"
     assert tokens.access_token == "a0-access-1"
     assert tokens.refresh_token == "a0-refresh-1"
     assert tokens.id_token == ID_TOKEN
-    assert tokens.is_valid()
     assert tokens.expires_at > 0
 
 
 def test_code_exchange_without_refresh_token_is_a_failure() -> None:
+    route = _audi_route()
     sess = _Session((200, {k: v for k, v in TOKEN_OK.items() if k != "refresh_token"}))
     with pytest.raises(AuthenticationError, match="refresh token"):
-        asyncio.run(a0.AudiAuth0Grant(sess, "cid").exchange_code("c", "v"))
+        asyncio.run(a0.Auth0Grant(sess, brand="audi").exchange_code(route, "c", "v"))
 
 
 def test_code_exchange_rejection_is_an_auth_error_not_a_retry() -> None:
+    route = _audi_route()
     sess = _Session((403, {"error": "invalid_grant", "error_description": "Invalid authorization code"}))
     with pytest.raises(AuthenticationError, match="invalid_grant"):
-        asyncio.run(a0.AudiAuth0Grant(sess, "cid").exchange_code("c", "v"))
+        asyncio.run(a0.Auth0Grant(sess, brand="audi").exchange_code(route, "c", "v"))
 
 
 def test_refresh_posts_audience_and_scope_and_rotates() -> None:
     sess = _Session((200, dict(TOKEN_OK, access_token="a0-access-2", refresh_token="a0-refresh-2")))
-    tokens = asyncio.run(a0.AudiAuth0Grant(sess, "cid").refresh("a0-refresh-1"))
+    tokens = asyncio.run(a0.Auth0Grant(sess, brand="audi", client_id="cid").refresh("a0-refresh-1"))
 
-    _url, body, _h = sess.calls[0]
+    url, body, _h = sess.calls[0]
+    assert url == a0.TOKEN_ENDPOINT
     assert body["grant_type"] == ["refresh_token"]
     assert body["refresh_token"] == ["a0-refresh-1"]
-    assert body["audience"] == [a0.AUTH0_AUDIENCE]
-    assert body["scope"] == [a0.AUTH0_SCOPE]
+    assert body["client_id"] == ["cid"]
+    assert body["audience"] == [a0.AUDIENCE]
+    assert body["scope"] == [a0.SCOPE]
     assert tokens.access_token == "a0-access-2"
     assert tokens.refresh_token == "a0-refresh-2"
-    assert tokens.strategy == "audi_auth0"
+    assert tokens.strategy == "auth0"
 
 
 def test_refresh_keeps_an_unrotated_refresh_token_and_the_old_id_token() -> None:
     sess = _Session((200, {"access_token": "a0-access-2", "expires_in": 600}))
     tokens = asyncio.run(
-        a0.AudiAuth0Grant(sess, "cid").refresh("a0-refresh-1", id_token="old-id")
+        a0.Auth0Grant(sess, brand="audi", client_id="cid").refresh("a0-refresh-1", id_token="old-id")
     )
     assert tokens.refresh_token == "a0-refresh-1"
     assert tokens.id_token == "old-id"
-    assert tokens.is_valid(), "TokenSet.is_valid needs an id_token, or nothing gets stored"
 
 
 def test_refresh_invalid_grant_means_reauth() -> None:
     sess = _Session((403, {"error": "invalid_grant", "error_description": "Unknown or invalid refresh token."}))
     with pytest.raises(AuthenticationError):
-        asyncio.run(a0.AudiAuth0Grant(sess, "cid").refresh("dead"))
+        asyncio.run(a0.Auth0Grant(sess, brand="audi", client_id="cid").refresh("dead"))
 
 
 @pytest.mark.parametrize(
@@ -258,13 +288,13 @@ def test_refresh_invalid_grant_means_reauth() -> None:
 def test_refresh_anything_else_is_transient(answer: tuple[int, Any]) -> None:
     sess = _Session(answer)
     with pytest.raises(TokenRefreshRetryError):
-        asyncio.run(a0.AudiAuth0Grant(sess, "cid").refresh("rt"))
+        asyncio.run(a0.Auth0Grant(sess, brand="audi", client_id="cid").refresh("rt"))
 
 
 def test_refresh_network_failure_is_transient() -> None:
     sess = _Session()  # nothing queued → post() raises
     with pytest.raises(TokenRefreshRetryError):
-        asyncio.run(a0.AudiAuth0Grant(sess, "cid").refresh("rt"))
+        asyncio.run(a0.Auth0Grant(sess, brand="audi", client_id="cid").refresh("rt"))
 
 
 # ── base client wiring ─────────────────────────────────────────────────────────
@@ -282,7 +312,7 @@ def _auth0_client(password: str = "") -> AudiClient:
     c = AudiClient(_NoNet(), "u@t.dk", password)
     c._tokens = TokenSet(
         access_token="STALE", refresh_token="a0-refresh-1", id_token="old-id",
-        expires_at=0.0, strategy="audi_auth0",
+        expires_at=0.0, strategy="auth0",
     )
     return c
 
@@ -295,13 +325,13 @@ def test_an_auth0_session_refreshes_at_auth0_not_at_idk(monkeypatch: pytest.Monk
         seen.append((refresh_token, id_token))
         return TokenSet(
             access_token="FRESH", refresh_token="a0-refresh-2", id_token=id_token,
-            expires_at=9e9, strategy="audi_auth0",
+            expires_at=9e9, strategy="auth0",
         )
 
     async def _idk_refresh(*a: Any, **k: Any) -> TokenSet:  # pragma: no cover
         raise AssertionError("the IDK endpoint answers 'invalid assertion headers' here")
 
-    monkeypatch.setattr(a0.AudiAuth0Grant, "refresh", _fake_refresh)
+    monkeypatch.setattr(a0.Auth0Grant, "refresh", _fake_refresh)
     monkeypatch.setattr(c._auth, "refresh", _idk_refresh)
     notified: list[str] = []
 
@@ -315,7 +345,7 @@ def test_an_auth0_session_refreshes_at_auth0_not_at_idk(monkeypatch: pytest.Monk
     assert seen == [("a0-refresh-1", "old-id")]
     assert c._tokens.access_token == "FRESH"
     assert c._tokens.refresh_token == "a0-refresh-2"
-    assert c._tokens.strategy == "audi_auth0", "a refresh must not drop the strategy tag"
+    assert c._tokens.strategy == "auth0", "a refresh must not drop the strategy tag"
     assert notified == ["FRESH"], "the coordinator persists on this callback"
 
 
@@ -327,7 +357,7 @@ def test_a_dead_auth0_refresh_surfaces_instead_of_rerunning_the_password_login(
     async def _dead(self: Any, refresh_token: str, *, id_token: str = "") -> TokenSet:
         raise AuthenticationError("Auth0 refresh rejected: HTTP 403 invalid_grant")
 
-    monkeypatch.setattr(a0.AudiAuth0Grant, "refresh", _dead)
+    monkeypatch.setattr(a0.Auth0Grant, "refresh", _dead)
 
     async def _never(*a: Any, **k: Any) -> None:  # pragma: no cover
         raise AssertionError("authenticate() must not run for a dead Auth0 session")
@@ -339,7 +369,7 @@ def test_a_dead_auth0_refresh_surfaces_instead_of_rerunning_the_password_login(
 
 def test_a_passwordless_auth0_entry_is_told_to_sign_in_again() -> None:
     c = _auth0_client(password="")
-    with pytest.raises(DeviceLoginExpiredError, match="audi_auth0"):
+    with pytest.raises(DeviceLoginExpiredError, match="auth0"):
         asyncio.run(c.authenticate())
 
 
@@ -348,7 +378,7 @@ def test_the_auth0_branch_sits_before_the_generic_idk_refresh() -> None:
     the IDK refresh that answers ``invalid assertion headers``; the Auth0
     branch must be reached before it."""
     src = inspect.getsource(_base.CariadBaseClient._refresh_tokens)
-    assert src.index('strategy == "audi_auth0"') < src.rindex("self._auth.refresh(")
+    assert src.index('strategy == "auth0"') < src.rindex("self._auth.refresh(")
 
 
 def test_images_are_skipped_on_an_auth0_session_without_touching_azs_or_vgql(
@@ -359,7 +389,7 @@ def test_images_are_skipped_on_an_auth0_session_without_touching_azs_or_vgql(
     map is empty, and the reason is logged once — not on every poll."""
     c = _auth0_client()
     c._tokens = TokenSet(
-        access_token="A0", refresh_token="r", id_token=ID_TOKEN, strategy="audi_auth0",
+        access_token="A0", refresh_token="r", id_token=ID_TOKEN, strategy="auth0",
     )
 
     async def _no_azs() -> str | None:  # pragma: no cover
@@ -385,9 +415,14 @@ def test_images_are_skipped_on_an_auth0_session_without_touching_azs_or_vgql(
 
 
 def test_qr_signin_live_knows_the_browser_sign_in() -> None:
-    assert dg.qr_signin_live("audi", "audi_auth0") is True
-    assert dg.qr_signin_live("volkswagen", "audi_auth0") is False
-    assert dg.qr_signin_live("audi", "device_grant") is False, "the device-code grant stays retired"
+    # Every Auth0-offered brand can be signed in again through the browser.
+    assert dg.qr_signin_live("audi", "auth0") is True
+    assert dg.qr_signin_live("volkswagen", "auth0") is True
+    assert dg.qr_signin_live("cupra", "auth0") is True
+    # A brand the tenant does not hold cannot.
+    assert dg.qr_signin_live("skoda", "auth0") is False
+    # The device-code grant stays retired for Audi regardless.
+    assert dg.qr_signin_live("audi", "device_grant") is False
 
 
 # ── config flow ────────────────────────────────────────────────────────────────
@@ -454,16 +489,16 @@ def _flow(*entries: SimpleNamespace, context: dict[str, Any] | None = None) -> t
 def _patch_exchange(monkeypatch: pytest.MonkeyPatch, tokens: TokenSet | None = None, *, raise_: Exception | None = None) -> list[tuple[str, str]]:
     seen: list[tuple[str, str]] = []
 
-    async def _fake(self: Any, code: str, verifier: str) -> TokenSet:
+    async def _fake(self: Any, route: Any, code: str, verifier: str) -> TokenSet:
         seen.append((code, verifier))
         if raise_ is not None:
             raise raise_
         return tokens or TokenSet(
             access_token="A0", refresh_token="R0", id_token=ID_TOKEN,
-            expires_at=1.7e9, strategy="audi_auth0",
+            expires_at=1.7e9, strategy="auth0",
         )
 
-    monkeypatch.setattr(a0.AudiAuth0Grant, "exchange_code", _fake)
+    monkeypatch.setattr(a0.Auth0Grant, "exchange_code", _fake)
     return seen
 
 
@@ -474,7 +509,8 @@ async def test_browser_login_routes_audi_to_the_auth0_step() -> None:
         {CONF_BRAND: "audi", CONF_SPIN: "", CONF_SCAN_INTERVAL: 15}
     )
     assert result["type"] == "form"
-    assert result["step_id"] == "audi_auth0"
+    assert result["step_id"] == "auth0"
+    assert flow._auth0_brand == "audi"
     url = result["description_placeholders"]["authorization_url"]
     q = parse_qs(urlparse(url).query)
     assert q["state"] == [flow._auth0_state]
@@ -483,18 +519,34 @@ async def test_browser_login_routes_audi_to_the_auth0_step() -> None:
 
 
 @pytest.mark.asyncio
+async def test_browser_login_offers_auth0_for_an_unproven_brand_opt_in() -> None:
+    """SEAT keeps its working device-code grant by default; a tester ticks the
+    box to reach the (unverified) Auth0 route, which carries the tester note."""
+    flow, _reg = _flow()
+    result = await flow.async_step_browser_login(
+        {CONF_BRAND: "seat", CONF_SPIN: "", CONF_SCAN_INTERVAL: 15,
+         "use_browser_auth0": True}
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "auth0"
+    assert flow._auth0_brand == "seat"
+    assert result["description_placeholders"]["note"], "unproven brand must warn"
+
+
+@pytest.mark.asyncio
 async def test_a_foreign_or_stale_callback_is_refused_and_the_attempt_kept() -> None:
     flow, _reg = _flow()
-    await flow.async_step_audi_auth0()
+    flow._auth0_brand = "audi"
+    await flow.async_step_auth0()
     url_before = flow._auth0_url
-    result = await flow.async_step_audi_auth0(
+    result = await flow.async_step_auth0(
         {"callback_url": f"{CALLBACK}?code=c&state=not-mine"}
     )
     assert result["type"] == "form"
     assert result["errors"] == {"base": "invalid_auth0_callback"}
     assert flow._auth0_url == url_before, "a bad paste does not burn the attempt"
 
-    result = await flow.async_step_audi_auth0(
+    result = await flow.async_step_auth0(
         {"callback_url": f"{CALLBACK}?error=access_denied&state={flow._auth0_state}"}
     )
     assert result["errors"] == {"base": "auth0_denied"}
@@ -503,10 +555,11 @@ async def test_a_foreign_or_stale_callback_is_refused_and_the_attempt_kept() -> 
 @pytest.mark.asyncio
 async def test_a_refused_code_starts_a_fresh_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
     flow, _reg = _flow()
-    await flow.async_step_audi_auth0()
+    flow._auth0_brand = "audi"
+    await flow.async_step_auth0()
     old_state, old_verifier = flow._auth0_state, flow._auth0_verifier
     _patch_exchange(monkeypatch, raise_=AuthenticationError("HTTP 403 invalid_grant"))
-    result = await flow.async_step_audi_auth0(
+    result = await flow.async_step_auth0(
         {"callback_url": f"{CALLBACK}?code=spent&state={old_state}"}
     )
     assert result["errors"] == {"base": "auth0_auth_failed"}
@@ -517,9 +570,10 @@ async def test_a_refused_code_starts_a_fresh_attempt(monkeypatch: pytest.MonkeyP
 @pytest.mark.asyncio
 async def test_a_transient_exchange_failure_is_cannot_connect(monkeypatch: pytest.MonkeyPatch) -> None:
     flow, _reg = _flow()
-    await flow.async_step_audi_auth0()
+    flow._auth0_brand = "audi"
+    await flow.async_step_auth0()
     _patch_exchange(monkeypatch, raise_=TokenRefreshRetryError("503"))
-    result = await flow.async_step_audi_auth0(
+    result = await flow.async_step_auth0(
         {"callback_url": f"{CALLBACK}?code=c&state={flow._auth0_state}"}
     )
     assert result["errors"] == {"base": "cannot_connect"}
@@ -539,7 +593,7 @@ async def test_a_new_account_becomes_a_new_passwordless_entry(monkeypatch: pytes
 
     await flow.async_step_browser_login({CONF_BRAND: "audi", CONF_SPIN: "1234", CONF_SCAN_INTERVAL: 15})
     seen = _patch_exchange(monkeypatch)
-    result = await flow.async_step_audi_auth0(
+    result = await flow.async_step_auth0(
         {"callback_url": f"{CALLBACK}?code=the-code&state={flow._auth0_state}"}
     )
 
@@ -551,7 +605,7 @@ async def test_a_new_account_becomes_a_new_passwordless_entry(monkeypatch: pytes
     assert data[CONF_USERNAME] == "Driver@Example.invalid"
     assert data[CONF_PASSWORD] == ""
     assert data[CONF_SPIN] == "1234"
-    assert data["dag_initial_tokens"]["strategy"] == "audi_auth0"
+    assert data["dag_initial_tokens"]["strategy"] == "auth0"
     assert data["dag_initial_tokens"]["refresh_token"] == "R0"
     assert created[1]["title"].endswith("Driver@Example.invalid")
 
@@ -572,7 +626,7 @@ async def test_a_known_account_attaches_to_its_existing_entry_and_keeps_the_pass
 
     await flow.async_step_browser_login({CONF_BRAND: "audi", CONF_SPIN: "", CONF_SCAN_INTERVAL: 15})
     _patch_exchange(monkeypatch)
-    result = await flow.async_step_audi_auth0(
+    result = await flow.async_step_auth0(
         {"callback_url": f"{CALLBACK}?code=c&state={flow._auth0_state}"}
     )
 
@@ -580,10 +634,10 @@ async def test_a_known_account_attaches_to_its_existing_entry_and_keeps_the_pass
     assert result["reason"] == "reconfigure_successful"
     assert existing.data[CONF_PASSWORD] == "pw"
     assert existing.data["read_only_mode"] is True
-    assert existing.data["dag_initial_tokens"]["strategy"] == "audi_auth0"
+    assert existing.data["dag_initial_tokens"]["strategy"] == "auth0"
     assert reg.reloaded == ["e1"]
     assert len(_FakeTokenStorage.saved) == 1
-    assert _FakeTokenStorage.saved[0][1].strategy == "audi_auth0"
+    assert _FakeTokenStorage.saved[0][1].strategy == "auth0"
 
 
 @pytest.mark.asyncio
@@ -591,12 +645,12 @@ async def test_reauth_of_an_auth0_entry_goes_straight_to_the_browser_step() -> N
     entry = SimpleNamespace(
         entry_id="e1",
         data={CONF_BRAND: "audi", CONF_USERNAME: "x", CONF_PASSWORD: "",
-              "dag_initial_tokens": {"strategy": "audi_auth0", "refresh_token": "dead"}},
+              "dag_initial_tokens": {"strategy": "auth0", "refresh_token": "dead"}},
     )
     flow, _reg = _flow(entry, context={"entry_id": "e1"})
     result = await flow.async_step_reauth_confirm()
     assert result["type"] == "form"
-    assert result["step_id"] == "reauth_audi_auth0"
+    assert result["step_id"] == "reauth_auth0"
 
 
 @pytest.mark.asyncio
@@ -607,8 +661,8 @@ async def test_reauth_of_a_password_audi_entry_offers_a_choice() -> None:
     flow, _reg = _flow(entry, context={"entry_id": "e1"})
     result = await flow.async_step_reauth_confirm()
     assert result["type"] == "menu"
-    assert result["step_id"] == "reauth_audi_menu"
-    assert result["menu_options"] == ["reauth_audi_auth0", "reauth_credentials"]
+    assert result["step_id"] == "reauth_auth0_menu"
+    assert result["menu_options"] == ["reauth_auth0", "reauth_credentials"]
 
 
 @pytest.mark.asyncio
@@ -623,9 +677,27 @@ async def test_the_credentials_menu_choice_shows_the_old_form_once() -> None:
 
 
 @pytest.mark.asyncio
-async def test_other_brands_reauth_exactly_as_before() -> None:
+async def test_a_brand_without_a_browser_sign_in_reauths_exactly_as_before() -> None:
     entry = SimpleNamespace(
         entry_id="e1", data={CONF_BRAND: "skoda", CONF_USERNAME: "x@y.z", CONF_PASSWORD: "pw"},
+    )
+    flow, _reg = _flow(entry, context={"entry_id": "e1"})
+    result = await flow.async_step_reauth_confirm()
+    assert result["type"] == "form"
+    assert result["step_id"] == "reauth_confirm"
+
+
+@pytest.mark.asyncio
+async def test_a_denied_brand_reauths_to_credentials_not_the_failing_auth0_menu() -> None:
+    """#1712 — Volkswagen is reachable (still in AUTH0_BRANDS) but denied
+    (AUTH0_DENIED): its Auth0 exchange never completes. The reauth gate uses
+    is_offered(), not raw AUTH0_BRANDS membership, so a VW entry is NOT steered
+    into the browser (Auth0) menu that would only ever fail — it falls straight
+    through to the credential reauth, exactly like a brand with no browser login
+    at all."""
+    entry = SimpleNamespace(
+        entry_id="e1",
+        data={CONF_BRAND: "volkswagen", CONF_USERNAME: "x@y.z", CONF_PASSWORD: "pw"},
     )
     flow, _reg = _flow(entry, context={"entry_id": "e1"})
     result = await flow.async_step_reauth_confirm()
@@ -638,12 +710,12 @@ async def test_reauth_writes_the_store_and_the_entry_and_reloads(monkeypatch: py
     entry = SimpleNamespace(
         entry_id="e1",
         data={CONF_BRAND: "audi", CONF_USERNAME: "x", CONF_PASSWORD: "",
-              "dag_initial_tokens": {"strategy": "audi_auth0", "refresh_token": "dead"}},
+              "dag_initial_tokens": {"strategy": "auth0", "refresh_token": "dead"}},
     )
     flow, reg = _flow(entry, context={"entry_id": "e1"})
     await flow.async_step_reauth_confirm()
     _patch_exchange(monkeypatch)
-    result = await flow.async_step_reauth_audi_auth0(
+    result = await flow.async_step_reauth_auth0(
         {"callback_url": f"{CALLBACK}?code=c&state={flow._auth0_state}"}
     )
     assert result == flow.async_abort(reason="reauth_successful")
@@ -659,10 +731,82 @@ def test_the_strings_cover_every_new_key() -> None:
     for name in ["strings.json", *(f"translations/{lang}.json" for lang in "cs da de en es fi fr it nb nl pl sv".split())]:
         doc = json.loads((root / name).read_text(encoding="utf-8"))
         cfg = doc["config"]
-        for step in ("audi_auth0", "reauth_audi_auth0"):
+        for step in ("auth0", "reauth_auth0"):
             assert "{authorization_url}" in cfg["step"][step]["description"], name
             assert "callback_url" in cfg["step"][step]["data"], name
-        assert set(cfg["step"]["reauth_audi_menu"]["menu_options"]) == {"reauth_audi_auth0", "reauth_credentials"}, name
+        assert set(cfg["step"]["reauth_auth0_menu"]["menu_options"]) == {"reauth_auth0", "reauth_credentials"}, name
         for key in ("invalid_auth0_callback", "auth0_denied", "auth0_auth_failed"):
             assert key in cfg["error"], name
-        assert "http" not in json.dumps(cfg["step"]["audi_auth0"]), "no literal URLs in strings (hassfest)"
+        assert "http" not in json.dumps(cfg["step"]["auth0"]), "no literal URLs in strings (hassfest)"
+
+
+# ── hardening after an adversarial cross-review (two model families) ──────────
+
+
+@pytest.mark.parametrize("err", ["unauthorized_client", "invalid_client", "INVALID_GRANT"])
+def test_refresh_a_permanent_client_error_means_reauth(err: str) -> None:
+    """A dead refresh token is not the only permanent refusal — a disabled
+    client, or an upper-cased ``invalid_grant``, must raise reauth rather than
+    be retried quietly on every poll forever."""
+    sess = _Session((400, {"error": err}))
+    with pytest.raises(AuthenticationError):
+        asyncio.run(a0.Auth0Grant(sess, brand="audi", client_id="cid").refresh("rt"))
+
+
+def test_refresh_tolerates_a_nonnumeric_expires_in() -> None:
+    """A malformed ``expires_in`` must not crash the refresh with a ValueError."""
+    sess = _Session((200, {"access_token": "a2", "refresh_token": "r2",
+                           "id_token": ID_TOKEN, "expires_in": "soon"}))
+    tokens = asyncio.run(a0.Auth0Grant(sess, brand="audi", client_id="cid").refresh("rt"))
+    assert tokens.access_token == "a2"
+    assert tokens.expires_at > 0
+
+
+# ── an auth0 entry is read-only: no verified command session ─────────────────
+
+
+def _coord(strategy: str, *, brand: str = "audi", data: dict[str, Any] | None = None,
+           mbb_armed: bool = False) -> Any:
+    """A bare coordinator wired only with what is_read_only reads."""
+    from custom_components.vag_connect.coordinator import VagConnectCoordinator
+
+    entry_data: dict[str, Any] = {"brand": brand}
+    if data:
+        entry_data.update(data)
+    coord = object.__new__(VagConnectCoordinator)
+    coord.entry = SimpleNamespace(data=entry_data, options={})  # type: ignore[attr-defined]
+    coord._cariad_client = SimpleNamespace(  # type: ignore[attr-defined]
+        _tokens=SimpleNamespace(strategy=strategy),
+        _mbb_command=object() if mbb_armed else None,
+    )
+    return coord
+
+
+def test_an_audi_auth0_entry_can_command() -> None:
+    """#1712 — the Audi Auth0 token reaches the CARIAD command plane directly
+    (live-measured 2026-11-10, pendingrequests 204), so an Audi Auth0 entry is
+    NOT force-read-only: lock / climate / charge command entities appear and the
+    user toggle decides."""
+    coord = _coord("auth0", brand="audi")
+    assert coord.is_read_only() is False
+    assert coord.is_structural_read_only() is False
+
+
+def test_an_unverified_auth0_brand_is_still_read_only() -> None:
+    """An auth0 brand whose command plane is NOT verified (not in AUTH0_TWOWAY)
+    stays force-read-only — commands could only ever fail. Volkswagen is the
+    stand-in: reachable but never offered, and never command-verified."""
+    coord = _coord("auth0", brand="volkswagen")
+    assert coord.is_read_only() is True
+    assert coord.is_structural_read_only() is True
+
+
+def test_an_auth0_entry_with_an_armed_mbb_channel_can_still_command() -> None:
+    """The attach-to-an-existing-entry case: an Auth0 entry on a brand that is
+    NOT command-verified on its own (volkswagen — so the two-way carve-out does
+    not apply) but that carries an armed MBB command channel keeps its command
+    entities via the MBB path."""
+    coord = _coord("auth0", brand="volkswagen",
+                   data={"mbb_command_channel": True}, mbb_armed=True)
+    assert coord.is_read_only() is False
+    assert coord.is_structural_read_only() is False

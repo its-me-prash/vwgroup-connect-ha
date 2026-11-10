@@ -168,7 +168,7 @@ class AudiClient(VWEUClient):
         The picture needs a token exchange the myAudi public client is not
         allowed to make; nothing on this side changes that.
         """
-        if self._tokens and self._tokens.strategy == "audi_auth0":
+        if self._tokens and self._tokens.strategy == "auth0":
             if not getattr(self, "_auth0_images_noted", False):
                 self._auth0_images_noted = True
                 _LOGGER.info(

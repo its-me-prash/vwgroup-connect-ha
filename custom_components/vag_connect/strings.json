@@ -117,12 +117,14 @@
         "data": {
           "brand": "Vehicle Brand",
           "spin": "S-PIN",
-          "scan_interval": "Update Interval"
+          "scan_interval": "Update Interval",
+          "use_browser_auth0": "Experimental: browser (Auth0) sign-in"
         },
         "data_description": {
-          "brand": "Only brands with browser-login support are listed. Use 'Email + Password' for Volkswagen EU and Porsche.",
+          "brand": "Only brands with a browser sign-in are listed. Use 'Email + Password' for Porsche.",
           "spin": "Optional 4-digit Security-PIN for remote actions (lock, unlock, climate).",
-          "scan_interval": "Minutes between vehicle data polls."
+          "scan_interval": "Minutes between vehicle data polls.",
+          "use_browser_auth0": "SEAT and CUPRA only: use the browser (Auth0) sign-in instead of the device-code login. This route is not verified for them yet — testers, please report your result. Audi always uses it."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
       },
-      "audi_auth0": {
-        "title": "Sign in with myAudi in the browser",
-        "description": "Audi no longer lets this integration sign in with email and password — the final step now needs a device check only the official app can pass. Audi's own login page still works:\n\n1. Open this link, preferably in a private browser window: [{authorization_url}]({authorization_url})\n2. Sign in with your myAudi account.\n3. Audi then sends your browser to a `localhost:8080/myaudi-callback` address that cannot load. **That connection error is expected.**\n4. Copy the complete address from the browser's address bar and paste it below.\n\nThe link belongs to this attempt only; if it fails, a new one is shown.",
+      "auth0": {
+        "title": "Sign in with {brand} in the browser",
+        "description": "{note}This integration can no longer sign in to {brand} with email and password alone — the final step now needs a device check only the official app can pass. The brand's own login page still works:\n\n1. Open this link, preferably in a private browser window: [{authorization_url}]({authorization_url})\n2. Sign in with your {brand} account.\n3. Your browser is then sent to a callback address that cannot load. **That connection error is expected.**\n4. Copy the complete address from the browser's address bar — or, if the browser shows none, the code value from it — and paste it below.\n\nThe link belongs to this attempt only; if it fails, a new one is shown.",
         "data": {
-          "callback_url": "Address from the browser's address bar"
+          "callback_url": "Address from the browser, or the code value"
         },
         "data_description": {
-          "callback_url": "Starts with localhost:8080/myaudi-callback and contains code= and state=."
+          "callback_url": "Contains code= and state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Sign in again with myAudi in the browser",
-        "description": "Audi no longer lets this integration sign in with email and password — the final step now needs a device check only the official app can pass. Audi's own login page still works:\n\n1. Open this link, preferably in a private browser window: [{authorization_url}]({authorization_url})\n2. Sign in with your myAudi account.\n3. Audi then sends your browser to a `localhost:8080/myaudi-callback` address that cannot load. **That connection error is expected.**\n4. Copy the complete address from the browser's address bar and paste it below.\n\nThe link belongs to this attempt only; if it fails, a new one is shown.",
+      "reauth_auth0": {
+        "title": "Sign in again with {brand} in the browser",
+        "description": "{note}This integration can no longer sign in to {brand} with email and password alone — the final step now needs a device check only the official app can pass. The brand's own login page still works:\n\n1. Open this link, preferably in a private browser window: [{authorization_url}]({authorization_url})\n2. Sign in with your {brand} account.\n3. Your browser is then sent to a callback address that cannot load. **That connection error is expected.**\n4. Copy the complete address from the browser's address bar — or, if the browser shows none, the code value from it — and paste it below.\n\nThe link belongs to this attempt only; if it fails, a new one is shown.",
         "data": {
-          "callback_url": "Address from the browser's address bar"
+          "callback_url": "Address from the browser, or the code value"
         },
         "data_description": {
-          "callback_url": "Starts with localhost:8080/myaudi-callback and contains code= and state=."
+          "callback_url": "Contains code= and state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Sign in again — Audi",
-        "description": "Audi blocks the email + password sign-in for this integration (device check). Signing in through Audi's own login page in a browser still works. How do you want to sign in again?",
+      "reauth_auth0_menu": {
+        "title": "Sign in again",
+        "description": "The email + password sign-in no longer works for this brand (device check). Signing in through the brand's own login page in a browser still works. How do you want to sign in again?",
         "menu_options": {
-          "reauth_audi_auth0": "Sign in with myAudi in the browser (recommended)",
+          "reauth_auth0": "Sign in through the browser (recommended)",
           "reauth_credentials": "Enter email + password (EU Data Act portal only)"
         }
       }

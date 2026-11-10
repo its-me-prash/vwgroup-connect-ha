@@ -48,57 +48,88 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Hinzugefügt / Added
 
-- **Audi EU: a browser sign-in that gets past the attestation wall (#1712,
-  #2051, #1964).** Since October the CARIAD token exchange refuses this
+- **EU browser sign-in that gets past the attestation wall — multi-brand
+  (#1712, #2051, #1964).** Since October the CARIAD token exchange refuses this
   integration's sign-in with `invalid assertion headers`, and the QR /
-  device-code grant was withdrawn for Audi before that (#1364). Audi EU
-  entries have been running on the read-only EU Data Act portal since. What
-  the vendor left open is the login the myAudi app itself uses: its Auth0
-  tenant at `group.identity.vwgroup.io`, with the myAudi public client, PKCE,
-  and a `localhost` callback registered on that client — and that token
-  endpoint asks for no attestation. The access token it issues is accepted by
-  the CARIAD vehicle API directly (no AZS / MBB exchange in between).
+  device-code grant was withdrawn for Audi before that (#1364). What the vendor
+  left open is the login the brand apps use: the Auth0 tenant at
+  `group.identity.vwgroup.io`, with a brand's public client, PKCE, and a
+  callback registered on that client — and that token endpoint asks for no
+  attestation. The access token it issues is accepted by the CARIAD vehicle API
+  directly (no AZS / MBB exchange in between).
 
-  **The solution is @majd's.** It was worked out and shipped in
+  **The solution is @majd's**, worked out and shipped in
   [audiconnect/audi_connect_ha#905](https://github.com/audiconnect/audi_connect_ha/pull/905)
   (MIT): the Auth0 tenant, audience and scope, the registered `localhost`
-  callback, the paste-the-callback-URL flow, the Auth0 refresh, and the
-  `invalid assertion headers` → reauth migration. This entry ports that
-  design into this integration's auth/strategy model; the credit for finding
-  the open door belongs there.
+  callback, the paste-the-callback-URL flow, and the Auth0 refresh. **@woopstar
+  ported it to this integration's auth/strategy model and verified it on a live
+  Audi** (sign-in, an hour of polling, and the first Auth0 token refresh), in
+  [#2060](https://github.com/its-me-prash/vwgroup-connect-ha/pull/2060). This
+  entry generalises that port from Audi-only to every EU brand the tenant holds
+  — Volkswagen, SEAT and CUPRA alongside Audi — through one
+  `cariad/auth/_auth0.py` module and one `strategy="auth0"` session tag.
 
-  **How it looks.** *Add integration → Browser login → Audi* now shows a
-  myAudi sign-in link. Sign in in any browser; Audi redirects to a
-  `localhost:8080/myaudi-callback` address that cannot load — that error is
-  expected — and you paste the full address from the address bar into the
-  form. The flow checks the OAuth `state` it issued, trades the one-time code
-  for tokens, and stamps the session `strategy="audi_auth0"`. Refreshes go to
-  the same Auth0 endpoint; a dead refresh token raises a reauth instead of
-  re-running the walled password login.
+  **How it looks.** *Add integration → Browser login* now lists every brand with
+  an offered browser sign-in. For **Audi** (device grant retired) it is the
+  browser login: a sign-in link, you sign in in any browser, the redirect to a
+  `localhost` address cannot load — that error is expected — and you paste the
+  full address back into the form. The flow checks the OAuth `state` it issued,
+  trades the one-time code for tokens, and refreshes at the same Auth0 endpoint;
+  a dead refresh token raises a reauth instead of re-running the walled password
+  login.
+
+  **SEAT and CUPRA keep their working device-code grant by default** — their
+  app login still works, so nothing changes for them unless a tester ticks the
+  new *Experimental: browser (Auth0) sign-in* box. Both reach the Auth0 login
+  page (measured), but their code exchange is **not verified yet**: the step
+  marks them experimental and asks the tester to report. **Volkswagen is not
+  offered**: its sign-in page loads, but the code exchange returns
+  `401 access_denied` and the `localhost` callback is refused *Callback URL
+  mismatch* (live-measured 2026-11-09/10), and the We Connect build carries no
+  Auth0 login provider at all — so offering it would only ever fail. The route
+  stays in the module, documented, but is gated out of the picker (`AUTH0_DENIED`).
+  A companion probe, `scripts/auth0_signin_probe.py`, drives the same builders
+  from a terminal and produces a share-safe log (no token, VINs masked) for
+  exactly that.
 
   **Migration, in both directions.** A fresh browser sign-in for an account
-  that already has an email + password Audi entry attaches its tokens to that
-  entry (matched on the e-mail claim) instead of creating a second one, and
-  keeps the stored password: the EU Data Act portal channel still signs in
-  with it. The reauth flow for an Audi entry now offers a choice — the browser
-  sign-in, or the old credentials form — and the *Volkswagen blocks the
-  sign-in* repair notice gained a **Repair** button that opens it. The
-  `device_grant_retired` dead end for Audi (#2051) is gone: Audi no longer
-  reaches that error from the browser-login picker.
+  that already has an email + password entry for the same brand attaches its
+  tokens to that entry (matched on the e-mail claim, `sub` as fallback) instead
+  of creating a second one, and keeps the stored password: the EU Data Act
+  portal channel still signs in with it. The reauth flow for an Auth0-capable
+  brand now offers a choice — the browser sign-in, or the old credentials form
+  — and the *sign-in blocked* repair notice gained a **Repair** button that
+  opens it. The `device_grant_retired` dead end for Audi (#2051) is gone.
 
   **What it cannot do, measured rather than assumed.** Live on an EU account
-  (Audi e-tron, DK): the Auth0 token reads the CARIAD vehicle API and lists
-  the garage, but the vehicle **render images** are out of reach — the AZS
-  proxy refuses the token with `client does not have access to the IDP for
-  token exchange`, and the vgql endpoint answers the same message as a 401
-  for every `vehicle { … }` sub-field. The myAudi public client may not make
-  the exchange those resolvers need. So an Auth0 session skips the image
-  fetch, says so once in the log, and leaves vehicle data untouched.
+  (Audi e-tron, DK): the Auth0 token reads the CARIAD vehicle API and lists the
+  garage, but the vehicle **render images** are out of reach — the AZS proxy
+  refuses the token with `client does not have access to the IDP for token
+  exchange`, and the vgql endpoint answers the same message as a 401 for every
+  `vehicle { … }` sub-field. So an Auth0 session skips the image fetch, says so
+  once in the log, and leaves vehicle data untouched. A second live EU account
+  (three Audis, incl. a current diesel 48 V mild-hybrid) confirms the token
+  reads `selectivestatus` (multi-status), `capabilities`, parking position and
+  battery-health; `tripstatistics` returns 404 and is handled best-effort; no
+  endpoint returns 401 or 403, so there is no refresh storm and no extra read
+  gating is needed, and the drive-train data reads correctly (the mild-hybrid
+  diesel reports diesel range only, no spurious electric range). Legacy
+  pre-CARIAD cars return 400/502 on the modern surface, as expected.
 
-  Ported and live-tested by @woopstar (sign-in, one hour of polling, and the
-  first Auth0 token refresh on a real Audi), with an AI assistant on the
-  port. Reports that this answers: @starwarsfan (#2051), the #1964 and #1712
-  threads.
+  **Two-way works for Audi, measured.** On the same three-Audi account, the
+  Auth0 token reaches the CARIAD **command** plane directly: `GET
+  …/pendingrequests` answered **204** on every car (the token is accepted on the
+  command namespace, not 401/403), and commands route through `_post_command` on
+  that same session — no MBB/AZS exchange in between. So an **Audi** Auth0 entry
+  is **not** read-only: lock, climate and charge command entities appear, and a
+  server-side command refusal (if any — the actuating write was deliberately not
+  force-tested on the owner's car) is surfaced honestly by the command-failure
+  classifier rather than hidden. **SEAT and CUPRA stay read-only**: their single
+  OLA command backend is attestation-walled (403 off-device), so command entities
+  there could only ever fail; reads keep flowing from `selectivestatus`. The
+  attach-to-an-existing-entry case — an Auth0 entry that also holds an armed MBB
+  command channel — keeps commands via that channel as before. Reports this
+  answers: @starwarsfan (#2051), the #1964 and #1712 threads.
 
 ### Behoben / Fixed
 

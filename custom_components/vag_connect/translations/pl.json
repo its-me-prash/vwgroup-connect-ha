@@ -117,12 +117,14 @@
         "data": {
           "brand": "Marka pojazdu",
           "spin": "S-PIN",
-          "scan_interval": "Interwał aktualizacji"
+          "scan_interval": "Interwał aktualizacji",
+          "use_browser_auth0": "Eksperymentalne: logowanie przez przeglądarkę (Auth0)"
         },
         "data_description": {
-          "brand": "Wyświetlane są tylko marki obsługujące logowanie przez przeglądarkę. Dla Volkswagen EU i Porsche użyj 'E-mail + hasło'.",
+          "brand": "Wyświetlane są tylko marki obsługujące logowanie przez przeglądarkę. Dla Porsche użyj 'E-mail + hasło'.",
           "scan_interval": "Minuty między odpytaniami danych pojazdu.",
-          "spin": "Opcjonalny 4-cyfrowy PIN bezpieczeństwa do akcji zdalnych (blokowanie, odblokowanie, klimatyzacja)."
+          "spin": "Opcjonalny 4-cyfrowy PIN bezpieczeństwa do akcji zdalnych (blokowanie, odblokowanie, klimatyzacja).",
+          "use_browser_auth0": "Tylko SEAT i CUPRA: użyj logowania przez przeglądarkę (Auth0) zamiast logowania kodem urządzenia. Ta ścieżka nie jest dla nich jeszcze zweryfikowana — testerzy, zgłoście swój wynik. Audi zawsze z niej korzysta."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Twój S-PIN do Audi — kod, którego używasz do zdalnego ryglowania/odryglowania."
         }
       },
-      "audi_auth0": {
-        "title": "Zaloguj się przez myAudi w przeglądarce",
-        "description": "Audi nie pozwala już tej integracji logować się e-mailem i hasłem — ostatni krok wymaga teraz sprawdzenia urządzenia, które przechodzi tylko oficjalna aplikacja. Własna strona logowania Audi nadal działa:\n\n1. Otwórz ten link, najlepiej w prywatnym oknie przeglądarki: [{authorization_url}]({authorization_url})\n2. Zaloguj się kontem myAudi.\n3. Audi przekieruje przeglądarkę na adres `localhost:8080/myaudi-callback`, którego nie da się wczytać. **Ten błąd połączenia jest oczekiwany.**\n4. Skopiuj pełny adres z paska adresu przeglądarki i wklej go poniżej.\n\nLink dotyczy tylko tej próby; jeśli się nie powiedzie, pojawi się nowy.",
+      "auth0": {
+        "title": "Zaloguj się przez {brand} w przeglądarce",
+        "description": "{note}Ta integracja nie może już logować się do {brand} samym e-mailem i hasłem — ostatni krok wymaga teraz sprawdzenia urządzenia, które przechodzi tylko oficjalna aplikacja. Własna strona logowania marki nadal działa:\n\n1. Otwórz ten link, najlepiej w prywatnym oknie przeglądarki: [{authorization_url}]({authorization_url})\n2. Zaloguj się kontem {brand}.\n3. Przeglądarka zostanie przekierowana na adres zwrotny (callback), którego nie da się wczytać. **Ten błąd połączenia jest oczekiwany.**\n4. Skopiuj pełny adres z paska adresu przeglądarki — lub, jeśli przeglądarka go nie pokazuje, wartość parametru code — i wklej go poniżej.\n\nLink dotyczy tylko tej próby; jeśli się nie powiedzie, pojawi się nowy.",
         "data": {
-          "callback_url": "Adres z paska adresu przeglądarki"
+          "callback_url": "Adres z przeglądarki lub wartość code"
         },
         "data_description": {
-          "callback_url": "Zaczyna się od localhost:8080/myaudi-callback i zawiera code= oraz state=."
+          "callback_url": "Zawiera code= oraz state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Zaloguj się ponownie przez myAudi w przeglądarce",
-        "description": "Audi nie pozwala już tej integracji logować się e-mailem i hasłem — ostatni krok wymaga teraz sprawdzenia urządzenia, które przechodzi tylko oficjalna aplikacja. Własna strona logowania Audi nadal działa:\n\n1. Otwórz ten link, najlepiej w prywatnym oknie przeglądarki: [{authorization_url}]({authorization_url})\n2. Zaloguj się kontem myAudi.\n3. Audi przekieruje przeglądarkę na adres `localhost:8080/myaudi-callback`, którego nie da się wczytać. **Ten błąd połączenia jest oczekiwany.**\n4. Skopiuj pełny adres z paska adresu przeglądarki i wklej go poniżej.\n\nLink dotyczy tylko tej próby; jeśli się nie powiedzie, pojawi się nowy.",
+      "reauth_auth0": {
+        "title": "Zaloguj się ponownie przez {brand} w przeglądarce",
+        "description": "{note}Ta integracja nie może już logować się do {brand} samym e-mailem i hasłem — ostatni krok wymaga teraz sprawdzenia urządzenia, które przechodzi tylko oficjalna aplikacja. Własna strona logowania marki nadal działa:\n\n1. Otwórz ten link, najlepiej w prywatnym oknie przeglądarki: [{authorization_url}]({authorization_url})\n2. Zaloguj się kontem {brand}.\n3. Przeglądarka zostanie przekierowana na adres zwrotny (callback), którego nie da się wczytać. **Ten błąd połączenia jest oczekiwany.**\n4. Skopiuj pełny adres z paska adresu przeglądarki — lub, jeśli przeglądarka go nie pokazuje, wartość parametru code — i wklej go poniżej.\n\nLink dotyczy tylko tej próby; jeśli się nie powiedzie, pojawi się nowy.",
         "data": {
-          "callback_url": "Adres z paska adresu przeglądarki"
+          "callback_url": "Adres z przeglądarki lub wartość code"
         },
         "data_description": {
-          "callback_url": "Zaczyna się od localhost:8080/myaudi-callback i zawiera code= oraz state=."
+          "callback_url": "Zawiera code= oraz state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Zaloguj się ponownie — Audi",
-        "description": "Audi blokuje logowanie e-mailem + hasłem dla tej integracji (sprawdzenie urządzenia). Logowanie przez własną stronę logowania Audi w przeglądarce nadal działa. Jak chcesz zalogować się ponownie?",
+      "reauth_auth0_menu": {
+        "title": "Zaloguj się ponownie",
+        "description": "Logowanie e-mailem + hasłem nie działa już dla tej marki (sprawdzenie urządzenia). Logowanie przez własną stronę logowania marki w przeglądarce nadal działa. Jak chcesz zalogować się ponownie?",
         "menu_options": {
-          "reauth_audi_auth0": "Zaloguj się przez myAudi w przeglądarce (zalecane)",
+          "reauth_auth0": "Zaloguj się przez przeglądarkę (zalecane)",
           "reauth_credentials": "Wpisz e-mail + hasło (tylko portal EU Data Act)"
         }
       }

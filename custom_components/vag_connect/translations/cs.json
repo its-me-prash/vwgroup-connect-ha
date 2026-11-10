@@ -117,12 +117,14 @@
         "data": {
           "brand": "Značka vozidla",
           "spin": "S-PIN",
-          "scan_interval": "Interval aktualizace"
+          "scan_interval": "Interval aktualizace",
+          "use_browser_auth0": "Experimentální: přihlášení přes prohlížeč (Auth0)"
         },
         "data_description": {
-          "brand": "Zobrazují se pouze značky s podporou přihlášení přes prohlížeč. Pro Volkswagen EU a Porsche použijte „E-mail + heslo“.",
+          "brand": "Zobrazují se pouze značky s přihlášením přes prohlížeč. Pro Porsche použijte „E-mail + heslo“.",
           "scan_interval": "Minuty mezi dotazy na data vozidla.",
-          "spin": "Volitelný 4místný bezpečnostní PIN pro vzdálené akce (zamknout, odemknout, klimatizace)."
+          "spin": "Volitelný 4místný bezpečnostní PIN pro vzdálené akce (zamknout, odemknout, klimatizace).",
+          "use_browser_auth0": "Pouze SEAT a CUPRA: použít přihlášení přes prohlížeč (Auth0) místo přihlášení pomocí kódu zařízení. Tato cesta zatím pro tyto značky není ověřená — testeři, nahlaste prosím svůj výsledek. Audi ji používá vždy."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Vaše S-PIN k Audi — kód, který používáte pro dálkové zamykání/odemykání."
         }
       },
-      "audi_auth0": {
-        "title": "Přihlásit se přes myAudi v prohlížeči",
-        "description": "Audi už této integraci nedovolí přihlášení e-mailem a heslem — poslední krok nyní vyžaduje kontrolu zařízení, kterou projde jen oficiální aplikace. Vlastní přihlašovací stránka Audi stále funguje:\n\n1. Otevřete tento odkaz, nejlépe v anonymním okně prohlížeče: [{authorization_url}]({authorization_url})\n2. Přihlaste se svým účtem myAudi.\n3. Audi poté přesměruje prohlížeč na adresu `localhost:8080/myaudi-callback`, kterou nelze načíst. **Tato chyba připojení je očekávaná.**\n4. Zkopírujte celou adresu z adresního řádku prohlížeče a vložte ji níže.\n\nOdkaz platí jen pro tento pokus; pokud selže, zobrazí se nový.",
+      "auth0": {
+        "title": "Přihlásit se přes {brand} v prohlížeči",
+        "description": "{note}Tato integrace se už nemůže k účtu {brand} přihlásit pouze e-mailem a heslem — poslední krok nyní vyžaduje kontrolu zařízení, kterou projde jen oficiální aplikace. Vlastní přihlašovací stránka značky stále funguje:\n\n1. Otevřete tento odkaz, nejlépe v anonymním okně prohlížeče: [{authorization_url}]({authorization_url})\n2. Přihlaste se svým účtem {brand}.\n3. Prohlížeč vás poté přesměruje na adresu zpětného volání, kterou nelze načíst. **Tato chyba připojení je očekávaná.**\n4. Zkopírujte celou adresu z adresního řádku prohlížeče — nebo, pokud ji prohlížeč nezobrazuje, z ní hodnotu code — a vložte ji níže.\n\nOdkaz platí jen pro tento pokus; pokud selže, zobrazí se nový.",
         "data": {
-          "callback_url": "Adresa z adresního řádku prohlížeče"
+          "callback_url": "Adresa z prohlížeče nebo hodnota code"
         },
         "data_description": {
-          "callback_url": "Začíná na localhost:8080/myaudi-callback a obsahuje code= a state=."
+          "callback_url": "Obsahuje code= a state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Znovu se přihlásit přes myAudi v prohlížeči",
-        "description": "Audi už této integraci nedovolí přihlášení e-mailem a heslem — poslední krok nyní vyžaduje kontrolu zařízení, kterou projde jen oficiální aplikace. Vlastní přihlašovací stránka Audi stále funguje:\n\n1. Otevřete tento odkaz, nejlépe v anonymním okně prohlížeče: [{authorization_url}]({authorization_url})\n2. Přihlaste se svým účtem myAudi.\n3. Audi poté přesměruje prohlížeč na adresu `localhost:8080/myaudi-callback`, kterou nelze načíst. **Tato chyba připojení je očekávaná.**\n4. Zkopírujte celou adresu z adresního řádku prohlížeče a vložte ji níže.\n\nOdkaz platí jen pro tento pokus; pokud selže, zobrazí se nový.",
+      "reauth_auth0": {
+        "title": "Znovu se přihlásit přes {brand} v prohlížeči",
+        "description": "{note}Tato integrace se už nemůže k účtu {brand} přihlásit pouze e-mailem a heslem — poslední krok nyní vyžaduje kontrolu zařízení, kterou projde jen oficiální aplikace. Vlastní přihlašovací stránka značky stále funguje:\n\n1. Otevřete tento odkaz, nejlépe v anonymním okně prohlížeče: [{authorization_url}]({authorization_url})\n2. Přihlaste se svým účtem {brand}.\n3. Prohlížeč vás poté přesměruje na adresu zpětného volání, kterou nelze načíst. **Tato chyba připojení je očekávaná.**\n4. Zkopírujte celou adresu z adresního řádku prohlížeče — nebo, pokud ji prohlížeč nezobrazuje, z ní hodnotu code — a vložte ji níže.\n\nOdkaz platí jen pro tento pokus; pokud selže, zobrazí se nový.",
         "data": {
-          "callback_url": "Adresa z adresního řádku prohlížeče"
+          "callback_url": "Adresa z prohlížeče nebo hodnota code"
         },
         "data_description": {
-          "callback_url": "Začíná na localhost:8080/myaudi-callback a obsahuje code= a state=."
+          "callback_url": "Obsahuje code= a state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Znovu se přihlásit — Audi",
-        "description": "Audi blokuje přihlášení e-mailem + heslem pro tuto integraci (kontrola zařízení). Přihlášení přes vlastní přihlašovací stránku Audi v prohlížeči stále funguje. Jak se chcete znovu přihlásit?",
+      "reauth_auth0_menu": {
+        "title": "Znovu se přihlásit",
+        "description": "Přihlášení e-mailem + heslem už pro tuto značku nefunguje (kontrola zařízení). Přihlášení přes vlastní přihlašovací stránku značky v prohlížeči stále funguje. Jak se chcete znovu přihlásit?",
         "menu_options": {
-          "reauth_audi_auth0": "Přihlásit se přes myAudi v prohlížeči (doporučeno)",
+          "reauth_auth0": "Přihlásit se přes prohlížeč (doporučeno)",
           "reauth_credentials": "Zadat e-mail + heslo (pouze portál EU Data Act)"
         }
       }

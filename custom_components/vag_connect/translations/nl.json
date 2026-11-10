@@ -117,12 +117,14 @@
         "data": {
           "brand": "Merk van het voertuig",
           "spin": "S-PIN",
-          "scan_interval": "Update-interval"
+          "scan_interval": "Update-interval",
+          "use_browser_auth0": "Experimenteel: inloggen via de browser (Auth0)"
         },
         "data_description": {
-          "brand": "Alleen merken met browser-login-ondersteuning worden getoond. Gebruik 'E-mail + wachtwoord' voor Volkswagen EU en Porsche.",
+          "brand": "Alleen merken met browser-login-ondersteuning worden getoond. Gebruik 'E-mail + wachtwoord' voor Porsche.",
           "scan_interval": "Minuten tussen de gegevensopvragingen van het voertuig.",
-          "spin": "Optionele 4-cijferige beveiligings-PIN voor acties op afstand (vergrendelen, ontgrendelen, klimaat)."
+          "spin": "Optionele 4-cijferige beveiligings-PIN voor acties op afstand (vergrendelen, ontgrendelen, klimaat).",
+          "use_browser_auth0": "Alleen SEAT en CUPRA: gebruik de browser-login (Auth0) in plaats van de apparaatcode-login. Deze route is daarvoor nog niet geverifieerd — testers, meld je resultaat. Audi gebruikt haar altijd."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Je Audi S-PIN — de code die je gebruikt voor vergrendelen/ontgrendelen op afstand."
         }
       },
-      "audi_auth0": {
-        "title": "Inloggen met myAudi in de browser",
-        "description": "Audi laat deze integratie niet meer inloggen met e-mail en wachtwoord — de laatste stap vereist nu een apparaatcontrole die alleen de officiële app doorstaat. Audi's eigen inlogpagina werkt nog wel:\n\n1. Open deze link, bij voorkeur in een privévenster van je browser: [{authorization_url}]({authorization_url})\n2. Log in met je myAudi-account.\n3. Audi stuurt je browser daarna naar een adres op `localhost:8080/myaudi-callback` dat niet kan laden. **Die verbindingsfout is verwacht.**\n4. Kopieer het volledige adres uit de adresbalk van de browser en plak het hieronder.\n\nDe link geldt alleen voor deze poging; mislukt die, dan verschijnt een nieuwe.",
+      "auth0": {
+        "title": "Inloggen met {brand} in de browser",
+        "description": "{note}Deze integratie kan niet meer met alleen e-mail en wachtwoord bij {brand} inloggen — de laatste stap vereist nu een apparaatcontrole die alleen de officiële app doorstaat. De eigen inlogpagina van het merk werkt nog wel:\n\n1. Open deze link, bij voorkeur in een privévenster van je browser: [{authorization_url}]({authorization_url})\n2. Log in met je {brand}-account.\n3. Je browser wordt daarna doorgestuurd naar een callback-adres dat niet kan laden. **Die verbindingsfout is verwacht.**\n4. Kopieer het volledige adres uit de adresbalk van de browser — of, als de browser er geen toont, de code-waarde daaruit — en plak het hieronder.\n\nDe link geldt alleen voor deze poging; mislukt die, dan verschijnt een nieuwe.",
         "data": {
-          "callback_url": "Adres uit de adresbalk van de browser"
+          "callback_url": "Adres uit de browser, of de code-waarde"
         },
         "data_description": {
-          "callback_url": "Begint met localhost:8080/myaudi-callback en bevat code= en state=."
+          "callback_url": "Bevat code= en state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Opnieuw inloggen met myAudi in de browser",
-        "description": "Audi laat deze integratie niet meer inloggen met e-mail en wachtwoord — de laatste stap vereist nu een apparaatcontrole die alleen de officiële app doorstaat. Audi's eigen inlogpagina werkt nog wel:\n\n1. Open deze link, bij voorkeur in een privévenster van je browser: [{authorization_url}]({authorization_url})\n2. Log in met je myAudi-account.\n3. Audi stuurt je browser daarna naar een adres op `localhost:8080/myaudi-callback` dat niet kan laden. **Die verbindingsfout is verwacht.**\n4. Kopieer het volledige adres uit de adresbalk van de browser en plak het hieronder.\n\nDe link geldt alleen voor deze poging; mislukt die, dan verschijnt een nieuwe.",
+      "reauth_auth0": {
+        "title": "Opnieuw inloggen met {brand} in de browser",
+        "description": "{note}Deze integratie kan niet meer met alleen e-mail en wachtwoord bij {brand} inloggen — de laatste stap vereist nu een apparaatcontrole die alleen de officiële app doorstaat. De eigen inlogpagina van het merk werkt nog wel:\n\n1. Open deze link, bij voorkeur in een privévenster van je browser: [{authorization_url}]({authorization_url})\n2. Log in met je {brand}-account.\n3. Je browser wordt daarna doorgestuurd naar een callback-adres dat niet kan laden. **Die verbindingsfout is verwacht.**\n4. Kopieer het volledige adres uit de adresbalk van de browser — of, als de browser er geen toont, de code-waarde daaruit — en plak het hieronder.\n\nDe link geldt alleen voor deze poging; mislukt die, dan verschijnt een nieuwe.",
         "data": {
-          "callback_url": "Adres uit de adresbalk van de browser"
+          "callback_url": "Adres uit de browser, of de code-waarde"
         },
         "data_description": {
-          "callback_url": "Begint met localhost:8080/myaudi-callback en bevat code= en state=."
+          "callback_url": "Bevat code= en state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Opnieuw inloggen — Audi",
-        "description": "Audi blokkeert inloggen met e-mail + wachtwoord voor deze integratie (apparaatcontrole). Inloggen via Audi's eigen inlogpagina in een browser werkt nog wel. Hoe wil je opnieuw inloggen?",
+      "reauth_auth0_menu": {
+        "title": "Opnieuw inloggen",
+        "description": "Inloggen met e-mail + wachtwoord werkt voor dit merk niet meer (apparaatcontrole). Inloggen via de eigen inlogpagina van het merk in een browser werkt nog wel. Hoe wil je opnieuw inloggen?",
         "menu_options": {
-          "reauth_audi_auth0": "Inloggen met myAudi in de browser (aanbevolen)",
+          "reauth_auth0": "Inloggen via de browser (aanbevolen)",
           "reauth_credentials": "E-mail + wachtwoord invoeren (alleen EU Data Act-portaal)"
         }
       }

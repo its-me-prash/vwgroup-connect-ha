@@ -117,12 +117,14 @@
         "data": {
           "brand": "Marca del vehículo",
           "spin": "S-PIN",
-          "scan_interval": "Intervalo de actualización"
+          "scan_interval": "Intervalo de actualización",
+          "use_browser_auth0": "Experimental: inicio de sesión por navegador (Auth0)"
         },
         "data_description": {
-          "brand": "Solo se muestran las marcas compatibles con el inicio de sesión por navegador. Usa 'Correo electrónico + contraseña' para Volkswagen EU y Porsche.",
+          "brand": "Solo se muestran las marcas con inicio de sesión por navegador. Usa 'Correo electrónico + contraseña' para Porsche.",
           "scan_interval": "Minutos entre cada consulta de datos del vehículo.",
-          "spin": "PIN de seguridad de 4 dígitos opcional para acciones remotas (bloquear, desbloquear, climatización)."
+          "spin": "PIN de seguridad de 4 dígitos opcional para acciones remotas (bloquear, desbloquear, climatización).",
+          "use_browser_auth0": "Solo SEAT y CUPRA: usa el inicio de sesión por navegador (Auth0) en lugar del inicio con código de dispositivo. Esta vía aún no está verificada para ellas: si eres probador, comunica tu resultado. Audi siempre la usa."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Tu S-PIN de Audi — el código que usas para el bloqueo/desbloqueo remoto."
         }
       },
-      "audi_auth0": {
-        "title": "Iniciar sesión con myAudi en el navegador",
-        "description": "Audi ya no permite que esta integración inicie sesión con correo y contraseña: el último paso exige ahora una comprobación del dispositivo que solo supera la app oficial. La propia página de inicio de sesión de Audi sigue funcionando:\n\n1. Abre este enlace, preferiblemente en una ventana privada del navegador: [{authorization_url}]({authorization_url})\n2. Inicia sesión con tu cuenta myAudi.\n3. Audi enviará tu navegador a una dirección `localhost:8080/myaudi-callback` que no se puede cargar. **Ese error de conexión es el esperado.**\n4. Copia la dirección completa de la barra de direcciones del navegador y pégala abajo.\n\nEl enlace solo vale para este intento; si falla, se muestra uno nuevo.",
+      "auth0": {
+        "title": "Iniciar sesión con {brand} en el navegador",
+        "description": "{note}Esta integración ya no puede iniciar sesión en {brand} solo con correo y contraseña: el último paso exige ahora una comprobación del dispositivo que solo supera la app oficial. La propia página de inicio de sesión de la marca sigue funcionando:\n\n1. Abre este enlace, preferiblemente en una ventana privada del navegador: [{authorization_url}]({authorization_url})\n2. Inicia sesión con tu cuenta de {brand}.\n3. Después, tu navegador se redirige a una dirección de retorno que no se puede cargar. **Ese error de conexión es el esperado.**\n4. Copia la dirección completa de la barra de direcciones del navegador (o, si el navegador no muestra ninguna, el valor de code) y pégala abajo.\n\nEl enlace solo vale para este intento; si falla, se muestra uno nuevo.",
         "data": {
-          "callback_url": "Dirección de la barra de direcciones del navegador"
+          "callback_url": "Dirección del navegador o el valor de code"
         },
         "data_description": {
-          "callback_url": "Empieza por localhost:8080/myaudi-callback y contiene code= y state=."
+          "callback_url": "Contiene code= y state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Volver a iniciar sesión con myAudi en el navegador",
-        "description": "Audi ya no permite que esta integración inicie sesión con correo y contraseña: el último paso exige ahora una comprobación del dispositivo que solo supera la app oficial. La propia página de inicio de sesión de Audi sigue funcionando:\n\n1. Abre este enlace, preferiblemente en una ventana privada del navegador: [{authorization_url}]({authorization_url})\n2. Inicia sesión con tu cuenta myAudi.\n3. Audi enviará tu navegador a una dirección `localhost:8080/myaudi-callback` que no se puede cargar. **Ese error de conexión es el esperado.**\n4. Copia la dirección completa de la barra de direcciones del navegador y pégala abajo.\n\nEl enlace solo vale para este intento; si falla, se muestra uno nuevo.",
+      "reauth_auth0": {
+        "title": "Volver a iniciar sesión con {brand} en el navegador",
+        "description": "{note}Esta integración ya no puede iniciar sesión en {brand} solo con correo y contraseña: el último paso exige ahora una comprobación del dispositivo que solo supera la app oficial. La propia página de inicio de sesión de la marca sigue funcionando:\n\n1. Abre este enlace, preferiblemente en una ventana privada del navegador: [{authorization_url}]({authorization_url})\n2. Inicia sesión con tu cuenta de {brand}.\n3. Después, tu navegador se redirige a una dirección de retorno que no se puede cargar. **Ese error de conexión es el esperado.**\n4. Copia la dirección completa de la barra de direcciones del navegador (o, si el navegador no muestra ninguna, el valor de code) y pégala abajo.\n\nEl enlace solo vale para este intento; si falla, se muestra uno nuevo.",
         "data": {
-          "callback_url": "Dirección de la barra de direcciones del navegador"
+          "callback_url": "Dirección del navegador o el valor de code"
         },
         "data_description": {
-          "callback_url": "Empieza por localhost:8080/myaudi-callback y contiene code= y state=."
+          "callback_url": "Contiene code= y state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Volver a iniciar sesión — Audi",
-        "description": "Audi bloquea el inicio de sesión con correo + contraseña para esta integración (comprobación del dispositivo). Iniciar sesión en la propia página de Audi desde un navegador sigue funcionando. ¿Cómo quieres volver a iniciar sesión?",
+      "reauth_auth0_menu": {
+        "title": "Volver a iniciar sesión",
+        "description": "El inicio de sesión con correo + contraseña ya no funciona para esta marca (comprobación del dispositivo). Iniciar sesión en la propia página de la marca desde un navegador sigue funcionando. ¿Cómo quieres volver a iniciar sesión?",
         "menu_options": {
-          "reauth_audi_auth0": "Iniciar sesión con myAudi en el navegador (recomendado)",
+          "reauth_auth0": "Iniciar sesión a través del navegador (recomendado)",
           "reauth_credentials": "Introducir correo + contraseña (solo portal EU Data Act)"
         }
       }

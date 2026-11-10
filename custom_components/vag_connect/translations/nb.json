@@ -117,12 +117,14 @@
         "data": {
           "brand": "Kjøretøymerke",
           "spin": "S-PIN",
-          "scan_interval": "Oppdateringsintervall"
+          "scan_interval": "Oppdateringsintervall",
+          "use_browser_auth0": "Eksperimentelt: nettleserpålogging (Auth0)"
         },
         "data_description": {
-          "brand": "Kun merker med støtte for nettleserpålogging vises. Bruk «E-post + passord» for Volkswagen EU og Porsche.",
+          "brand": "Kun merker med støtte for nettleserpålogging vises. Bruk «E-post + passord» for Porsche.",
           "scan_interval": "Minutter mellom hver henting av kjøretøydata.",
-          "spin": "Valgfri 4-sifret sikkerhets-PIN for fjernhandlinger (låsing, opplåsing, klima)."
+          "spin": "Valgfri 4-sifret sikkerhets-PIN for fjernhandlinger (låsing, opplåsing, klima).",
+          "use_browser_auth0": "Kun SEAT og CUPRA: bruk nettleserpålogging (Auth0) i stedet for enhetskodepålogging. Denne ruten er ikke verifisert for dem ennå — testere, meld fra om resultatet. Audi bruker den alltid."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Audi-S-PIN-en din — koden du bruker til å låse/låse opp på avstand."
         }
       },
-      "audi_auth0": {
-        "title": "Logg inn med myAudi i nettleseren",
-        "description": "Audi lar ikke lenger denne integrasjonen logge inn med e-post og passord — det siste trinnet krever nå en enhetssjekk som bare den offisielle appen består. Audis egen innloggingsside fungerer fortsatt:\n\n1. Åpne denne lenken, helst i et privat nettleservindu: [{authorization_url}]({authorization_url})\n2. Logg inn med myAudi-kontoen din.\n3. Audi sender deretter nettleseren til en adresse på `localhost:8080/myaudi-callback` som ikke kan lastes. **Den tilkoblingsfeilen er forventet.**\n4. Kopier hele adressen fra nettleserens adressefelt og lim den inn nedenfor.\n\nLenken gjelder bare dette forsøket; mislykkes det, vises en ny.",
+      "auth0": {
+        "title": "Logg inn med {brand} i nettleseren",
+        "description": "{note}Denne integrasjonen kan ikke lenger logge inn på {brand} med bare e-post og passord — det siste trinnet krever nå en enhetssjekk som bare den offisielle appen består. Merkets egen innloggingsside fungerer fortsatt:\n\n1. Åpne denne lenken, helst i et privat nettleservindu: [{authorization_url}]({authorization_url})\n2. Logg inn med {brand}-kontoen din.\n3. Nettleseren sendes deretter til en callback-adresse som ikke kan lastes. **Den tilkoblingsfeilen er forventet.**\n4. Kopier hele adressen fra nettleserens adressefelt — eller, hvis nettleseren ikke viser noen, code-verdien fra den — og lim den inn nedenfor.\n\nLenken gjelder bare dette forsøket; mislykkes det, vises en ny.",
         "data": {
-          "callback_url": "Adresse fra nettleserens adressefelt"
+          "callback_url": "Adresse fra nettleseren, eller code-verdien"
         },
         "data_description": {
-          "callback_url": "Begynner med localhost:8080/myaudi-callback og inneholder code= og state=."
+          "callback_url": "Inneholder code= og state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Logg inn på nytt med myAudi i nettleseren",
-        "description": "Audi lar ikke lenger denne integrasjonen logge inn med e-post og passord — det siste trinnet krever nå en enhetssjekk som bare den offisielle appen består. Audis egen innloggingsside fungerer fortsatt:\n\n1. Åpne denne lenken, helst i et privat nettleservindu: [{authorization_url}]({authorization_url})\n2. Logg inn med myAudi-kontoen din.\n3. Audi sender deretter nettleseren til en adresse på `localhost:8080/myaudi-callback` som ikke kan lastes. **Den tilkoblingsfeilen er forventet.**\n4. Kopier hele adressen fra nettleserens adressefelt og lim den inn nedenfor.\n\nLenken gjelder bare dette forsøket; mislykkes det, vises en ny.",
+      "reauth_auth0": {
+        "title": "Logg inn på nytt med {brand} i nettleseren",
+        "description": "{note}Denne integrasjonen kan ikke lenger logge inn på {brand} med bare e-post og passord — det siste trinnet krever nå en enhetssjekk som bare den offisielle appen består. Merkets egen innloggingsside fungerer fortsatt:\n\n1. Åpne denne lenken, helst i et privat nettleservindu: [{authorization_url}]({authorization_url})\n2. Logg inn med {brand}-kontoen din.\n3. Nettleseren sendes deretter til en callback-adresse som ikke kan lastes. **Den tilkoblingsfeilen er forventet.**\n4. Kopier hele adressen fra nettleserens adressefelt — eller, hvis nettleseren ikke viser noen, code-verdien fra den — og lim den inn nedenfor.\n\nLenken gjelder bare dette forsøket; mislykkes det, vises en ny.",
         "data": {
-          "callback_url": "Adresse fra nettleserens adressefelt"
+          "callback_url": "Adresse fra nettleseren, eller code-verdien"
         },
         "data_description": {
-          "callback_url": "Begynner med localhost:8080/myaudi-callback og inneholder code= og state=."
+          "callback_url": "Inneholder code= og state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Logg inn på nytt — Audi",
-        "description": "Audi blokkerer innlogging med e-post + passord for denne integrasjonen (enhetssjekk). Innlogging via Audis egen innloggingsside i en nettleser fungerer fortsatt. Hvordan vil du logge inn på nytt?",
+      "reauth_auth0_menu": {
+        "title": "Logg inn på nytt",
+        "description": "Innlogging med e-post + passord fungerer ikke lenger for dette merket (enhetssjekk). Innlogging via merkets egen innloggingsside i en nettleser fungerer fortsatt. Hvordan vil du logge inn på nytt?",
         "menu_options": {
-          "reauth_audi_auth0": "Logg inn med myAudi i nettleseren (anbefalt)",
+          "reauth_auth0": "Logg inn via nettleseren (anbefalt)",
           "reauth_credentials": "Skriv inn e-post + passord (kun EU Data Act-portal)"
         }
       }

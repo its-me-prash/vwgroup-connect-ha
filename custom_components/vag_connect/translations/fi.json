@@ -117,12 +117,14 @@
         "data": {
           "brand": "Ajoneuvon merkki",
           "spin": "S-PIN",
-          "scan_interval": "Päivitysväli"
+          "scan_interval": "Päivitysväli",
+          "use_browser_auth0": "Kokeellinen: selainkirjautuminen (Auth0)"
         },
         "data_description": {
-          "brand": "Vain selainkirjautumista tukevat merkit näytetään. Käytä 'Sähköposti + salasana' Volkswagen EU:lle ja Porschelle.",
+          "brand": "Vain selainkirjautumista tukevat merkit näytetään. Käytä 'Sähköposti + salasana' Porschelle.",
           "scan_interval": "Minuutteja ajoneuvon tietojen kyselyjen välillä.",
-          "spin": "Valinnainen 4-numeroinen turva-PIN etätoiminnoille (lukitus, avaus, ilmastointi)."
+          "spin": "Valinnainen 4-numeroinen turva-PIN etätoiminnoille (lukitus, avaus, ilmastointi).",
+          "use_browser_auth0": "Vain SEAT ja CUPRA: käytä selainkirjautumista (Auth0) laitekoodikirjautumisen sijaan. Tätä reittiä ei ole vielä varmistettu niille — testaajat, kertokaa tuloksenne. Audi käyttää sitä aina."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Audi-S-PINisi — koodi, jota käytät etälukitukseen/-avaukseen."
         }
       },
-      "audi_auth0": {
-        "title": "Kirjaudu myAudilla selaimessa",
-        "description": "Audi ei enää anna tämän integraation kirjautua sähköpostilla ja salasanalla — viimeinen vaihe vaatii nyt laitetarkistuksen, jonka vain virallinen sovellus läpäisee. Audin oma kirjautumissivu toimii yhä:\n\n1. Avaa tämä linkki, mieluiten yksityisessä selainikkunassa: [{authorization_url}]({authorization_url})\n2. Kirjaudu myAudi-tililläsi.\n3. Audi ohjaa selaimesi osoitteeseen `localhost:8080/myaudi-callback`, jota ei voi ladata. **Tuo yhteysvirhe on odotettu.**\n4. Kopioi koko osoite selaimen osoiteriviltä ja liitä se alle.\n\nLinkki koskee vain tätä yritystä; jos se epäonnistuu, näytetään uusi.",
+      "auth0": {
+        "title": "Kirjaudu {brand}-tilillä selaimessa",
+        "description": "{note}Tämä integraatio ei enää voi kirjautua {brand}-palveluun pelkällä sähköpostilla ja salasanalla — viimeinen vaihe vaatii nyt laitetarkistuksen, jonka vain virallinen sovellus läpäisee. Merkin oma kirjautumissivu toimii yhä:\n\n1. Avaa tämä linkki, mieluiten yksityisessä selainikkunassa: [{authorization_url}]({authorization_url})\n2. Kirjaudu {brand}-tililläsi.\n3. Selaimesi ohjataan sitten callback-osoitteeseen, jota ei voi ladata. **Tuo yhteysvirhe on odotettu.**\n4. Kopioi koko osoite selaimen osoiteriviltä — tai jos selain ei näytä sitä, sen code-arvo — ja liitä se alle.\n\nLinkki koskee vain tätä yritystä; jos se epäonnistuu, näytetään uusi.",
         "data": {
-          "callback_url": "Osoite selaimen osoiteriviltä"
+          "callback_url": "Osoite selaimesta tai code-arvo"
         },
         "data_description": {
-          "callback_url": "Alkaa localhost:8080/myaudi-callback ja sisältää code= ja state=."
+          "callback_url": "Sisältää code= ja state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Kirjaudu uudelleen myAudilla selaimessa",
-        "description": "Audi ei enää anna tämän integraation kirjautua sähköpostilla ja salasanalla — viimeinen vaihe vaatii nyt laitetarkistuksen, jonka vain virallinen sovellus läpäisee. Audin oma kirjautumissivu toimii yhä:\n\n1. Avaa tämä linkki, mieluiten yksityisessä selainikkunassa: [{authorization_url}]({authorization_url})\n2. Kirjaudu myAudi-tililläsi.\n3. Audi ohjaa selaimesi osoitteeseen `localhost:8080/myaudi-callback`, jota ei voi ladata. **Tuo yhteysvirhe on odotettu.**\n4. Kopioi koko osoite selaimen osoiteriviltä ja liitä se alle.\n\nLinkki koskee vain tätä yritystä; jos se epäonnistuu, näytetään uusi.",
+      "reauth_auth0": {
+        "title": "Kirjaudu uudelleen {brand}-tilillä selaimessa",
+        "description": "{note}Tämä integraatio ei enää voi kirjautua {brand}-palveluun pelkällä sähköpostilla ja salasanalla — viimeinen vaihe vaatii nyt laitetarkistuksen, jonka vain virallinen sovellus läpäisee. Merkin oma kirjautumissivu toimii yhä:\n\n1. Avaa tämä linkki, mieluiten yksityisessä selainikkunassa: [{authorization_url}]({authorization_url})\n2. Kirjaudu {brand}-tililläsi.\n3. Selaimesi ohjataan sitten callback-osoitteeseen, jota ei voi ladata. **Tuo yhteysvirhe on odotettu.**\n4. Kopioi koko osoite selaimen osoiteriviltä — tai jos selain ei näytä sitä, sen code-arvo — ja liitä se alle.\n\nLinkki koskee vain tätä yritystä; jos se epäonnistuu, näytetään uusi.",
         "data": {
-          "callback_url": "Osoite selaimen osoiteriviltä"
+          "callback_url": "Osoite selaimesta tai code-arvo"
         },
         "data_description": {
-          "callback_url": "Alkaa localhost:8080/myaudi-callback ja sisältää code= ja state=."
+          "callback_url": "Sisältää code= ja state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Kirjaudu uudelleen — Audi",
-        "description": "Audi estää tämän integraation kirjautumisen sähköpostilla + salasanalla (laitetarkistus). Kirjautuminen Audin omalla kirjautumissivulla selaimessa toimii yhä. Miten haluat kirjautua uudelleen?",
+      "reauth_auth0_menu": {
+        "title": "Kirjaudu uudelleen",
+        "description": "Sähköposti + salasana -kirjautuminen ei enää toimi tälle merkille (laitetarkistus). Kirjautuminen merkin omalla kirjautumissivulla selaimessa toimii yhä. Miten haluat kirjautua uudelleen?",
         "menu_options": {
-          "reauth_audi_auth0": "Kirjaudu myAudilla selaimessa (suositus)",
+          "reauth_auth0": "Kirjaudu selaimessa (suositus)",
           "reauth_credentials": "Syötä sähköposti + salasana (vain EU Data Act -portaali)"
         }
       }

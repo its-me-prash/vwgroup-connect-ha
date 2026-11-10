@@ -117,12 +117,14 @@
         "data": {
           "brand": "Marque du véhicule",
           "spin": "S-PIN",
-          "scan_interval": "Intervalle de mise à jour"
+          "scan_interval": "Intervalle de mise à jour",
+          "use_browser_auth0": "Expérimental : connexion par navigateur (Auth0)"
         },
         "data_description": {
-          "brand": "Seules les marques prenant en charge la connexion par navigateur sont listées. Utilisez « E-mail + mot de passe » pour Volkswagen EU et Porsche.",
+          "brand": "Seules les marques prenant en charge la connexion par navigateur sont listées. Utilisez « E-mail + mot de passe » pour Porsche.",
           "scan_interval": "Minutes entre chaque interrogation des données du véhicule.",
-          "spin": "Code de sécurité (S-PIN) à 4 chiffres facultatif pour les actions à distance (verrouillage, déverrouillage, climatisation)."
+          "spin": "Code de sécurité (S-PIN) à 4 chiffres facultatif pour les actions à distance (verrouillage, déverrouillage, climatisation).",
+          "use_browser_auth0": "SEAT et CUPRA uniquement : utiliser la connexion par navigateur (Auth0) au lieu de la connexion par code d'appareil. Cette voie n'est pas encore vérifiée pour ces marques — testeurs, merci de signaler votre résultat. Audi l'utilise toujours."
         }
       },
       "browser_login_pending": {
@@ -182,31 +184,31 @@
           "spin": "Votre S-PIN Audi — le code que vous utilisez pour le verrouillage/déverrouillage à distance."
         }
       },
-      "audi_auth0": {
-        "title": "Se connecter avec myAudi dans le navigateur",
-        "description": "Audi n'autorise plus cette intégration à se connecter avec e-mail et mot de passe : la dernière étape exige désormais une vérification de l'appareil que seule l'application officielle réussit. La page de connexion d'Audi fonctionne toujours :\n\n1. Ouvrez ce lien, de préférence dans une fenêtre de navigation privée : [{authorization_url}]({authorization_url})\n2. Connectez-vous avec votre compte myAudi.\n3. Audi renvoie ensuite votre navigateur vers une adresse `localhost:8080/myaudi-callback` qui ne peut pas se charger. **Cette erreur de connexion est attendue.**\n4. Copiez l'adresse complète depuis la barre d'adresse du navigateur et collez-la ci-dessous.\n\nLe lien ne vaut que pour cette tentative ; en cas d'échec, un nouveau s'affiche.",
+      "auth0": {
+        "title": "Se connecter avec {brand} dans le navigateur",
+        "description": "{note}Cette intégration ne peut plus se connecter à {brand} avec seulement l'e-mail et le mot de passe : la dernière étape exige désormais une vérification de l'appareil que seule l'application officielle réussit. La page de connexion de la marque fonctionne toujours :\n\n1. Ouvrez ce lien, de préférence dans une fenêtre de navigation privée : [{authorization_url}]({authorization_url})\n2. Connectez-vous avec votre compte {brand}.\n3. Votre navigateur est ensuite redirigé vers une adresse de rappel qui ne peut pas se charger. **Cette erreur de connexion est attendue.**\n4. Copiez l'adresse complète depuis la barre d'adresse du navigateur — ou, si le navigateur n'en affiche aucune, la valeur du paramètre code — et collez-la ci-dessous.\n\nLe lien ne vaut que pour cette tentative ; en cas d'échec, un nouveau s'affiche.",
         "data": {
-          "callback_url": "Adresse de la barre d'adresse du navigateur"
+          "callback_url": "Adresse du navigateur, ou la valeur du code"
         },
         "data_description": {
-          "callback_url": "Commence par localhost:8080/myaudi-callback et contient code= et state=."
+          "callback_url": "Contient code= et state=."
         }
       },
-      "reauth_audi_auth0": {
-        "title": "Se reconnecter avec myAudi dans le navigateur",
-        "description": "Audi n'autorise plus cette intégration à se connecter avec e-mail et mot de passe : la dernière étape exige désormais une vérification de l'appareil que seule l'application officielle réussit. La page de connexion d'Audi fonctionne toujours :\n\n1. Ouvrez ce lien, de préférence dans une fenêtre de navigation privée : [{authorization_url}]({authorization_url})\n2. Connectez-vous avec votre compte myAudi.\n3. Audi renvoie ensuite votre navigateur vers une adresse `localhost:8080/myaudi-callback` qui ne peut pas se charger. **Cette erreur de connexion est attendue.**\n4. Copiez l'adresse complète depuis la barre d'adresse du navigateur et collez-la ci-dessous.\n\nLe lien ne vaut que pour cette tentative ; en cas d'échec, un nouveau s'affiche.",
+      "reauth_auth0": {
+        "title": "Se reconnecter avec {brand} dans le navigateur",
+        "description": "{note}Cette intégration ne peut plus se connecter à {brand} avec seulement l'e-mail et le mot de passe : la dernière étape exige désormais une vérification de l'appareil que seule l'application officielle réussit. La page de connexion de la marque fonctionne toujours :\n\n1. Ouvrez ce lien, de préférence dans une fenêtre de navigation privée : [{authorization_url}]({authorization_url})\n2. Connectez-vous avec votre compte {brand}.\n3. Votre navigateur est ensuite redirigé vers une adresse de rappel qui ne peut pas se charger. **Cette erreur de connexion est attendue.**\n4. Copiez l'adresse complète depuis la barre d'adresse du navigateur — ou, si le navigateur n'en affiche aucune, la valeur du paramètre code — et collez-la ci-dessous.\n\nLe lien ne vaut que pour cette tentative ; en cas d'échec, un nouveau s'affiche.",
         "data": {
-          "callback_url": "Adresse de la barre d'adresse du navigateur"
+          "callback_url": "Adresse du navigateur, ou la valeur du code"
         },
         "data_description": {
-          "callback_url": "Commence par localhost:8080/myaudi-callback et contient code= et state=."
+          "callback_url": "Contient code= et state=."
         }
       },
-      "reauth_audi_menu": {
-        "title": "Se reconnecter — Audi",
-        "description": "Audi bloque la connexion par e-mail + mot de passe pour cette intégration (vérification de l'appareil). La connexion via la page de connexion d'Audi dans un navigateur fonctionne toujours. Comment voulez-vous vous reconnecter ?",
+      "reauth_auth0_menu": {
+        "title": "Se reconnecter",
+        "description": "La connexion par e-mail + mot de passe ne fonctionne plus pour cette marque (vérification de l'appareil). La connexion via la page de connexion de la marque dans un navigateur fonctionne toujours. Comment voulez-vous vous reconnecter ?",
         "menu_options": {
-          "reauth_audi_auth0": "Se connecter avec myAudi dans le navigateur (recommandé)",
+          "reauth_auth0": "Se connecter via le navigateur (recommandé)",
           "reauth_credentials": "Saisir e-mail + mot de passe (portail EU Data Act uniquement)"
         }
       }
