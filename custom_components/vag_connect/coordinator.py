@@ -5250,6 +5250,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if _client is None:
                     continue
                 self._push_official_mode(_client)  # #1286 — official_only routing
+                # #2071 — (re)attach the opt-in raw-dataset archive hook on the
+                # PERIODIC path too. update_interval is None, so this loop (not
+                # _async_update_data) is what runs after a restart; wiring it only
+                # on the manual path silently stopped archiving. Idempotent + a
+                # no-op when keep_raw_datasets is off.
+                self._wire_dataset_archive()
                 results = await asyncio.gather(
                     *[_client.get_status(vin) for vin in vins],
                     return_exceptions=True,

@@ -133,6 +133,43 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
+- **Climate showed the OUTSIDE temperature as the cabin reading (#2068).**
+  `current_temperature` literally returned `outside_temp`, so a Škoda Elroq's
+  climate entity tracked the outside-temperature sensor to the second even while
+  heating. It now reads a dedicated cabin field and, when the feed carries no
+  interior temperature, omits the attribute rather than implying the cabin is as
+  cold as the street.
+
+- **The HU/TÜV service-calendar event could never fire (#1925).**
+  `main_inspection_due_at` was declared and read by the calendar, but no
+  connector or parser ever wrote it, so the "Main inspection (HU / TÜV)" entry
+  was permanently absent — worse than missing, because the category still showed
+  and read as "no inspection due". The dead field is removed, and a new guard
+  test fails if any service-calendar field ever again lacks a writer.
+
+- **The raw-dataset archive stopped after a restart (#2071).** With
+  `keep_raw_datasets` on, the archive hook was attached only on the
+  manual-refresh path, not the periodic poll loop — which is the real driver
+  (`update_interval` is None) — so after a restart the on-disk ring buffer
+  silently stopped growing while the portal feed kept delivering. The hook is now
+  (re)attached on the poll loop too.
+
+- **Two opaque identifiers reached the diagnostics download unredacted (#923).**
+  The registered MBB X-Client-Id and the EU-Data-Act ZIP-envelope dataset key are
+  UUIDs with no triage value in a shared file; both are now redacted, matching
+  the security posture behind #1968.
+
+- **Charging Port read "connected" on an unplugged car (#1739).** A scheduled
+  charging PLAN (optimised / to-departure-time) reports its scenario as *active*
+  even when the car is unplugged or merely waiting for its departure time, and
+  that alone was taken as plugged-in-and-charging. Now only "immediately
+  charging" (impossible while unplugged) counts on its own; a scheduled plan
+  counts only when live power confirms current is flowing — so an idle, unplugged
+  Audi no longer shows its port connected, while a genuinely charging car (incl.
+  the #632 CUPRA that ships no `current_charge_state`) is unaffected. *Caveat: a
+  car on a scheduled plan that charges without ever reporting power would now read
+  not-charging until power appears — re-verify with the #632 reporter.*
+
 - **The parked-car step never matched on a German phone (#1963, #1981,
   @Snaker86).** The map element the step looks for is found by its
   accessibility label, and that label is translated: the English screen dump
