@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **The rate-limit lockout warning now names the endpoint that tripped it.** When a 429 or 430 pauses the whole account, the one warning line a reporter can paste now carries the host and path of the call that was limited — the VIN, any UUID and the query stripped first — so the rate-limited endpoint can be identified instead of guessed. (#1850)
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
