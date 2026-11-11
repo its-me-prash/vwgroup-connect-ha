@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
+
 ### Hinzugefügt / Added
 
 - **EU browser sign-in that gets past the attestation wall — multi-brand
@@ -254,6 +256,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   Entity unique IDs are deliberately unchanged: they are keys in Home
   Assistant's own registry, are never served, and renaming them would orphan
   every existing entity.
+
+- **Fuel level could lag at a stale value while a current reading was available (#2072).** The EU Data Act batch feed and a live channel can both carry the fuel level, and the batch value was treated as the owner of that field — so a fresh live reading could not replace a stale batch one, and the gauge lagged behind the car. Fuel level now follows the same freshest-wins rule as the rest of the live telemetry, so a current reading always wins over an older batch value.
+
+- **A cached vehicle could linger after re-authenticating with a different account (#1878).** The stored vehicle snapshot is keyed by the config entry, which a credential re-auth keeps — so signing the same entry in to a different account left the previous account's battery level and position frozen in place while other fields updated. The snapshot now carries an account fingerprint, and the vehicle data is discarded when it no longer matches the signed-in account; an existing cache from before this change is never wiped on upgrade. Thanks @tmh88.
+
+- **A Canadian Audi set up through the browser sign-in was routed to the US and found no vehicles (#1433).** Audi US and Audi Canada use different API hosts, but the browser (device-code) sign-in form had no US/Canada selector, so a Canadian account defaulted to the US garage and discovered no cars. The sign-in form now offers the region picker for the North-American brands, and the choice is stored and used to reach the right garage.
+
+- **A single glitched reading could freeze the odometer permanently (#2054).** The odometer only ever counts up, so once a spuriously high reading reached the cache, every correct lower reading afterwards was rejected as a step backwards and the wrong mileage stuck — one reporter's car jumped to 100663 km and stayed there while the real value was 27668. An implausible jump is now rejected as it arrives: a new reading is accepted only when the extra distance is plausible for the time since the last one, so a glitch can no longer latch. A car already stuck on a bad value clears it by removing and re-adding the integration once. Thanks @zintheweb.
 
 ## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
 
