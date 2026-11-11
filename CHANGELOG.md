@@ -48,7 +48,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Behoben / Fixed
 
-- **The raw UDS DID `0x3504` ("Life Cycle Data 5 Generation 2") no longer re-files a Vehicle Data Scout issue on every poll.** It decodes to a raw, structureless hex envelope with no documented meaning, so it stays visible on the raw API fields sensor as an attribute but stops prompting a fresh hand-filed report each poll. (#1979)
+- **Scout stops re-filing the raw `0x3504` field every poll.** The UDS DID `0x3504` ("Life Cycle Data 5 Generation 2") decodes to a raw, structureless hex envelope with no documented meaning, so it stays visible on the raw-API-fields sensor as an attribute but no longer prompts a fresh hand-filed Vehicle Data Scout report each poll. (#1979)
 
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
