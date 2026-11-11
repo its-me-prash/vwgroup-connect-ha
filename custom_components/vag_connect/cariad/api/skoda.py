@@ -1046,7 +1046,14 @@ class SkodaClient(CariadBaseClient):
                 "POST", url, json=body, headers=headers,
                 timeout=ClientTimeout(total=30),
             )
-        except Exception:  # noqa: BLE001
+        except Exception as err:  # noqa: BLE001
+            # #2077 (@matroeh) — best-effort, but log WHY: a silent empty result
+            # drops every charging-statistics sensor. Class name only, since a
+            # raw aiohttp error's str() carries the request URL.
+            _LOGGER.debug(
+                "Škoda charging-statistics fetch failed (best-effort): %s",
+                type(err).__name__,
+            )
             return {}
         return resp if isinstance(resp, dict) else {}
 

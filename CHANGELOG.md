@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **Škoda charging statistics no longer silently vanish (duplicate `timeout` argument).** `get_charging_statistics` passed its own request timeout, which collided with the shared request helper's own `timeout` and raised a `TypeError` that the method's broad `except` swallowed into an empty result — dropping every charging-statistics sensor on 5.3.0. The helper now lets a caller's timeout override cleanly, and the swallowed failure is logged. Thanks @matroeh for the precise trace (#2077). (The camelCase request-body and string-energy parsing he also patched are tracked separately, pending a live response to confirm them against.)
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added

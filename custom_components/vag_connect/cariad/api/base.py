@@ -1740,9 +1740,19 @@ class CariadBaseClient:
         # caller-supplied UA wins and BrandConfig.user_agent is only the default.
         headers.setdefault("User-Agent", self._brand.user_agent)
 
+        # #2077 (@matroeh) — a caller may pass its own ``timeout`` (e.g.
+        # get_charging_statistics wants a shorter one). Pop it from kwargs like
+        # ``headers`` above so it OVERRIDES the default instead of colliding with
+        # the explicit ``timeout=`` and raising TypeError before any request goes
+        # out — a collision the caller's broad ``except`` swallowed into an empty
+        # result, which dropped every charging-statistics sensor.
+        _timeout = kwargs.pop("timeout", None)
+        if _timeout is None:
+            _timeout = ClientTimeout(total=_REQUEST_TIMEOUT)
+
         try:
             async with self._session.request(
-                method, url, headers=headers, timeout=ClientTimeout(total=_REQUEST_TIMEOUT), **kwargs
+                method, url, headers=headers, timeout=_timeout, **kwargs
             ) as resp:
                 if resp.status == 401 and retry:
                     await self._refresh_tokens(stale_access_token=token_used)
