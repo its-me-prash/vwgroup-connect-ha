@@ -2055,8 +2055,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # BEFORE the vehicle restore and independently of it: a store that holds
         # the budget but no vehicles still has to stop a restart handing the
         # three fast polls back. Defensive by contract; see the helper.
+        _identity_ok = True
         if isinstance(cached, dict):
             from .cariad.vehicle_cache import (  # noqa: PLC0415
+                account_identity_hash,
                 drop_state_from_cache,
             )
             (
@@ -2075,7 +2077,28 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._drop_anchor_high_water.isoformat(),
                     self._drop_overdue_streak, _DROP_RETRY_MAX_STREAK,
                 )
-        if cached and isinstance(cached.get("vehicles"), dict):
+            # #1878 — only resurrect the VEHICLE snapshot (SoC / position / …)
+            # when it belongs to THIS entry's current account. A reauth onto a
+            # different account keeps the same entry id, so the stored snapshot
+            # would otherwise carry the old account's values. Discard ONLY on a
+            # present-and-different stored fingerprint; an absent one (a pre-#1878
+            # snapshot) is kept and backfilled on the next save, so no existing
+            # cache is wiped once on upgrade. The drop-retry budget above is
+            # account-independent and is never gated.
+            from .const import CONF_VIN  # noqa: PLC0415
+            _stored_identity = cached.get("identity_hash")
+            _current_identity = account_identity_hash(
+                self.entry.data.get(CONF_USERNAME)
+                or self.entry.data.get(CONF_VIN)
+            )
+            if _stored_identity is not None and _stored_identity != _current_identity:
+                _identity_ok = False
+                _LOGGER.info(
+                    "VW Group Connect: discarding the cached vehicle snapshot "
+                    "for %s — it belongs to a different account than this "
+                    "re-authenticated entry (#1878).", brand,
+                )
+        if _identity_ok and cached and isinstance(cached.get("vehicles"), dict):
             _restored_vins: list[str] = []
             with self._vehicles_lock:
                 for vin, vdata in cached["vehicles"].items():
@@ -5250,6 +5273,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if _client is None:
                     continue
                 self._push_official_mode(_client)  # #1286 — official_only routing
+                # #2071 — (re)attach the opt-in raw-dataset archive hook on the
+                # PERIODIC path too. update_interval is None, so this loop (not
+                # _async_update_data) is what runs after a restart; wiring it only
+                # on the manual path silently stopped archiving. Idempotent + a
+                # no-op when keep_raw_datasets is off.
+                self._wire_dataset_archive()
                 results = await asyncio.gather(
                     *[_client.get_status(vin) for vin in vins],
                     return_exceptions=True,
@@ -8511,9 +8540,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         def _snapshot() -> dict[str, Any]:
             from .cariad.vehicle_cache import (  # noqa: PLC0415
+                account_identity_hash,
                 drop_state_to_cache,
                 strip_runtime,
             )
+            from .const import CONF_VIN  # noqa: PLC0415
             with self._vehicles_lock:
                 vehicles = {
                     vin: strip_runtime(v)
@@ -8528,6 +8559,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "drop_state": drop_state_to_cache(
                     getattr(self, "_drop_anchor_high_water", None),
                     getattr(self, "_drop_overdue_streak", 0),
+                ),
+                # #1878 — fingerprint of the account this snapshot belongs to, so
+                # a reauth onto a DIFFERENT account (same entry id) discards it
+                # rather than resurrecting the old account's SoC / position.
+                "identity_hash": account_identity_hash(
+                    self.entry.data.get(CONF_USERNAME)
+                    or self.entry.data.get(CONF_VIN)
                 ),
             }
 
@@ -9985,8 +10023,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # read-only channel too: the confidential web OAuth client has no
         # command surface, so command entities could only ever fail. Force
         # read-only structurally alongside the EU-Data-Act portal strategies.
-        if strategy in (
-            "data_act_portal", "device_grant_portal", "website_authproxy"
+        #
+        # #1712 — the EU browser (Auth0/PKCE) sign-in reads the CARIAD vehicle
+        # API, and for Audi its token ALSO reaches the command plane directly:
+        # live-measured 2026-11-10 with a real myAudi sign-in, GET
+        # .../pendingrequests answered 204 on every car on the account (the
+        # token is accepted on the command namespace, not 401/403), and commands
+        # route through ``_post_command`` on that same session — no MBB connector
+        # needed. So an Audi Auth0 entry is NOT forced read-only; it gets
+        # lock/climate/charge entities, and a server-side command refusal (if
+        # any — the write was not force-tested on the car) surfaces honestly via
+        # ``classify_command_failure``. Other auth0 brands stay force-read-only
+        # until their command plane is verified too: SEAT/CUPRA are already
+        # caught by the brand check above, and Volkswagen's exchange never
+        # completes (``AUTH0_DENIED``). See ``_auth0.AUTH0_TWOWAY``.
+        from .cariad.auth._auth0 import AUTH0_TWOWAY as _AUTH0_TWOWAY  # noqa: PLC0415
+        if strategy == "auth0" and _brand in _AUTH0_TWOWAY:
+            pass  # command plane verified for this brand -> user toggle decides
+        elif strategy in (
+            "data_act_portal", "device_grant_portal", "website_authproxy",
+            "auth0",
         ):
             # b12 — UNLESS an MBB command channel is armed on this read-only
             # primary: then lock/climate/charge DO have a path (they route to
@@ -10029,15 +10085,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # handler shows the honest attestation message, not "disable it in the
         # options".
         try:
-            if str(self.entry.data.get(CONF_BRAND, "")).lower() in ("seat", "cupra"):
-                return True
+            _brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
         except Exception:  # noqa: BLE001
-            pass
+            _brand = ""
+        if _brand in ("seat", "cupra"):
+            return True
         client = getattr(self, "_cariad_client", None)
         tokens = getattr(client, "_tokens", None) if client else None
         strategy = getattr(tokens, "strategy", "") if tokens else ""
+        # #1712 — an Audi Auth0 token reaches the command plane directly
+        # (live-measured, pendingrequests 204; see is_read_only), so it is NOT
+        # structurally command-dead. Other auth0 brands stay structural
+        # read-only until verified.
+        from .cariad.auth._auth0 import AUTH0_TWOWAY as _AUTH0_TWOWAY  # noqa: PLC0415
+        if strategy == "auth0" and _brand in _AUTH0_TWOWAY:
+            return False
         if strategy in (
-            "data_act_portal", "device_grant_portal", "website_authproxy"
+            "data_act_portal", "device_grant_portal", "website_authproxy",
+            "auth0",  # other auth0 brands: no verified command session
         ):
             if not (
                 self.entry.data.get(CONF_MBB_COMMAND_CHANNEL)

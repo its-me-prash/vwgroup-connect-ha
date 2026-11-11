@@ -4,10 +4,15 @@
 
 gr6803's CUPRA reads over the EU Data Act portal and ships `charging_scenario`
 but NOT `current_charge_state`, so the cs-derived `is_charging` stayed False while
-the car was actively charging (and `plug_connected` read null). The three
-in-progress scenarios all end `_ACTIVE`; they now lift `is_charging` (and infer
-`plug_connected` only when the granular field is absent). OFF / INVALID /
-`_FINISHED` are idle and never lift.
+the car was actively charging (and `plug_connected` read null).
+
+#1739 refined this: a `*_ACTIVE` scenario is the charging PLAN being active,
+which is also true on an UNPLUGGED, idle car (scheduled / optimised charging) or
+one still waiting for its departure time — that made an idle Audi report its
+charging port connected. So only `IMMEDIATELY_CHARGING_ACTIVE` (charging NOW,
+impossible while unplugged) lifts on its own; the scheduled plans lift only when
+live power confirms current is flowing. OFF / INVALID / `_FINISHED` are idle and
+never lift. The plug is inferred only when the granular field is absent.
 """
 from __future__ import annotations
 
@@ -25,15 +30,28 @@ def _map(fields: dict) -> VehicleData:
     return map_dataset_to_vehicle_data(fields, VehicleData(vin="X"))
 
 
+def test_immediately_charging_active_lifts_on_its_own() -> None:
+    # #632 — "charging NOW": a car cannot immediately-charge while unplugged, so
+    # this scenario is enough on its own, even when the feed ships no power.
+    d = _map({_SCN: "CHARGING_SCENARIO_IMMEDIATELY_CHARGING_ACTIVE"})
+    assert d.is_charging is True
+    assert d.plug_connected is True
+
+
 @pytest.mark.parametrize("scenario", [
-    "CHARGING_SCENARIO_IMMEDIATELY_CHARGING_ACTIVE",
     "CHARGING_SCENARIO_CHARGING_TO_DEPARTURE_TIME_ACTIVE",
     "CHARGING_SCENARIO_OPTIMISED_CHARGING_ACTIVE",
 ])
-def test_active_scenario_lifts_is_charging_and_infers_plug(scenario: str) -> None:
-    d = _map({_SCN: scenario})
-    assert d.is_charging is True
-    assert d.plug_connected is True
+def test_scheduled_active_lifts_only_with_live_power(scenario: str) -> None:
+    # #1739 — a SCHEDULED plan is "active" even on an unplugged car or one still
+    # waiting for its departure time, so it must lift ONLY when live power proves
+    # current is actually flowing.
+    with_power = _map({_SCN: scenario, "charging_power": "7.4"})
+    assert with_power.is_charging is True
+    assert with_power.plug_connected is True
+    without_power = _map({_SCN: scenario})
+    assert without_power.is_charging is not True   # #1739 — no false positive
+    assert without_power.plug_connected is None
 
 
 @pytest.mark.parametrize("scenario", [

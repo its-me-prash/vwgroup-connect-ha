@@ -615,6 +615,13 @@ class VehicleData:
     # CARIAD-BFF: HV battery cell temperature (Celsius). Useful for
     # users with home battery-thermal management (e.g. wallbox curtail).
     battery_temp_c: float | None = None
+    # #2068 — CABIN / interior temperature (Celsius), the value the climate
+    # entity reports as ``current_temperature``. Kept SEPARATE from
+    # ``outside_temp`` on purpose: the climate entity must never pass the
+    # outside temperature off as the cabin reading. None until a feed actually
+    # supplies an interior temperature (the ``Innentemperatur`` EU-Data-Act
+    # leaves are the mapping source when a car carries them).
+    cabin_temp_c: float | None = None
     # CARIAD-BFF climatisation: per-zone enable + battery-only mode.
     climate_without_external_power: bool | None = None
     climate_zone_front_left: bool | None = None
@@ -988,9 +995,9 @@ class VehicleData:
     service_due_at: Any | None = None
     oil_service_km: int | None = None
     oil_service_at: Any | None = None
-    # acpp plug&play — main inspection (HU / TÜV) + first-registration dates from
-    # the dongle's carport record; surfaced as service-calendar events.
-    main_inspection_due_at: Any | None = None
+    # acpp plug&play — first-registration date from the dongle's carport record;
+    # surfaced as a service-calendar event. (#1925 — the main inspection /
+    # HU-TÜV field was removed: nothing ever wrote it.)
     registration_date: Any | None = None
     # v1.11.0 (#91 closure) — explicit "raw int days" sensors complementing
     # the existing DATE sensors. The DATE conversion (sensor.py) loses the
