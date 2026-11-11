@@ -1,7 +1,7 @@
 # App Atlas — SEAT
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-11-04
+> Last refreshed: 2026-11-10
 
 ## Identity
 
