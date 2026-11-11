@@ -117,12 +117,14 @@
         "data": {
           "brand": "Vehicle Brand",
           "spin": "S-PIN",
-          "scan_interval": "Update Interval"
+          "scan_interval": "Update Interval",
+          "use_browser_auth0": "Experimental: browser (Auth0) sign-in"
         },
         "data_description": {
-          "brand": "Only brands with browser-login support are listed. Use 'Email + Password' for Volkswagen EU and Porsche.",
+          "brand": "Only brands with a browser sign-in are listed. Use 'Email + Password' for Porsche.",
           "spin": "Optional 4-digit Security-PIN for remote actions (lock, unlock, climate).",
-          "scan_interval": "Minutes between vehicle data polls."
+          "scan_interval": "Minutes between vehicle data polls.",
+          "use_browser_auth0": "SEAT and CUPRA only: use the browser (Auth0) sign-in instead of the device-code login. This route is not verified for them yet — testers, please report your result. Audi always uses it."
         }
       },
       "browser_login_pending": {
@@ -181,6 +183,34 @@
           "companion_use_relay": "Tick this when the phone runs the companion agent app. The phone then calls Home Assistant, so no ADB, no wireless debugging and no fixed phone IP are needed — leave the address field empty.",
           "companion_agent_token": "A random token is generated for you. Copy it into the agent app; use a different token for every vehicle. Custom tokens need at least 32 characters and 16 distinct characters, with no character making up more than half."
         }
+      },
+      "auth0": {
+        "title": "Sign in with {brand} in the browser",
+        "description": "{note}This integration can no longer sign in to {brand} with email and password alone — the final step now needs a device check only the official app can pass. The brand's own login page still works:\n\n1. Open this link, preferably in a private browser window: [{authorization_url}]({authorization_url})\n2. Sign in with your {brand} account.\n3. Your browser is then sent to a callback address that cannot load. **That connection error is expected.**\n4. Copy the complete address from the browser's address bar — or, if the browser shows none, the code value from it — and paste it below.\n\nThe link belongs to this attempt only; if it fails, a new one is shown.",
+        "data": {
+          "callback_url": "Address from the browser, or the code value"
+        },
+        "data_description": {
+          "callback_url": "Contains code= and state=."
+        }
+      },
+      "reauth_auth0": {
+        "title": "Sign in again with {brand} in the browser",
+        "description": "{note}This integration can no longer sign in to {brand} with email and password alone — the final step now needs a device check only the official app can pass. The brand's own login page still works:\n\n1. Open this link, preferably in a private browser window: [{authorization_url}]({authorization_url})\n2. Sign in with your {brand} account.\n3. Your browser is then sent to a callback address that cannot load. **That connection error is expected.**\n4. Copy the complete address from the browser's address bar — or, if the browser shows none, the code value from it — and paste it below.\n\nThe link belongs to this attempt only; if it fails, a new one is shown.",
+        "data": {
+          "callback_url": "Address from the browser, or the code value"
+        },
+        "data_description": {
+          "callback_url": "Contains code= and state=."
+        }
+      },
+      "reauth_auth0_menu": {
+        "title": "Sign in again",
+        "description": "The email + password sign-in no longer works for this brand (device check). Signing in through the brand's own login page in a browser still works. How do you want to sign in again?",
+        "menu_options": {
+          "reauth_auth0": "Sign in through the browser (recommended)",
+          "reauth_credentials": "Enter email + password (EU Data Act portal only)"
+        }
       }
     },
     "error": {
@@ -213,7 +243,10 @@
       "captcha_retry": "Please solve the captcha shown above to continue.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. The read-only EU Data Act portal, which normally takes over in this case, did not deliver either — and this notice cannot tell you why. Open the portal in a browser: if it loads, check that data sharing is enabled for your car. If it does not load, the portal itself is down and nothing on your side needs changing. (Tracked: #1712.)"
+      "eu_signin_attestation": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. The read-only EU Data Act portal, which normally takes over in this case, did not deliver either — and this notice cannot tell you why. Open the portal in a browser: if it loads, check that data sharing is enabled for your car. If it does not load, the portal itself is down and nothing on your side needs changing. (Tracked: #1712.) Audi: choose Repair and pick the browser sign-in with myAudi — it gets past this wall.",
+      "invalid_auth0_callback": "That is not the address from this sign-in attempt. Paste the complete localhost:8080/myaudi-callback address from the address bar, after signing in through the link above.",
+      "auth0_denied": "The sign-in was cancelled or refused on Audi's page. Open the link again and sign in.",
+      "auth0_auth_failed": "Audi rejected the sign-in code — a code can only be used once. Open the new link above and sign in again."
     },
     "abort": {
       "already_configured": "This account is already configured.",
@@ -2686,7 +2719,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen blocks the sign-in for {brand}",
-      "description": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. The read-only EU Data Act portal, which normally takes over in this case, did not deliver either — and this notice cannot tell you why. Open the portal in a browser: if it loads, check that data sharing is enabled for your car. If it does not load, the portal itself is down and nothing on your side needs changing. (Tracked: #1712.)"
+      "description": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. The read-only EU Data Act portal, which normally takes over in this case, did not deliver either — and this notice cannot tell you why. Open the portal in a browser: if it loads, check that data sharing is enabled for your car. If it does not load, the portal itself is down and nothing on your side needs changing. (Tracked: #1712.) Audi: choose Repair and pick the browser sign-in with myAudi — it gets past this wall."
     }
   },
   "selector": {

@@ -12,6 +12,7 @@ This module is the pure reconcile/serialise logic; the coordinator owns the
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,6 +24,32 @@ VEHICLE_CACHE_VERSION = 1
 def vehicle_cache_key(entry_id: str) -> str:
     """`.storage` key for an entry's last-known-good vehicle snapshot."""
     return f"vag_connect_vehicles_{entry_id}"
+
+
+def account_identity_hash(identity: str | None) -> str | None:
+    """A stable, privacy-safe fingerprint of the account a cached snapshot
+    belongs to, used to discard that snapshot when an entry is re-authenticated
+    onto a DIFFERENT account while keeping the same entry id (#1878).
+
+    ``identity`` is the entry's account handle — its username / e-mail for a
+    credential or token strategy, the BrandID ``sub`` UUID for a device login, or
+    the VIN for a companion (ADB) entry, whichever the caller has. It is
+    normalised ``strip().lower()`` (the same compare the config flow uses on
+    usernames) so a cosmetic re-type of the same e-mail never triggers a false
+    discard; lower-casing a UUID / VIN is harmless. Only a fingerprint is stored,
+    never the handle itself.
+
+    Returns ``None`` when there is no identity to hash. The load-side rule is to
+    discard ONLY when a STORED hash is present and differs from the current one;
+    an absent stored hash (a pre-#1878 snapshot) is kept and backfilled on the
+    next save, so this never wipes every existing user's cache once on upgrade.
+    """
+    if not identity:
+        return None
+    norm = str(identity).strip().lower()
+    if not norm:
+        return None
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:16]
 
 
 def drop_state_to_cache(
@@ -262,6 +289,24 @@ MONOTONIC_INCREASING_FIELDS: tuple[str, ...] = (
     "odometer_km",
     "total_charged_energy_kwh",
 )
+
+# #2054 (@zintheweb, T-Cross 1.0 TSI) — odometer jump guard thresholds.
+# odometer_km is monotonic-protected, so a spuriously HIGH reading that reaches
+# the cache latches forever (every correct lower value is then rejected as "went
+# backwards"). The reported car jumped 26374 -> 100663 km inside one 15-min poll
+# and stayed there; no channel had any plausibility ceiling. Thresholds favour
+# ACCEPTING real data (a false reject only delays one poll and self-corrects; a
+# false accept latches permanently) while still catching a sentinel-scale glitch:
+#   * BURST — max plausible distance in a single poll. A real single-poll jump is
+#     < ~200 km; over a 15-min poll even 50 km reads as ~4800 km/day, so a flat
+#     km/day ceiling would false-positive. BURST absorbs that short-window spike.
+#   * RATE  — max plausible sustained accumulation per day, to clear a long
+#     offline-then-resume gap (a seasonal car offline for months).
+#   * ABS   — absolute catastrophic ceiling, used only when the elapsed time
+#     cannot be established; no real poll ever adds this many km.
+_ODOMETER_BURST_KM = 800.0
+_ODOMETER_RATE_KM_PER_DAY = 1500.0
+_ODOMETER_ABS_JUMP_KM = 50_000.0
 
 # Raw portal field name -> the entity attribute it fills, for the contested
 # reading resolver below. Deliberately explicit and NUMERIC-only: comparing a
@@ -641,6 +686,39 @@ def reconcile(
                 f"energy-derived {round(_sr)}"
             )
             merged["battery_soc"] = round(_sr)
+
+    # #2054 — reject an implausible odometer UP-jump BEFORE the monotonic guard
+    # below can freeze it forever. INGEST-only: this prevents a new car from
+    # latching; it does not heal a cache already stuck high (those users reload
+    # the integration once). Thresholds + rationale at _ODOMETER_BURST_KM.
+    _odo_new = merged.get("odometer_km")
+    _odo_old = previous.get("odometer_km")
+    if (
+        isinstance(_odo_new, (int, float))
+        and not isinstance(_odo_new, bool)
+        and isinstance(_odo_old, (int, float))
+        and not isinstance(_odo_old, bool)
+        and _odo_new > _odo_old
+    ):
+        _jump = _odo_new - _odo_old
+        _t_old = _as_aware_dt(previous.get("last_seen_at"))
+        _t_new = _as_aware_dt(fresh.get("last_seen_at"))
+        if _t_old is not None and _t_new is not None and _t_new > _t_old:
+            _elapsed_days = (_t_new - _t_old).total_seconds() / 86400.0
+            _ceiling = _ODOMETER_BURST_KM + _ODOMETER_RATE_KM_PER_DAY * _elapsed_days
+            if _jump > _ceiling:
+                notes.append(
+                    f"odometer_km jumped {_odo_old}->{_odo_new} (+{_jump:.0f} km in "
+                    f"{_elapsed_days:.3f} d, ceiling {_ceiling:.0f}); kept {_odo_old} (#2054)"
+                )
+                merged["odometer_km"] = _odo_old
+        elif _jump > _ODOMETER_ABS_JUMP_KM:
+            notes.append(
+                f"odometer_km jumped {_odo_old}->{_odo_new} (+{_jump:.0f} km, no usable "
+                f"capture-time delta; absolute ceiling {_ODOMETER_ABS_JUMP_KM:.0f}); "
+                f"kept {_odo_old} (#2054)"
+            )
+            merged["odometer_km"] = _odo_old
 
     for field in MONOTONIC_INCREASING_FIELDS:
         new = merged.get(field)

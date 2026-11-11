@@ -117,12 +117,14 @@
         "data": {
           "brand": "Marque du véhicule",
           "spin": "S-PIN",
-          "scan_interval": "Intervalle de mise à jour"
+          "scan_interval": "Intervalle de mise à jour",
+          "use_browser_auth0": "Expérimental : connexion par navigateur (Auth0)"
         },
         "data_description": {
-          "brand": "Seules les marques prenant en charge la connexion par navigateur sont listées. Utilisez « E-mail + mot de passe » pour Volkswagen EU et Porsche.",
+          "brand": "Seules les marques prenant en charge la connexion par navigateur sont listées. Utilisez « E-mail + mot de passe » pour Porsche.",
           "scan_interval": "Minutes entre chaque interrogation des données du véhicule.",
-          "spin": "Code de sécurité (S-PIN) à 4 chiffres facultatif pour les actions à distance (verrouillage, déverrouillage, climatisation)."
+          "spin": "Code de sécurité (S-PIN) à 4 chiffres facultatif pour les actions à distance (verrouillage, déverrouillage, climatisation).",
+          "use_browser_auth0": "SEAT et CUPRA uniquement : utiliser la connexion par navigateur (Auth0) au lieu de la connexion par code d'appareil. Cette voie n'est pas encore vérifiée pour ces marques — testeurs, merci de signaler votre résultat. Audi l'utilise toujours."
         }
       },
       "browser_login_pending": {
@@ -181,6 +183,34 @@
           "mbb_vins": "Laissez ce champ vide, sauf si la configuration vous le demande.",
           "spin": "Votre S-PIN Audi — le code que vous utilisez pour le verrouillage/déverrouillage à distance."
         }
+      },
+      "auth0": {
+        "title": "Se connecter avec {brand} dans le navigateur",
+        "description": "{note}Cette intégration ne peut plus se connecter à {brand} avec seulement l'e-mail et le mot de passe : la dernière étape exige désormais une vérification de l'appareil que seule l'application officielle réussit. La page de connexion de la marque fonctionne toujours :\n\n1. Ouvrez ce lien, de préférence dans une fenêtre de navigation privée : [{authorization_url}]({authorization_url})\n2. Connectez-vous avec votre compte {brand}.\n3. Votre navigateur est ensuite redirigé vers une adresse de rappel qui ne peut pas se charger. **Cette erreur de connexion est attendue.**\n4. Copiez l'adresse complète depuis la barre d'adresse du navigateur — ou, si le navigateur n'en affiche aucune, la valeur du paramètre code — et collez-la ci-dessous.\n\nLe lien ne vaut que pour cette tentative ; en cas d'échec, un nouveau s'affiche.",
+        "data": {
+          "callback_url": "Adresse du navigateur, ou la valeur du code"
+        },
+        "data_description": {
+          "callback_url": "Contient code= et state=."
+        }
+      },
+      "reauth_auth0": {
+        "title": "Se reconnecter avec {brand} dans le navigateur",
+        "description": "{note}Cette intégration ne peut plus se connecter à {brand} avec seulement l'e-mail et le mot de passe : la dernière étape exige désormais une vérification de l'appareil que seule l'application officielle réussit. La page de connexion de la marque fonctionne toujours :\n\n1. Ouvrez ce lien, de préférence dans une fenêtre de navigation privée : [{authorization_url}]({authorization_url})\n2. Connectez-vous avec votre compte {brand}.\n3. Votre navigateur est ensuite redirigé vers une adresse de rappel qui ne peut pas se charger. **Cette erreur de connexion est attendue.**\n4. Copiez l'adresse complète depuis la barre d'adresse du navigateur — ou, si le navigateur n'en affiche aucune, la valeur du paramètre code — et collez-la ci-dessous.\n\nLe lien ne vaut que pour cette tentative ; en cas d'échec, un nouveau s'affiche.",
+        "data": {
+          "callback_url": "Adresse du navigateur, ou la valeur du code"
+        },
+        "data_description": {
+          "callback_url": "Contient code= et state=."
+        }
+      },
+      "reauth_auth0_menu": {
+        "title": "Se reconnecter",
+        "description": "La connexion par e-mail + mot de passe ne fonctionne plus pour cette marque (vérification de l'appareil). La connexion via la page de connexion de la marque dans un navigateur fonctionne toujours. Comment voulez-vous vous reconnecter ?",
+        "menu_options": {
+          "reauth_auth0": "Se connecter via le navigateur (recommandé)",
+          "reauth_credentials": "Saisir e-mail + mot de passe (portail EU Data Act uniquement)"
+        }
       }
     },
     "error": {
@@ -213,7 +243,10 @@
       "captcha_retry": "Veuillez résoudre le captcha affiché ci-dessus pour continuer.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Votre e-mail et votre mot de passe sont corrects — la connexion a bien fonctionné et le code d'autorisation est revenu. Volkswagen refuse désormais la dernière étape, l'échange de ce code contre un jeton, car elle exige une attestation d'appareil signée par Google (Play Integrity) que seule l'application officielle sur un téléphone authentique peut produire. Ressaisir votre mot de passe n'y changera rien, réessayer non plus. Le portail EU Data Act en lecture seule, qui prend normalement le relais dans ce cas, n'a rien livré non plus, et cet avis ne peut pas en dire la raison. Ouvrez le portail dans un navigateur : s'il se charge, vérifiez que le partage des données est activé pour votre voiture. S'il ne se charge pas, c'est le portail lui-même qui est hors service et rien n'est à changer de votre côté. (Suivi : #1712.)"
+      "eu_signin_attestation": "Votre e-mail et votre mot de passe sont corrects — la connexion a bien fonctionné et le code d'autorisation est revenu. Volkswagen refuse désormais la dernière étape, l'échange de ce code contre un jeton, car elle exige une attestation d'appareil signée par Google (Play Integrity) que seule l'application officielle sur un téléphone authentique peut produire. Ressaisir votre mot de passe n'y changera rien, réessayer non plus. Le portail EU Data Act en lecture seule, qui prend normalement le relais dans ce cas, n'a rien livré non plus, et cet avis ne peut pas en dire la raison. Ouvrez le portail dans un navigateur : s'il se charge, vérifiez que le partage des données est activé pour votre voiture. S'il ne se charge pas, c'est le portail lui-même qui est hors service et rien n'est à changer de votre côté. (Suivi : #1712.) Audi : choisissez Réparer puis la connexion dans le navigateur avec myAudi — elle contourne ce blocage.",
+      "invalid_auth0_callback": "Ce n'est pas l'adresse de cette tentative de connexion. Collez l'adresse complète localhost:8080/myaudi-callback depuis la barre d'adresse, après vous être connecté via le lien ci-dessus.",
+      "auth0_denied": "La connexion a été annulée ou refusée sur la page d'Audi. Rouvrez le lien et connectez-vous.",
+      "auth0_auth_failed": "Audi a rejeté le code de connexion — un code ne sert qu'une fois. Ouvrez le nouveau lien ci-dessus et reconnectez-vous."
     },
     "abort": {
       "already_configured": "Ce compte est déjà configuré.",
@@ -2686,7 +2719,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen bloque la connexion pour {brand}",
-      "description": "Votre e-mail et votre mot de passe sont corrects — la connexion a bien fonctionné et le code d'autorisation est revenu. Volkswagen refuse désormais la dernière étape, l'échange de ce code contre un jeton, car elle exige une attestation d'appareil signée par Google (Play Integrity) que seule l'application officielle sur un téléphone authentique peut produire. Ressaisir votre mot de passe n'y changera rien, réessayer non plus. Le portail EU Data Act en lecture seule, qui prend normalement le relais dans ce cas, n'a rien livré non plus, et cet avis ne peut pas en dire la raison. Ouvrez le portail dans un navigateur : s'il se charge, vérifiez que le partage des données est activé pour votre voiture. S'il ne se charge pas, c'est le portail lui-même qui est hors service et rien n'est à changer de votre côté. (Suivi : #1712.)"
+      "description": "Votre e-mail et votre mot de passe sont corrects — la connexion a bien fonctionné et le code d'autorisation est revenu. Volkswagen refuse désormais la dernière étape, l'échange de ce code contre un jeton, car elle exige une attestation d'appareil signée par Google (Play Integrity) que seule l'application officielle sur un téléphone authentique peut produire. Ressaisir votre mot de passe n'y changera rien, réessayer non plus. Le portail EU Data Act en lecture seule, qui prend normalement le relais dans ce cas, n'a rien livré non plus, et cet avis ne peut pas en dire la raison. Ouvrez le portail dans un navigateur : s'il se charge, vérifiez que le partage des données est activé pour votre voiture. S'il ne se charge pas, c'est le portail lui-même qui est hors service et rien n'est à changer de votre côté. (Suivi : #1712.) Audi : choisissez Réparer puis la connexion dans le navigateur avec myAudi — elle contourne ce blocage."
     }
   },
   "services": {

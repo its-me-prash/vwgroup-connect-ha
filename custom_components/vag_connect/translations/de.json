@@ -117,12 +117,14 @@
         "data": {
           "brand": "Marke",
           "spin": "S-PIN",
-          "scan_interval": "Aktualisierungsintervall"
+          "scan_interval": "Aktualisierungsintervall",
+          "use_browser_auth0": "Experimentell: Browser-Anmeldung (Auth0)"
         },
         "data_description": {
-          "brand": "Es werden nur Marken mit Browser-Login-Unterstützung angezeigt. Für Volkswagen EU und Porsche 'E-Mail + Passwort' verwenden.",
+          "brand": "Es werden nur Marken mit Browser-Anmeldung angezeigt. Für Porsche 'E-Mail + Passwort' verwenden.",
           "scan_interval": "Minuten zwischen den Datenabfragen des Fahrzeugs.",
-          "spin": "Optionale 4-stellige Sicherheits-PIN für Fernaktionen (Verriegeln, Entriegeln, Klima)."
+          "spin": "Optionale 4-stellige Sicherheits-PIN für Fernaktionen (Verriegeln, Entriegeln, Klima).",
+          "use_browser_auth0": "Nur SEAT und CUPRA: Browser-Anmeldung (Auth0) statt Geräte-Code-Login verwenden. Dieser Weg ist für diese Marken noch nicht verifiziert — Tester, bitte meldet euer Ergebnis. Audi nutzt ihn immer."
         }
       },
       "browser_login_pending": {
@@ -181,6 +183,34 @@
           "mbb_vins": "Leer lassen, außer die Einrichtung fragt danach.",
           "spin": "Deine Audi-S-PIN — der Code fürs Fern-Ver-/Entriegeln."
         }
+      },
+      "auth0": {
+        "title": "Im Browser bei {brand} anmelden",
+        "description": "{note}Diese Integration kann sich nicht mehr allein mit E-Mail und Passwort bei {brand} anmelden — der letzte Schritt verlangt jetzt eine Geräteprüfung, die nur die offizielle App besteht. Die eigene Anmeldeseite der Marke funktioniert weiterhin:\n\n1. Öffne diesen Link, am besten in einem privaten Browserfenster: [{authorization_url}]({authorization_url})\n2. Melde dich mit deinem {brand}-Konto an.\n3. Dein Browser wird danach auf eine Callback-Adresse weitergeleitet, die sich nicht laden lässt. **Dieser Verbindungsfehler ist erwartet.**\n4. Kopiere die vollständige Adresse aus der Adressleiste des Browsers — oder, falls der Browser keine anzeigt, den code-Wert daraus — und füge es unten ein.\n\nDer Link gilt nur für diesen Versuch; schlägt er fehl, wird ein neuer angezeigt.",
+        "data": {
+          "callback_url": "Adresse aus dem Browser oder der code-Wert"
+        },
+        "data_description": {
+          "callback_url": "Enthält code= und state=."
+        }
+      },
+      "reauth_auth0": {
+        "title": "Erneut im Browser bei {brand} anmelden",
+        "description": "{note}Diese Integration kann sich nicht mehr allein mit E-Mail und Passwort bei {brand} anmelden — der letzte Schritt verlangt jetzt eine Geräteprüfung, die nur die offizielle App besteht. Die eigene Anmeldeseite der Marke funktioniert weiterhin:\n\n1. Öffne diesen Link, am besten in einem privaten Browserfenster: [{authorization_url}]({authorization_url})\n2. Melde dich mit deinem {brand}-Konto an.\n3. Dein Browser wird danach auf eine Callback-Adresse weitergeleitet, die sich nicht laden lässt. **Dieser Verbindungsfehler ist erwartet.**\n4. Kopiere die vollständige Adresse aus der Adressleiste des Browsers — oder, falls der Browser keine anzeigt, den code-Wert daraus — und füge es unten ein.\n\nDer Link gilt nur für diesen Versuch; schlägt er fehl, wird ein neuer angezeigt.",
+        "data": {
+          "callback_url": "Adresse aus dem Browser oder der code-Wert"
+        },
+        "data_description": {
+          "callback_url": "Enthält code= und state=."
+        }
+      },
+      "reauth_auth0_menu": {
+        "title": "Erneut anmelden",
+        "description": "Die Anmeldung mit E-Mail + Passwort funktioniert für diese Marke nicht mehr (Geräteprüfung). Die Anmeldung über die eigene Anmeldeseite der Marke im Browser funktioniert weiterhin. Wie möchtest du dich erneut anmelden?",
+        "menu_options": {
+          "reauth_auth0": "Über den Browser anmelden (empfohlen)",
+          "reauth_credentials": "E-Mail + Passwort eingeben (nur EU-Data-Act-Portal)"
+        }
       }
     },
     "error": {
@@ -213,7 +243,10 @@
       "captcha_retry": "Bitte löse das oben gezeigte Captcha, um fortzufahren.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat ebenfalls nichts geliefert — warum, kann dieser Hinweis nicht sagen. Öffne das Portal im Browser: lädt es, dann prüfe, ob die Datenfreigabe für dein Auto aktiv ist. Lädt es nicht, ist das Portal selbst ausgefallen und auf deiner Seite muss nichts geändert werden. (Verfolgt: #1712.)"
+      "eu_signin_attestation": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat ebenfalls nichts geliefert — warum, kann dieser Hinweis nicht sagen. Öffne das Portal im Browser: lädt es, dann prüfe, ob die Datenfreigabe für dein Auto aktiv ist. Lädt es nicht, ist das Portal selbst ausgefallen und auf deiner Seite muss nichts geändert werden. (Verfolgt: #1712.) Audi: wähle Reparieren und dann die Browser-Anmeldung mit myAudi — sie kommt an dieser Sperre vorbei.",
+      "invalid_auth0_callback": "Das ist nicht die Adresse aus diesem Anmeldeversuch. Füge die vollständige localhost:8080/myaudi-callback-Adresse aus der Adressleiste ein, nachdem du dich über den Link oben angemeldet hast.",
+      "auth0_denied": "Die Anmeldung wurde auf Audis Seite abgebrochen oder abgelehnt. Öffne den Link erneut und melde dich an.",
+      "auth0_auth_failed": "Audi hat den Anmeldecode abgelehnt — ein Code kann nur einmal verwendet werden. Öffne den neuen Link oben und melde dich erneut an."
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
@@ -2686,7 +2719,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen blockiert die Anmeldung für {brand}",
-      "description": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat ebenfalls nichts geliefert — warum, kann dieser Hinweis nicht sagen. Öffne das Portal im Browser: lädt es, dann prüfe, ob die Datenfreigabe für dein Auto aktiv ist. Lädt es nicht, ist das Portal selbst ausgefallen und auf deiner Seite muss nichts geändert werden. (Verfolgt: #1712.)"
+      "description": "Deine E-Mail-Adresse und dein Passwort sind in Ordnung — die Anmeldung selbst hat funktioniert und der Autorisierungscode kam zurück. Volkswagen verweigert jetzt den letzten Schritt, das Eintauschen dieses Codes gegen ein Token, weil dafür ein von Google signierter Geräte-Nachweis (Play Integrity) verlangt wird, den nur die offizielle App auf einem echten Telefon erzeugen kann. Das Passwort erneut einzugeben hilft nicht, ein weiterer Versuch auch nicht. Das nur lesende EU-Data-Act-Portal, das in diesem Fall normalerweise übernimmt, hat ebenfalls nichts geliefert — warum, kann dieser Hinweis nicht sagen. Öffne das Portal im Browser: lädt es, dann prüfe, ob die Datenfreigabe für dein Auto aktiv ist. Lädt es nicht, ist das Portal selbst ausgefallen und auf deiner Seite muss nichts geändert werden. (Verfolgt: #1712.) Audi: wähle Reparieren und dann die Browser-Anmeldung mit myAudi — sie kommt an dieser Sperre vorbei."
     }
   },
   "selector": {

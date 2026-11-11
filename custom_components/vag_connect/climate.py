@@ -137,7 +137,10 @@ class VagClimate(VagConnectEntity, ClimateEntity):
 
     @property  # type: ignore[misc]  # #1965 — see the note on the class body
     def current_temperature(self) -> float | None:
-        return self._vehicle.get("outside_temp")
+        # #2068 — the CABIN temperature, never the outside one. When the feed
+        # carries no interior temperature this stays None and HA omits the
+        # attribute, instead of implying the cabin is as cold as the street.
+        return self._vehicle.get("cabin_temp_c")
 
     @property  # type: ignore[misc]  # #1965 — see the note on the class body
     def target_temperature(self) -> float | None:
