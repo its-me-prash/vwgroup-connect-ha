@@ -50,7 +50,7 @@ class TestLockoutHelpers:
 
     def test_enter_sets_deadline(self) -> None:
         c, _, _ = _client_with([_resp(200)])
-        c._enter_rate_lockout(1800, 429)
+        c._enter_rate_lockout(1800, 429, "api.example/x")
         assert 1790 < c._rate_lockout_remaining() <= 1800
 
     def test_expired_self_clears(self) -> None:
@@ -63,7 +63,7 @@ class TestLockoutHelpers:
 class TestRequestLockout:
     def test_locked_request_raises_without_touching_network(self) -> None:
         c, _session, idx = _client_with([_resp(200)])
-        c._enter_rate_lockout(1800, 429)
+        c._enter_rate_lockout(1800, 429, "api.example/x")
         with pytest.raises(APIError):
             asyncio.run(c._request("GET", "https://x/y"))
         assert idx["i"] == 0  # never sent
