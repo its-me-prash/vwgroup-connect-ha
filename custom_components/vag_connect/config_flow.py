@@ -1545,6 +1545,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # Defence in depth — the form should have filtered these
                 # out already, but the user could send a crafted payload.
                 errors["base"] = "brand_not_dag_eligible"
+            elif brand in ("audi_na", "volkswagen_na") and CONF_COUNTRY not in user_input:
+                # #1433 — the NA brands route US vs CA to different garage bases
+                # (CA -> the EMEA CARIAD BFF, see audi_na._market_bff_base); without
+                # the country a Canadian Audi is sent to the US garage and
+                # discovers 0 vehicles. The device-code form has no country field
+                # by default, so re-render once with the picker before starting
+                # the grant, mirroring the email+password form. The next submit
+                # carries CONF_COUNTRY into _dag_user_input, which _build_entry_data
+                # persists and the coordinator hands to the client.
+                self._dag_brand = brand
             else:
                 # Reset state for this attempt.
                 self._dag_mbb = False
@@ -1586,24 +1596,33 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         )
 
         suggested = user_input or {}
+        _schema: dict[Any, Any] = {
+            vol.Required(
+                CONF_BRAND, default=suggested.get(CONF_BRAND, vol.UNDEFINED),
+            ): dag_brand_selector,
+            vol.Optional(
+                CONF_SPIN, default=suggested.get(CONF_SPIN, ""),
+            ): _SPIN_SELECTOR,
+            vol.Optional(
+                CONF_SCAN_INTERVAL,
+                default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+            ): _INTERVAL_SELECTOR,
+            vol.Optional(
+                "use_browser_auth0",
+                default=bool(suggested.get("use_browser_auth0", False)),
+            ): _BOOL_SELECTOR,
+        }
+        # #1433 — show the US/CA picker only once a NA brand is chosen (the submit
+        # handler re-renders with the brand set), so EU users never see a stray
+        # country dropdown. CA -> the EMEA garage base; without it a Canadian Audi
+        # lands on the US garage and finds 0 vehicles.
+        if str(suggested.get(CONF_BRAND, "")).lower() in ("audi_na", "volkswagen_na"):
+            _schema[
+                vol.Optional(CONF_COUNTRY, default=suggested.get(CONF_COUNTRY, "us"))
+            ] = _COUNTRY_SELECTOR
         return self.async_show_form(
             step_id="browser_login",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BRAND, default=suggested.get(CONF_BRAND, vol.UNDEFINED),
-                ): dag_brand_selector,
-                vol.Optional(
-                    CONF_SPIN, default=suggested.get(CONF_SPIN, ""),
-                ): _SPIN_SELECTOR,
-                vol.Optional(
-                    CONF_SCAN_INTERVAL,
-                    default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
-                ): _INTERVAL_SELECTOR,
-                vol.Optional(
-                    "use_browser_auth0",
-                    default=bool(suggested.get("use_browser_auth0", False)),
-                ): _BOOL_SELECTOR,
-            }),
+            data_schema=vol.Schema(_schema),
             errors=errors,
         )
 
@@ -3443,10 +3462,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # It is harmless downstream — the EU Data Act portal builds its OIDC
         # state from its own country/language defaults ("de__de__BRAND"), not
         # from CONF_COUNTRY — but it is misleading in diagnostics and a latent
-        # trap. So we only persist it for volkswagen_na; every other brand
-        # leaves it unset (the coordinator/factory already default to "us"
-        # for the VW-NA path that is the only consumer).
-        if brand.lower() == "volkswagen_na":
+        # trap. So we only persist it for the NA brands; every other brand
+        # leaves it unset (the coordinator/factory already default to "us").
+        #
+        # #1433 — audi_na now ALSO routes on country: CA selects the EMEA CARIAD
+        # BFF garage base (audi_na._market_bff_base), so a Canadian Audi whose
+        # country was dropped landed on the US garage and found 0 vehicles. Both
+        # NA brands therefore persist it.
+        if brand.lower() in ("volkswagen_na", "audi_na"):
             data[CONF_COUNTRY] = user_input.get(CONF_COUNTRY, "us")
         return data
 
