@@ -30,6 +30,7 @@ from ..exceptions import (
     RateLimitError,
     TokenExpiredError,
     UpstreamUnavailableError,
+    _redact_url,
 )
 from ..models import BrandConfig, TokenSet, VehicleData
 
@@ -1654,7 +1655,7 @@ class CariadBaseClient:
         """
         return retry_after_seconds(headers)
 
-    def _enter_rate_lockout(self, seconds: int, status: int) -> None:
+    def _enter_rate_lockout(self, seconds: int, status: int, endpoint: str) -> None:
         """Pause all requests on this client for ``seconds`` (B4).
 
         The duration is formatted rather than divided. ``seconds // 60`` read
@@ -1663,12 +1664,19 @@ class CariadBaseClient:
         there — and the sentence went on to say "to avoid a multi-hour account
         lock", so the one line a reporter pastes claimed both no wait and a
         multi-hour threat.
+
+        ``endpoint`` is the host+path that returned the limit, with the query,
+        the VIN and any UUID already stripped by ``_redact_url``. #1850
+        (@indigomejor): the hold pauses the WHOLE account, so the one warning a
+        reporter can paste after a 430 has to say which call tripped it — the
+        next question, which endpoint is being rate-limited, otherwise has
+        nowhere to start. Masked, because that path can carry the VIN.
         """
         self._rate_limit_locked_until = time.monotonic() + seconds
         _LOGGER.warning(
-            "Account rate-limit lockout (HTTP %d) on %s — pausing all requests"
-            " for %s",
-            status, self._brand.name, _format_duration(seconds),
+            "Account rate-limit lockout (HTTP %d) on %s from %s — pausing all"
+            " requests for %s",
+            status, self._brand.name, endpoint, _format_duration(seconds),
         )
 
     async def _request(
@@ -1784,7 +1792,7 @@ class CariadBaseClient:
                             " it instead of retrying (holding %ds)",
                             _retry_after, _hold,
                         )
-                        self._enter_rate_lockout(_hold, 429)
+                        self._enter_rate_lockout(_hold, 429, _redact_url(url))
                     elif _attempt < 3:
                         # No instruction from the server: unchanged behaviour,
                         # because a bare 429 can still be a momentary burst and
@@ -1797,10 +1805,10 @@ class CariadBaseClient:
                         )
                     else:
                         # retries exhausted — back off the whole account (B4)
-                        self._enter_rate_lockout(_LOCKOUT_429_S, 429)
+                        self._enter_rate_lockout(_LOCKOUT_429_S, 429, _redact_url(url))
                 if resp.status == 430:
                     # explicit hard lockout signal — long account-scoped hold (B4)
-                    self._enter_rate_lockout(_LOCKOUT_430_S, 430)
+                    self._enter_rate_lockout(_LOCKOUT_430_S, 430, _redact_url(url))
                 if resp.status in (500, 502, 503, 504):
                     # #1973 — see ``_5XX_SUPPRESS_RETRIES_AFTER``. One attempt
                     # always goes out; only the RETRIES are withheld, and only

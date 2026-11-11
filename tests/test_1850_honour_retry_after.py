@@ -210,7 +210,7 @@ def test_the_lockout_warning_states_the_duration_it_actually_set(
 
     client, _ = _client_with([_resp(200)])
     with caplog.at_level(logging.WARNING, logger="custom_components.vag_connect.cariad.api.base"):
-        client._enter_rate_lockout(_RETRY_AFTER_MIN_S, 429)
+        client._enter_rate_lockout(_RETRY_AFTER_MIN_S, 429, "api.example/x")
     logged = " ".join(r.getMessage() for r in caplog.records)
     assert "30s" in logged, logged
     assert "0 min" not in logged, logged
