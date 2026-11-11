@@ -46,7 +46,153 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
+
+### Hinzugefügt / Added
+
+- **EU browser sign-in that gets past the attestation wall — multi-brand
+  (#1712, #2051, #1964).** Since October the CARIAD token exchange refuses this
+  integration's sign-in with `invalid assertion headers`, and the QR /
+  device-code grant was withdrawn for Audi before that (#1364). What the vendor
+  left open is the login the brand apps use: the Auth0 tenant at
+  `group.identity.vwgroup.io`, with a brand's public client, PKCE, and a
+  callback registered on that client — and that token endpoint asks for no
+  attestation. The access token it issues is accepted by the CARIAD vehicle API
+  directly (no AZS / MBB exchange in between).
+
+  **The solution is @majd's**, worked out and shipped in
+  [audiconnect/audi_connect_ha#905](https://github.com/audiconnect/audi_connect_ha/pull/905)
+  (MIT): the Auth0 tenant, audience and scope, the registered `localhost`
+  callback, the paste-the-callback-URL flow, and the Auth0 refresh. **@woopstar
+  ported it to this integration's auth/strategy model and verified it on a live
+  Audi** (sign-in, an hour of polling, and the first Auth0 token refresh), in
+  [#2060](https://github.com/its-me-prash/vwgroup-connect-ha/pull/2060). This
+  entry generalises that port from Audi-only to every EU brand the tenant holds
+  — Volkswagen, SEAT and CUPRA alongside Audi — through one
+  `cariad/auth/_auth0.py` module and one `strategy="auth0"` session tag.
+
+  **How it looks.** *Add integration → Browser login* now lists every brand with
+  an offered browser sign-in. For **Audi** (device grant retired) it is the
+  browser login: a sign-in link, you sign in in any browser, the redirect to a
+  `localhost` address cannot load — that error is expected — and you paste the
+  full address back into the form. The flow checks the OAuth `state` it issued,
+  trades the one-time code for tokens, and refreshes at the same Auth0 endpoint;
+  a dead refresh token raises a reauth instead of re-running the walled password
+  login.
+
+  **SEAT and CUPRA keep their working device-code grant by default** — their
+  app login still works, so nothing changes for them unless a tester ticks the
+  new *Experimental: browser (Auth0) sign-in* box. Both reach the Auth0 login
+  page (measured), but their code exchange is **not verified yet**: the step
+  marks them experimental and asks the tester to report. **Volkswagen is not
+  offered**: its sign-in page loads, but the code exchange returns
+  `401 access_denied` and the `localhost` callback is refused *Callback URL
+  mismatch* (live-measured 2026-11-09/10), and the We Connect build carries no
+  Auth0 login provider at all — so offering it would only ever fail. The route
+  stays in the module, documented, but is gated out of the picker (`AUTH0_DENIED`).
+  A companion probe, `scripts/auth0_signin_probe.py`, drives the same builders
+  from a terminal and produces a share-safe log (no token, VINs masked) for
+  exactly that.
+
+  **Migration, in both directions.** A fresh browser sign-in for an account
+  that already has an email + password entry for the same brand attaches its
+  tokens to that entry (matched on the e-mail claim, `sub` as fallback) instead
+  of creating a second one, and keeps the stored password: the EU Data Act
+  portal channel still signs in with it. The reauth flow for an Auth0-capable
+  brand now offers a choice — the browser sign-in, or the old credentials form
+  — and the *sign-in blocked* repair notice gained a **Repair** button that
+  opens it. The `device_grant_retired` dead end for Audi (#2051) is gone.
+
+  **What it cannot do, measured rather than assumed.** Live on an EU account
+  (Audi e-tron, DK): the Auth0 token reads the CARIAD vehicle API and lists the
+  garage, but the vehicle **render images** are out of reach — the AZS proxy
+  refuses the token with `client does not have access to the IDP for token
+  exchange`, and the vgql endpoint answers the same message as a 401 for every
+  `vehicle { … }` sub-field. So an Auth0 session skips the image fetch, says so
+  once in the log, and leaves vehicle data untouched. A second live EU account
+  (three Audis, incl. a current diesel 48 V mild-hybrid) confirms the token
+  reads `selectivestatus` (multi-status), `capabilities`, parking position and
+  battery-health; `tripstatistics` returns 404 and is handled best-effort; no
+  endpoint returns 401 or 403, so there is no refresh storm and no extra read
+  gating is needed, and the drive-train data reads correctly (the mild-hybrid
+  diesel reports diesel range only, no spurious electric range). Legacy
+  pre-CARIAD cars return 400/502 on the modern surface, as expected.
+
+  **Two-way works for Audi, measured.** On the same three-Audi account, the
+  Auth0 token reaches the CARIAD **command** plane directly: `GET
+  …/pendingrequests` answered **204** on every car (the token is accepted on the
+  command namespace, not 401/403), and commands route through `_post_command` on
+  that same session — no MBB/AZS exchange in between. So an **Audi** Auth0 entry
+  is **not** read-only: lock, climate and charge command entities appear, and a
+  server-side command refusal (if any — the actuating write was deliberately not
+  force-tested on the owner's car) is surfaced honestly by the command-failure
+  classifier rather than hidden. **SEAT and CUPRA stay read-only**: their single
+  OLA command backend is attestation-walled (403 off-device), so command entities
+  there could only ever fail; reads keep flowing from `selectivestatus`. The
+  attach-to-an-existing-entry case — an Auth0 entry that also holds an armed MBB
+  command channel — keeps commands via that channel as before. Reports this
+  answers: @starwarsfan (#2051), the #1964 and #1712 threads.
+
 ### Behoben / Fixed
+
+- **Climate showed the OUTSIDE temperature as the cabin reading (#2068).**
+  `current_temperature` literally returned `outside_temp`, so a Škoda Elroq's
+  climate entity tracked the outside-temperature sensor to the second even while
+  heating. It now reads a dedicated cabin field and, when the feed carries no
+  interior temperature, omits the attribute rather than implying the cabin is as
+  cold as the street.
+
+- **The HU/TÜV service-calendar event could never fire (#1925).**
+  `main_inspection_due_at` was declared and read by the calendar, but no
+  connector or parser ever wrote it, so the "Main inspection (HU / TÜV)" entry
+  was permanently absent — worse than missing, because the category still showed
+  and read as "no inspection due". The dead field is removed, and a new guard
+  test fails if any service-calendar field ever again lacks a writer.
+
+- **The raw-dataset archive stopped after a restart (#2071).** With
+  `keep_raw_datasets` on, the archive hook was attached only on the
+  manual-refresh path, not the periodic poll loop — which is the real driver
+  (`update_interval` is None) — so after a restart the on-disk ring buffer
+  silently stopped growing while the portal feed kept delivering. The hook is now
+  (re)attached on the poll loop too.
+
+- **Two opaque identifiers reached the diagnostics download unredacted (#923).**
+  The registered MBB X-Client-Id and the EU-Data-Act ZIP-envelope dataset key are
+  UUIDs with no triage value in a shared file; both are now redacted, matching
+  the security posture behind #1968.
+
+- **Charging Port read "connected" on an unplugged car (#1739).** A scheduled
+  charging PLAN (optimised / to-departure-time) reports its scenario as *active*
+  even when the car is unplugged or merely waiting for its departure time, and
+  that alone was taken as plugged-in-and-charging. Now only "immediately
+  charging" (impossible while unplugged) counts on its own; a scheduled plan
+  counts only when live power confirms current is flowing — so an idle, unplugged
+  Audi no longer shows its port connected, while a genuinely charging car (incl.
+  the #632 CUPRA that ships no `current_charge_state`) is unaffected. *Caveat: a
+  car on a scheduled plan that charges without ever reporting power would now read
+  not-charging until power appears — re-verify with the #632 reporter.*
+
+- **The per-point cruising-range unit companion was ignored (#1960).** A car
+  that reports its distance unit only via `estimatedcruisingrange*.unit` (not the
+  global `mileage.unit`) had its ranges left unconverted, and the `.unit` leaf
+  kept re-surfacing to the Scout. That companion is now a second miles signal, so
+  a miles car is detected and converted even when it ships only this field.
+
+- **The nested `parkinglightstate` dialect never reached the per-side sensors
+  (#1949, #2064, #2066).** VW / CUPRA / VW-commercial ship the left/right parking
+  lights nested under a `parkinglightstate` container, which no parser key
+  covered — so the `parking_light_left` / `_right` sensors stayed empty on those
+  cars and the Scout re-filed the fields on every poll. The nested spelling now
+  maps onto the existing sensors.
+
+- **The Vehicle Data Scout kept re-filing already-mapped Skoda plug fields
+  (#2059, #2061, #2062, #2063, #2065, #2070).** Skoda moved
+  `plugConnectionState` / `plugLockState` / `chargingErrorReason` onto the
+  charging endpoint; the parser has read them (→ `plug_state` / `plug_lock_state`
+  / `charging_error_code`, with sensors) since v5.2.5, but the Scout's
+  expected-keys table lagged the parser and re-opened the same six issues across
+  cars. The keys are now registered, so the data stays surfaced and the noise
+  stops.
 
 - **The parked-car step never matched on a German phone (#1963, #1981,
   @Snaker86).** The map element the step looks for is found by its
@@ -110,6 +256,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   Entity unique IDs are deliberately unchanged: they are keys in Home
   Assistant's own registry, are never served, and renaming them would orphan
   every existing entity.
+
+- **Fuel level could lag at a stale value while a current reading was available (#2072).** The EU Data Act batch feed and a live channel can both carry the fuel level, and the batch value was treated as the owner of that field — so a fresh live reading could not replace a stale batch one, and the gauge lagged behind the car. Fuel level now follows the same freshest-wins rule as the rest of the live telemetry, so a current reading always wins over an older batch value.
+
+- **A cached vehicle could linger after re-authenticating with a different account (#1878).** The stored vehicle snapshot is keyed by the config entry, which a credential re-auth keeps — so signing the same entry in to a different account left the previous account's battery level and position frozen in place while other fields updated. The snapshot now carries an account fingerprint, and the vehicle data is discarded when it no longer matches the signed-in account; an existing cache from before this change is never wiped on upgrade. Thanks @tmh88.
+
+- **A Canadian Audi set up through the browser sign-in was routed to the US and found no vehicles (#1433).** Audi US and Audi Canada use different API hosts, but the browser (device-code) sign-in form had no US/Canada selector, so a Canadian account defaulted to the US garage and discovered no cars. The sign-in form now offers the region picker for the North-American brands, and the choice is stored and used to reach the right garage.
+
+- **A single glitched reading could freeze the odometer permanently (#2054).** The odometer only ever counts up, so once a spuriously high reading reached the cache, every correct lower reading afterwards was rejected as a step backwards and the wrong mileage stuck — one reporter's car jumped to 100663 km and stayed there while the real value was 27668. An implausible jump is now rejected as it arrives: a new reading is accepted only when the extra distance is plausible for the time since the last one, so a glitch can no longer latch. A car already stuck on a bad value clears it by removing and re-adding the integration once. Thanks @zintheweb.
 
 ## [5.2.5] - 2026-11-07 — Nothing thrown away / Nichts mehr weggeworfen
 

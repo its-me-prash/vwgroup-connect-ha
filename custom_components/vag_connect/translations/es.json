@@ -117,12 +117,14 @@
         "data": {
           "brand": "Marca del vehículo",
           "spin": "S-PIN",
-          "scan_interval": "Intervalo de actualización"
+          "scan_interval": "Intervalo de actualización",
+          "use_browser_auth0": "Experimental: inicio de sesión por navegador (Auth0)"
         },
         "data_description": {
-          "brand": "Solo se muestran las marcas compatibles con el inicio de sesión por navegador. Usa 'Correo electrónico + contraseña' para Volkswagen EU y Porsche.",
+          "brand": "Solo se muestran las marcas con inicio de sesión por navegador. Usa 'Correo electrónico + contraseña' para Porsche.",
           "scan_interval": "Minutos entre cada consulta de datos del vehículo.",
-          "spin": "PIN de seguridad de 4 dígitos opcional para acciones remotas (bloquear, desbloquear, climatización)."
+          "spin": "PIN de seguridad de 4 dígitos opcional para acciones remotas (bloquear, desbloquear, climatización).",
+          "use_browser_auth0": "Solo SEAT y CUPRA: usa el inicio de sesión por navegador (Auth0) en lugar del inicio con código de dispositivo. Esta vía aún no está verificada para ellas: si eres probador, comunica tu resultado. Audi siempre la usa."
         }
       },
       "browser_login_pending": {
@@ -181,6 +183,34 @@
           "mbb_vins": "Déjalo en blanco a menos que la configuración te lo pida.",
           "spin": "Tu S-PIN de Audi — el código que usas para el bloqueo/desbloqueo remoto."
         }
+      },
+      "auth0": {
+        "title": "Iniciar sesión con {brand} en el navegador",
+        "description": "{note}Esta integración ya no puede iniciar sesión en {brand} solo con correo y contraseña: el último paso exige ahora una comprobación del dispositivo que solo supera la app oficial. La propia página de inicio de sesión de la marca sigue funcionando:\n\n1. Abre este enlace, preferiblemente en una ventana privada del navegador: [{authorization_url}]({authorization_url})\n2. Inicia sesión con tu cuenta de {brand}.\n3. Después, tu navegador se redirige a una dirección de retorno que no se puede cargar. **Ese error de conexión es el esperado.**\n4. Copia la dirección completa de la barra de direcciones del navegador (o, si el navegador no muestra ninguna, el valor de code) y pégala abajo.\n\nEl enlace solo vale para este intento; si falla, se muestra uno nuevo.",
+        "data": {
+          "callback_url": "Dirección del navegador o el valor de code"
+        },
+        "data_description": {
+          "callback_url": "Contiene code= y state=."
+        }
+      },
+      "reauth_auth0": {
+        "title": "Volver a iniciar sesión con {brand} en el navegador",
+        "description": "{note}Esta integración ya no puede iniciar sesión en {brand} solo con correo y contraseña: el último paso exige ahora una comprobación del dispositivo que solo supera la app oficial. La propia página de inicio de sesión de la marca sigue funcionando:\n\n1. Abre este enlace, preferiblemente en una ventana privada del navegador: [{authorization_url}]({authorization_url})\n2. Inicia sesión con tu cuenta de {brand}.\n3. Después, tu navegador se redirige a una dirección de retorno que no se puede cargar. **Ese error de conexión es el esperado.**\n4. Copia la dirección completa de la barra de direcciones del navegador (o, si el navegador no muestra ninguna, el valor de code) y pégala abajo.\n\nEl enlace solo vale para este intento; si falla, se muestra uno nuevo.",
+        "data": {
+          "callback_url": "Dirección del navegador o el valor de code"
+        },
+        "data_description": {
+          "callback_url": "Contiene code= y state=."
+        }
+      },
+      "reauth_auth0_menu": {
+        "title": "Volver a iniciar sesión",
+        "description": "El inicio de sesión con correo + contraseña ya no funciona para esta marca (comprobación del dispositivo). Iniciar sesión en la propia página de la marca desde un navegador sigue funcionando. ¿Cómo quieres volver a iniciar sesión?",
+        "menu_options": {
+          "reauth_auth0": "Iniciar sesión a través del navegador (recomendado)",
+          "reauth_credentials": "Introducir correo + contraseña (solo portal EU Data Act)"
+        }
       }
     },
     "error": {
@@ -213,7 +243,10 @@
       "captcha_retry": "Resuelve el captcha que se muestra arriba para continuar.",
       "companion_addon_token_required": "An add-on token is required for new connections. Set api_token in the ADB Bridge add-on and enter the same token here.",
       "companion_agent_token_weak": "The agent token is too predictable. Use the generated random token or a random token with at least 32 characters and 16 distinct characters, with no character making up more than half.",
-      "eu_signin_attestation": "Tu correo y tu contraseña son correctos: el inicio de sesión funcionó y el código de autorización volvió. Volkswagen ahora rechaza el último paso, canjear ese código por un token, porque exige una atestación de dispositivo firmada por Google (Play Integrity) que solo la aplicación oficial en un teléfono auténtico puede producir. Volver a escribir la contraseña no ayuda, y reintentar tampoco. El portal EU Data Act de solo lectura, que normalmente toma el relevo en este caso, tampoco entregó nada, y este aviso no puede decirte por qué. Abre el portal en un navegador: si carga, comprueba que el intercambio de datos está activado para tu coche. Si no carga, el portal está caído y no hace falta cambiar nada por tu parte. (Seguimiento: #1712.)"
+      "eu_signin_attestation": "Tu correo y tu contraseña son correctos: el inicio de sesión funcionó y el código de autorización volvió. Volkswagen ahora rechaza el último paso, canjear ese código por un token, porque exige una atestación de dispositivo firmada por Google (Play Integrity) que solo la aplicación oficial en un teléfono auténtico puede producir. Volver a escribir la contraseña no ayuda, y reintentar tampoco. El portal EU Data Act de solo lectura, que normalmente toma el relevo en este caso, tampoco entregó nada, y este aviso no puede decirte por qué. Abre el portal en un navegador: si carga, comprueba que el intercambio de datos está activado para tu coche. Si no carga, el portal está caído y no hace falta cambiar nada por tu parte. (Seguimiento: #1712.) Audi: elige Reparar y selecciona el inicio de sesión en el navegador con myAudi; supera este bloqueo.",
+      "invalid_auth0_callback": "Esa no es la dirección de este intento de inicio de sesión. Pega la dirección completa localhost:8080/myaudi-callback de la barra de direcciones, tras iniciar sesión con el enlace de arriba.",
+      "auth0_denied": "El inicio de sesión se canceló o se rechazó en la página de Audi. Abre el enlace de nuevo e inicia sesión.",
+      "auth0_auth_failed": "Audi rechazó el código de inicio de sesión: un código solo puede usarse una vez. Abre el nuevo enlace de arriba y vuelve a iniciar sesión."
     },
     "abort": {
       "already_configured": "Esta cuenta ya está configurada.",
@@ -2686,7 +2719,7 @@
     },
     "eu_signin_attestation": {
       "title": "Volkswagen bloquea el inicio de sesión de {brand}",
-      "description": "Tu correo y tu contraseña son correctos: el inicio de sesión funcionó y el código de autorización volvió. Volkswagen ahora rechaza el último paso, canjear ese código por un token, porque exige una atestación de dispositivo firmada por Google (Play Integrity) que solo la aplicación oficial en un teléfono auténtico puede producir. Volver a escribir la contraseña no ayuda, y reintentar tampoco. El portal EU Data Act de solo lectura, que normalmente toma el relevo en este caso, tampoco entregó nada, y este aviso no puede decirte por qué. Abre el portal en un navegador: si carga, comprueba que el intercambio de datos está activado para tu coche. Si no carga, el portal está caído y no hace falta cambiar nada por tu parte. (Seguimiento: #1712.)"
+      "description": "Tu correo y tu contraseña son correctos: el inicio de sesión funcionó y el código de autorización volvió. Volkswagen ahora rechaza el último paso, canjear ese código por un token, porque exige una atestación de dispositivo firmada por Google (Play Integrity) que solo la aplicación oficial en un teléfono auténtico puede producir. Volver a escribir la contraseña no ayuda, y reintentar tampoco. El portal EU Data Act de solo lectura, que normalmente toma el relevo en este caso, tampoco entregó nada, y este aviso no puede decirte por qué. Abre el portal en un navegador: si carga, comprueba que el intercambio de datos está activado para tu coche. Si no carga, el portal está caído y no hace falta cambiar nada por tu parte. (Seguimiento: #1712.) Audi: elige Reparar y selecciona el inicio de sesión en el navegador con myAudi; supera este bloqueo."
     }
   },
   "services": {

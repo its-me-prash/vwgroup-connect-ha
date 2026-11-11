@@ -207,6 +207,13 @@ _REDACT_KEYS = frozenset({
     CONF_WEBSITE_COOKIES,
     CONF_MBB_COMMAND_TOKENS,
     CONF_SUPPLEMENTARY_TIBBER_TOKENS,
+    # #923 — defensive identifier redaction (same security posture as #1968):
+    # the registered MBB X-Client-Id and the EU-Data-Act ZIP-envelope dataset
+    # key are opaque UUIDs that add no triage value in a shared diagnostics
+    # file. Neither is credential-NAMED, so the completeness guard does not
+    # catch them; they are redacted here by hand.
+    "mbb_command_client_id",
+    "dataset_key",
 })
 
 

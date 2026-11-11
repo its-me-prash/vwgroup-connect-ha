@@ -517,6 +517,7 @@ class CariadBaseClient:
             "device_grant",
             "device_grant_portal",
             "mbb",
+            "auth0",  # #1712 — browser (Auth0/PKCE) sign-in, no password held
         ):
             from ..exceptions import DeviceLoginExpiredError  # noqa: PLC0415
 
@@ -2116,6 +2117,31 @@ class CariadBaseClient:
             # drives the login; the shared session's cookie jar carries the 24h
             # re-auth cookie, so most re-mints take the password-free QUICK route
             # (silent confirm). On failure the error propagates → coordinator reauth.
+            # #1712 — EU browser sign-in (Auth0/PKCE), any brand. The token set
+            # was minted at group.identity.vwgroup.io, so it refreshes there
+            # too: the IDK endpoint the generic branch below talks to would
+            # answer ``invalid assertion headers`` for it. A dead refresh token
+            # raises ``AuthenticationError`` out of here so the coordinator
+            # starts a reauth instead of re-running the attestation-walled
+            # password login; a transient rejection raises
+            # ``TokenRefreshRetryError``.
+            if (
+                self._tokens
+                and self._tokens.strategy == "auth0"
+                and self._tokens.refresh_token
+            ):
+                from ..auth._auth0 import Auth0Grant  # noqa: PLC0415
+
+                auth0_grant = Auth0Grant(self._session, brand=self._brand.name)
+                self._tokens = await auth0_grant.refresh(
+                    self._tokens.refresh_token, id_token=self._tokens.id_token
+                )
+                await self._notify_tokens_changed()
+                self.account_lock_detected = False
+                self.refresh_storm_detected = False
+                self._lock_history.clear()
+                return
+
             if (
                 self._tokens
                 and self._tokens.strategy == "device_grant"

@@ -122,6 +122,12 @@ def test_reauth_confirm_does_not_route_a_retired_grant_to_qr() -> None:
     flow.async_step_reauth_qr = AsyncMock()
     result = asyncio.run(flow.async_step_reauth_confirm(None))
     flow.async_step_reauth_qr.assert_not_awaited()
+    # #1712 — an Audi entry is first offered the browser (Auth0) sign-in or the
+    # credentials form; neither is the retired QR route.
+    assert result["type"] == "menu"
+    assert result["step_id"] == "reauth_auth0_menu"
+    result = asyncio.run(flow.async_step_reauth_credentials(None))
+    flow.async_step_reauth_qr.assert_not_awaited()
     assert result["type"] == "form"
 
 
@@ -137,7 +143,8 @@ def test_the_retired_grant_form_asks_for_the_email_too() -> None:
         })
     )
     flow.async_step_reauth_qr = AsyncMock()
-    result = asyncio.run(flow.async_step_reauth_confirm(None))
+    # #1712 — the credentials form sits behind the Audi reauth menu now.
+    result = asyncio.run(flow.async_step_reauth_credentials(None))
     keys = {str(k) for k in result["data_schema"].schema}
     assert any("username" in k for k in keys), keys
 
@@ -171,6 +178,11 @@ def test_reauth_confirm_password_entry_still_shows_form() -> None:
     flow.async_step_reauth_qr = AsyncMock()
     result = asyncio.run(flow.async_step_reauth_confirm(None))
     flow.async_step_reauth_qr.assert_not_awaited()
+    # #1712 — Audi gets the browser-sign-in / credentials choice first; the
+    # credentials choice is the unchanged form.
+    assert result["type"] == "menu"
+    assert result["step_id"] == "reauth_auth0_menu"
+    result = asyncio.run(flow.async_step_reauth_credentials(None))
     assert result["type"] == "form"
     assert result["step_id"] == "reauth_confirm"
 

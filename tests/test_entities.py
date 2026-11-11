@@ -649,7 +649,12 @@ class TestClimate:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         c = VagClimate(coord, vin)
-        assert c.current_temperature == 10.0
+        # #2068 — current_temperature is the CABIN temperature, never the outside
+        # one. The fixture carries outside_temp=10.0 but no cabin reading, so the
+        # attribute is omitted (None) rather than reporting the outside value.
+        assert c.current_temperature is None
+        coord.data[vin]["cabin_temp_c"] = 21.5
+        assert c.current_temperature == 21.5
 
     def test_target_temperature(self):
         from custom_components.vag_connect.climate import VagClimate

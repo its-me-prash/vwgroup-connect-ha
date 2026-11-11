@@ -194,14 +194,15 @@ class TestValidateForwardsCountry:
 
 
 class TestEntryDataStoresCountry:
-    """The persisted entry data dict carries the chosen country — but ONLY
-    for the volkswagen_na brand (v2.15.5 scoping fix)."""
+    """The persisted entry data dict carries the chosen country — but ONLY for
+    the NA brands (v2.15.5 scoping fix; #1433 widened it from volkswagen_na to
+    both NA brands, since audi_na also routes on country)."""
 
-    def test_build_entry_data_stores_country_for_vwna(self) -> None:
+    def test_build_entry_data_stores_country_for_na_brands(self) -> None:
         src = _CONFIG_FLOW_PY.read_text(encoding="utf-8")
-        # v2.15.5 — gated behind a volkswagen_na brand check so EU/other
-        # brands no longer get a bogus country="us" stamped into entry.data.
-        assert 'if brand.lower() == "volkswagen_na":' in src
+        # Gated behind an NA-brand check so EU/other brands no longer get a bogus
+        # country="us" stamped into entry.data. #1433 — audi_na joined the gate.
+        assert 'if brand.lower() in ("volkswagen_na", "audi_na"):' in src
         assert 'data[CONF_COUNTRY] = user_input.get(CONF_COUNTRY, "us")' in src
 
 

@@ -4159,7 +4159,14 @@ def map_dataset_to_vehicle_data(
     # start scaling values nobody has evidence about — but it does mean a new
     # distance mapping added BELOW this point silently opts out. Add it above,
     # or record its source leaf.
-    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")):
+    # #1960 — the per-point cruising-range ``.unit`` companions are a second
+    # miles signal. Reading them here consumes them (so the Scout stops re-filing
+    # ``estimatedcruisingrange*.unit`` as unmapped) and lets a car that ships only
+    # this companion — not ``mileage.unit`` — still be detected as miles. A car
+    # reports one display unit, so OR-ing the two sources cannot mix km and miles.
+    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")) or \
+            _is_miles(first("estimatedcruisingrangeprimary.unit",
+                            "estimatedcruisingrangesecondary.unit")):
         for _attr in ("odometer_km", "range_km", "electric_range_km",
                       "combustion_range_km", "secondary_engine_range_km",
                       "total_range_km", "service_km", "oil_service_km",
@@ -4535,10 +4542,16 @@ def map_dataset_to_vehicle_data(
     # #1780 — the one-time export spells these per side under its own container
     # and sends ON / OFF, which ``_truthy_light`` below already reads correctly.
     _pll = first(
-        "parking_light_left", "parking_lights_info.left_status.value"
+        "parking_light_left", "parking_lights_info.left_status.value",
+        # #1949/#2064/#2066 — the dialect that nests the per-side lights under a
+        # ``parkinglightstate`` container (VW / CUPRA / VW-commercial). Reads onto
+        # the existing parking_light_left/_right binary sensors and stops the
+        # Scout re-filing the nested spelling as new.
+        "parkinglightstate.parking_light_left",
     )
     _plr = first(
-        "parking_light_right", "parking_lights_info.right_status.value"
+        "parking_light_right", "parking_lights_info.right_status.value",
+        "parkinglightstate.parking_light_right",
     )
 
     def _truthy_light(raw: str | None) -> bool | None:
@@ -4724,18 +4737,40 @@ def map_dataset_to_vehicle_data(
         d.charging_scenario = _shorten_enum(_cscn)
         # #632 (@gr6803, CUPRA) — this portal firmware ships charging_scenario but
         # NOT current_charge_state, so the cs-derived is_charging above stayed OFF
-        # while an *_ACTIVE scenario proved the car was charging (plug_connected
-        # read null too). The three in-progress scenarios all end _ACTIVE
-        # (IMMEDIATELY_CHARGING_ACTIVE / CHARGING_TO_DEPARTURE_TIME_ACTIVE /
-        # OPTIMISED_CHARGING_ACTIVE); OFF / INVALID / *_FINISHED are idle. Lift
-        # ONLY (never clear) so a correctly-read car is untouched; an _ACTIVE
-        # scenario also proves the cable is in, so infer plug_connected only when
-        # the granular plug field was absent (read null).
-        if isinstance(d.charging_scenario, str) and \
-                d.charging_scenario.upper().endswith("_ACTIVE"):
-            d.is_charging = True
-            if d.plug_connected is None:
-                d.plug_connected = True
+        # while the car really was charging. The in-progress scenarios all end
+        # _ACTIVE (IMMEDIATELY_CHARGING_ACTIVE / CHARGING_TO_DEPARTURE_TIME_ACTIVE
+        # / OPTIMISED_CHARGING_ACTIVE).
+        #
+        # #1739 — but a *_ACTIVE scenario is the charging PLAN being active, which
+        # is ALSO true on an UNPLUGGED, idle car (scheduled/optimised charging)
+        # and on a plugged-in car still waiting for its departure time. So the
+        # scenario ALONE must not claim the car is charging or that the cable is
+        # in — that made an idle, unplugged Audi (@…, #1739) report its charging
+        # port as connected. The honest signal is live power: charging_power_kw
+        # > 0 means current is actually flowing, which proves BOTH that the car is
+        # charging and that the plug is connected. Gating on it keeps the #632
+        # CUPRA lift (a charging car reports power even when it ships no
+        # current_charge_state) without the Audi false-positive, and leaves the
+        # "plugged in, waiting for departure, 0 kW" state correctly not-charging.
+        # Lift ONLY (never clear); plug_connected otherwise comes from the real
+        # plug field, never from the plan.
+        _scn_up = d.charging_scenario.upper() if isinstance(d.charging_scenario, str) else ""
+        if _scn_up.endswith("_ACTIVE"):
+            # "IMMEDIATELY_CHARGING_ACTIVE" means the car is charging NOW — it
+            # cannot immediately-charge while unplugged — so it lifts on its own
+            # (the #632 CUPRA, which ships no current_charge_state). The SCHEDULED
+            # plans ("CHARGING_TO_DEPARTURE_TIME_ACTIVE" / "OPTIMISED_CHARGING_
+            # ACTIVE") are "active" as a PLAN even on an unplugged car or one still
+            # waiting for its departure time (#1739 Audi), so they lift ONLY when
+            # live power confirms current is actually flowing. Lift only (never
+            # clear); plug_connected otherwise comes from the real plug field.
+            _charging_now = _scn_up.endswith("IMMEDIATELY_CHARGING_ACTIVE") or (
+                d.charging_power_kw is not None and d.charging_power_kw > 0
+            )
+            if _charging_now:
+                d.is_charging = True
+                if d.plug_connected is None:
+                    d.plug_connected = True
 
     _icas = first("charging_state_report.immediate_action_state",
                   "immediate_charge_action_state", "immediate_action_state")

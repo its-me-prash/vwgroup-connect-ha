@@ -35,8 +35,10 @@ _CHARGE_FIELDS = (
 _SERVICE_FIELDS = (
     "service_due_at", "oil_service_at", "brake_fluid_change_due_at",
     "brake_pads_front_inspection_due_at", "brake_pads_rear_inspection_due_at",
-    # acpp plug&play — main inspection (HU/TÜV) + first registration + warranty.
-    "main_inspection_due_at", "registration_date", "warranty_until",
+    # acpp plug&play — first registration + warranty. (#1925 — the main
+    # inspection / HU-TÜV field was removed: no connector or parser ever wrote
+    # it, so the calendar event could never fire.)
+    "registration_date", "warranty_until",
     # connected-services (We Connect / Car-Net) licence expiry — cross-brand.
     "subscription_expiry_at",
 )
@@ -228,7 +230,6 @@ class VagServiceCalendar(VagConnectEntity, CalendarEntity):
             ("brake_fluid_change_due_at", "Brake fluid change"),
             ("brake_pads_front_inspection_due_at", "Front brake pads inspection"),
             ("brake_pads_rear_inspection_due_at", "Rear brake pads inspection"),
-            ("main_inspection_due_at", "Main inspection (HU / TÜV)"),
             ("registration_date", "First registration"),
             ("warranty_until", "Warranty ends"),
             ("subscription_expiry_at", "Connected services subscription ends"),
