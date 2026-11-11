@@ -41,6 +41,26 @@ def test_is_set_envelope_flags_are_repair_skipped() -> None:
     assert _is_scout_repair_skipped(_f("eu_data_act.trunk.is_set", "true"))
 
 
+def test_did_0x3504_life_cycle_data_is_repair_skipped() -> None:
+    # #1979 (@mkevenaar) — the LL_GatewUDS 0x3504 blob is a raw, unmappable
+    # base64-JSON envelope; it stays on the raw_api_fields sensor as an attribute
+    # but must stop raising the per-poll repair (#1987/#1989/#2041/#2043 all
+    # re-filed the identical leaf).
+    assert _is_scout_repair_skipped(_f(
+        "eu_data_act.LL_GatewUDS_ReadDataByIdentMeasuValue_Life Cycle Data 5 Generation 2_0x3504",
+        "eyJzY2hlbWEiOi[...2837 chars...]",
+    ))
+
+
+def test_a_different_ll_gatewuds_did_still_raises_the_repair() -> None:
+    # The skip is keyed to the exact 0x3504 DID leaf, not the LL_GatewUDS family:
+    # the tyre-pressure DIDs 0x4E94–0x4E97 were MAPPED as unitless diagnostics, so
+    # a different DID on the same logical link must still surface for mapping.
+    assert not _is_scout_repair_skipped(_f(
+        "eu_data_act.LL_GatewUDS_ReadDataByIdentMeasuValue_Tyre Pressure_0x4e94", "123",
+    ))
+
+
 def test_a_new_opening_uuid_still_raises_the_repair() -> None:
     """Keying on the UUID (not the `open` path) preserves discovery."""
     assert not _is_scout_repair_skipped(_f("eu_data_act.open", "true (uuid deadbeef)"))

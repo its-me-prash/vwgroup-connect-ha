@@ -139,6 +139,19 @@ _SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({
     # visible, which leaves the question answerable instead of closing it by
     # deletion. #1831 stays open as the mapping question.
     "jobstatus",
+    # #1979 (@mkevenaar) — UDS DID 0x3504 "Life Cycle Data 5 Generation 2", also
+    # seen on CUPRA (#1873); dupes #1987/#1989, and #2041/#2043 re-file the
+    # identical leaf every poll. The EU-DA dictionary lists it with no unit and a
+    # description that only repeats the name. @mkevenaar decoded the value: a
+    # base64-JSON envelope wrapping ten raw 40-byte hex records
+    # (Param_LifeC0501..0510) with no field structure — a decoded meaning would be
+    # a guess, which is exactly what this project does not do. So the raw value
+    # stays on the raw_api_fields sensor (as an ATTRIBUTE, never a state: the
+    # ~2.8k-char blob is far over HA's 255-char state limit), and only the
+    # per-poll repair is skipped. Keyed to this exact DID leaf, not the
+    # LL_GatewUDS family: the tyre-pressure DIDs 0x4E94–0x4E97 were MAPPED as
+    # unitless diagnostics, so a different DID must still surface for mapping.
+    "ll_gatewuds_readdatabyidentmeasuvalue_life cycle data 5 generation 2_0x3504",
 })
 # Substring match on the (masked) sample: #1100's UUID annotation rides in the
 # value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open
