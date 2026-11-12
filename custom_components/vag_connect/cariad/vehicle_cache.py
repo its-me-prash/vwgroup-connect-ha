@@ -491,6 +491,48 @@ def reconcile(
     for field in STATIC_MASTER_FIELDS | CAPABILITY_FIELDS:
         if not merged.get(field) and previous.get(field):
             merged[field] = previous[field]
+    # #1780 — values a one-time export filled in (and marked) are carried forward
+    # like CARRY_FORWARD_FIELDS, including the volatile/security fields (doors,
+    # windows, locks) deliberately kept out of that set. The owner's call: a
+    # one-time snapshot kept visible with its honest capture time beats blanking
+    # it every poll on a car whose live feed never delivers these. The live
+    # detector is the FRESH poll, NOT ``merged`` — the loops above may already
+    # have carried a value from ``previous`` for a field that is ALSO a
+    # CARRY_FORWARD_FIELD, and that is not a live reading. A non-None fresh value
+    # is a real reading: it wins and permanently drops that key's mark, so the
+    # field returns to the fresh-or-unknown rule from then on.
+    imported = previous.get("field_imported_from_export")
+    if isinstance(imported, list) and imported:
+        still_imported: list[str] = []
+        carried_src = dict(merged.get("field_sources") or {})
+        carried_ts = dict(merged.get("field_captured_ts") or {})
+        changed_src = False
+        changed_ts = False
+        for key in imported:
+            if fresh.get(key) is not None:
+                continue  # feed delivered it live this poll — mark dropped
+            if previous.get(key) is None:
+                continue
+            merged[key] = previous[key]
+            prev_src = previous.get("field_sources")
+            if (isinstance(prev_src, dict) and key in prev_src
+                    and key not in carried_src):
+                carried_src[key] = prev_src[key]
+                changed_src = True
+            prev_ts = previous.get("field_captured_ts")
+            if (isinstance(prev_ts, dict) and key in prev_ts
+                    and key not in carried_ts):
+                carried_ts[key] = prev_ts[key]
+                changed_ts = True
+            still_imported.append(key)
+        if changed_src:
+            merged["field_sources"] = carried_src
+        if changed_ts:
+            merged["field_captured_ts"] = carried_ts
+        if still_imported:
+            merged["field_imported_from_export"] = still_imported
+        else:
+            merged.pop("field_imported_from_export", None)
     # #1950 (@Adcad1970) — finalise "all closures secured" now that the carried
     # capability is in hand. The mapper cannot do this: it is handed a fresh
     # VehicleData and sees one delivery, so it only knows whether a safe(2)
