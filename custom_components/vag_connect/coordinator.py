@@ -194,6 +194,15 @@ def _gap_fill_from_export(
         for key in filled:
             if key in source and key not in dest:
                 dest[key] = source[key]
+    # #1780 — mark which keys this one-time export filled, so reconcile() can
+    # carry them forward across polls (even the volatile/security fields kept out
+    # of CARRY_FORWARD_FIELDS) while the live feed has not delivered them, and
+    # drop the mark the moment a live reading arrives.
+    if filled:
+        marker = current.get("field_imported_from_export")
+        if not isinstance(marker, list):
+            marker = []
+        current["field_imported_from_export"] = sorted(set(marker) | set(filled))
     return filled
 
 
@@ -3532,6 +3541,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     merged_any = True
         if merged_any:
             self.async_set_updated_data(dict(self.vehicles))
+            # #1780 — persist, like the one-time-export service does, so a
+            # file-based import (and its carry-forward marker) survives a reload
+            # instead of being discarded when the snapshot reloads from disk.
+            self._save_vehicle_cache()
             _LOGGER.info(
                 "EU Data Act: merged local export file %s into VIN %s",
                 os.path.basename(path), mask_vin(vin),
