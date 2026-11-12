@@ -402,9 +402,8 @@ git push origin v1.9.0
 
 The `release.yml` workflow then automatically:
 
-- builds `vag_connect.zip`
 - generates release notes from the matching `CHANGELOG.md` section
-- creates the GitHub Release attached to that tag
+- creates the GitHub Release attached to that tag (no custom asset — HACS and the HA 2026.11 Marketplace install from the source at the tag, where `hacs.json` lives; #2089)
 - HACS picks it up within ~6 hours
 
 ### 7. Notify users

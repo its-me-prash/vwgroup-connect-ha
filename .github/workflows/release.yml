@@ -7,10 +7,8 @@ on:
 
 # Serialise runs for the same tag. A single tag push can occasionally spawn two
 # Release runs; without this they race on "Create Release" (one wins, one fails
-# 422 already-exists) and the loser can leave the release without its
-# vag_connect.zip asset. cancel-in-progress:false lets the second run finish
-# after the first and idempotently update the release (softprops re-uploads the
-# zip) instead of racing.
+# 422 already-exists). cancel-in-progress:false lets the second run finish after
+# the first and idempotently update the release instead of racing.
 concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false
@@ -148,9 +146,9 @@ jobs:
               )
               lines.append("")
               lines.append(
-                  "The release itself is unaffected — the integration and "
-                  "`vag_connect.zip` are exactly as tagged. Everything that "
-                  "changed is in the changelog:"
+                  "The release itself is unaffected — the integration is "
+                  "exactly as tagged. Everything that changed is in the "
+                  "changelog:"
               )
               lines.append("")
               lines.append(
@@ -199,7 +197,7 @@ jobs:
           lines.append("")
           lines.append("**Manual install / Manuelle Installation:**")
           lines.append("")
-          lines.append("1. Download `vag_connect.zip` from this release / `vag_connect.zip` aus diesem Release herunterladen")
+          lines.append("1. Download **Source code (zip)** from the Assets of this release / Das **Source code (zip)** unter den Assets dieses Releases herunterladen")
           lines.append("2. Unzip and copy `custom_components/vag_connect/` to your HA `config/custom_components/` folder, replacing any older copy / Entpacken und den Ordner `custom_components/vag_connect/` in dein HA `config/custom_components/` kopieren — alten Ordner ersetzen")
           lines.append("3. Restart Home Assistant / Home Assistant neu starten")
           lines.append("")
@@ -235,17 +233,18 @@ jobs:
                   fh.write("degraded=true\n")
           PYTHON
 
-      - name: Integration ZIP bauen
-        run: |
-          cd custom_components
-          zip -r ../vag_connect.zip vag_connect/ \
-            -x "**/__pycache__/*" "**/*.pyc" "**/.mypy_cache/*"
-          echo "ZIP size: $(du -sh ../vag_connect.zip | cut -f1)"
-
+      # #2089 — no custom asset. Home Assistant 2026.11's Marketplace installs
+      # from a release's custom asset when one is present, and refuses it if that
+      # asset has no hacs.json at its root ("missing the hacs.json file required
+      # for installation"). Our hacs.json lives at the repo root, not inside
+      # custom_components/vag_connect/, so it was never in the old vag_connect.zip
+      # — which broke every 2026.11 install/update. Other working EU-Data-Act
+      # integrations ship NO asset and let HACS/the Marketplace fetch the source
+      # at the tag, where hacs.json sits. We do the same. Manual installers use
+      # the GitHub-provided "Source code (zip)".
       - name: GitHub Release erstellen
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3  # v3
         with:
-          files: vag_connect.zip
           body_path: /tmp/release_notes.md
           name: "VW Group Connect v${{ steps.version.outputs.version }}"
           draft: false
@@ -279,7 +278,7 @@ jobs:
           if [ "${{ steps.notes.outputs.degraded }}" = "true" ]; then
             echo "::error::Release v${{ steps.version.outputs.version }} was published WITHOUT a change list."
             echo ""
-            echo "The release and vag_connect.zip exist and are correct; only this"
+            echo "The release exists and is correct; only this"
             echo "page's summary is missing. The usual cause is tagging before"
             echo "CHANGELOG.md's [Unreleased] heading was renamed to the version."
             echo ""
