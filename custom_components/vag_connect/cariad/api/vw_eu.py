@@ -894,8 +894,20 @@ class VWEUClient(CariadBaseClient):
         url = f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics"
         try:
             with self._parser_job("trip_statistics"):
-                trip_short = await self._get(url, params={"type": "shortTerm"})
-                trip_long = await self._get(url, params={"type": "longTerm"})
+                try:
+                    trip_short = await self._get(url, params={"type": "shortTerm"})
+                    trip_long = await self._get(url, params={"type": "longTerm"})
+                except APIError as err:
+                    # #1805 — the CARIAD-BFF tripstatistics endpoint is simply
+                    # ABSENT (404) on most post-lockdown cars and whole model lines
+                    # (the RS e-tron GT reporter's case). That is "this car has no
+                    # trip cluster", not a parser failure, so a 404 must not pollute
+                    # parser_stats["trip_statistics"] (.fail / .last_error) — the
+                    # telemetry that flags genuinely broken parses. A real server
+                    # error (5xx) or anything else still propagates and counts; the
+                    # hourly cache below already stops the endpoint being re-hit.
+                    if err.status != 404:
+                        raise
                 # v2.10.0 — "cyclic" = since-refuel / since-recharge aggregator
                 # (an Energy-Dashboard building block). Newer-firmware capability;
                 # some pre-2024 vehicles 404 it, so treat a miss as a soft-fail.
