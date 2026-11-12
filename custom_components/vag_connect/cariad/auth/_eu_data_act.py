@@ -4159,14 +4159,19 @@ def map_dataset_to_vehicle_data(
     # start scaling values nobody has evidence about — but it does mean a new
     # distance mapping added BELOW this point silently opts out. Add it above,
     # or record its source leaf.
-    # #1960 — the per-point cruising-range ``.unit`` companions are a second
-    # miles signal. Reading them here consumes them (so the Scout stops re-filing
-    # ``estimatedcruisingrange*.unit`` as unmapped) and lets a car that ships only
-    # this companion — not ``mileage.unit`` — still be detected as miles. A car
-    # reports one display unit, so OR-ing the two sources cannot mix km and miles.
-    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")) or \
-            _is_miles(first("estimatedcruisingrangeprimary.unit",
-                            "estimatedcruisingrangesecondary.unit")):
+    # #1960 (revised after @cookp0) — the per-point cruising-range ``.unit``
+    # companion reports the unit the car DISPLAYS, not the unit of the feed value.
+    # His Audi Q4 e-tron (EU portal) ships ``estimatedcruisingrangeprimary.unit =
+    # MILES`` while delivering the odometer and range in kilometres, so treating it
+    # as a car-wide miles trigger multiplied a correct km odometer by 1.60934 (a
+    # ~1.6x error) — a regression introduced in 5.3.0, where this ``or`` branch was
+    # added. We still CONSUME the companion so the Scout stops re-filing it, but it
+    # no longer drives conversion; only the global ``mileage.unit`` / ``range.unit``
+    # / ``distance.unit`` companions do, as before 5.3.0. A car that ships only this
+    # companion AND genuinely delivers miles values would need its own signal — none
+    # is confirmed, and the display-preference case that IS confirmed must win.
+    first("estimatedcruisingrangeprimary.unit", "estimatedcruisingrangesecondary.unit")
+    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")):
         for _attr in ("odometer_km", "range_km", "electric_range_km",
                       "combustion_range_km", "secondary_engine_range_km",
                       "total_range_km", "service_km", "oil_service_km",
