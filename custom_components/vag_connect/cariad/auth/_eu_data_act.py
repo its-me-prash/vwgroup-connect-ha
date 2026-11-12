@@ -5715,6 +5715,27 @@ def map_dataset_to_vehicle_data(
             d.combustion_range_km = d.electric_range_km
         d.electric_range_km = None
 
+    # #1970 (@martinbos, Audi Q3 PHEV) — a plug-in keeps the #1316 screen above
+    # INERT, because a real HV SoC counts as electric evidence. So a COMBINED
+    # cruising range (the dictionary's 153e8c40 "cruising_range_combined", tried
+    # by the primary-range and headline chains) that landed on electric_range_km
+    # survives there as a phantom: his Q3 showed 150 km (~34 electric + ~116
+    # petrol) on the EV range sensor. Key off the SOURCE, not engine_type — a PHEV
+    # that ships its real electric range uses a different leaf (0ca40e18 / a named
+    # one), so only the combined UUID is reclaimed, and only when the car has fuel,
+    # so a pure BEV (combined == electric, no fuel) is untouched. Runs AFTER the
+    # #1316 screen on purpose: a pure-combustion car has no SoC, so that screen
+    # already moved its range to combustion_range_km and left electric None here,
+    # which this guard then skips.
+    if (
+        has_fuel
+        and d.electric_range_km is not None
+        and dist_src.get("electric_range_km")
+        == "153e8c40-4c6c-3c17-a11b-0ecc35d55b81"
+    ):
+        d.electric_range_km = None
+        dist_src.pop("electric_range_km", None)
+
     # v4.10.0 (#1661, @dasebi91) — base64 UDS envelopes. This car's portal feed
     # carried 43 values of which only 12 mapped; ten of the rest were whole UDS
     # diagnostic responses, and inside them sat the car's own displayed range, its
