@@ -712,6 +712,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Announced end of the car's cloud service (Audi plug&play: per market, read
+    # from the market configuration). Phantom-gated: spawns only once a date is
+    # announced. Not diagnostic on purpose — after that date the car stops
+    # reporting, which the owner should see without digging.
+    VagSensorDescription(
+        key="cloud_service_end_date",
+        translation_key="cloud_service_end_date",
+        data_key="cloud_service_end_date",
+        device_class=SensorDeviceClass.DATE,
+        icon="mdi:cloud-off-outline",
+    ),
     # Audi plug&play (acpp) trip-logbook + fuel-log extras. All phantom-gated via
     # _DATA_PRESENT_REQUIRED → they only spawn on an acpp car that has synced a
     # drive/refuel; every other brand leaves the field None.
@@ -4756,6 +4767,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_refuel_at",
     # Audi plug&play (acpp) trip-logbook + fuel-log extras — acpp-only, so every
     # other brand leaves these None and no phantom entity spawns.
+    "cloud_service_end_date",
     "last_trip_eco_score",
     "last_trip_intake_air_temp_c",
     "trip_count",

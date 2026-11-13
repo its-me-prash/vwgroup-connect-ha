@@ -1602,6 +1602,9 @@
       "parked_since": {
         "name": "Aparcado desde"
       },
+      "cloud_service_end_date": {
+        "name": "Fecha de cierre del servicio en la nube"
+      },
       "last_trip_eco_score": {
         "name": "Ecopuntuación del último trayecto"
       },

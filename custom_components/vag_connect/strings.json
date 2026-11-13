@@ -1635,6 +1635,9 @@
       "parked_since": {
         "name": "Parked since"
       },
+      "cloud_service_end_date": {
+        "name": "Cloud service shutdown date"
+      },
       "last_trip_eco_score": {
         "name": "Last trip eco score"
       },

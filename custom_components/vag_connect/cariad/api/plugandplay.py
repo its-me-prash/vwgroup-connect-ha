@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -75,6 +75,26 @@ _MAX_POLLDATA_PAGES = 10
 # A trip without samples (backup off on the phone, upload still pending, or a
 # request that failed) is asked again after this long, not on every poll.
 _POLLDATA_RETRY_S = 3600.0
+# Market configuration (``configuration/market?ids=<alpha-3>``): carries the
+# announced end of the plug&play service. Live 2026-11-13, market DEU:
+# ``"shutdown": {"notificationDate": "2025-12-15", "shutdownDate": "2026-12-31"}``;
+# CHE → 404 "Market configuration not found". It changes rarely: read once a day.
+_MARKET_CONFIG_TTL_S = 24 * 3600.0
+
+
+def _market_of(veh: dict[str, Any]) -> str | None:
+    """The car's plug&play market as the alpha-3 code the app sends, or None.
+
+    The app sends the alpha-3 code of the country chosen in the app; that choice is
+    not in the API. The preferred dealer's KVPS id starts with the same code
+    (live: ``DEUA…`` on a DEU-market account), so it stands in for it. No dealer
+    → no market → no guess.
+    """
+    dealer = (veh.get("vehicleSpecificDealer") or {}).get("dealer") or {}
+    kvps = dealer.get("kvpsId") if isinstance(dealer, dict) else None
+    if isinstance(kvps, str) and len(kvps) >= 3 and kvps[:3].isascii() and kvps[:3].isalpha():
+        return kvps[:3].upper()
+    return None
 
 
 def _epoch_ms_to_date(val: Any) -> str | None:
@@ -109,6 +129,16 @@ def _epoch_ms_to_datetime(val: Any) -> str | None:
     try:
         return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat()
     except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _iso_date(val: Any) -> date | None:
+    """A ``YYYY-MM-DD`` (or longer ISO) string as a date, or None."""
+    if not isinstance(val, str) or len(val) < 10:
+        return None
+    try:
+        return date.fromisoformat(val[:10])
+    except ValueError:
         return None
 
 
@@ -152,27 +182,117 @@ def _num(val: Any) -> float | None:
     return None
 
 
+# EcoScore breakdown: wire key → attribute name. ``*Result`` are 0-100 marks,
+# and a mark is the share of positively rated intervals, rounded down (live
+# 2026-11-13: brake 190 positive / 13 negative → 93; the formula holds for 145 of
+# 161 marks in the logbook). So ``*NegativeCount`` counts intervals RATED
+# negative — on a 52-minute trip about one in fifteen — not hard-braking events;
+# the attribute names say exactly that.
+_ECO_DETAIL_KEYS = (
+    ("accelerationResult", "eco_acceleration"),
+    ("brakeResult", "eco_braking"),
+    ("engineSpeedResult", "eco_engine_speed"),
+    ("speedResult", "eco_speed"),
+    ("coolantTemperatureResult", "eco_coolant"),
+    ("brakeNegativeCount", "eco_braking_negative_count"),
+    ("accelerationNegativeCount", "eco_acceleration_negative_count"),
+)
+
+
+def _eco_detail(eco: Any) -> dict[str, int]:
+    """The EcoScore breakdown of one trip as int attributes (missing keys skipped)."""
+    if not isinstance(eco, dict):
+        return {}
+    out: dict[str, int] = {}
+    for wire, attr in _ECO_DETAIL_KEYS:
+        val = _num(eco.get(wire))
+        if val is not None:
+            out[attr] = int(round(val))
+    return out
+
+
+# Elevation from the per-sample GPS altitude is noisy: summing every step gave
+# 107 m up / 155 m down on a live trip whose hysteresis-filtered figure was a
+# stable 71 / 121 m at both 3 m and 5 m (net −48 m either way). Count a climb or
+# descent only once it exceeds this much.
+_ELEVATION_HYSTERESIS_M = 5.0
+# "Engine warm" for the warm-up time: coolant at or above this.
+_WARM_COOLANT_C = 80.0
+
+
+def _elevation(altitudes: list[float]) -> tuple[float, float]:
+    """(gain, loss) in metres over a hysteresis band, see _ELEVATION_HYSTERESIS_M."""
+    gain = loss = 0.0
+    ref = altitudes[0]
+    for alt in altitudes[1:]:
+        if alt - ref >= _ELEVATION_HYSTERESIS_M:
+            gain += alt - ref
+            ref = alt
+        elif ref - alt >= _ELEVATION_HYSTERESIS_M:
+            loss += ref - alt
+            ref = alt
+    return gain, loss
+
+
 def _polldata_summary(samples: list[Any]) -> dict[str, Any] | None:
-    """Per-trip maxima from the ``polldata`` time series, or None without data.
+    """Per-trip figures from the ``polldata`` time series, or None without data.
 
     The first samples of a trip are placeholders (all zeros, then altitude only,
-    live 2026-11-13), so only positive readings count; a trip whose series holds
-    no positive value for a channel yields no figure for it rather than a 0.
-    Units follow the app's upload body: km/h, rpm, °C.
+    live 2026-11-13), so only real readings count: positive speed / rpm / coolant
+    / altitude, and for the smooth-driving share only samples where the car was
+    running. A channel without a real reading yields no figure rather than a 0.
+    Units follow the app's upload body: km/h, rpm, °C, m/s²; altitude in metres.
     """
-    def peak(key: str) -> float | None:
-        vals = [v for s in samples if isinstance(s, dict)
-                for v in (_num(s.get(key)),) if v is not None and v > 0]
-        return max(vals) if vals else None
+    rows = sorted(
+        (s for s in samples if isinstance(s, dict)),
+        key=lambda s: _num(s.get("recordedAt")) or 0.0,
+    )
 
-    speed, rpm, coolant = peak("speed"), peak("engineSpeed"), peak("coolant")
+    def real(key: str) -> list[float]:
+        return [v for s in rows for v in (_num(s.get(key)),) if v is not None and v > 0]
+
     out: dict[str, Any] = {}
-    if speed is not None:
-        out["max_speed_kmh"] = round(speed, 1)
-    if rpm is not None:
-        out["max_engine_rpm"] = int(round(rpm))
-    if coolant is not None:
-        out["max_coolant_c"] = round(coolant, 1)
+    speeds, rpms, coolants = real("speed"), real("engineSpeed"), real("coolant")
+    if speeds:
+        out["max_speed_kmh"] = round(max(speeds), 1)
+    if rpms:
+        out["max_engine_rpm"] = int(round(max(rpms)))
+    if coolants:
+        out["max_coolant_c"] = round(max(coolants), 1)
+
+    # Strongest braking / acceleration (signed m/s² on the wire).
+    accels = [v for s in rows for v in (_num(s.get("acceleration")),) if v is not None]
+    if any(a < 0 for a in accels):
+        out["max_braking_ms2"] = round(-min(accels), 2)
+    if any(a > 0 for a in accels):
+        out["max_acceleration_ms2"] = round(max(accels), 2)
+
+    altitudes = real("altitude")
+    if len(altitudes) >= 2:
+        gain, loss = _elevation(altitudes)
+        out["elevation_gain_m"] = int(round(gain))
+        out["elevation_loss_m"] = int(round(loss))
+
+    # Share of samples flagged smooth, among those where the car was running.
+    running = [
+        s for s in rows
+        if (_num(s.get("speed")) or 0) > 0 or (_num(s.get("engineSpeed")) or 0) > 0
+    ]
+    flags = [f for s in running for f in (s.get("isSmooth"),) if isinstance(f, bool)]
+    if flags:
+        out["smooth_share_pct"] = int(round(100 * sum(flags) / len(flags)))
+
+    # Warm-up: from the first coolant reading to the first at _WARM_COOLANT_C.
+    # 0 when the engine was already warm; no figure when it never got there.
+    timed = [
+        (t, c) for s in rows
+        for t, c in ((_num(s.get("recordedAt")), _num(s.get("coolant"))),)
+        if t is not None and c is not None and c > 0
+    ]
+    if timed:
+        warm_at = next((t for t, c in timed if c >= _WARM_COOLANT_C), None)
+        if warm_at is not None:
+            out["warmup_min"] = round((warm_at - timed[0][0]) / 60000, 1)
     return out or None
 
 
@@ -225,6 +345,8 @@ class PlugAndPlayCloudClient:
         # summary or None). A finished trip's series does not change, so a summary
         # is fetched once; one entry only (the newest trip), replaced when it changes.
         self._polldata_cache: dict[Any, tuple[float, dict[str, Any] | None]] = {}
+        # Market → (monotonic fetch time, shutdown block or None), see _MARKET_CONFIG_TTL_S.
+        self._market_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Log in (authorization_code+PKCE) and cache the durable token set."""
@@ -432,7 +554,44 @@ class PlugAndPlayCloudClient:
             summary = await self._newest_trip_polldata(vin, newest)
             if summary is not None:
                 snap["polldata_summary"] = {"trip_id": newest.get("id"), **summary}
+        # Announced end of the plug&play service for the car's market.
+        market = _market_of(body)
+        if market is not None:
+            shutdown = await self._market_shutdown(market)
+            if shutdown is not None:
+                snap["market_shutdown"] = shutdown
         return snap
+
+    async def _market_shutdown(self, market: str) -> dict[str, Any] | None:
+        """The market's ``shutdown`` block, cached per market for a day.
+
+        A 404 (market unknown, e.g. CHE) or a configuration without a shutdown
+        block is a valid "nothing announced" and cached like a hit; a failed
+        request is asked again after ``_POLLDATA_RETRY_S``.
+        """
+        now = time.monotonic()
+        cached = self._market_cache.get(market)
+        if cached is not None and now - cached[0] < _MARKET_CONFIG_TTL_S:
+            return cached[1]
+        block: dict[str, Any] | None = None
+        fetched_at = now
+        try:
+            s, b = await self._get(
+                f"configuration/market?ids={market}&includeMissingTranslations=false")
+            if s == 200 and isinstance(b, list):
+                for entry in b:
+                    if isinstance(entry, dict) and str(entry.get("market") or "").upper() == market:
+                        sd = entry.get("shutdown")
+                        block = sd if isinstance(sd, dict) else None
+                        break
+            elif s != 404:
+                _LOGGER.debug("plug&play market configuration → HTTP %s (retry later)", s)
+                fetched_at = now - _MARKET_CONFIG_TTL_S + _POLLDATA_RETRY_S
+        except Exception as exc:  # noqa: BLE001 — defence-in-depth
+            _LOGGER.debug("plug&play market configuration failed: %s", type(exc).__name__)
+            fetched_at = now - _MARKET_CONFIG_TTL_S + _POLLDATA_RETRY_S
+        self._market_cache[market] = (fetched_at, block)
+        return block
 
     async def get_vehicles(self) -> list[str]:
         """Return the VINs enrolled in this account (the coordinator's entry point).
@@ -489,6 +648,14 @@ class PlugAndPlayCloudClient:
         bv = veh.get("batteryVoltage")
         if isinstance(bv, (int, float)) and not isinstance(bv, bool) and bv > 0:
             data.voltage_12v = float(bv)
+
+        # Licence plate + nickname: user-entered in the app's vehicle details
+        # (empty strings until the owner fills them in — live 2026-11-13).
+        for src, attr in (("licencePlate", "license_plate"),
+                          ("vehicleNickName", "vehicle_nickname")):
+            val = veh.get(src)
+            if isinstance(val, str) and val.strip() and val.strip().lower() != "null":
+                setattr(data, attr, val.strip())
 
         # Data-as-of timestamp ("Datenstand"): a KWP2000 dongle only refreshes its
         # snapshot when the car is driven, so a reading can be days old. NOT from
@@ -578,6 +745,17 @@ class PlugAndPlayCloudClient:
             if captured is not None:
                 data.data_captured_at = captured
 
+        # ── Announced end of the plug&play cloud service ──
+        # Shown from the market's notificationDate on, like the app's banner
+        # (it shows it once ``now >= notificationDate``). Dates are YYYY-MM-DD.
+        shutdown = snap.get("market_shutdown")
+        if isinstance(shutdown, dict):
+            end = _iso_date(shutdown.get("shutdownDate"))
+            notice = _iso_date(shutdown.get("notificationDate"))
+            today = datetime.now(tz=timezone.utc).date()
+            if end is not None and (notice is None or notice <= today):
+                data.cloud_service_end_date = end.isoformat()
+
         # ── EcoScore + intake-air + trip count + compact logbook (Priority B/C) ──
         dl = snap.get("driverlogs")
         dl_content = dl.get("content") if isinstance(dl, dict) else None
@@ -636,6 +814,10 @@ class PlugAndPlayCloudClient:
                     "eco_score": (t.get("ecoScore") or {}).get("ecoScore"),
                     "ended_at": _epoch_ms_to_datetime(t.get("endTime")),
                 }
+                if not recent:
+                    # newest trip only: the EcoScore breakdown (0-100 per area)
+                    # and the negatively rated intervals behind the brake/accel marks.
+                    row.update(_eco_detail(t.get("ecoScore")))
                 if poll and t.get("id") == poll.get("trip_id"):
                     row.update({k: v for k, v in poll.items() if k != "trip_id"})
                 recent.append(row)
@@ -668,6 +850,22 @@ class PlugAndPlayCloudClient:
                 fodo = newest.get("odometer")
                 if isinstance(fodo, (int, float)) and not isinstance(fodo, bool):
                     data.last_refuel_odometer_km = int(round(fodo))
+                refuel_at = _epoch_ms_to_datetime(newest.get("createdTimestamp"))
+                if refuel_at is not None:
+                    data.last_refuel_at = refuel_at
+                # Price and station only exist when the owner typed them into the
+                # app: price 0.0 / empty station otherwise (live 2026-11-13: two of
+                # four fill-ups had a price). The currency alone says nothing, so it
+                # is set only together with a real price.
+                price = _num(newest.get("price"))
+                if price is not None and price > 0:
+                    data.last_refuel_cost = round(price, 2)
+                    cur = newest.get("currency")
+                    if isinstance(cur, str) and cur.strip():
+                        data.last_refuel_currency = cur.strip().upper()
+                station = newest.get("stationName")
+                if isinstance(station, str) and station.strip():
+                    data.last_refuel_station = station.strip()
 
         # ── Driver-score points (account-level achievements ledger) ──
         ach = snap.get("achievements")
