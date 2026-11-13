@@ -1602,6 +1602,9 @@
       "parked_since": {
         "name": "Geparkt seit"
       },
+      "cloud_service_end_date": {
+        "name": "Abschaltdatum Cloud-Dienst"
+      },
       "last_trip_eco_score": {
         "name": "EcoScore der letzten Fahrt"
       },

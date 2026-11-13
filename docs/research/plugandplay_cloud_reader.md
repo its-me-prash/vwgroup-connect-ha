@@ -6,6 +6,13 @@ drive + refuel, which woke up three data channels that were empty before. VW (wc
 `feat/plugandplay-cloud-reader` / `feat/acpp-carport-enrichment`. Integration (config-flow / factory /
 coordinator / sensors) is left for the main OBD-solution work — see **Integration TODO** below.
 
+> ⚠️ **Service end announced (live 2026-11-13).** The plug&play market configuration for **DEU**
+> carries `"shutdown": {"notificationDate": "2025-12-15", "shutdownDate": "2026-12-31"}`: Audi
+> connect plug&play ends in the German market on **31 December 2026**. After that this reader has
+> nothing left to read for DEU-market cars. Other markets were not checked (CHE has no plug&play
+> market at all: 404). The integration now surfaces the date as `cloud_service_end_date`, see the
+> market row in the endpoint table.
+
 > **2026-11-13 addendum (live, same A5 B8, one calm request per channel).** Prompted by a static
 > analysis of the plug&play 3.6.5 app. Results:
 > (a) **`vehicle/{vin}/driverlogs/{id}/polldata` exists and holds a real per-trip time series** —
@@ -104,6 +111,7 @@ data endpoints are VIN-addressed; there is no per-user garage resource, so enume
 | `vehicle/{vin}/appointment` | GET 200 | `[]` (service appointments — empty on B8) | ❌ |
 | `vehicle/{vin}/details` | GET 405 | write endpoint: the app sends **PUT** (3.6.5 code; the earlier "POST-only" guess was wrong) | — |
 | `vehicle/provalue?vin={vin}` | GET 200 | `[]` here (2026-11-13). Pro-value **unlock state** for app tiles, not measurements | — nothing to map |
+| `configuration/market?ids={alpha-3}&includeMissingTranslations=` | GET 200 / 404 | market configuration, list of one: `market`, `email`, `editProfile`, `link`, `services`, `tou{…}`, and `shutdown{notificationDate, shutdownDate, market}` (DEU 2026-11-13: 2025-12-15 / **2026-12-31**). CHE → 404 "Market configuration not found". The app sends the alpha-3 code of the country chosen in the app and shows a shutdown banner from `notificationDate` on (acknowledged via `PUT user/market/shutdown/acknowledge?market=`, which we never call) | ✅ `cloud_service_end_date`. The market is taken from the dealer's `kvpsId` prefix (`DEU…`), read once a day |
 | `vehicle/{vin}/{provalue,measurements,status,state,statistics}` | 404 | no such resources (`provalue` sits at the path above) | — |
 | `user/cars/{vin}/{config,measurements,warnings}`, `users/{id}/cars/{vin}/measurements`, `user/fingerprints/{vin}` | — | **not acpp**: CARIAD CarData at `https://cardata.apps.emea.vwapps.io` (that is why they 404'd here). The host is **NXDOMAIN** on 2026-11-13 (local, 1.1.1.1, 8.8.8.8; parent zone and acpp resolve) → dead | — |
 
@@ -322,6 +330,7 @@ and keep a trip sample from hours ago away from fields that mean "now".
 | `recent_trips[0]` attributes `eco_acceleration`, `eco_braking`, `eco_engine_speed`, `eco_speed`, `eco_coolant`, `eco_braking_negative_count`, `eco_acceleration_negative_count` | newest trip `ecoScore` `*Result` (0–100) and the two `*NegativeCount` | logbook alone. **A mark is the share of positively rated intervals, rounded down** (01.11: brake 190 positive / 13 negative → 93; holds for 145 of 161 marks). So `*NegativeCount` counts rated intervals, NOT hard-braking events; the 2026-09-02 reading "1 hard brake → 92" was wrong |
 | `license_plate`, `vehicle_nickname` (**reuse**, sensors exist) | root `licencePlate`, `vehicleNickName` | user-entered; empty strings on the B8 until filled in, so only non-blank values are mapped |
 | `last_refuel_at` (**reuse** the Škoda key + sensor) | newest `fuellog` `createdTimestamp` → ISO | one deliberate shared key, see the note in `models.py` |
+| `cloud_service_end_date` (**new**, DATE sensor, visible, phantom-gated) | market configuration `shutdown.shutdownDate`, set once `notificationDate` has passed (like the app's banner) | one request per market per day; a 404 or no `shutdown` block = nothing announced |
 | `last_refuel_cost` + `last_refuel_currency`, `last_refuel_station` (**reuse** the Škoda keys + sensors) | newest `fuellog` `price` (only if > 0, the currency only together with it), `stationName` (only if not blank) | the owner types these into the app; two of four live fill-ups had a price, none a station |
 | — not `current_speed_kmh`, not `engine_coolant_temperature_c` | — | those mean "now"; a value from the last trip would pass for a live reading |
 | — not the GPS track as an attribute | — | hundreds of points of location history, over the recorder's attribute budget; only as a separate opt-in feature |
