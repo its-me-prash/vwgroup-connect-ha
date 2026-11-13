@@ -25,6 +25,20 @@ VIN_2009 = "WAUZZZ8T99A000000"   # pos10 = "9" → 2009
 VIN_2020 = "WVWZZZAUZLW000000"   # pos10 = "L" → 2020
 
 
+def _dl_page(n: int) -> str:
+    """Request suffix the reader uses for logbook page ``n`` (app's limit=100)."""
+    return f"driverlogs?page={n}&limit=100&returnPollData=false"
+
+
+def _fl_page(n: int) -> str:
+    """Request suffix the reader uses for fuel-log page ``n`` (app's limit=50)."""
+    return f"?page={n}&limit=50"
+
+
+DL_PAGE0 = _dl_page(0)
+FL_PAGE0 = _fl_page(0)
+
+
 def _client(brand=BRAND_AUDI_ACPP) -> PlugAndPlayCloudClient:
     c = PlugAndPlayCloudClient(MagicMock(), brand, "user@example.com", "pw")
     c._tokens = MagicMock(access_token="fake-access-token")
@@ -156,7 +170,7 @@ async def test_get_status_enriches_from_carport():
         f"vehicle/{VIN_2009}": (200, {
             "vehicle": {"vin": VIN_2009, "carPlatform": "KWP2000"},
             "odometer": 369290.0, "batteryVoltage": 11.76, "tankFuelAmount": 3.0,
-            "registrationDate": "2026-08-23T16:40:06.000Z",  # dongle last-sync
+            "registrationDate": "2026-08-23T16:40:06.000Z",  # user-entered details, NOT a sync stamp
             "mainCheck": "2026-08-23T16:40:06.000Z"}),
         f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
         f"vehicle/{VIN_2009}/carport": (200, {
@@ -190,8 +204,9 @@ async def test_get_status_enriches_from_carport():
     assert data.fuel_type == "Diesel"
     assert data.transmission == "Manual (Code: KMU)"
     assert data.warranty_until == "2010-08-27"
-    # "Datenstand" — the dongle's last-sync time (data freshness), not a reg date
-    assert data.data_captured_at == "2026-08-23T16:40:06.000Z"
+    # registrationDate/mainCheck are user-entered vehicle details, not a sync
+    # stamp; with no trip and no parking fix the data age is unknown.
+    assert data.data_captured_at is None
 
 
 async def test_body_form_decoded_from_model_code():
@@ -242,7 +257,7 @@ async def test_get_status_maps_driverlog_trip_and_parking_freshness():
             "odometer": 369290.0,  # coarse root — the driverlog end odo must win
         }),
         f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
-        f"vehicle/{VIN_2009}/driverlogs": (200, {"content": [
+        f"vehicle/{VIN_2009}/{DL_PAGE0}": (200, {"content": [
             # older trip first — the mapper must pick the newest by endTime
             {"endTime": 1788000000000, "totalTripMileage": 0.5,
              "startData": {"odometer": 369280.0}, "endData": {"odometer": 369280.5}},
@@ -252,7 +267,7 @@ async def test_get_status_maps_driverlog_trip_and_parking_freshness():
         ]}),
         f"vehicle/{VIN_2009}/last-parking-position": (200, {
             "recordedAt": 1788289854000,
-            "gpsLocation": {"latitude": 47.696, "longitude": 8.064},
+            "gpsLocation": {"latitude": 52.5163, "longitude": 13.3777},
         }),
     })
     data = await c.get_status(VIN_2009)
@@ -262,6 +277,11 @@ async def test_get_status_maps_driverlog_trip_and_parking_freshness():
     assert data.last_trip_duration_min == 4            # 246670 ms → 4 min
     assert data.last_trip_timestamp == "2026-09-01T14:37:24.410000+00:00"
     assert data.position_captured_at == "2026-09-01T19:10:54+00:00"
+    # Datenstand = the freshest real stamp; the parking fix is later than the trip end
+    assert data.data_captured_at == "2026-09-01T19:10:54+00:00"
+    # 1.3778710913 km in 246.67 s → 20.1 km/h, from the logbook alone
+    assert data.last_trip_avg_speed_kmh == 20.1
+    assert data.last_trip_avg_fuel_consumption_l_100km is None  # no reading on this trip
 
 
 async def test_get_status_no_driverlogs_falls_back_to_root_odometer():
@@ -286,7 +306,7 @@ async def test_get_status_maps_ecoscore_refuel_and_score():
     _stub_get(c, {
         f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}, "odometer": 369290}),
         f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
-        f"vehicle/{VIN_2009}/driverlogs": (200, {"totalElements": 2, "content": [
+        f"vehicle/{VIN_2009}/{DL_PAGE0}": (200, {"totalElements": 2, "content": [
             {"remark": "01.09.2026", "endTime": 1788273444410,
              "totalTripMileage": 1.38, "totalTripTime": 246670,
              "averageInductionAirTemperature": 24,
@@ -295,7 +315,7 @@ async def test_get_status_maps_ecoscore_refuel_and_score():
             {"remark": "29.08.2026", "endTime": 1788000000000,
              "totalTripMileage": 0.5, "ecoScore": {"ecoScore": 100}},
         ]}),
-        f"user/fuellog/{VIN_2009}": (200, {"content": [
+        f"user/fuellog/{VIN_2009}{FL_PAGE0}": (200, {"content": [
             {"createdTimestamp": 1788273155000, "amount": 21.0,
              "postFuelAmount": 24.0, "odometer": 369290.0},
         ]}),
@@ -316,6 +336,255 @@ async def test_get_status_maps_ecoscore_refuel_and_score():
     assert data.score_points_total == 3120            # 3000 + 120, expired 50 dropped
     assert len(data.recent_trips) == 2                # full logbook (Priority C)
     assert data.recent_trips[0]["eco_score"] == 98    # newest first
+
+
+# ── history paging — acpp serves oldest-first; the newest trips sit on the LAST page ──
+
+def _trip(n: int, *, local: str | None = None, odo: float | None = None) -> dict:
+    """Synthetic logbook entry; ``n`` orders it in time (bigger = newer)."""
+    t = {"id": 1000 + n, "endTime": 1788000000000 + n * 3_600_000,
+         "totalTripMileage": float(n), "remark": f"trip{n}",
+         "endData": {"odometer": odo if odo is not None else 369000.0 + n}}
+    if local is not None:
+        t["driverLogId"] = local
+    return t
+
+
+def _paging_client(pages: dict[int, dict], calls: list[str]):
+    """Client whose logbook is served as the given pages; records every path asked."""
+    c = _client()
+    responses = {
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}, "odometer": 370680.0}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+    }
+    for n, body in pages.items():
+        responses[f"vehicle/{VIN_2009}/{_dl_page(n)}"] = (200, body)
+
+    async def fake_get(path):
+        calls.append(path)
+        return responses.get(path, (404, {"message": f"No static resource {path}"}))
+    c._get = fake_get  # type: ignore[assignment]
+    return c
+
+
+async def test_driverlogs_newest_trip_comes_from_the_last_page():
+    # Live shape 2026-11-13: page 0 = the OLDEST entries. Reading page 0 only made the
+    # reader report a trip a month old and an odometer ~900 km short.
+    calls: list[str] = []
+    meta = {"totalElements": 5, "totalPages": 3}
+    c = _paging_client({
+        0: {**meta, "content": [_trip(1), _trip(2)]},
+        1: {**meta, "content": [_trip(3), _trip(4)]},
+        2: {**meta, "content": [_trip(5, odo=370686.0)]},
+    }, calls)
+    data = await c.get_status(VIN_2009)
+    assert data.odometer_km == 370686               # newest trip, not page-0's 369002
+    assert data.last_trip_distance_km == 5.0
+    assert data.recent_trips[0]["date"] == "trip5"
+    assert data.trip_count == 5
+    asked = [p for p in calls if "driverlogs" in p and "polldata" not in p]
+    assert asked == [f"vehicle/{VIN_2009}/{_dl_page(n)}" for n in (0, 1, 2)]
+
+
+async def test_driverlogs_page_cap_keeps_the_newest_pages():
+    # 8 pages, cap 5 → page 0 (for totalPages) + the last four (4..7), never 1..3.
+    calls: list[str] = []
+    meta = {"totalElements": 8, "totalPages": 8}
+    c = _paging_client({n: {**meta, "content": [_trip(n + 1)]} for n in range(8)}, calls)
+    data = await c.get_status(VIN_2009)
+    asked = [p for p in calls if "driverlogs" in p and "polldata" not in p]
+    assert asked == [f"vehicle/{VIN_2009}/{_dl_page(n)}" for n in (0, 4, 5, 6, 7)]
+    assert data.recent_trips[0]["date"] == "trip8"
+    # not every entry was read → no dedupe possible, the server total stands
+    assert data.trip_count == 8
+
+
+async def test_driverlogs_failing_later_page_keeps_what_was_read():
+    calls: list[str] = []
+    meta = {"totalElements": 3, "totalPages": 2}
+    c = _paging_client({0: {**meta, "content": [_trip(1), _trip(2)]}}, calls)  # page 1 → 404
+    data = await c.get_status(VIN_2009)
+    assert data.recent_trips[0]["date"] == "trip2"
+    assert data.trip_count == 3                      # incomplete read → server total
+
+
+async def test_driverlogs_server_duplicates_collapse_to_one_trip():
+    # Live 2026-11-13: one local trip stored 8x (same driverLogId, different id).
+    calls: list[str] = []
+    dup = "x-coredata://synthetic/Trip/p7"
+    content = [_trip(1, local="x-coredata://synthetic/Trip/p1")]
+    content += [{**_trip(2, local=dup), "id": 2000 + k} for k in range(8)]
+    c = _paging_client({0: {"totalElements": 9, "totalPages": 1, "content": content}}, calls)
+    data = await c.get_status(VIN_2009)
+    assert data.trip_count == 2
+    assert [t["date"] for t in data.recent_trips] == ["trip2", "trip1"]
+
+
+async def test_fuellog_newest_refuel_comes_from_the_last_page():
+    c = _client()
+    meta = {"totalElements": 2, "totalPages": 2}
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}, "odometer": 370680}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"user/fuellog/{VIN_2009}{_fl_page(0)}": (200, {**meta, "content": [
+            {"createdTimestamp": 1788273155000, "amount": 21.0, "postFuelAmount": 24.0,
+             "odometer": 369290.0}]}),
+        f"user/fuellog/{VIN_2009}{_fl_page(1)}": (200, {**meta, "content": [
+            {"createdTimestamp": 1793551320000, "amount": 32.0, "postFuelAmount": 62.0,
+             "odometer": 370630.0}]}),
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.last_refuel_liters_added == 32.0
+    assert data.last_refuel_tank_before_l == 30.0
+    assert data.last_refuel_odometer_km == 370630
+
+
+# ── Datenstand, average speed, consumption ──
+
+async def test_data_captured_at_ignores_user_entered_vehicle_details():
+    # Live 2026-11-13: registrationDate had become the car's 2008 first registration
+    # and the "Datenstand" sensor showed 2008. Both fields are user-entered details.
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {
+            "vehicle": {"vin": VIN_2009}, "odometer": 370680.0,
+            "registrationDate": "2008-01-01T12:00:00.000Z",
+            "mainCheck": "2026-08-23T16:40:06.000Z"}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2009}/{DL_PAGE0}": (200, {"content": [
+            {"id": 7, "endTime": 1793555227000, "totalTripMileage": 35.73,
+             "totalTripTime": 3102000, "avgFuelConsumption": 11.195106,
+             "endData": {"odometer": 370686.0}},
+        ]}),
+        # no parking fix → the trip end is the freshest stamp
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.data_captured_at == "2026-11-01T17:47:07+00:00"
+    assert data.last_trip_avg_fuel_consumption_l_100km == 11.2
+    assert data.last_trip_avg_speed_kmh == 41.5          # 35.73 km in 51.7 min
+
+
+async def test_zero_consumption_is_no_reading():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}, "odometer": 1}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2009}/{DL_PAGE0}": (200, {"content": [
+            {"endTime": 1788000000000, "totalTripMileage": 0.01, "totalTripTime": 0,
+             "avgFuelConsumption": 0.0},
+        ]}),
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.last_trip_avg_fuel_consumption_l_100km is None
+    assert data.last_trip_avg_speed_kmh is None           # zero duration → no figure
+
+
+# ── polldata — per-trip time series of the newest trip ──
+
+def _poll_path(trip_id: int, page: int = 0) -> str:
+    return f"vehicle/{VIN_2009}/driverlogs/{trip_id}/polldata?page={page}&limit=300"
+
+
+def _poll_client(trips: list[dict], polldata: dict[str, dict], calls: list[str]):
+    """Client serving ``trips`` as the logbook; ``polldata`` (path → body) is read
+    live, so a test can change it between polls."""
+    c = _client()
+    responses = {
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}, "odometer": 370680.0}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2009}/{DL_PAGE0}": (200, {
+            "totalElements": len(trips), "totalPages": 1, "content": trips}),
+    }
+
+    async def fake_get(path):
+        calls.append(path)
+        if path in polldata:
+            return (200, polldata[path])
+        return responses.get(path, (404, {"message": f"No static resource {path}"}))
+    c._get = fake_get  # type: ignore[assignment]
+    return c
+
+
+# Live shape: leading placeholder samples (all zeros, then altitude only).
+_SAMPLES = [
+    {"recordedAt": 1, "speed": 0.0, "engineSpeed": 0.0, "coolant": 0.0, "altitude": 0.0},
+    {"recordedAt": 2, "speed": 0.0, "engineSpeed": 0.0, "coolant": 0.0, "altitude": 426.1},
+    {"recordedAt": 3, "speed": 1.0, "engineSpeed": 1196.8, "coolant": 46.0, "altitude": 426.3},
+    {"recordedAt": 4, "speed": 77.0, "engineSpeed": 2022.4, "coolant": 72.0, "altitude": 428.9},
+    {"recordedAt": 5, "speed": 40.0, "engineSpeed": 1500.0, "coolant": 70.0, "altitude": 410.0},
+]
+
+
+async def test_polldata_maxima_land_on_the_newest_trip_row():
+    calls: list[str] = []
+    trips = [_trip(1, local="L1"), _trip(2, local="L2")]   # ids 1001, 1002
+    c = _poll_client(trips, {_poll_path(1002): {
+        "totalElements": 5, "totalPages": 1, "content": _SAMPLES}}, calls)
+    data = await c.get_status(VIN_2009)
+    row = data.recent_trips[0]
+    assert row["date"] == "trip2"
+    assert row["max_speed_kmh"] == 77.0
+    assert row["max_engine_rpm"] == 2022
+    assert row["max_coolant_c"] == 72.0
+    assert "max_speed_kmh" not in data.recent_trips[1]   # only the newest trip is fetched
+    assert [p for p in calls if "polldata" in p] == [_poll_path(1002)]
+
+
+async def test_polldata_uses_the_highest_id_copy_of_a_duplicated_trip():
+    # Live 2026-11-13: of 8 copies only the highest-id one carried samples (682).
+    calls: list[str] = []
+    copies = [{**_trip(5, local="DUP"), "id": 5000 + k} for k in range(8)]
+    c = _poll_client(copies, {_poll_path(5007): {
+        "totalElements": 5, "totalPages": 1, "content": _SAMPLES}}, calls)
+    data = await c.get_status(VIN_2009)
+    assert [p for p in calls if "polldata" in p] == [_poll_path(5007)]
+    assert data.trip_count == 1
+    assert data.recent_trips[0]["max_speed_kmh"] == 77.0
+
+
+async def test_polldata_is_cached_per_trip_and_empty_is_retried_later(monkeypatch):
+    import custom_components.vag_connect.cariad.api.plugandplay as pp
+
+    clock = [1000.0]
+    monkeypatch.setattr(pp.time, "monotonic", lambda: clock[0])
+    calls: list[str] = []
+    trips = [_trip(1, local="L1")]   # id 1001
+    polldata = {_poll_path(1001): {"totalElements": 0, "totalPages": 0, "content": []}}
+    c = _poll_client(trips, polldata, calls)
+
+    def poll_calls():
+        return len([p for p in calls if "polldata" in p])
+
+    await c.get_status(VIN_2009)
+    assert poll_calls() == 1
+    await c.get_status(VIN_2009)                 # empty, inside the retry window
+    assert poll_calls() == 1
+    clock[0] += pp._POLLDATA_RETRY_S + 1         # window over, samples arrived meanwhile
+    polldata[_poll_path(1001)] = {"totalElements": 5, "totalPages": 1, "content": _SAMPLES}
+    data = await c.get_status(VIN_2009)
+    assert poll_calls() == 2
+    assert data.recent_trips[0]["max_engine_rpm"] == 2022
+    clock[0] += 10 * pp._POLLDATA_RETRY_S        # a summary is final → never asked again
+    await c.get_status(VIN_2009)
+    assert poll_calls() == 2
+
+
+def test_polldata_summary_placeholders_only_gives_nothing():
+    from custom_components.vag_connect.cariad.api.plugandplay import _polldata_summary
+
+    assert _polldata_summary(_SAMPLES[:2]) is None      # zeros + altitude-only → no maxima
+    assert _polldata_summary([]) is None
+    assert _polldata_summary(_SAMPLES) == {
+        "max_speed_kmh": 77.0, "max_engine_rpm": 2022, "max_coolant_c": 72.0}
+
+
+async def test_polldata_failure_does_not_break_the_read():
+    calls: list[str] = []
+    trips = [_trip(1, local="L1")]
+    c = _poll_client(trips, {}, calls)            # polldata → 404
+    data = await c.get_status(VIN_2009)
+    assert data.recent_trips[0]["date"] == "trip1"
+    assert "max_speed_kmh" not in data.recent_trips[0]
 
 
 def test_epoch_ms_to_datetime():
