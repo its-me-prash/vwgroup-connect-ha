@@ -353,6 +353,38 @@ works.
 
 ---
 
+## 🔌 My car lost its live data. Is there another way to read it?
+
+Sometimes, yes: through the car's OBD port instead of Volkswagen's servers.
+
+[DrivePulse](https://github.com/davideguida0093/drivepulse-home-assistant) is a
+separate Home Assistant integration. It reads a generic OBD2 adapter through a
+phone app and can report fuel level, charge level, range, odometer, 12 V voltage
+and the number of stored trouble codes. It needs no Volkswagen account, so it
+keeps working when a sign-in is closed or when the EU Data Act portal only
+delivers a delayed batch. It reports around a trip, not while the car is parked.
+
+If you run both, you can link a DrivePulse device to one of your cars here:
+**Configure → Link a car to a local OBD source**. The option appears once
+DrivePulse is set up and has a device. VW Group Connect then uses its last trip
+readings for fields your own channels have no value for (fuel level, charge
+level, range, 12 V voltage). The fuel level has one more case: if the portal
+says when its value was measured and the DrivePulse reading is at least 15
+minutes newer, the newer one is shown.
+
+A few things to know:
+
+- It is opt-in and stays the lowest source. A live channel always wins, and so
+  does a value your own channels recorded earlier.
+- DrivePulse knows no VIN, so you pick the car yourself. Pick the wrong one and
+  it shows another car's values.
+- A reading is used for up to seven days. Removing the link removes its values.
+- If none of your own channels answers, no new DrivePulse reading is taken
+  over. One that is already shown stays visible for a while, like your other
+  last known values. DrivePulse's own sensors keep working in that case.
+
+---
+
 ## 📞 How do I report a bug?
 
 1. **Settings → Devices & Services → VW Group Connect → ⋮ → Diagnose herunterladen**

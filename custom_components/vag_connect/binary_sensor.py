@@ -1500,13 +1500,15 @@ class VagAbrpDataChangedSensor(VagConnectEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        from .abrp import telemetry_fingerprint  # noqa: PLC0415
+        from .abrp import has_sendable_soc, telemetry_fingerprint  # noqa: PLC0415
 
         vehicle = self._vehicle
         if not vehicle:
             return None
-        # Need at least soc before anything is uploadable.
-        if vehicle.get("battery_soc") is None:
+        # Need at least soc before anything is uploadable. The same question
+        # the send gate asks: a state of charge on loan from a linked dongle is
+        # never sent, so it must not announce an upload that would then fail.
+        if not has_sendable_soc(vehicle):
             return False
         current = telemetry_fingerprint(vehicle)
         last = self.coordinator.abrp_last_sent_fingerprint.get(self._vin)

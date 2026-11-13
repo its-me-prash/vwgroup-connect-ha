@@ -295,6 +295,8 @@
           "remove_supplementary_eu_portal": "Remove the EU Data Act portal read channel",
           "supplementary_tibber": "Add or refresh a Tibber read channel (EV charge data)",
           "remove_supplementary_tibber": "Remove the Tibber read channel",
+          "link_obd_source": "Link a car to a local OBD source (DrivePulse)",
+          "remove_obd_source": "Remove all local OBD source links",
           "abrp_enable": "Enable ABRP telemetry push",
           "abrp_api_key": "ABRP api_key (developer key)",
           "abrp_user_token": "ABRP token (per vehicle)",
@@ -388,9 +390,19 @@
         "data": {
           "tibber_auth_response": "Redirected URL (or the code)"
         }
+      },
+      "link_obd_source": {
+        "title": "Link a car to a local OBD source",
+        "description": "Link one of your cars to a local OBD device, currently from the DrivePulse integration. Its values only fill gaps (fuel level, charge level, range, 12 V battery) and can replace an older fuel value from the data portal. The device does not know your VIN, so you must choose the car yourself. If you choose the wrong car, it will show another car's values.",
+        "data": {
+          "vehicle": "Car",
+          "obd_device": "OBD device"
+        }
       }
     },
     "error": {
+      "no_obd_source": "No device from the DrivePulse integration was found. Set up DrivePulse first, then try again.",
+      "obd_device_in_use": "This device is already linked to another car. Remove that link first or pick a different device.",
       "abrp_credentials_required": "To enable ABRP you must enter both the api_key and the per-vehicle token.",
       "invalid_auth": "Sign-in failed. Check your Volkswagen ID email and password.",
       "cannot_connect": "Could not reach Volkswagen. Please try again.",

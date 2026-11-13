@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "EU Data Act-portaal-leeskanaal verwijderen",
           "supplementary_tibber": "Tibber-leeskanaal toevoegen of vernieuwen (EV-laadgegevens)",
           "remove_supplementary_tibber": "Tibber-leeskanaal verwijderen",
+          "link_obd_source": "Auto koppelen aan een lokale OBD-bron (DrivePulse)",
+          "remove_obd_source": "Alle koppelingen met lokale OBD-bronnen verwijderen",
           "abrp_enable": "ABRP-telemetrie verzenden inschakelen",
           "abrp_api_key": "ABRP-api_key (ontwikkelaarssleutel)",
           "abrp_user_token": "ABRP-token (per voertuig)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "Doorgestuurde URL (of de code)"
         }
       },
+      "link_obd_source": {
+        "title": "Auto koppelen aan een lokale OBD-bron",
+        "description": "Koppel een van je auto's aan een lokaal OBD-apparaat, momenteel via de DrivePulse-integratie. De waarden vullen alleen gaten (brandstofniveau, laadniveau, actieradius, 12V-accu) en kunnen een oudere brandstofwaarde uit het EU Data Act-portaal vervangen. Het apparaat kent je VIN niet, dus je moet zelf de auto kiezen. Kies je de verkeerde auto, dan toont die de waarden van een andere auto.",
+        "data": {
+          "vehicle": "Auto",
+          "obd_device": "OBD-apparaat"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU Two-Way (commando's + live uitlezingen, BÈTA)",
         "description": "**Experimenteel, opt-in — alleen Volkswagen.** Voegt tweerichtingsbediening (vergrendelen/ontgrendelen, klimaat, laden) en live CARIAD-uitlezingen toe door je aan te melden met je Volkswagen ID. Omdat Volkswagen via deze weg maar een token van 1 uur afgeeft, wordt je wachtwoord **opgeslagen** zodat de integratie het automatisch kan vernieuwen. Het wordt alleen naar de eigen loginserver van Volkswagen verzonden en nooit vastgelegd in logboeken of diagnose. Liever geen wachtwoord opslaan? Gebruik dan de alleen-lezen kanalen. **Vereiste:** je Volkswagen ID moet de hoofdgebruiker van het voertuig zijn.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "Er is geen apparaat van de DrivePulse-integratie gevonden. Stel eerst DrivePulse in en probeer het daarna opnieuw.",
+      "obd_device_in_use": "Dit apparaat is al aan een andere auto gekoppeld. Verwijder eerst die koppeling of kies een ander apparaat.",
       "abrp_credentials_required": "Om ABRP in te schakelen moet je zowel de api_key als het voertuigtoken invoeren.",
       "invalid_auth": "Aanmelden mislukt. Controleer je Volkswagen ID-e-mailadres en -wachtwoord.",
       "cannot_connect": "Volkswagen niet bereikbaar. Probeer het opnieuw.",

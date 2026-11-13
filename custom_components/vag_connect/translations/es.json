@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "Eliminar el canal de lectura del portal EU Data Act",
           "supplementary_tibber": "Añadir o actualizar un canal de lectura Tibber (datos de carga del vehículo eléctrico)",
           "remove_supplementary_tibber": "Eliminar el canal de lectura Tibber",
+          "link_obd_source": "Vincular un coche a una fuente OBD local (DrivePulse)",
+          "remove_obd_source": "Eliminar todas las vinculaciones de fuentes OBD locales",
           "abrp_enable": "Activar envío de telemetría a ABRP",
           "abrp_api_key": "api_key de ABRP (clave de desarrollador)",
           "abrp_user_token": "Token de ABRP (por vehículo)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "URL de redirección (o el código)"
         }
       },
+      "link_obd_source": {
+        "title": "Vincular un coche a una fuente OBD local",
+        "description": "Vincula uno de tus coches a un dispositivo OBD local, por ahora de la integración DrivePulse. Sus valores solo rellenan huecos (nivel de combustible, nivel de carga, autonomía, batería de 12 V) y pueden sustituir un valor de combustible más antiguo del portal de datos. El dispositivo no conoce tu VIN, así que tienes que elegir tú el coche. Si eliges el coche equivocado, mostrará los valores de otro coche.",
+        "data": {
+          "vehicle": "Coche",
+          "obd_device": "Dispositivo OBD"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU bidireccional (comandos + lecturas en vivo, BETA)",
         "description": "**Experimental, opcional — solo Volkswagen.** Añade control bidireccional (bloqueo/desbloqueo, climatización, carga) y lecturas CARIAD en vivo iniciando sesión con tu Volkswagen ID. Como Volkswagen solo emite un token de 1 hora por esta vía, tu contraseña se **almacena** para que la integración pueda renovarlo automáticamente. Solo se envía al propio servidor de inicio de sesión de Volkswagen y nunca se escribe en los registros ni en los diagnósticos. ¿Prefieres no almacenar una contraseña? Usa los canales de solo lectura en su lugar. **Requisito:** tu Volkswagen ID debe ser el usuario principal del vehículo.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "No se encontró ningún dispositivo de la integración DrivePulse. Configura primero DrivePulse y vuelve a intentarlo.",
+      "obd_device_in_use": "Este dispositivo ya está vinculado a otro coche. Elimina primero esa vinculación o elige otro dispositivo.",
       "abrp_credentials_required": "Para activar ABRP debes introducir tanto la api_key como el token del vehículo.",
       "invalid_auth": "Error al iniciar sesión. Comprueba el correo electrónico y la contraseña de tu Volkswagen ID.",
       "cannot_connect": "No se pudo contactar con Volkswagen. Inténtalo de nuevo.",

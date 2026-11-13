@@ -447,6 +447,125 @@ def _heal_cached_sentinels(previous: dict[str, Any]) -> dict[str, Any]:
     return previous
 
 
+# Per-field provenance maps that name a field by key. A value removed by
+# strip_held must not leave its owner, capture time or leaf behind, or a later
+# reader would date or attribute a field that no longer has a value.
+_PROVENANCE_MAPS: tuple[str, ...] = (
+    "field_sources", "field_captured_ts", "field_source_leaf", "ambiguous_fields",
+)
+
+
+def strip_held(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Return *snapshot* without any value owned by a held push source.
+
+    A held source (see ``_HELD_PUSH_SOURCES``) delivers a value when an event
+    happens to arrive and reaches the car through a hand-set link, so the
+    value can be days old and is not a read of this car. Kept in the cached
+    snapshot it would be carried forward, anchor the SoC hold, serve as a
+    comparison value and count as drivetrain evidence on every later poll.
+    Removing it here keeps it out of all of those at once.
+
+    Pure: the input and its nested maps are never modified. When nothing is
+    owned by a held source the very same object is returned.
+    """
+    from ._channel_merge import _HELD_PUSH_SOURCES  # noqa: PLC0415
+
+    owners = snapshot.get("field_sources")
+    if not isinstance(owners, dict):
+        return snapshot
+    held = [k for k, src in owners.items() if src in _HELD_PUSH_SOURCES]
+    if not held:
+        return snapshot
+    return _drop_fields(snapshot, held)
+
+
+def _drop_fields(snapshot: dict[str, Any], keys: list[str]) -> dict[str, Any]:
+    """Copy of *snapshot* with *keys* emptied and their provenance removed.
+
+    The held source's token leaves ``source_channel`` once no field is owned by
+    a held source any more. Pure: the input and its nested maps are untouched.
+    """
+    from ._channel_merge import _HELD_PUSH_SOURCES  # noqa: PLC0415
+
+    out = dict(snapshot)
+    for key in keys:
+        out[key] = None
+    for map_name in _PROVENANCE_MAPS:
+        mapping = out.get(map_name)
+        if isinstance(mapping, dict):
+            out[map_name] = {k: v for k, v in mapping.items() if k not in keys}
+    owners = out.get("field_sources")
+    still_held = isinstance(owners, dict) and any(
+        src in _HELD_PUSH_SOURCES for src in owners.values()
+    )
+    channel = out.get("source_channel")
+    if isinstance(channel, str) and not still_held:
+        kept = [t for t in channel.split("+") if t and t not in _HELD_PUSH_SOURCES]
+        out["source_channel"] = "+".join(kept) or None
+    return out
+
+
+def _held_newer_than_recorded(
+    field: str, fresh: dict[str, Any], previous: dict[str, Any],
+) -> bool:
+    """The merge's age gate for a held value, applied across two polls.
+
+    Same evidence as inside one poll: the field is one where a held value may
+    displace a batch value at all, the recorded value is the batch's and still
+    carries its own capture time, and the held reading is newer by the margin.
+    Anything less is no evidence, and the recorded value stands.
+    """
+    from ._channel_merge import (  # noqa: PLC0415
+        _BATCH_SOURCES,
+        _HELD_FRESHNESS_MARGIN_S,
+        _HELD_SUPERSEDE_FIELDS,
+        _parse_ts,
+    )
+
+    if field not in _HELD_SUPERSEDE_FIELDS:
+        return False
+    if (previous.get("field_sources") or {}).get(field) not in _BATCH_SOURCES:
+        return False
+    held_ts = _parse_ts((fresh.get("field_captured_ts") or {}).get(field))
+    recorded_ts = _parse_ts((previous.get("field_captured_ts") or {}).get(field))
+    if held_ts is None or recorded_ts is None:
+        return False
+    return (held_ts - recorded_ts).total_seconds() >= _HELD_FRESHNESS_MARGIN_S
+
+
+def _yield_held_to_recorded(
+    fresh: dict[str, Any], previous: dict[str, Any],
+) -> dict[str, Any]:
+    """Take a held value back out of *fresh* where a recorded one would stand.
+
+    A held push source only fills a field this car's own channels have nothing
+    for. The channel merge sees one poll, so a poll that merely omits a field
+    looks like a gap to it, and the held reading (up to its whole hold time
+    old) would take the place of the recorded value that carry-forward keeps.
+    The sensor would then jump to the dongle's value and back with every
+    partial poll, and the recorded value would be lost for good.
+
+    So a held value yields wherever ``previous`` (already free of held values)
+    still has one for a carry-forward field, unless the age gate says the held
+    reading is the newer one. Returns the very same object when nothing yields.
+    """
+    from ._channel_merge import _HELD_PUSH_SOURCES  # noqa: PLC0415
+
+    owners = fresh.get("field_sources")
+    if not isinstance(owners, dict):
+        return fresh
+    yielding = [
+        key for key, src in owners.items()
+        if src in _HELD_PUSH_SOURCES
+        and key in CARRY_FORWARD_FIELDS
+        and previous.get(key) is not None
+        and not _held_newer_than_recorded(key, fresh, previous)
+    ]
+    if not yielding:
+        return fresh
+    return _drop_fields(fresh, yielding)
+
+
 def strip_runtime(data: dict[str, Any]) -> dict[str, Any]:
     """Drop runtime-only keys (``_client``, ``_poll_failed``, ``_restored``, …)
     so the snapshot is JSON-serialisable for the on-disk store."""
@@ -479,6 +598,13 @@ def reconcile(
     # #1122 — a snapshot poisoned with a pre-fix odometer sentinel must not
     # resurrect itself (carry-forward) or block the real reading (monotonic).
     previous = _heal_cached_sentinels(previous)
+    # A held push value must not outlive the poll that delivered it: stripped
+    # here, it is neither carried forward nor an anchor or comparison value
+    # for any rule below.
+    previous = strip_held(previous)
+    # And a held value this poll brought yields to a recorded one (see the
+    # helper). ``fresh`` is rebound so every rule below reads the same picture.
+    fresh = _yield_held_to_recorded(fresh, previous)
     merged = dict(fresh)
     notes: list[str] = []
     for field in CARRY_FORWARD_FIELDS:
@@ -578,10 +704,18 @@ def reconcile(
     # came from the batch feed, or when its source is unknown — the single-channel
     # EU-DA case this guard was written for (field_sources['battery_soc'] ==
     # 'eu_data_act'), which stays fully covered.
-    from ._channel_merge import _BATCH_SOURCES  # noqa: PLC0415
+    from ._channel_merge import (  # noqa: PLC0415
+        _BATCH_SOURCES,
+        _HELD_PUSH_SOURCES,
+    )
     _fresh_soc_src = (fresh.get("field_sources") or {}).get("battery_soc")
+    # A held push value is neither batch nor live: "not batch, so live" would
+    # exempt a dongle reading that can be days old from the checks below.
+    _fresh_soc_is_held = _fresh_soc_src in _HELD_PUSH_SOURCES
     _fresh_soc_is_live = (
-        _fresh_soc_src is not None and _fresh_soc_src not in _BATCH_SOURCES
+        _fresh_soc_src is not None
+        and _fresh_soc_src not in _BATCH_SOURCES
+        and not _fresh_soc_is_held
     )
     _fresh_from_hv = merged.get("battery_soc_from_hv")
     _prev_from_hv = previous.get("battery_soc_from_hv")
@@ -722,12 +856,24 @@ def reconcile(
             and _sr is not None and not _charging
             and _soc - _sr >= _SOC_ENERGY_LARGE_GAP
         ):
-            notes.append(
-                f"battery_soc {_soc} sat >= {_SOC_ENERGY_LARGE_GAP:.0f} above the "
-                f"pack energy ({_sr:.0f}%) on a not-charging car; used the "
-                f"energy-derived {round(_sr)}"
-            )
-            merged["battery_soc"] = round(_sr)
+            if _fresh_soc_is_held:
+                # The car's own pack energy contradicts the dongle's reading.
+                # The held value is taken out rather than corrected: a derived
+                # number must not carry the dongle's name and capture time,
+                # and without the link this car shows no state of charge.
+                notes.append(
+                    f"held battery_soc {_soc} sat >= {_SOC_ENERGY_LARGE_GAP:.0f} "
+                    f"above the pack energy ({_sr:.0f}%) on a not-charging car; "
+                    "not shown"
+                )
+                merged = _drop_fields(merged, ["battery_soc"])
+            else:
+                notes.append(
+                    f"battery_soc {_soc} sat >= {_SOC_ENERGY_LARGE_GAP:.0f} above the "
+                    f"pack energy ({_sr:.0f}%) on a not-charging car; used the "
+                    f"energy-derived {round(_sr)}"
+                )
+                merged["battery_soc"] = round(_sr)
 
     # #2054 — reject an implausible odometer UP-jump BEFORE the monotonic guard
     # below can freeze it forever. INGEST-only: this prevents a new car from
@@ -848,10 +994,16 @@ def reconcile(
     # rule returns the two as mutually exclusive, so at most one of them is
     # ever promoted by a single call. Without this a plug-in hybrid kept its
     # readings and lost the word "hybrid" on every poll that omitted the flags.
-    from ._channel_merge import drivetrain_from_evidence  # noqa: PLC0415
+    from ._channel_merge import (  # noqa: PLC0415
+        drivetrain_from_evidence,
+        held_blind_getter,
+    )
 
+    # A value this poll took from a held push source is not drivetrain
+    # evidence: the rule only promotes, so one wrong reading would make a
+    # combustion car a hybrid for good.
     _flags = drivetrain_from_evidence(
-        merged.get,
+        held_blind_getter(merged.get, merged.get("field_sources")),
         asserted_battery=bool(merged.get("has_battery")),
         asserted_combustion=bool(merged.get("has_combustion")),
     )

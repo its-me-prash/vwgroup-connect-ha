@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "Supprimer le canal de lecture du portail EU Data Act",
           "supplementary_tibber": "Ajouter ou actualiser un canal de lecture Tibber (données de charge VE)",
           "remove_supplementary_tibber": "Supprimer le canal de lecture Tibber",
+          "link_obd_source": "Associer une voiture à une source OBD locale (DrivePulse)",
+          "remove_obd_source": "Supprimer toutes les associations de sources OBD locales",
           "abrp_enable": "Activer l'envoi de télémétrie ABRP",
           "abrp_api_key": "api_key ABRP (clé développeur)",
           "abrp_user_token": "Jeton ABRP (par véhicule)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "URL de redirection (ou le code)"
         }
       },
+      "link_obd_source": {
+        "title": "Associer une voiture à une source OBD locale",
+        "description": "Associez l'une de vos voitures à un appareil OBD local, actuellement via l'intégration DrivePulse. Ses valeurs ne servent qu'à combler les vides (niveau de carburant, niveau de charge, autonomie, batterie 12V) et peuvent remplacer une valeur de carburant plus ancienne du portail de données. L'appareil ne connaît pas votre VIN : vous devez donc choisir vous-même la voiture. Si vous choisissez la mauvaise, elle affichera les valeurs d'une autre voiture.",
+        "data": {
+          "vehicle": "Voiture",
+          "obd_device": "Appareil OBD"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU bidirectionnel (commandes + lectures en direct, BÊTA)",
         "description": "**Expérimental, sur option — Volkswagen uniquement.** Ajoute le contrôle bidirectionnel (verrouillage/déverrouillage, climatisation, charge) et les lectures CARIAD en direct en vous connectant avec votre Volkswagen ID. Comme Volkswagen n'émet qu'un jeton d'une heure sur ce canal, votre mot de passe est **stocké** afin que l'intégration puisse le renouveler automatiquement. Il est envoyé uniquement au serveur de connexion de Volkswagen et n'est jamais écrit dans les journaux ni les diagnostics. Vous préférez ne pas stocker de mot de passe ? Utilisez plutôt les canaux en lecture seule. **Prérequis :** votre Volkswagen ID doit être l'utilisateur principal du véhicule.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "Aucun appareil de l'intégration DrivePulse n'a été trouvé. Configurez d'abord DrivePulse, puis réessayez.",
+      "obd_device_in_use": "Cet appareil est déjà associé à une autre voiture. Supprimez d'abord cette association ou choisissez un autre appareil.",
       "abrp_credentials_required": "Pour activer ABRP, vous devez saisir à la fois l'api_key et le jeton du véhicule.",
       "invalid_auth": "Échec de la connexion. Vérifiez l'e-mail et le mot de passe de votre Volkswagen ID.",
       "cannot_connect": "Impossible de joindre Volkswagen. Veuillez réessayer.",
