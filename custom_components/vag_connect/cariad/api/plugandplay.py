@@ -152,27 +152,117 @@ def _num(val: Any) -> float | None:
     return None
 
 
+# EcoScore breakdown: wire key → attribute name. ``*Result`` are 0-100 marks,
+# and a mark is the share of positively rated intervals, rounded down (live
+# 2026-11-13: brake 190 positive / 13 negative → 93; the formula holds for 145 of
+# 161 marks in the logbook). So ``*NegativeCount`` counts intervals RATED
+# negative — on a 52-minute trip about one in fifteen — not hard-braking events;
+# the attribute names say exactly that.
+_ECO_DETAIL_KEYS = (
+    ("accelerationResult", "eco_acceleration"),
+    ("brakeResult", "eco_braking"),
+    ("engineSpeedResult", "eco_engine_speed"),
+    ("speedResult", "eco_speed"),
+    ("coolantTemperatureResult", "eco_coolant"),
+    ("brakeNegativeCount", "eco_braking_negative_count"),
+    ("accelerationNegativeCount", "eco_acceleration_negative_count"),
+)
+
+
+def _eco_detail(eco: Any) -> dict[str, int]:
+    """The EcoScore breakdown of one trip as int attributes (missing keys skipped)."""
+    if not isinstance(eco, dict):
+        return {}
+    out: dict[str, int] = {}
+    for wire, attr in _ECO_DETAIL_KEYS:
+        val = _num(eco.get(wire))
+        if val is not None:
+            out[attr] = int(round(val))
+    return out
+
+
+# Elevation from the per-sample GPS altitude is noisy: summing every step gave
+# 107 m up / 155 m down on a live trip whose hysteresis-filtered figure was a
+# stable 71 / 121 m at both 3 m and 5 m (net −48 m either way). Count a climb or
+# descent only once it exceeds this much.
+_ELEVATION_HYSTERESIS_M = 5.0
+# "Engine warm" for the warm-up time: coolant at or above this.
+_WARM_COOLANT_C = 80.0
+
+
+def _elevation(altitudes: list[float]) -> tuple[float, float]:
+    """(gain, loss) in metres over a hysteresis band, see _ELEVATION_HYSTERESIS_M."""
+    gain = loss = 0.0
+    ref = altitudes[0]
+    for alt in altitudes[1:]:
+        if alt - ref >= _ELEVATION_HYSTERESIS_M:
+            gain += alt - ref
+            ref = alt
+        elif ref - alt >= _ELEVATION_HYSTERESIS_M:
+            loss += ref - alt
+            ref = alt
+    return gain, loss
+
+
 def _polldata_summary(samples: list[Any]) -> dict[str, Any] | None:
-    """Per-trip maxima from the ``polldata`` time series, or None without data.
+    """Per-trip figures from the ``polldata`` time series, or None without data.
 
     The first samples of a trip are placeholders (all zeros, then altitude only,
-    live 2026-11-13), so only positive readings count; a trip whose series holds
-    no positive value for a channel yields no figure for it rather than a 0.
-    Units follow the app's upload body: km/h, rpm, °C.
+    live 2026-11-13), so only real readings count: positive speed / rpm / coolant
+    / altitude, and for the smooth-driving share only samples where the car was
+    running. A channel without a real reading yields no figure rather than a 0.
+    Units follow the app's upload body: km/h, rpm, °C, m/s²; altitude in metres.
     """
-    def peak(key: str) -> float | None:
-        vals = [v for s in samples if isinstance(s, dict)
-                for v in (_num(s.get(key)),) if v is not None and v > 0]
-        return max(vals) if vals else None
+    rows = sorted(
+        (s for s in samples if isinstance(s, dict)),
+        key=lambda s: _num(s.get("recordedAt")) or 0.0,
+    )
 
-    speed, rpm, coolant = peak("speed"), peak("engineSpeed"), peak("coolant")
+    def real(key: str) -> list[float]:
+        return [v for s in rows for v in (_num(s.get(key)),) if v is not None and v > 0]
+
     out: dict[str, Any] = {}
-    if speed is not None:
-        out["max_speed_kmh"] = round(speed, 1)
-    if rpm is not None:
-        out["max_engine_rpm"] = int(round(rpm))
-    if coolant is not None:
-        out["max_coolant_c"] = round(coolant, 1)
+    speeds, rpms, coolants = real("speed"), real("engineSpeed"), real("coolant")
+    if speeds:
+        out["max_speed_kmh"] = round(max(speeds), 1)
+    if rpms:
+        out["max_engine_rpm"] = int(round(max(rpms)))
+    if coolants:
+        out["max_coolant_c"] = round(max(coolants), 1)
+
+    # Strongest braking / acceleration (signed m/s² on the wire).
+    accels = [v for s in rows for v in (_num(s.get("acceleration")),) if v is not None]
+    if any(a < 0 for a in accels):
+        out["max_braking_ms2"] = round(-min(accels), 2)
+    if any(a > 0 for a in accels):
+        out["max_acceleration_ms2"] = round(max(accels), 2)
+
+    altitudes = real("altitude")
+    if len(altitudes) >= 2:
+        gain, loss = _elevation(altitudes)
+        out["elevation_gain_m"] = int(round(gain))
+        out["elevation_loss_m"] = int(round(loss))
+
+    # Share of samples flagged smooth, among those where the car was running.
+    running = [
+        s for s in rows
+        if (_num(s.get("speed")) or 0) > 0 or (_num(s.get("engineSpeed")) or 0) > 0
+    ]
+    flags = [f for s in running for f in (s.get("isSmooth"),) if isinstance(f, bool)]
+    if flags:
+        out["smooth_share_pct"] = int(round(100 * sum(flags) / len(flags)))
+
+    # Warm-up: from the first coolant reading to the first at _WARM_COOLANT_C.
+    # 0 when the engine was already warm; no figure when it never got there.
+    timed = [
+        (t, c) for s in rows
+        for t, c in ((_num(s.get("recordedAt")), _num(s.get("coolant"))),)
+        if t is not None and c is not None and c > 0
+    ]
+    if timed:
+        warm_at = next((t for t, c in timed if c >= _WARM_COOLANT_C), None)
+        if warm_at is not None:
+            out["warmup_min"] = round((warm_at - timed[0][0]) / 60000, 1)
     return out or None
 
 
@@ -490,6 +580,14 @@ class PlugAndPlayCloudClient:
         if isinstance(bv, (int, float)) and not isinstance(bv, bool) and bv > 0:
             data.voltage_12v = float(bv)
 
+        # Licence plate + nickname: user-entered in the app's vehicle details
+        # (empty strings until the owner fills them in — live 2026-11-13).
+        for src, attr in (("licencePlate", "license_plate"),
+                          ("vehicleNickName", "vehicle_nickname")):
+            val = veh.get(src)
+            if isinstance(val, str) and val.strip() and val.strip().lower() != "null":
+                setattr(data, attr, val.strip())
+
         # Data-as-of timestamp ("Datenstand"): a KWP2000 dongle only refreshes its
         # snapshot when the car is driven, so a reading can be days old. NOT from
         # ``registrationDate`` / ``mainCheck``: the app sends those with the licence
@@ -636,6 +734,10 @@ class PlugAndPlayCloudClient:
                     "eco_score": (t.get("ecoScore") or {}).get("ecoScore"),
                     "ended_at": _epoch_ms_to_datetime(t.get("endTime")),
                 }
+                if not recent:
+                    # newest trip only: the EcoScore breakdown (0-100 per area)
+                    # and the negatively rated intervals behind the brake/accel marks.
+                    row.update(_eco_detail(t.get("ecoScore")))
                 if poll and t.get("id") == poll.get("trip_id"):
                     row.update({k: v for k, v in poll.items() if k != "trip_id"})
                 recent.append(row)
@@ -668,6 +770,9 @@ class PlugAndPlayCloudClient:
                 fodo = newest.get("odometer")
                 if isinstance(fodo, (int, float)) and not isinstance(fodo, bool):
                     data.last_refuel_odometer_km = int(round(fodo))
+                refuel_at = _epoch_ms_to_datetime(newest.get("createdTimestamp"))
+                if refuel_at is not None:
+                    data.last_refuel_at = refuel_at
 
         # ── Driver-score points (account-level achievements ledger) ──
         ach = snap.get("achievements")

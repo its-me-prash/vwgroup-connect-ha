@@ -437,6 +437,8 @@ async def test_fuellog_newest_refuel_comes_from_the_last_page():
     assert data.last_refuel_liters_added == 32.0
     assert data.last_refuel_tank_before_l == 30.0
     assert data.last_refuel_odometer_km == 370630
+    # the fill-up time feeds the shared last_refuel_at sensor (ISO, like the Škoda hook)
+    assert data.last_refuel_at == "2026-11-01T16:42:00+00:00"
 
 
 # ── Datenstand, average speed, consumption ──
@@ -575,7 +577,93 @@ def test_polldata_summary_placeholders_only_gives_nothing():
     assert _polldata_summary(_SAMPLES[:2]) is None      # zeros + altitude-only → no maxima
     assert _polldata_summary([]) is None
     assert _polldata_summary(_SAMPLES) == {
-        "max_speed_kmh": 77.0, "max_engine_rpm": 2022, "max_coolant_c": 72.0}
+        "max_speed_kmh": 77.0, "max_engine_rpm": 2022, "max_coolant_c": 72.0,
+        # 426.1 → 428.9 stays inside the 5 m band; the drop to 410.0 counts
+        "elevation_gain_m": 0, "elevation_loss_m": 16}
+
+
+def test_polldata_summary_braking_elevation_smoothness_warmup():
+    from custom_components.vag_connect.cariad.api.plugandplay import _polldata_summary
+
+    m = 60_000  # one minute in ms
+    rows = [
+        # placeholder: not running, so its isSmooth=True must not count
+        {"recordedAt": 0, "speed": 0.0, "engineSpeed": 0.0, "coolant": 0.0,
+         "altitude": 0.0, "acceleration": 0.0, "isSmooth": True},
+        {"recordedAt": 1 * m, "speed": 10.0, "engineSpeed": 900.0, "coolant": 40.0,
+         "altitude": 400.0, "acceleration": 1.2, "isSmooth": True},
+        # GPS jitter inside the band (up 3, down 2): neither gain nor loss. Summing
+        # raw steps would give 14 up / 10 down instead of 12 / 8.
+        {"recordedAt": 2 * m, "speed": 50.0, "engineSpeed": 1800.0, "coolant": 60.0,
+         "altitude": 403.0, "acceleration": -0.4, "isSmooth": False},
+        {"recordedAt": 150_000, "speed": 55.0, "engineSpeed": 1900.0, "coolant": 65.0,
+         "altitude": 401.0, "acceleration": 0.1, "isSmooth": True},
+        {"recordedAt": 3 * m, "speed": 60.0, "engineSpeed": 2000.0, "coolant": 75.0,
+         "altitude": 412.0, "acceleration": -2.6, "isSmooth": True},
+        {"recordedAt": 5 * m, "speed": 30.0, "engineSpeed": 1500.0, "coolant": 82.0,
+         "altitude": 404.0, "acceleration": 0.3, "isSmooth": True},
+    ]
+    # shuffled input: the summary must order by recordedAt itself
+    out = _polldata_summary([rows[4], rows[0], rows[5], rows[2], rows[1], rows[3]])
+    assert out["max_braking_ms2"] == 2.6
+    assert out["max_acceleration_ms2"] == 1.2
+    assert out["elevation_gain_m"] == 12          # 400 → 412, jitter ignored
+    assert out["elevation_loss_m"] == 8           # 412 → 404
+    # 4 of 5 running samples; counting the placeholder too would give 83
+    assert out["smooth_share_pct"] == 80
+    assert out["warmup_min"] == 4.0               # 40 °C at 1 min → 82 °C at 5 min
+
+
+def test_polldata_summary_warm_start_and_never_warm():
+    from custom_components.vag_connect.cariad.api.plugandplay import _polldata_summary
+
+    warm = [{"recordedAt": 1, "speed": 5.0, "coolant": 88.0},
+            {"recordedAt": 2, "speed": 9.0, "coolant": 90.0}]
+    assert _polldata_summary(warm)["warmup_min"] == 0.0   # already warm
+    cold = [{"recordedAt": 1, "speed": 5.0, "coolant": 30.0},
+            {"recordedAt": 2, "speed": 9.0, "coolant": 50.0}]
+    assert "warmup_min" not in _polldata_summary(cold)    # never reached 80 °C
+
+
+async def test_newest_trip_row_carries_the_ecoscore_breakdown():
+    calls: list[str] = []
+    eco = {"ecoScore": 92, "accelerationResult": 100, "brakeResult": 92,
+           "engineSpeedResult": 100, "speedResult": 98, "coolantTemperatureResult": 100,
+           "brakeNegativeCount": 1, "accelerationNegativeCount": 0}
+    trips = [{**_trip(1, local="L1"), "ecoScore": {"ecoScore": 80, "brakeResult": 50}},
+             {**_trip(2, local="L2"), "ecoScore": eco}]
+    c = _poll_client(trips, {}, calls)
+    data = await c.get_status(VIN_2009)
+    row0, row1 = data.recent_trips
+    assert row0["eco_braking"] == 92 and row0["eco_braking_negative_count"] == 1
+    assert row0["eco_acceleration"] == 100 and row0["eco_acceleration_negative_count"] == 0
+    assert "hard_brakings" not in row0     # rated intervals, not braking events
+    assert row0["eco_speed"] == 98 and row0["eco_coolant"] == 100
+    assert "eco_braking" not in row1                      # breakdown only on the newest
+
+
+async def test_plate_and_nickname_only_when_filled_in():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009},
+                                      "licencePlate": " AG 123456 ",
+                                      "vehicleNickName": "Coupé"}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.license_plate == "AG 123456"
+    assert data.vehicle_nickname == "Coupé"
+
+    c2 = _client()
+    _stub_get(c2, {
+        # live 2026-11-13: both are empty strings until the owner enters them
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009},
+                                      "licencePlate": "", "vehicleNickName": "null"}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+    })
+    data2 = await c2.get_status(VIN_2009)
+    assert data2.license_plate is None
+    assert data2.vehicle_nickname is None
 
 
 async def test_polldata_failure_does_not_break_the_read():

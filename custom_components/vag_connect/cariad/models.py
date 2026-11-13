@@ -1864,6 +1864,13 @@ class VehicleData:
     last_refuel_tank_before_l: float | None = None     # tank level before the fill-up
     last_refuel_tank_after_l: float | None = None      # tank level after the fill-up
     last_refuel_odometer_km: int | None = None         # odometer at the fill-up
+    # The ONE deliberate exception to the "distinct names" rule above: the fill-up
+    # time shares the Škoda hook's ``last_refuel_at`` key, so the existing
+    # last_refuel_at sensor serves both. Safe for Škoda: before this field existed
+    # the key was simply absent from the fresh poll, which reconcile() and the
+    # sensor treat exactly like None, and the hook still writes its value after
+    # the poll (``v.update``). Same ISO-8601 string format as the hook.
+    last_refuel_at: str | None = None
     # v2.12.0 (myskoda PR #575) — trip overall-cost breakdown. Currency
     # carried separately so the sensor can set native_unit_of_measurement
     # to the ISO code. None on accounts/firmwares that don't ship costs.

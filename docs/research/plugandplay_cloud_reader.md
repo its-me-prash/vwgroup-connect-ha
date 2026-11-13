@@ -190,7 +190,7 @@ trip (35.7 km). The reader maps positive values to `last_trip_avg_fuel_consumpti
 ```jsonc
 { "ecoScore": 98,                    // overall 0–100
   "accelerationResult": 100, "accelerationPositiveCount": 15, "accelerationNegativeCount": 0,
-  "brakeResult": 92,         "brakePositiveCount": 12,        "brakeNegativeCount": 1,   // 1 hard brake → 92
+  "brakeResult": 92,         "brakePositiveCount": 12,        "brakeNegativeCount": 1,   // 12/(12+1) → 92 (see note)
   "engineSpeedResult": 100,  "engineSpeedPositiveCount": 32,  "engineSpeedNegativeCount": 0,
   "speedResult": 100,        "speedPositiveCount": 32,        "speedNegativeCount": 0,
   "coolantTemperatureResult": 100, "coolantTempPositiveCount": 0, "coolantTempNegativeCount": 0 }
@@ -318,6 +318,10 @@ and keep a trip sample from hours ago away from fields that mean "now".
 | `last_trip_avg_speed_kmh` (**reuse**, sensor exists) | newest trip `totalTripMileage ÷ (totalTripTime / 3 600 000)` | logbook alone, no polldata |
 | `last_trip_avg_fuel_consumption_l_100km` (**reuse**) | newest trip `avgFuelConsumption` if > 0 | see the logbook note |
 | `recent_trips[0]` attributes `max_speed_kmh`, `max_engine_rpm`, `max_coolant_c` (**reuse** `recent_trips`) | max over the newest trip's polldata; only positive readings count, so placeholders never give a 0 | attributes on the existing last-trip sensor, no new columns |
+| `recent_trips[0]` attributes `max_braking_ms2`, `max_acceleration_ms2`, `elevation_gain_m`, `elevation_loss_m`, `smooth_share_pct`, `warmup_min` | same polldata. Braking/acceleration = strongest negative/positive **sampled** `acceleration`: at one sample per ~5 s a short brake peak falls between samples, so this is a floor, not the true peak. Elevation over a **5 m hysteresis** (raw step sums are GPS noise: 107/155 m raw vs a stable 71/121 m at 3 m and 5 m on a live trip). Smooth share among samples where the car was running. Warm-up = first coolant reading → first ≥ 80 °C (0 if already warm, none if never) | live 01.10 trip: 2.37 / 1.48 m/s², 71 / 120 m, 94 %, 6.7 min. 01.11 trip: 1.63 / 1.61 m/s², **875 / 289 m** (real: smooth series from ~352 m to ~938 m, no step over 30 m), 95 %, 15.3 min |
+| `recent_trips[0]` attributes `eco_acceleration`, `eco_braking`, `eco_engine_speed`, `eco_speed`, `eco_coolant`, `eco_braking_negative_count`, `eco_acceleration_negative_count` | newest trip `ecoScore` `*Result` (0–100) and the two `*NegativeCount` | logbook alone. **A mark is the share of positively rated intervals, rounded down** (01.11: brake 190 positive / 13 negative → 93; holds for 145 of 161 marks). So `*NegativeCount` counts rated intervals, NOT hard-braking events; the 2026-09-02 reading "1 hard brake → 92" was wrong |
+| `license_plate`, `vehicle_nickname` (**reuse**, sensors exist) | root `licencePlate`, `vehicleNickName` | user-entered; empty strings on the B8 until filled in, so only non-blank values are mapped |
+| `last_refuel_at` (**reuse** the Škoda key + sensor) | newest `fuellog` `createdTimestamp` → ISO | one deliberate shared key, see the note in `models.py` |
 | — not `current_speed_kmh`, not `engine_coolant_temperature_c` | — | those mean "now"; a value from the last trip would pass for a live reading |
 | — not the GPS track as an attribute | — | hundreds of points of location history, over the recorder's attribute budget; only as a separate opt-in feature |
 
@@ -393,7 +397,7 @@ backing, so match the value, not the parser.
 | `last_refuel_liters_added` | **new** | `fuellog.content[0].amount` | litres added (21) |
 | `last_refuel_tank_before_l` | **new** | `postFuelAmount − amount` | the **"von"** side (3) |
 | `last_refuel_tank_after_l` | **new** | `fuellog.content[0].postFuelAmount` | the **"auf"** side (24) → renders "3 → 24" |
-| `last_refuel_at` | **new** | `fuellog.content[0].createdTimestamp` (ms → ISO) | TIMESTAMP |
+| `last_refuel_at` | **reuse** (Škoda hook key) | newest `fuellog` `createdTimestamp` (ms → ISO) | *mapped 2026-11-13*; shares the existing sensor instead of a parallel one |
 
 **Priority B — nice-to-have:**
 
@@ -475,6 +479,11 @@ channels (driverlogs/fuellog equivalents) are unmapped — expect a similar but 
 9. **Still open:** whether `limit` above 300 is accepted on polldata (not needed: 10 × 300 covers
    ~4 h); whether trip aggregates like `maxTurboPressure` ever reach the server for a car that has
    them; and the wcg (VW) path from item 5.
+10. **Candidates not built yet:** refuel price per litre and cost from `fuellog` `price`/`currency`
+    (filled since the owner started entering prices: 50.08 and 136.30 EUR), which needs new fields;
+    `main_inspection_due_at` from `mainCheck`, but only once it holds a future date, not the
+    enrollment default; and a "service end announced" sensor via `configuration/market` +
+    `user/market/shutdown/acknowledge`, which needs one probe for the market ids.
 
 ## Reference
 
