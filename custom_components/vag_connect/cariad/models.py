@@ -1864,6 +1864,21 @@ class VehicleData:
     last_refuel_tank_before_l: float | None = None     # tank level before the fill-up
     last_refuel_tank_after_l: float | None = None      # tank level after the fill-up
     last_refuel_odometer_km: int | None = None         # odometer at the fill-up
+    # The deliberate exception to the "distinct names" rule above: fill-up time,
+    # cost, currency and station share the Škoda hook's ``last_refuel_*`` keys, so
+    # the existing sensors serve both. (The litre figures above stay apart: acpp
+    # splits them into added / before / after, the hook has one quantity.) Safe
+    # for Škoda: before these fields existed the keys were simply absent from the
+    # fresh poll, which reconcile() and the sensors treat exactly like None, and
+    # the hook still writes its values after the poll (``v.update``). Same formats
+    # as the hook: ISO-8601 string, float, ISO currency code, plain string.
+    last_refuel_at: str | None = None
+    last_refuel_cost: float | None = None
+    last_refuel_currency: str | None = None
+    last_refuel_station: str | None = None
+    # Announced end of the car's cloud service (ISO date), e.g. the Audi plug&play
+    # market shutdown (DEU: 2026-12-31). None = nothing announced / not known.
+    cloud_service_end_date: str | None = None
     # v2.12.0 (myskoda PR #575) — trip overall-cost breakdown. Currency
     # carried separately so the sensor can set native_unit_of_measurement
     # to the ISO code. None on accounts/firmwares that don't ship costs.

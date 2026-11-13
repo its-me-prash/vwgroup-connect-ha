@@ -1602,6 +1602,9 @@
       "parked_since": {
         "name": "Zaparkováno od"
       },
+      "cloud_service_end_date": {
+        "name": "Datum ukončení cloudové služby"
+      },
       "last_trip_eco_score": {
         "name": "EcoSkóre poslední jízdy"
       },

@@ -6,6 +6,36 @@ drive + refuel, which woke up three data channels that were empty before. VW (wc
 `feat/plugandplay-cloud-reader` / `feat/acpp-carport-enrichment`. Integration (config-flow / factory /
 coordinator / sensors) is left for the main OBD-solution work — see **Integration TODO** below.
 
+> ⚠️ **Service end announced (live 2026-11-13).** The plug&play market configuration for **DEU**
+> carries `"shutdown": {"notificationDate": "2025-12-15", "shutdownDate": "2026-12-31"}`: Audi
+> connect plug&play ends in the German market on **31 December 2026**. After that this reader has
+> nothing left to read for DEU-market cars. Other markets were not checked (CHE has no plug&play
+> market at all: 404). The integration now surfaces the date as `cloud_service_end_date`, see the
+> market row in the endpoint table.
+
+> **2026-11-13 addendum (live, same A5 B8, one calm request per channel).** Prompted by a static
+> analysis of the plug&play 3.6.5 app. Results:
+> (a) **`vehicle/{vin}/driverlogs/{id}/polldata` exists and holds a real per-trip time series** —
+> speed, rpm, coolant, acceleration, altitude and GPS every ~5 s (237 samples for a 21-minute trip).
+> Live PIDs are still not streamed, but "no engine values in the cloud" was wrong. See **Per-trip time
+> series (polldata)**.
+> (b) **The `startData`/`endData` zeros are written by the app as constants**, so they never become
+> real values, however long the trip.
+> (c) **Pro values live at `vehicle/provalue?vin=`** (200, `[]` here): unlock state, not measurements.
+> (d) **The `user/cars/{vin}/…` family is CARIAD CarData on `cardata.apps.emea.vwapps.io`**, not acpp.
+> That host no longer resolves (NXDOMAIN), so the family is dead.
+> (e) **`vehicle/{vin}/details` is PUT**, not POST.
+> (f) **Paging bug, fixed in the reader:** the server returns `driverlogs`/`fuellog` oldest first, and
+> the bare GET gave only the 20 oldest of 42 trips. The reader reported a last trip a month old and an
+> odometer ~900 km short. It now pages like the app (`limit=100` / `limit=50`) and collapses
+> server-side duplicate uploads (one trip stored 8 times).
+> (g) **Second pass, same day — all open points closed:** `data_captured_at` no longer comes from
+> `registrationDate`/`mainCheck`, which are user-entered vehicle details. `avgFuelConsumption` is the
+> car's own average-consumption reading at trip end, in l/100 km. polldata takes `limit=300`; only
+> the **highest-id** copy of a duplicated trip carries samples. The reader now maps polldata maxima,
+> average speed and consumption. One live `get_status()` with the new code (11 requests, all 200)
+> returned the right values, see **Verification**.
+
 > **2026-09-02 addendum.** After the owner drove the car a little and refuelled, a fresh pull surfaced
 > data channels + fields we were NOT ingesting. The big ones: a full **driver logbook** (`driverlogs`)
 > with GPS tracks, **precise odometer**, **EcoScore** (per-trip engine snapshots exist too, but read
@@ -26,12 +56,12 @@ EU-Data-Act portal, so **this is the only cloud read path** for a dongle-equippe
 pre-connectivity A4/A5/Golf, etc. It is attestation-free and hands out a **durable refresh token**.
 
 The dongle uploads a **snapshot** on sync (odometer, 12V battery, fuel, service, tyres, warnings) plus
-an **event history** (trips, refuels, score). **Continuous live PIDs** (speed/rpm/coolant/boost while
-driving) are **not** in the cloud — `provalue` / `measurements` / `status` all 404 (see **Live PIDs —
-status**). They stay dongle-local and are read over Bluetooth (the separate `dataplug-reconnect` local
-reader). The one nuance: the logbook DOES carry engine-value **snapshots at each trip's start/end**
-(coolant, engineSpeed, speed, acceleration, altitude) — but those are captured at standstill, so on the
-trips observed so far they read 0. Real-time engine data still requires the BT-local path.
+an **event history** (trips, refuels, score). **Real-time PIDs** (speed/rpm/coolant/boost while
+driving) are **not** streamed to the cloud; for those, use Bluetooth (the separate `dataplug-reconnect`
+local reader). What the cloud does get **after** a trip is a **per-trip time series** (`polldata`:
+speed, rpm, coolant, acceleration, altitude, GPS at ~5 s; live-verified 2026-11-13). The trip-boundary
+"snapshots" in `driverlogs[].startData/endData` are not that: the app writes constant zeros there
+(see **Live PIDs — status**).
 
 ## Audi (acpp) — validated flow
 
@@ -71,17 +101,19 @@ data endpoints are VIN-addressed; there is no per-user garage resource, so enume
 | `vehicle/{vin}` | GET 200 | root snapshot (odometer, 12V, fuel L, sync dates, dealer) | ✅ partial |
 | `vehicle/{vin}/warning-lights` | GET 200 | `{"warningLights":[...]}` | ✅ count/active |
 | `vehicle/{vin}/carport` | GET 200 | factory master data (model/engine/fuel/power/colors/dates) | ✅ enriched |
-| `vehicle/{vin}/last-parking-position` | GET 200 | `{"recordedAt":<ms>,"gpsLocation":{lat,lon}}` | ⚠️ lat/lon only — `recordedAt` **NOT** mapped |
+| `vehicle/{vin}/last-parking-position` | GET 200 | `{"recordedAt":<ms>,"gpsLocation":{lat,lon}}` | ✅ lat/lon + `recordedAt` → `position_captured_at` |
 | `vehicle/{vin}/tires` | GET 200 | `[{id,mileage,manufacturer,changeDate,tireActive,...}]` (placeholder on B8) | ❌ |
-| `vehicle/{vin}/driverlogs` | GET 200 | **driver logbook** — trips + EcoScore + engine snapshots (0 on observed trips / unproven) (full schema below) | ❌ **NEW** |
-| `user/fuellog/{vin}` | GET 200 | **fuel log** — refuel events, von→auf Liter (full schema below) | ❌ **NEW** |
-| `user/achievements/v2` | GET 200 | **score/ranking** points ledger (full schema below) | ❌ **NEW** |
+| `vehicle/{vin}/driverlogs?page=&limit=&returnPollData=` | GET 200 | **driver logbook** — trips + EcoScore (full schema below). **Oldest first, default page 20** → the reader pages with `limit=100&returnPollData=false` | ✅ last trip, EcoScore, `recent_trips` |
+| `vehicle/{vin}/driverlogs/{id}/polldata?page=&limit=` | GET 200 | **per-trip time series** (2026-11-13, schema below); `limit=300` honoured; samples only on the highest-id copy of a duplicated trip | ✅ newest-trip maxima on `recent_trips[0]` |
+| `user/fuellog/{vin}?page=&limit=` | GET 200 | **fuel log** — refuel events, von→auf Liter (full schema below). Oldest first; the reader pages with `limit=50` | ✅ last refuel |
+| `user/achievements/v2` | GET 200 | **score/ranking** points ledger (full schema below) | ✅ `score_points_total` |
 | `vehicle/{vin}/vehicle_app_services` | GET 200 | push-notification toggles (schema below) | ❌ |
 | `vehicle/{vin}/appointment` | GET 200 | `[]` (service appointments — empty on B8) | ❌ |
-| `vehicle/{vin}/details` | GET 405 | POST-only endpoint | — |
-| `vehicle/{vin}/{provalue,measurements,status,state,statistics}` | 404 | **live PIDs are NOT stored** (dongle-local only) | — |
-| `user/fingerprints/{vin}` | 404 | not present | — |
-| `user/cars/{vin}/…` | 404 | wrong family (early dead end); the live family is `vehicle/{vin}/…` | — |
+| `vehicle/{vin}/details` | GET 405 | write endpoint: the app sends **PUT** (3.6.5 code; the earlier "POST-only" guess was wrong) | — |
+| `vehicle/provalue?vin={vin}` | GET 200 | `[]` here (2026-11-13). Pro-value **unlock state** for app tiles, not measurements | — nothing to map |
+| `configuration/market?ids={alpha-3}&includeMissingTranslations=` | GET 200 / 404 | market configuration, list of one: `market`, `email`, `editProfile`, `link`, `services`, `tou{…}`, and `shutdown{notificationDate, shutdownDate, market}` (DEU 2026-11-13: 2025-12-15 / **2026-12-31**). CHE → 404 "Market configuration not found". The app sends the alpha-3 code of the country chosen in the app and shows a shutdown banner from `notificationDate` on (acknowledged via `PUT user/market/shutdown/acknowledge?market=`, which we never call) | ✅ `cloud_service_end_date`. The market is taken from the dealer's `kvpsId` prefix (`DEU…`), read once a day |
+| `vehicle/{vin}/{provalue,measurements,status,state,statistics}` | 404 | no such resources (`provalue` sits at the path above) | — |
+| `user/cars/{vin}/{config,measurements,warnings}`, `users/{id}/cars/{vin}/measurements`, `user/fingerprints/{vin}` | — | **not acpp**: CARIAD CarData at `https://cardata.apps.emea.vwapps.io` (that is why they 404'd here). The host is **NXDOMAIN** on 2026-11-13 (local, 1.1.1.1, 8.8.8.8; parent zone and acpp resolve) → dead | — |
 
 ## New data channels — full field schema (grounded 2026-09-02, post-drive)
 
@@ -92,9 +124,11 @@ data endpoints are VIN-addressed; there is no per-user garage resource, so enume
   "odometer": 369290.0,          // ⚠️ COARSE / rounded int-ish, and it LAGS (see odometer note)
   "batteryVoltage": 13.98,       // 12V rail read on sync (11.76 before drive → 13.98 after = alternator charged)
   "tankFuelAmount": 23.0,        // absolute litres (NOT %), 3.0 before refuel → 23.0 after
-  "registrationDate": "2026-08-23T16:40:06Z",  // STALE "Datenstand" stamp — did NOT move across the drive;
-  "mainCheck":        "2026-08-23T16:40:06Z",  // NOT a real reg date. Use driverlog endTime / parking
-                                               // recordedAt for TRUE freshness (this stamp is unreliable).
+  "registrationDate": "2026-08-23T16:40:06Z",  // USER-ENTERED vehicle details: first registration and
+  "mainCheck":        "2026-08-23T16:40:06Z",  // main inspection (the app PUTs them with licencePlate and
+                                               // vehicleNickName). Both default to the enrollment time —
+                                               // never a sync / freshness stamp.
+  "licencePlate", "vehicleNickName",           // also user-entered (seen 2026-11-13)
   "vehicleSpecificDealer": { "dealer": { "kvpsId": "DEUA…" } } }
 ```
 
@@ -102,6 +136,16 @@ data endpoints are VIN-addressed; there is no per-user garage resource, so enume
 > drive while `registrationDate`/`mainCheck` also did not move. The **precise, fresher** odometer lives
 > in `driverlogs[].endData.odometer` (`369291.0` after the 01.09 trip; sub-metre float). **Recommendation:
 > source `odometer_km` from the newest driverlog `endData.odometer`, fall back to root `odometer`.**
+> Still true on 2026-11-13 (root 370 680 vs newest trip end 370 686), **but "newest" needs every page**:
+> page 0 alone ended at 369 774, ~900 km behind (see the logbook paging note below).
+
+> **`registrationDate` moved (2026-11-13), fixed the same day.** It now carries a 2008 date (the
+> car's first registration, entered in the app), while `mainCheck` kept the enrollment default. The
+> reader used to take `registrationDate or mainCheck` as `data_captured_at`, so that sensor showed
+> 2008. In the app code, both fields belong to the user-editable vehicle details. The reader now sets
+> `data_captured_at` to the freshest real stamp, newest trip `endTime` or parking `recordedAt`, and
+> leaves it empty when there is neither. It marks the last upload; values that only change with a
+> trip (odometer) can be older when the parking fix is newer than the last trip.
 
 ### `vehicle/{vin}/driverlogs` — driver logbook (Fahrtenbuch) — **the big find**
 
@@ -118,24 +162,35 @@ Paginated (`content[]`, `totalElements`). Each entry is one trip:
   "totalTripMileage": 1.3778710913,    // km (precise float)
   "totalTripStandingTime": 0.0,
   "averageInductionAirTemperature": 24,   // °C — Ansauglufttemperatur
-  "avgFuelConsumption": 0.0,              // unit unconfirmed (0 on observed trips) — VERIFY before labelling
-  "startData": { …engine snapshot at trip start… },
-  "endData":   { …engine snapshot at trip end… },
+  "avgFuelConsumption": 0.0,              // l/100 km — the car's own average at trip end; 0 = no reading
+  "reason": "",                           // new key by 2026-11-13, empty on all 42 trips
+  "startData": { …trip-start record… },
+  "endData":   { …trip-end record… },
   "ecoScore":  { …driving-style score… } }
 ```
 
-**`startData` / `endData` — engine + position snapshot at each trip boundary:**
+`totalTripStandingTime` is in ms (one trip: 222 000 within 7.3 min).
+
+**`avgFuelConsumption` (settled 2026-11-13 from the 3.6.5 code).** It is the app's trip column
+`end_average_consumption`: the car's own average-consumption reading, taken from the dongle at trip
+end. The app reads consumption from one dongle element, `FuelConsumption.AverageValuePerMileage`, whose
+catalog unit is **l/100 km**. The app uploads 0 when it had no reading (it clamps ≤ 0 to 0). So it is
+the trip-computer memory, not a figure the app computes for this trip, and it means what the BFF
+short-term average means. Live values: 0 on short trips, 6.6–21 on longer ones, 11.2 on the newest
+trip (35.7 km). The reader maps positive values to `last_trip_avg_fuel_consumption_l_100km`.
+
+**`startData` / `endData` — trip-boundary record:**
 
 ```jsonc
-{ "recordedAt": 1788273444410,       // epoch-ms
-  "odometer": 369291.0,              // PRECISE odometer (sub-metre) — fresher than root
-  "gpsLocation": { "latitude": 47.696…, "longitude": 8.064… },  // trip start/end coordinates → GPS track
-  "coolant": 0.0,                    // coolant temp   ┐
-  "engineSpeed": 0.0,                // RPM            │ engine-value snapshot fields —
-  "speed": 0.0,                      // km/h           │ present in schema, but 0 on the
-  "acceleration": 0.0,               // g              │ observed trips (captured at standstill)
-  "altitude": 0.0,                   // m              ┘
-  "isSmooth": true }
+{ "recordedAt": 1788273444410,       // epoch-ms                      ┐ real
+  "odometer": 369291.0,              // PRECISE odometer (sub-metre)  │ values
+  "gpsLocation": { "latitude": <lat>, "longitude": <lon> },  // ┘ trip start/end coordinates
+  "coolant": 0.0,                    // ┐
+  "engineSpeed": 0.0,                // │ ALWAYS 0: the app writes these as literal constants
+  "speed": 0.0,                      // │ (plug&play 3.6.5 trip serializer). Not standstill readings;
+  "acceleration": 0.0,               // │ a longer trip will not change them. 0 on all 42 live trips
+  "altitude": 0.0,                   // │ (2026-11-13), including 95 km / 2 h ones. The real engine
+  "isSmooth": true }                 // ┘ values are in polldata (below).
 ```
 
 **`ecoScore` — per-trip driving-style rating:**
@@ -143,16 +198,25 @@ Paginated (`content[]`, `totalElements`). Each entry is one trip:
 ```jsonc
 { "ecoScore": 98,                    // overall 0–100
   "accelerationResult": 100, "accelerationPositiveCount": 15, "accelerationNegativeCount": 0,
-  "brakeResult": 92,         "brakePositiveCount": 12,        "brakeNegativeCount": 1,   // 1 hard brake → 92
+  "brakeResult": 92,         "brakePositiveCount": 12,        "brakeNegativeCount": 1,   // 12/(12+1) → 92 (see note)
   "engineSpeedResult": 100,  "engineSpeedPositiveCount": 32,  "engineSpeedNegativeCount": 0,
   "speedResult": 100,        "speedPositiveCount": 32,        "speedNegativeCount": 0,
   "coolantTemperatureResult": 100, "coolantTempPositiveCount": 0, "coolantTempNegativeCount": 0 }
 ```
 
-Observed on the B8: `totalElements: 2` — a 35 s / 6.5 m shunt (29.08, EcoScore 100) and a
-4 min / 1.38 km trip (01.09, EcoScore 98). The **useful** driverlog signal is: precise odometer, trip
+Observed on the B8: `totalElements: 2` on 2026-09-02 — a 35 s / 6.5 m shunt (29.08, EcoScore 100) and
+a 4 min / 1.38 km trip (01.09, EcoScore 98). The **useful** driverlog signal is: precise odometer, trip
 distance/duration, EcoScore, and the start/end GPS coordinates (a "last trip" track / device_tracker
-trail). The raw engine-snapshot fields exist but are boundary-at-rest (0 here); do not over-promise them.
+trail). The boundary engine fields are constant zeros (see above); do not surface them.
+
+**Paging and duplicates (live 2026-11-13, 42 entries).** The response is a Spring page (`content`,
+`totalElements`, `totalPages`, `size`, `number`, `first`, `last`, `sort.unsorted: true`). Without
+parameters it returns 20 entries, in **insertion order (ascending `id`, oldest first)**. Page 0 held
+29.08 → 01.10; the real newest trip (01.11) was on a later page. `?page=0&limit=100&returnPollData=false`
+returned all 42 in one page, and so does the reader now. The OEM app does the same thing: its restore
+path walks every page (`limit=100`, `returnPollData=true`) and sorts locally. **Duplicates:** one trip
+is stored **8 times**, identical except `id` (same `driverLogId` = the app's local trip id), so there
+are 42 entries but 35 trips. The reader counts and lists distinct `driverLogId`s.
 
 ### `user/fuellog/{vin}` — fuel log (Tankungen, "von→auf Liter")
 
@@ -179,7 +243,7 @@ The "von→auf Liter" the owner asked for = `postFuelAmount - amount` before →
 
 ```jsonc
 { "recordedAt": 1788289854000,   // epoch-ms — REAL freshness of the fix (NOT mapped today)
-  "gpsLocation": { "latitude": 47.696…, "longitude": 8.064… } }
+  "gpsLocation": { "latitude": <lat>, "longitude": <lon> } }
 ```
 
 Before the drive this was `0/0` (null-island, no fix); after driving+parking it became a real fix with a
@@ -218,19 +282,97 @@ from the per-trip EcoScore above:
 
 Config/diagnostic only — not vehicle telemetry.
 
+### `vehicle/{vin}/driverlogs/{id}/polldata` — per-trip time series (live 2026-11-13)
+
+`{id}` is the trip's server `id` from the logbook. The app uploads the samples after the trip in
+batches of 300, from its backup worker, so a phone without backup enabled may have none. One GET with
+`?page=0&limit=50` on the newest page-0 trip (01.10.2026, 21.5 min, 14.2 km) answered **200**:
+
+```jsonc
+{ "content": [                         // ascending recordedAt within the trip
+    { "recordedAt": 1790880371890,     // epoch-ms, median step 5.3 s
+      "speed": 0.0,                    // km/h
+      "engineSpeed": 0.0,              // rpm
+      "coolant": 0.0,                  // °C
+      "acceleration": 0.0,             // m/s², signed
+      "altitude": 0.0,                 // m
+      "gpsLocation": { "latitude": <lat>, "longitude": <lon> },
+      "isSmooth": true } ],            // per-sample smooth-driving flag (true/false both seen)
+  "totalElements": 237, "totalPages": 5, "size": 50, "number": 0,
+  "first": true, "last": false, "sort": { "unsorted": true, … } }
+```
+
+- **Real values.** The 50 samples on page 0 (the first 4.3 minutes) span speed 0–77 km/h, rpm 0–2022,
+  coolant 0→72 °C (warm-up), acceleration −1.66…+1.15, altitude 0→429 m, with GPS on all 50.
+- **Units are not in the response.** The GET returns bare floats: no unit fields and no `odometer`,
+  although the app's upload body has both (`speedUnit "km/h"`, `engineSpeedUnit "rpm"`,
+  `coolantUnit "deg C"`, `accelerationUnit "m/s*s"`). The units above come from that upload body.
+- **The first samples are placeholders.** Sample 1 is all zeros, sample 2 has altitude only, and
+  coolant/rpm arrive with sample 3. A mapper must not read leading zeros as measurements, e.g.
+  "coolant 0 °C".
+- **`limit=300` is accepted** (second pass): the same trip came back as 237 samples on one page.
+- **Duplicated trips:** of the 8 server copies of one trip, **only the highest `id`** carries samples
+  (682). The other 7 answer 200 with `totalElements: 0`. So the copy that stands for a trip must be the
+  highest-id one.
+- The newest trip (01.11.2026, 51.7 min) has 459 samples.
+- The logbook's own `returnPollData=true` (the app's restore path) would embed the samples in every
+  trip. Not tested; too heavy for a poll.
+
+**Mapping (implemented 2026-11-13).** Same rule as below: reuse existing fields, add no duplicates,
+and keep a trip sample from hours ago away from fields that mean "now".
+
+| target | source | note |
+|---|---|---|
+| `last_trip_avg_speed_kmh` (**reuse**, sensor exists) | newest trip `totalTripMileage ÷ (totalTripTime / 3 600 000)` | logbook alone, no polldata |
+| `last_trip_avg_fuel_consumption_l_100km` (**reuse**) | newest trip `avgFuelConsumption` if > 0 | see the logbook note |
+| `recent_trips[0]` attributes `max_speed_kmh`, `max_engine_rpm`, `max_coolant_c` (**reuse** `recent_trips`) | max over the newest trip's polldata; only positive readings count, so placeholders never give a 0 | attributes on the existing last-trip sensor, no new columns |
+| `recent_trips[0]` attributes `max_braking_ms2`, `max_acceleration_ms2`, `elevation_gain_m`, `elevation_loss_m`, `smooth_share_pct`, `warmup_min` | same polldata. Braking/acceleration = strongest negative/positive **sampled** `acceleration`: at one sample per ~5 s a short brake peak falls between samples, so this is a floor, not the true peak. Elevation over a **5 m hysteresis** (raw step sums are GPS noise: 107/155 m raw vs a stable 71/121 m at 3 m and 5 m on a live trip). Smooth share among samples where the car was running. Warm-up = first coolant reading → first ≥ 80 °C (0 if already warm, none if never) | live 01.10 trip: 2.37 / 1.48 m/s², 71 / 120 m, 94 %, 6.7 min. 01.11 trip: 1.63 / 1.61 m/s², **875 / 289 m** (real: smooth series from ~352 m to ~938 m, no step over 30 m), 95 %, 15.3 min |
+| `recent_trips[0]` attributes `eco_acceleration`, `eco_braking`, `eco_engine_speed`, `eco_speed`, `eco_coolant`, `eco_braking_negative_count`, `eco_acceleration_negative_count` | newest trip `ecoScore` `*Result` (0–100) and the two `*NegativeCount` | logbook alone. **A mark is the share of positively rated intervals, rounded down** (01.11: brake 190 positive / 13 negative → 93; holds for 145 of 161 marks). So `*NegativeCount` counts rated intervals, NOT hard-braking events; the 2026-09-02 reading "1 hard brake → 92" was wrong |
+| `license_plate`, `vehicle_nickname` (**reuse**, sensors exist) | root `licencePlate`, `vehicleNickName` | user-entered; empty strings on the B8 until filled in, so only non-blank values are mapped |
+| `last_refuel_at` (**reuse** the Škoda key + sensor) | newest `fuellog` `createdTimestamp` → ISO | one deliberate shared key, see the note in `models.py` |
+| `cloud_service_end_date` (**new**, DATE sensor, visible, phantom-gated) | market configuration `shutdown.shutdownDate`, set once `notificationDate` has passed (like the app's banner) | one request per market per day; a 404 or no `shutdown` block = nothing announced |
+| `last_refuel_cost` + `last_refuel_currency`, `last_refuel_station` (**reuse** the Škoda keys + sensors) | newest `fuellog` `price` (only if > 0, the currency only together with it), `stationName` (only if not blank) | the owner types these into the app; two of four live fill-ups had a price, none a station |
+| — not `current_speed_kmh`, not `engine_coolant_temperature_c` | — | those mean "now"; a value from the last trip would pass for a live reading |
+| — not the GPS track as an attribute | — | hundreds of points of location history, over the recorder's attribute budget; only as a separate opt-in feature |
+
+Fetch policy: polldata only for the newest trip (highest-id copy), `limit=300`, at most 10 pages,
+cached per trip id in the client. A summary is fetched once. A trip without samples (backup off,
+upload pending, request failed) is asked again after an hour, not on every poll.
+
+### Verification (live, 2026-11-13, patched reader)
+
+One `get_status()` against the enrolled B8: 11 requests, all 200 — the 7 snapshot resources, one
+logbook page, one fuel-log page, two polldata pages. Result:
+
+| field | old reader | new reader |
+|---|---|---|
+| `odometer_km` | 369 774 (page-0 trip) | **370 686** (newest trip; root 370 680) |
+| last trip | 01.10.2026 | **01.11.2026**, 35.73 km, 52 min, EcoScore 97 |
+| `trip_count` | 42 (incl. duplicates) | **35** |
+| `data_captured_at` | 2008 (`registrationDate`) | **2026-11-13** (parking fix) |
+| `last_trip_avg_speed_kmh` / `…_fuel_consumption_l_100km` | empty | **41.4 km/h / 11.2 l/100 km** |
+| `recent_trips[0]` polldata maxima | — | **117 km/h, 2483 rpm, coolant 106 °C** |
+
 ## Live PIDs — status (explicit)
 
-- **Continuous / real-time PIDs are NOT in the acpp cloud.** `vehicle/{vin}/provalue`,
-  `…/measurements`, `…/status`, `…/state`, `…/statistics` all return **404** ("No static resource …").
-  Gegenprobe: the `vehicle/{vin}` family itself answers 200, so these specific resources genuinely do
-  not exist — it is not an auth/path artefact.
-- **The only engine values in the cloud** are the trip-boundary snapshots inside
-  `driverlogs[].startData/endData` (coolant, engineSpeed, speed, acceleration, altitude) — captured at
-  standstill, hence 0 on the short trips seen. Whether a longer motorway trip populates non-zero boundary
-  values is **untested**.
+- **Real-time PIDs are NOT streamed to the acpp cloud.** `vehicle/{vin}/measurements`, `…/status`,
+  `…/state`, `…/statistics` return **404** ("No static resource …"); the `vehicle/{vin}` family itself
+  answers 200, so this is not an auth/path artefact. (`vehicle/{vin}/provalue` 404s only because the
+  resource is `vehicle/provalue?vin=`, which holds unlock state, not measurements.)
+- **After-the-fact engine values DO reach the cloud:** the per-trip `polldata` series above (speed, rpm,
+  coolant, acceleration, altitude, GPS at ~5 s). That supersedes the earlier "the only engine values in
+  the cloud are the trip-boundary snapshots".
+- **The trip-boundary fields are constant zeros.** `driverlogs[].startData/endData`
+  coolant/engineSpeed/speed/acceleration/altitude are written as literal constants by the app (3.6.5
+  code). They are 0 on all 42 live trips, including 95 km / 2 h ones. The earlier "untested on a long
+  trip" question is settled: they will never be non-zero.
 - **For real-time speed/rpm/coolant/boost, use the BT-local reader** (`dataplug-reconnect`). The cloud
-  and the dongle-BT path are complementary: cloud = history + snapshot (works remotely, no car nearby);
-  BT = live PIDs (car in range only).
+  and the dongle-BT path are complementary: cloud = history, snapshot and per-trip series (works
+  remotely); BT = live PIDs and the extra channels the app keeps on the phone (oil temperature, boost
+  pressure and speed, exhaust and intake temperature, throttle). Those are never uploaded.
+- **Trip aggregates the app can upload** (`averageOilTemperature`, `max/minTurboPressure`,
+  `max/minTurboRpm`, `maxThrottleValvePosition`, `maxEmissionAirTemperature`, …) appear in **none** of
+  the 42 live trips (key set: the 15 keys shown above). Do not map them until a car actually sends them.
 
 ## Recommended VehicleData mapping (priority)
 
@@ -265,29 +407,28 @@ backing, so match the value, not the parser.
 | `last_refuel_liters_added` | **new** | `fuellog.content[0].amount` | litres added (21) |
 | `last_refuel_tank_before_l` | **new** | `postFuelAmount − amount` | the **"von"** side (3) |
 | `last_refuel_tank_after_l` | **new** | `fuellog.content[0].postFuelAmount` | the **"auf"** side (24) → renders "3 → 24" |
-| `last_refuel_at` | **new** | `fuellog.content[0].createdTimestamp` (ms → ISO) | TIMESTAMP |
+| `last_refuel_at` | **reuse** (Škoda hook key) | newest `fuellog` `createdTimestamp` (ms → ISO) | *mapped 2026-11-13*; shares the existing sensor instead of a parallel one |
 
 **Priority B — nice-to-have:**
 
 | VehicleData field | reuse / new | acpp source |
 |---|---|---|
 | `last_trip_duration_min` | **reuse** :1509 | newest `totalTripTime` ÷ 60000 |
-| `last_trip_avg_fuel_consumption_l_100km` | **reuse** :1511 | newest `avgFuelConsumption` — **verify unit is l/100km first** (0 on observed trips) |
+| `last_trip_avg_fuel_consumption_l_100km` | **reuse** :1511 | newest `avgFuelConsumption` if > 0 — unit l/100 km settled 2026-11-13, *mapped* |
 | `recent_trips` | **reuse** :1522 | the full `driverlogs.content` list (see full-logbook note in Priority C) |
 | `last_trip_intake_air_temp_c` | **new** | newest `driverlogs[].averageInductionAirTemperature` (24 °C — a real, non-zero trip datum) |
 | `last_refuel_odometer_km` | **new** | `fuellog.content[0].odometer` |
-| `trip_count` | **new** (or `len(recent_trips)`) | `driverlogs.totalElements` |
+| `trip_count` | **new** (or `len(recent_trips)`) | distinct `driverLogId`s when every page was read, else `driverlogs.totalElements` (which counts server-side duplicate uploads) |
 | `score_points_total` | **new** | Σ non-expired `achievements/v2 … points` |
 
 **Priority C — rich / optional:**
 - **Full logbook** (the owner asked for the *whole* Fahrtenbuch): put ALL trips into `recent_trips` :1522
   (list attribute), paging through every entry — not just page 0 — or a dedicated logbook entity. Per
-  entry: distance / duration / EcoScore / start+end GPS. This is where "all engine snapshots" live
-  (schema-complete but 0-valued so far).
+  entry: distance / duration / EcoScore / start+end GPS. *(Paging done 2026-11-13; `recent_trips` keeps
+  the newest 10 distinct trips.)* The engine values per trip are in `polldata`, not in the logbook.
 - Last-trip **GPS track** (start+end coords) → a device_tracker trail or a "last trip" map card.
 - EcoScore sub-scores (`brakeResult`/`accelerationResult`/`engineSpeedResult`/`speedResult`) as attributes.
-- Per-trip engine boundary snapshots (coolant/rpm/speed/accel) — low value while they read 0; revisit if a
-  long trip shows non-zero.
+- ~~Per-trip engine boundary snapshots~~ — dropped: constant zeros written by the app (see **Live PIDs**).
 
 Reuse the existing `_epoch_ms_to_date` helper; add an ms→ISO-**datetime** sibling for the trip/refuel/
 position timestamps (ms since epoch, same as carport dates but wanting time-of-day, not just the date).
@@ -336,14 +477,33 @@ channels (driverlogs/fuellog equivalents) are unmapped — expect a similar but 
 4. **Poll cadence**: snapshot + history only update when the dongle syncs (after a drive); a slow poll
    is fine. No live PIDs here — pair with the BT-local reader for real-time data.
 5. **wcg**: implement the legacy signin-service login + wire `WCGCloudClient`, tester-gated.
-6. **Unit checks before shipping**: confirm `avgFuelConsumption` unit, and whether `driverlogs`/`fuellog`
-   pagination is newest-first or needs an explicit sort/`?page=` param (only 1–2 entries observed).
+6. ~~**Unit checks before shipping**~~ *done 2026-11-13:* `avgFuelConsumption` is l/100 km (car's
+   own reading at trip end) and mapped. Pagination: oldest-first, `?page=&limit=` honoured
+   (`limit=100` driverlogs, `limit=50` fuellog, `limit=300` polldata, all live-verified). The reader
+   walks the pages (cap 5, newest pages kept) and deduplicates by `driverLogId`, keeping the
+   highest-id copy.
+7. ~~**`data_captured_at`**~~ *done 2026-11-13:* freshest of newest-trip `endTime` / parking
+   `recordedAt`; `registrationDate`/`mainCheck` are user-entered details and no longer used.
+8. ~~**polldata**~~ *done 2026-11-13:* maxima of the newest trip on `recent_trips[0]`, see
+   **Per-trip time series**.
+9. **Still open:** whether `limit` above 300 is accepted on polldata (not needed: 10 × 300 covers
+   ~4 h); whether trip aggregates like `maxTurboPressure` ever reach the server for a car that has
+   them; and the wcg (VW) path from item 5.
+10. **Decided not to build:** `main_inspection_due_at` from `mainCheck`. Nothing reads that
+    field (no sensor, no calendar), and `mainCheck` mostly holds the enrollment default rather than a
+    real inspection date, so it would be a dead field fed by an unreliable value. Price per litre
+    is left out too: `last_refuel_cost` divided by `last_refuel_liters_added` gives it, so it would
+    be a duplicate.
 
 ## Reference
 
 Working, credential-driven probes used to validate this live are in the session scratchpad
 (`acpp_login.py`, `acpp_read.sh`, `acpp_bff.sh`, plus 2026-09-02 re-probes of driverlogs / fuellog /
 achievements / parking) — **not committed** (they read `~/.claude/private` creds and cache a token in
-`~/.claude/private/acpp_token.json`). The committed code (`api/plugandplay.py`) is the clean-room
-equivalent that reuses `IDKAuth`. All live values above are from a real enrolled A5 B8; VIN/serial are
-never committed.
+`~/.claude/private/acpp_token.json`). The 2026-11-13 probes (one refresh + `vehicles`, `driverlogs`,
+`polldata`, `provalue`, then one `driverlogs?limit=100` and one `fuellog?limit=50` check, each a single
+calm request; second pass: one `polldata?limit=300`, one `limit=1` per duplicate copy and on the
+newest trip, 6 s apart, then one end-to-end `get_status()` of the patched reader) are likewise not
+committed. The committed code (`cariad/api/plugandplay.py`) is the
+clean-room equivalent that reuses `IDKAuth`. All live values above are from a real enrolled A5 B8;
+VIN/serial/coordinates are never committed.
