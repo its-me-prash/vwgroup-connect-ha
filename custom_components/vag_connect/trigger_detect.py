@@ -23,7 +23,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from .cariad._channel_merge import _HELD_PUSH_SOURCES
+from .cariad._channel_merge import is_held_source
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,8 +54,8 @@ _Listener = Callable[[dict[str, Any]], None]
 def _soc_held(veh: dict[str, Any]) -> bool:
     """True when ``battery_soc`` is owned by a held push source."""
     sources = veh.get("field_sources")
-    return isinstance(sources, dict) and (
-        sources.get("battery_soc") in _HELD_PUSH_SOURCES
+    return isinstance(sources, dict) and is_held_source(
+        sources.get("battery_soc")
     )
 
 

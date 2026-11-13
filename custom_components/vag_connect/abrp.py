@@ -56,7 +56,7 @@ import logging
 from typing import Any
 from urllib.parse import urlencode
 
-from .cariad._channel_merge import _HELD_PUSH_SOURCES
+from .cariad._channel_merge import is_held_source
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ def _held_owner(vehicle: dict[str, Any], key: str) -> bool:
     sources = vehicle.get("field_sources")
     if not isinstance(sources, dict):
         return False
-    return sources.get(key) in _HELD_PUSH_SOURCES
+    return is_held_source(sources.get(key))
 
 
 def has_sendable_soc(vehicle: dict[str, Any]) -> bool:

@@ -375,7 +375,8 @@ minutes newer, the newer one is shown.
 A few things to know:
 
 - It is opt-in and stays the lowest source. A live channel always wins, and so
-  does a value your own channels recorded earlier.
+  does a value your own channels recorded earlier or that you imported from a
+  one-time export.
 - DrivePulse knows no VIN, so you pick the car yourself. Pick the wrong one and
   it shows another car's values.
 - A reading is used for up to seven days. Removing the link removes its values.

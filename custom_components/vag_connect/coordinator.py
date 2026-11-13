@@ -52,7 +52,7 @@ from .const import (
     advised_scan_interval_from_budget,
 )
 from homeassistant.helpers import device_registry as dr
-from .cariad._channel_merge import _HELD_PUSH_SOURCES
+from .cariad._channel_merge import _HELD_PUSH_SOURCES, is_held_source
 from .cariad._error_reporter import ErrorRingBuffer, record_error
 from .cariad._reporter_pipeline import (
     ensure_error_reporter_issue,
@@ -143,7 +143,7 @@ def _values_moved(
     cur_owners = current.get("field_sources")
 
     def _held(owners: Any, key: str) -> bool:
-        return isinstance(owners, dict) and owners.get(key) in _HELD_PUSH_SOURCES
+        return isinstance(owners, dict) and is_held_source(owners.get(key))
 
     for key in _LIVENESS_FIELDS:
         if key not in previous or key not in current:
@@ -179,7 +179,7 @@ def _release_held(data: dict[str, Any], keys: list[str]) -> None:
                 entries.pop(key, None)
     owners = data.get("field_sources")
     if isinstance(owners, dict) and any(
-        src in _HELD_PUSH_SOURCES for src in owners.values()
+        is_held_source(src) for src in owners.values()
     ):
         return
     channel = data.get("source_channel")
@@ -225,7 +225,7 @@ def _gap_fill_from_export(
     """
     owners = current.get("field_sources")
     held_owned = {
-        key for key, src in owners.items() if src in _HELD_PUSH_SOURCES
+        key for key, src in owners.items() if is_held_source(src)
     } if isinstance(owners, dict) else set()
     filled: list[str] = []
     released: list[str] = []
@@ -440,7 +440,7 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
         if isinstance(owners, dict):
             stamps = {
                 k: v for k, v in stamps.items()
-                if owners.get(k) not in _HELD_PUSH_SOURCES
+                if not is_held_source(owners.get(k))
             }
         # No emptiness test on the map itself: it would be redundant. An empty
         # map and a map whose every stamp is unparseable both yield an empty
@@ -5344,17 +5344,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     and val < existing
                 ):
                     continue
-            if field_sources.get(key) in _HELD_PUSH_SOURCES:
+            if is_held_source(field_sources.get(key)):
                 # The official value replaces a held push reading, so that
                 # reading's capture stamp goes with it. Left behind under a
                 # field the official channel now owns, the stale-data verdict
-                # would date an official value by a phone's clock.
-                for _map_name in (
-                    "field_captured_ts", "field_source_leaf", "ambiguous_fields",
-                ):
-                    _map = enriched.get(_map_name)
-                    if isinstance(_map, dict):
-                        _map.pop(key, None)
+                # would date an official value by a phone's clock. The held
+                # source's name leaves ``source_channel`` too once this was
+                # its last field: nothing later would take it out, because
+                # every cleanup looks for a field it still owns.
+                _release_held(enriched, [key])
             enriched[key] = val
             field_sources[key] = "skoda_official"
             merged += 1
@@ -8223,7 +8221,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _fuel_owners = data.get("field_sources")
             _fuel_is_held = (
                 isinstance(_fuel_owners, dict)
-                and _fuel_owners.get("fuel_level") in _HELD_PUSH_SOURCES
+                and is_held_source(_fuel_owners.get("fuel_level"))
             )
             if data.get("fuel_level") is None or _fuel_is_held:
                 data["fuel_level"] = max(

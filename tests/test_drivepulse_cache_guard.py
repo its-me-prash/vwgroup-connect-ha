@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import copy
 
+import pytest
+
 from custom_components.vag_connect.cariad import vehicle_cache
 from custom_components.vag_connect.cariad.vehicle_cache import reconcile
 
@@ -204,6 +206,113 @@ def test_a_field_that_is_never_carried_forward_is_a_gap_every_poll():
     previous = {"voltage_12v": 12.1, "field_sources": {"voltage_12v": "eu_data_act"}}
     merged, _ = reconcile(previous, _fresh_held("voltage_12v", 12.6, _T))
     assert merged["voltage_12v"] == 12.6
+
+
+# --- a value imported from a one-time export (#1780) outranks a held one -----
+#
+# The carry-forward of imported values reads "the fresh poll has a value" as a
+# live reading and drops the import mark for good. A held value is not that
+# reading: let through, it would show for its hold time and then leave the
+# field empty where the import alone had kept it filled.
+
+def _imported_previous(field: str, value: float, stamp: str = _T) -> dict:
+    return {
+        field: value,
+        "has_combustion": True,
+        "field_sources": {field: "eu_data_act"},
+        "field_captured_ts": {field: stamp},
+        "field_imported_from_export": [field],
+    }
+
+
+def test_a_held_value_does_not_take_an_imported_field_that_is_never_carried():
+    assert "voltage_12v" not in vehicle_cache.CARRY_FORWARD_FIELDS, "control"
+    merged, _ = reconcile(
+        _imported_previous("voltage_12v", 12.1),
+        _fresh_held("voltage_12v", 12.6, _T_PLUS_20),
+    )
+    assert merged["voltage_12v"] == 12.1
+    assert merged["field_imported_from_export"] == ["voltage_12v"]
+    assert merged["field_sources"]["voltage_12v"] == "eu_data_act"
+    assert merged["field_captured_ts"]["voltage_12v"] == _T
+
+
+def test_an_imported_fuel_value_stands_even_against_a_newer_held_one():
+    # No age gate here: an export cannot be fetched a second time, so losing
+    # its value to a reading that expires would be a loss for good.
+    merged, _ = reconcile(
+        _imported_previous("fuel_level", 40),
+        _fresh_held("fuel_level", 30, _T_PLUS_20),
+    )
+    assert merged["fuel_level"] == 40
+    assert merged["field_imported_from_export"] == ["fuel_level"]
+    assert merged["field_sources"]["fuel_level"] == "eu_data_act"
+
+
+def test_control_a_real_reading_still_wins_over_the_import_and_drops_the_mark():
+    fresh = {
+        "fuel_level": 55,
+        "has_combustion": True,
+        "field_sources": {"fuel_level": "eu_data_act"},
+    }
+    merged, _ = reconcile(_imported_previous("fuel_level", 40), fresh)
+    assert merged["fuel_level"] == 55
+    assert "field_imported_from_export" not in merged
+
+
+def test_the_imported_value_is_still_there_once_the_held_reading_is_gone():
+    cache = _imported_previous("voltage_12v", 12.1)
+    cache, _ = reconcile(cache, _fresh_held("voltage_12v", 12.6, _T_PLUS_20))
+    cache, _ = reconcile(cache, {"has_combustion": True, "field_sources": {}})
+    assert cache["voltage_12v"] == 12.1
+    assert cache["field_imported_from_export"] == ["voltage_12v"]
+
+
+def test_a_malformed_import_mark_does_not_break_the_yield_rule():
+    previous = _imported_previous("fuel_level", 40)
+    previous["field_imported_from_export"] = "fuel_level"  # not a list
+    merged, _ = reconcile(previous, _fresh_held("fuel_level", 70, _T))
+    assert merged["fuel_level"] == 40, "still a recorded carry-forward value"
+
+
+# --- damaged maps from the cache read as "not held", they never raise --------
+#
+# strip_held runs on every poll of every car, linked or not, and the snapshot
+# it reads can come from disk. A bare ``in`` on the frozenset would try to hash
+# an owner entry that is a list.
+
+@pytest.mark.parametrize("bad_owner", [["drivepulse"], {"a": 1}, 5, None])
+def test_a_damaged_owner_entry_does_not_break_the_poll(bad_owner):
+    previous = {
+        "fuel_level": 40,
+        "odometer_km": 10,
+        "field_sources": {"fuel_level": bad_owner, "odometer_km": "eu_data_act"},
+    }
+    fresh = {"fuel_level": 41, "field_sources": {"fuel_level": bad_owner}}
+    assert vehicle_cache.strip_held(previous) is previous
+    merged, _ = reconcile(previous, fresh)
+    assert merged["fuel_level"] == 41
+    assert merged["odometer_km"] == 10
+
+
+@pytest.mark.parametrize("bad_map", [["x"], "text", 5])
+@pytest.mark.parametrize("side", ["previous", "fresh"])
+def test_a_damaged_stamp_map_is_no_evidence_for_the_age_gate(bad_map, side):
+    previous = _recorded_fuel(stamp=_T)
+    fresh = _fresh_held("fuel_level", 30, _T_PLUS_20)
+    (previous if side == "previous" else fresh)["field_captured_ts"] = bad_map
+    merged, _ = reconcile(previous, fresh)
+    assert merged["fuel_level"] == 40
+
+
+def test_an_owner_entry_without_a_value_cannot_claim_the_recorded_value():
+    # Owner and a newer stamp, but no value: nothing to win the age gate with.
+    # Let through, the carried value would wear the dongle's name and time.
+    fresh = _fresh_held("fuel_level", None, _T_PLUS_20)
+    merged, _ = reconcile(_recorded_fuel(stamp=_T), fresh)
+    assert merged["fuel_level"] == 40
+    assert "fuel_level" not in merged["field_sources"]
+    assert "fuel_level" not in merged["field_captured_ts"]
 
 
 # --- a held state of charge is checked against the car's own pack energy ----

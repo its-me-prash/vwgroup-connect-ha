@@ -403,7 +403,7 @@
     "error": {
       "no_obd_source": "Der blev ikke fundet nogen enhed fra DrivePulse-integrationen. Opsæt først DrivePulse, og prøv derefter igen.",
       "obd_device_in_use": "Denne enhed er allerede knyttet til en anden bil. Fjern først den forbindelse, eller vælg en anden enhed.",
-      "abrp_credentials_required":"For at aktivere ABRP skal du indtaste både api_key og tokenet pr. køretøj.",
+      "abrp_credentials_required": "For at aktivere ABRP skal du indtaste både api_key og tokenet pr. køretøj.",
       "invalid_auth": "Login mislykkedes. Tjek din Volkswagen ID-e-mail og adgangskode.",
       "cannot_connect": "Kunne ikke få forbindelse til Volkswagen. Prøv venligst igen.",
       "invalid_credentials": "E-mailadresse eller adgangskode er forkert.",

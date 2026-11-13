@@ -430,7 +430,11 @@ class TestTheOfficialChannelTakesTheStampWithTheValue:
         stub = _coord_stub(client)
         enriched: dict[str, Any] = {
             "fuel_level": 35,
-            "field_sources": {"fuel_level": owner},
+            "odometer_km": 100,
+            "source_channel": (
+                "drivepulse+eu_data_act" if owner == "drivepulse" else "eu_data_act"
+            ),
+            "field_sources": {"fuel_level": owner, "odometer_km": "eu_data_act"},
             "field_captured_ts": {"fuel_level": _ago(2)},
         }
         asyncio.run(stub._merge_official_live(VIN, enriched))
@@ -442,10 +446,87 @@ class TestTheOfficialChannelTakesTheStampWithTheValue:
         assert enriched["field_sources"]["fuel_level"] == "skoda_official"
         assert "fuel_level" not in enriched["field_captured_ts"]
 
+    def test_the_held_name_leaves_the_channel_list_with_its_last_field(self) -> None:
+        """Nothing later would take it out: every cleanup looks for a field the
+        held source still owns, and here there is none left."""
+        enriched = self._run("drivepulse")
+        assert "drivepulse" not in str(enriched["source_channel"]).split("+")
+        assert "eu_data_act" in str(enriched["source_channel"]).split("+")
+
     def test_control_a_batch_stamp_is_left_as_it_was(self) -> None:
         enriched = self._run("eu_data_act")
         assert enriched["fuel_level"] == 50
         assert "fuel_level" in enriched["field_captured_ts"]
+        assert "eu_data_act" in str(enriched["source_channel"]).split("+")
+
+
+class TestADamagedOwnerEntryReadsAsNotHeld:
+    """An owner read out of a snapshot can come from the cache on disk. A bare
+    ``in`` on the frozenset hashes its left side and raises on a list; that
+    check runs for every car, linked or not."""
+
+    BAD: Any = ["drivepulse"]
+
+    def test_the_helper(self) -> None:
+        from custom_components.vag_connect.cariad._channel_merge import (
+            is_held_source,
+        )
+
+        assert is_held_source("drivepulse")
+        for other in (
+            "eu_data_act", "", None, 5, ["drivepulse"], {"drivepulse": 1},
+            ("drivepulse",),
+        ):
+            assert not is_held_source(other), other
+
+    def test_no_reader_of_a_snapshot_raises_on_it(self) -> None:
+        from custom_components.vag_connect import abrp, trigger_detect
+        from custom_components.vag_connect.cariad._channel_merge import (
+            held_blind_getter,
+        )
+        from custom_components.vag_connect.cariad.vehicle_cache import strip_held
+
+        def _snap() -> dict[str, Any]:
+            return {
+                "battery_soc": 50,
+                "fuel_level": 40,
+                "source_channel": "eu_data_act",
+                "last_seen_at": _ago(2),
+                "field_sources": {"battery_soc": self.BAD, "fuel_level": self.BAD},
+                "field_captured_ts": {"battery_soc": _ago(2)},
+            }
+
+        snap = _snap()
+        _values_moved(snap, {**_snap(), "fuel_level": 41})
+        _capture_age_s(snap)
+        _release_held(_snap(), ["fuel_level"])
+        assert _gap_fill_from_export(_snap(), {"range_km": 5}) == ["range_km"]
+        assert abrp.has_sendable_soc(snap) is True
+        abrp.telemetry_fingerprint(snap)
+        assert trigger_detect._soc_held(snap) is False
+        assert held_blind_getter(snap.get, snap["field_sources"])("fuel_level") == 40
+        assert strip_held(snap) is snap
+
+    def test_every_check_on_a_snapshot_owner_goes_through_the_helper(self) -> None:
+        """Walked from the source, so a check added later cannot bypass it.
+
+        A bare ``in _HELD_PUSH_SOURCES`` is fine for a channel name the code
+        produced itself (the names below) and wrong for anything else.
+        """
+        from pathlib import Path
+
+        produced_by_code = {"nm", "name", "n", "t", "tok", "_tok", "preferred", "owner"}
+        pattern = re.compile(r"([^\s(\[]+)\s+(?:not\s+)?in _HELD_PUSH_SOURCES")
+        seen = 0
+        for path in Path(coordinator_module.__file__).parent.rglob("*.py"):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for lineno, line in enumerate(lines, 1):
+                for match in pattern.finditer(line):
+                    seen += 1
+                    assert match.group(1) in produced_by_code, (
+                        f"{path.name}:{lineno}: {line.strip()}"
+                    )
+        assert seen >= 10, "control: the pattern must find the known sites"
 
 
 def test_the_hold_time_is_seven_days() -> None:
@@ -571,6 +652,34 @@ class TestTheExportImportTreatsAHeldValueAsAGap:
         assert current["field_captured_ts"]["battery_soc"] == stamp
         assert current["source_channel"] == "eu_data_act"
         assert current["odometer_km"] == 100, "a live value is never clobbered"
+        # and it is marked as imported (#1780), so the next poll keeps it
+        assert current["field_imported_from_export"] == ["battery_soc"]
+
+    def test_the_next_poll_does_not_hand_the_field_back_to_the_dongle(self) -> None:
+        """Import over a held value, then a poll in which the merge has filled
+        the same field from the dongle again, as it will on every poll."""
+        from custom_components.vag_connect.cariad.vehicle_cache import reconcile
+
+        current = self._current()
+        hist = {
+            "battery_soc": 31,
+            "field_sources": {"battery_soc": "eu_data_act"},
+            "field_captured_ts": {"battery_soc": _ago(600)},
+        }
+        _gap_fill_from_export(current, hist)
+        fresh = {
+            "battery_soc": 70,
+            "odometer_km": 101,
+            "source_channel": "drivepulse+eu_data_act",
+            "field_sources": {
+                "battery_soc": "drivepulse", "odometer_km": "eu_data_act",
+            },
+            "field_captured_ts": {"battery_soc": _ago(1)},
+        }
+        merged, _ = reconcile(current, fresh)
+        assert merged["battery_soc"] == 31
+        assert merged["field_imported_from_export"] == ["battery_soc"]
+        assert merged["field_sources"]["battery_soc"] == "eu_data_act"
 
     def test_a_held_value_the_export_has_nothing_for_is_left_alone(self) -> None:
         current = self._current()

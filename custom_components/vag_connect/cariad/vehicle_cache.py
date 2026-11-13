@@ -468,12 +468,12 @@ def strip_held(snapshot: dict[str, Any]) -> dict[str, Any]:
     Pure: the input and its nested maps are never modified. When nothing is
     owned by a held source the very same object is returned.
     """
-    from ._channel_merge import _HELD_PUSH_SOURCES  # noqa: PLC0415
+    from ._channel_merge import is_held_source  # noqa: PLC0415
 
     owners = snapshot.get("field_sources")
     if not isinstance(owners, dict):
         return snapshot
-    held = [k for k, src in owners.items() if src in _HELD_PUSH_SOURCES]
+    held = [k for k, src in owners.items() if is_held_source(src)]
     if not held:
         return snapshot
     return _drop_fields(snapshot, held)
@@ -485,7 +485,10 @@ def _drop_fields(snapshot: dict[str, Any], keys: list[str]) -> dict[str, Any]:
     The held source's token leaves ``source_channel`` once no field is owned by
     a held source any more. Pure: the input and its nested maps are untouched.
     """
-    from ._channel_merge import _HELD_PUSH_SOURCES  # noqa: PLC0415
+    from ._channel_merge import (  # noqa: PLC0415
+        _HELD_PUSH_SOURCES,
+        is_held_source,
+    )
 
     out = dict(snapshot)
     for key in keys:
@@ -496,7 +499,7 @@ def _drop_fields(snapshot: dict[str, Any], keys: list[str]) -> dict[str, Any]:
             out[map_name] = {k: v for k, v in mapping.items() if k not in keys}
     owners = out.get("field_sources")
     still_held = isinstance(owners, dict) and any(
-        src in _HELD_PUSH_SOURCES for src in owners.values()
+        is_held_source(src) for src in owners.values()
     )
     channel = out.get("source_channel")
     if isinstance(channel, str) and not still_held:
@@ -522,12 +525,21 @@ def _held_newer_than_recorded(
         _parse_ts,
     )
 
-    if field not in _HELD_SUPERSEDE_FIELDS:
+    # An owner entry without a value has nothing to win with.
+    if field not in _HELD_SUPERSEDE_FIELDS or fresh.get(field) is None:
         return False
-    if (previous.get("field_sources") or {}).get(field) not in _BATCH_SOURCES:
+    # Every map is checked for its type: these come from the cache on disk as
+    # well, and a damaged one must read as "no evidence", never raise.
+    owners = previous.get("field_sources")
+    owner = owners.get(field) if isinstance(owners, dict) else None
+    if not isinstance(owner, str) or owner not in _BATCH_SOURCES:
         return False
-    held_ts = _parse_ts((fresh.get("field_captured_ts") or {}).get(field))
-    recorded_ts = _parse_ts((previous.get("field_captured_ts") or {}).get(field))
+    held_stamps = fresh.get("field_captured_ts")
+    recorded_stamps = previous.get("field_captured_ts")
+    if not isinstance(held_stamps, dict) or not isinstance(recorded_stamps, dict):
+        return False
+    held_ts = _parse_ts(held_stamps.get(field))
+    recorded_ts = _parse_ts(recorded_stamps.get(field))
     if held_ts is None or recorded_ts is None:
         return False
     return (held_ts - recorded_ts).total_seconds() >= _HELD_FRESHNESS_MARGIN_S
@@ -548,18 +560,42 @@ def _yield_held_to_recorded(
     So a held value yields wherever ``previous`` (already free of held values)
     still has one for a carry-forward field, unless the age gate says the held
     reading is the newer one. Returns the very same object when nothing yields.
+
+    The line this draws: linking never changes a value that would be shown
+    without the link, it only fills what would otherwise be empty. That is why
+    a field outside ``CARRY_FORWARD_FIELDS`` (of the four a held source can
+    own, only ``voltage_12v``) does not yield: a poll that omits it shows
+    nothing without the link, so the held reading fills a real gap there.
+
+    A value a one-time export filled in (#1780, ``field_imported_from_export``)
+    is carried forward too, whatever the field, and it stands without the age
+    gate. The carry-forward of those reads "the fresh poll has a value" as a
+    live reading and drops the import mark for good; a held value is not that
+    reading. Let through, it would show for its hold time and then leave the
+    field empty where the import alone had kept it filled, and an export
+    cannot be fetched a second time.
     """
-    from ._channel_merge import _HELD_PUSH_SOURCES  # noqa: PLC0415
+    from ._channel_merge import is_held_source  # noqa: PLC0415
 
     owners = fresh.get("field_sources")
     if not isinstance(owners, dict):
         return fresh
+    marked = previous.get("field_imported_from_export")
+    imported = (
+        {key for key in marked if isinstance(key, str)}
+        if isinstance(marked, list) else set()
+    )
     yielding = [
         key for key, src in owners.items()
-        if src in _HELD_PUSH_SOURCES
-        and key in CARRY_FORWARD_FIELDS
+        if is_held_source(src)
         and previous.get(key) is not None
-        and not _held_newer_than_recorded(key, fresh, previous)
+        and (
+            key in imported
+            or (
+                key in CARRY_FORWARD_FIELDS
+                and not _held_newer_than_recorded(key, fresh, previous)
+            )
+        )
     ]
     if not yielding:
         return fresh
@@ -706,12 +742,12 @@ def reconcile(
     # 'eu_data_act'), which stays fully covered.
     from ._channel_merge import (  # noqa: PLC0415
         _BATCH_SOURCES,
-        _HELD_PUSH_SOURCES,
+        is_held_source,
     )
     _fresh_soc_src = (fresh.get("field_sources") or {}).get("battery_soc")
     # A held push value is neither batch nor live: "not batch, so live" would
     # exempt a dongle reading that can be days old from the checks below.
-    _fresh_soc_is_held = _fresh_soc_src in _HELD_PUSH_SOURCES
+    _fresh_soc_is_held = is_held_source(_fresh_soc_src)
     _fresh_soc_is_live = (
         _fresh_soc_src is not None
         and _fresh_soc_src not in _BATCH_SOURCES

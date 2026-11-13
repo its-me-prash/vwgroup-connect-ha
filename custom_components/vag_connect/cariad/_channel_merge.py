@@ -154,6 +154,18 @@ _HELD_SUPERSEDE_FIELDS = frozenset({"fuel_level"})
 _HELD_FRESHNESS_MARGIN_S = 900.0
 
 
+def is_held_source(owner: object) -> bool:
+    """True when *owner* names a held push source.
+
+    For an owner read out of a snapshot's ``field_sources``. A snapshot can
+    come from the cache on disk, and a damaged entry (a list where a channel
+    name belongs) must read as "not held" rather than raise: a bare ``in`` on
+    the frozenset would try to hash it, and this check runs for every car,
+    linked or not.
+    """
+    return isinstance(owner, str) and owner in _HELD_PUSH_SOURCES
+
+
 def _captured_ts(vd: "VehicleData | None", f_name: str) -> Any:
     """The raw per-field capture stamp *vd* carries for *f_name*, if any."""
     stamps = getattr(vd, "field_captured_ts", None)
@@ -527,7 +539,7 @@ def held_blind_getter(
     owners = field_sources if isinstance(field_sources, dict) else {}
 
     def _get(key: str) -> Any:
-        if owners.get(key) in _HELD_PUSH_SOURCES:
+        if is_held_source(owners.get(key)):
             return None
         return get(key)
 

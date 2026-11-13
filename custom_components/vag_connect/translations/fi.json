@@ -403,7 +403,7 @@
     "error": {
       "no_obd_source": "DrivePulse-integraatiosta ei löytynyt laitetta. Ota DrivePulse ensin käyttöön ja yritä sitten uudelleen.",
       "obd_device_in_use": "Tämä laite on jo yhdistetty toiseen autoon. Poista ensin kyseinen yhteys tai valitse toinen laite.",
-      "abrp_credentials_required":"ABRP:n käyttöönotto edellyttää sekä api_keyn että ajoneuvokohtaisen tunnisteen syöttämistä.",
+      "abrp_credentials_required": "ABRP:n käyttöönotto edellyttää sekä api_keyn että ajoneuvokohtaisen tunnisteen syöttämistä.",
       "invalid_auth": "Kirjautuminen epäonnistui. Tarkista Volkswagen ID -sähköpostisi ja -salasanasi.",
       "cannot_connect": "Volkswageniin ei saatu yhteyttä. Yritä uudelleen.",
       "invalid_credentials": "Sähköpostiosoite tai salasana väärin.",

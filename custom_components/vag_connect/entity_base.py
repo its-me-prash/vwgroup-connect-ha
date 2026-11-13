@@ -376,11 +376,11 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         """
         desc = getattr(self, "entity_description", None)
         data_key = (getattr(desc, "data_key", "") if desc is not None else "") or ""
-        from .cariad._channel_merge import _HELD_PUSH_SOURCES  # noqa: PLC0415
+        from .cariad._channel_merge import is_held_source  # noqa: PLC0415
 
         source = self._field_source
         if not data_key or (
-            source != "eu_data_act" and source not in _HELD_PUSH_SOURCES
+            source != "eu_data_act" and not is_held_source(source)
         ):
             return {}
         attrs: dict[str, Any] = {}
