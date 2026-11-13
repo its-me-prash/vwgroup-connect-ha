@@ -1876,6 +1876,9 @@ class VehicleData:
     last_refuel_cost: float | None = None
     last_refuel_currency: str | None = None
     last_refuel_station: str | None = None
+    # Announced end of the car's cloud service (ISO date), e.g. the Audi plug&play
+    # market shutdown (DEU: 2026-12-31). None = nothing announced / not known.
+    cloud_service_end_date: str | None = None
     # v2.12.0 (myskoda PR #575) — trip overall-cost breakdown. Currency
     # carried separately so the sensor can set native_unit_of_measurement
     # to the ISO code. None on accounts/firmwares that don't ship costs.

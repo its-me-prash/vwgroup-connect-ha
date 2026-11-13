@@ -699,6 +699,101 @@ async def test_polldata_failure_does_not_break_the_read():
     assert "max_speed_kmh" not in data.recent_trips[0]
 
 
+# ── announced end of the plug&play service (market configuration) ──
+
+_MARKET_PATH = "configuration/market?ids=DEU&includeMissingTranslations=false"
+
+
+def _market_client(market_answer, calls: list[str], *, kvps: str | None = "DEUA00000"):
+    """Client whose car has a dealer KVPS id (market prefix) and a market answer."""
+    c = _client()
+    veh: dict = {"vehicle": {"vin": VIN_2009}, "odometer": 1}
+    if kvps is not None:
+        veh["vehicleSpecificDealer"] = {"dealer": {"kvpsId": kvps}}
+    responses = {
+        f"vehicle/{VIN_2009}": (200, veh),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        _MARKET_PATH: market_answer,
+    }
+
+    async def fake_get(path):
+        calls.append(path)
+        return responses.get(path, (404, {"message": f"No static resource {path}"}))
+    c._get = fake_get  # type: ignore[assignment]
+    return c
+
+
+def _shutdown_body(notification: str, end: str) -> list:
+    # live shape 2026-11-13 (market DEU), other blocks trimmed
+    return [{"market": "DEU", "email": "", "services": [], "link": [],
+             "shutdown": {"notificationDate": notification, "shutdownDate": end,
+                          "market": "DEU"}}]
+
+
+async def test_service_end_date_from_the_market_configuration():
+    calls: list[str] = []
+    c = _market_client((200, _shutdown_body("2025-12-15", "2026-12-31")), calls)
+    data = await c.get_status(VIN_2009)
+    assert data.cloud_service_end_date == "2026-12-31"
+    assert calls.count(_MARKET_PATH) == 1
+    await c.get_status(VIN_2009)                     # within a day: from the cache
+    assert calls.count(_MARKET_PATH) == 1
+
+
+async def test_service_end_not_shown_before_its_notification_date():
+    calls: list[str] = []
+    c = _market_client((200, _shutdown_body("2999-01-01", "2999-12-31")), calls)
+    data = await c.get_status(VIN_2009)
+    assert data.cloud_service_end_date is None       # the app would not show it yet either
+
+
+async def test_unknown_market_or_no_dealer_means_no_end_date(monkeypatch):
+    import custom_components.vag_connect.cariad.api.plugandplay as pp
+
+    clock = [9000.0]
+    monkeypatch.setattr(pp.time, "monotonic", lambda: clock[0])
+    calls: list[str] = []
+    # live 2026-11-13: CHE → 404 "Market configuration not found"
+    c = _market_client((404, {"message": "Market configuration not found"}), calls)
+    data = await c.get_status(VIN_2009)
+    assert data.cloud_service_end_date is None
+    clock[0] += 2 * pp._POLLDATA_RETRY_S             # past the failure window, inside the day
+    await c.get_status(VIN_2009)
+    assert calls.count(_MARKET_PATH) == 1            # a 404 is an answer: cached for the day
+
+    calls2: list[str] = []
+    c2 = _market_client((200, _shutdown_body("2025-12-15", "2026-12-31")), calls2, kvps=None)
+    data2 = await c2.get_status(VIN_2009)
+    assert data2.cloud_service_end_date is None      # no dealer → no market → no guess
+    assert not [p for p in calls2 if p.startswith("configuration/market")]
+
+
+async def test_market_configuration_failure_is_retried_after_an_hour(monkeypatch):
+    import custom_components.vag_connect.cariad.api.plugandplay as pp
+
+    clock = [5000.0]
+    monkeypatch.setattr(pp.time, "monotonic", lambda: clock[0])
+    calls: list[str] = []
+    c = _market_client((503, "upstream down"), calls)
+    await c.get_status(VIN_2009)
+    await c.get_status(VIN_2009)
+    assert calls.count(_MARKET_PATH) == 1            # not hammered on every poll
+    clock[0] += pp._POLLDATA_RETRY_S + 1             # an hour later, not a day
+    await c.get_status(VIN_2009)
+    assert calls.count(_MARKET_PATH) == 2
+
+
+def test_service_end_sensor_is_a_phantom_gated_date():
+    from homeassistant.components.sensor import SensorDeviceClass
+
+    from custom_components.vag_connect import sensor as s
+
+    desc = next(d for d in s.SENSOR_DESCRIPTIONS if d.key == "cloud_service_end_date")
+    assert desc.device_class == SensorDeviceClass.DATE
+    assert desc.entity_category is None              # visible, not tucked into diagnostics
+    assert "cloud_service_end_date" in s._DATA_PRESENT_REQUIRED
+
+
 def test_epoch_ms_to_datetime():
     from custom_components.vag_connect.cariad.api.plugandplay import (
         _epoch_ms_to_datetime,

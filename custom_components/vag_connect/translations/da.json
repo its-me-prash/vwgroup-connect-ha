@@ -1602,6 +1602,9 @@
       "parked_since": {
         "name": "Parkeret siden"
       },
+      "cloud_service_end_date": {
+        "name": "Slutdato for cloudtjenesten"
+      },
       "last_trip_eco_score": {
         "name": "Sidste turs eco-score"
       },
