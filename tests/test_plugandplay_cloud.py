@@ -646,12 +646,13 @@ async def test_plate_and_nickname_only_when_filled_in():
     c = _client()
     _stub_get(c, {
         f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009},
-                                      "licencePlate": " AG 123456 ",
+                                      # "ZZ" is no canton: cannot be a real plate
+                                      "licencePlate": " ZZ 0000 ",
                                       "vehicleNickName": "Coupé"}),
         f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
     })
     data = await c.get_status(VIN_2009)
-    assert data.license_plate == "AG 123456"
+    assert data.license_plate == "ZZ 0000"
     assert data.vehicle_nickname == "Coupé"
 
     c2 = _client()
