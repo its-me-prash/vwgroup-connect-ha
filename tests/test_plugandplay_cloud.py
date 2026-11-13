@@ -439,6 +439,29 @@ async def test_fuellog_newest_refuel_comes_from_the_last_page():
     assert data.last_refuel_odometer_km == 370630
     # the fill-up time feeds the shared last_refuel_at sensor (ISO, like the Škoda hook)
     assert data.last_refuel_at == "2026-11-01T16:42:00+00:00"
+    # price 0.0 / empty station = the owner typed nothing in: no figures, and no
+    # lone currency either (live 2026-11-13: the newest fill-up had no price)
+    assert data.last_refuel_cost is None
+    assert data.last_refuel_currency is None
+    assert data.last_refuel_station is None
+
+
+async def test_fuellog_price_and_station_when_entered():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}, "odometer": 370680}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"user/fuellog/{VIN_2009}{_fl_page(0)}": (200, {"totalPages": 1, "content": [
+            {"createdTimestamp": 1788000000000, "amount": 58.0, "postFuelAmount": 62.0,
+             "price": 136.3, "currency": "eur", "stationName": "  Synthetic Station "},
+            {"createdTimestamp": 1787000000000, "amount": 22.9, "postFuelAmount": 28.0,
+             "price": 50.08, "currency": "EUR", "stationName": "Older"},
+        ]}),
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.last_refuel_cost == 136.3                 # newest fill-up, not the older one
+    assert data.last_refuel_currency == "EUR"
+    assert data.last_refuel_station == "Synthetic Station"
 
 
 # ── Datenstand, average speed, consumption ──

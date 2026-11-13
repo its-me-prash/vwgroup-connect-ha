@@ -322,6 +322,7 @@ and keep a trip sample from hours ago away from fields that mean "now".
 | `recent_trips[0]` attributes `eco_acceleration`, `eco_braking`, `eco_engine_speed`, `eco_speed`, `eco_coolant`, `eco_braking_negative_count`, `eco_acceleration_negative_count` | newest trip `ecoScore` `*Result` (0–100) and the two `*NegativeCount` | logbook alone. **A mark is the share of positively rated intervals, rounded down** (01.11: brake 190 positive / 13 negative → 93; holds for 145 of 161 marks). So `*NegativeCount` counts rated intervals, NOT hard-braking events; the 2026-09-02 reading "1 hard brake → 92" was wrong |
 | `license_plate`, `vehicle_nickname` (**reuse**, sensors exist) | root `licencePlate`, `vehicleNickName` | user-entered; empty strings on the B8 until filled in, so only non-blank values are mapped |
 | `last_refuel_at` (**reuse** the Škoda key + sensor) | newest `fuellog` `createdTimestamp` → ISO | one deliberate shared key, see the note in `models.py` |
+| `last_refuel_cost` + `last_refuel_currency`, `last_refuel_station` (**reuse** the Škoda keys + sensors) | newest `fuellog` `price` (only if > 0, the currency only together with it), `stationName` (only if not blank) | the owner types these into the app; two of four live fill-ups had a price, none a station |
 | — not `current_speed_kmh`, not `engine_coolant_temperature_c` | — | those mean "now"; a value from the last trip would pass for a live reading |
 | — not the GPS track as an attribute | — | hundreds of points of location history, over the recorder's attribute budget; only as a separate opt-in feature |
 
@@ -479,11 +480,11 @@ channels (driverlogs/fuellog equivalents) are unmapped — expect a similar but 
 9. **Still open:** whether `limit` above 300 is accepted on polldata (not needed: 10 × 300 covers
    ~4 h); whether trip aggregates like `maxTurboPressure` ever reach the server for a car that has
    them; and the wcg (VW) path from item 5.
-10. **Candidates not built yet:** refuel price per litre and cost from `fuellog` `price`/`currency`
-    (filled since the owner started entering prices: 50.08 and 136.30 EUR), which needs new fields;
-    `main_inspection_due_at` from `mainCheck`, but only once it holds a future date, not the
-    enrollment default; and a "service end announced" sensor via `configuration/market` +
-    `user/market/shutdown/acknowledge`, which needs one probe for the market ids.
+10. **Decided not to build:** `main_inspection_due_at` from `mainCheck`. Nothing reads that
+    field (no sensor, no calendar), and `mainCheck` mostly holds the enrollment default rather than a
+    real inspection date, so it would be a dead field fed by an unreliable value. Price per litre
+    is left out too: `last_refuel_cost` divided by `last_refuel_liters_added` gives it, so it would
+    be a duplicate.
 
 ## Reference
 

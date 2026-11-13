@@ -773,6 +773,19 @@ class PlugAndPlayCloudClient:
                 refuel_at = _epoch_ms_to_datetime(newest.get("createdTimestamp"))
                 if refuel_at is not None:
                     data.last_refuel_at = refuel_at
+                # Price and station only exist when the owner typed them into the
+                # app: price 0.0 / empty station otherwise (live 2026-11-13: two of
+                # four fill-ups had a price). The currency alone says nothing, so it
+                # is set only together with a real price.
+                price = _num(newest.get("price"))
+                if price is not None and price > 0:
+                    data.last_refuel_cost = round(price, 2)
+                    cur = newest.get("currency")
+                    if isinstance(cur, str) and cur.strip():
+                        data.last_refuel_currency = cur.strip().upper()
+                station = newest.get("stationName")
+                if isinstance(station, str) and station.strip():
+                    data.last_refuel_station = station.strip()
 
         # ── Driver-score points (account-level achievements ledger) ──
         ach = snap.get("achievements")
