@@ -2967,7 +2967,12 @@ def map_dataset_to_vehicle_data(
     if tsoc is not None:
         d.target_soc = tsoc
 
-    cs = first("charging_state_report.current_charge_state", "current_charge_state",
+    # #1739 (awood-ops) — resolve by FRESHEST capture, not alias order: a car can
+    # ship charging_state under disagreeing aliases from different captures (a
+    # stale "charging" out-ranking a newer "not ready"), which kept is_charging
+    # stuck on and fired the plug lift on an unplugged car. Same stale-alias trap
+    # #465 fixed for SoC; at equal capture time the canonical order still wins.
+    cs = first_freshest("charging_state_report.current_charge_state", "current_charge_state",
                "chargingState", "charging_state", record_as="charging_state")
     if cs:
         # is_charging from the RAW value; store a shortened label for display
@@ -3330,11 +3335,11 @@ def map_dataset_to_vehicle_data(
     #      underscore, so INVALID now leaves both attributes unset.
     # plugStatusItem.plugConnectionState is the one-time export's spelling of
     # the same datum (catalogue 17e75411, "The current plug connection state");
-    # appended LAST, which is order-safe here because first() is
-    # first-present-wins (unlike first_freshest, where position is only a
-    # tie-break).
+    # appended LAST. #1739 (awood-ops) — resolve by FRESHEST capture so a stale
+    # "connected" cannot out-rank a newer "disconnected". Position is now only a
+    # tie-break at equal capture time, so appending last stays safe.
     plug = drop_charge_sentinel(_shorten_enum(
-        first("charging_plug1_connectionstate", "plug_connection_state",
+        first_freshest("charging_plug1_connectionstate", "plug_connection_state",
               "plugConnectionState", "plug_state",
               "plugStatusItem.plugConnectionState", record_as="plug_state")))
     if plug is not None:
@@ -4734,8 +4739,11 @@ def map_dataset_to_vehicle_data(
     # #923-sweep — drop the no-reading sentinel at the source so a bare/prefixed
     # 'invalid' never reaches the sensor (and the _ACTIVE side-effect below stays
     # correct: INVALID is idle by the dictionary's own semantics).
+    # #1739 (awood-ops) — freshest capture wins (see charging_state above): a
+    # stale IMMEDIATELY_CHARGING_ACTIVE out-ranking a newer OFF fired the lift
+    # below on an unplugged car.
     _cscn = drop_charge_sentinel(
-        first("charging_state_report.charging_scenario",
+        first_freshest("charging_state_report.charging_scenario",
               "charging_scenario", "chargingScenario")
     )
     if _cscn is not None:
