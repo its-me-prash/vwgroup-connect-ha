@@ -67,10 +67,14 @@ def _charging_kwh(pv: Any) -> float | None:
 
 
 def _charging_details(entry: dict[str, Any]) -> dict[str, Any]:
-    """Session details: ``details`` (live shape), else legacy ``sessionDetails``."""
+    """Session details: ``details`` (live shape), else legacy ``sessionDetails``.
+
+    An empty ``details`` does not count as present, so it cannot hide a
+    populated ``sessionDetails`` next to it.
+    """
     for key in ("details", "sessionDetails"):
         det = entry.get(key)
-        if isinstance(det, dict):
+        if isinstance(det, dict) and det:
             return det
     return {}
 _BASE = "https://mysmob.api.connect.skoda-auto.cz"
@@ -2549,7 +2553,6 @@ class SkodaClient(CariadBaseClient):
                 # recent_charging_sessions = compact list of last 10
                 recent: list[dict[str, Any]] = []
                 for e in all_entries[:10]:
-                    e_pv = e.get("primaryValue") or {}
                     e_sv = e.get("secondaryValue") or {}
                     e_det = _charging_details(e)
                     recent.append({
@@ -2557,11 +2560,10 @@ class SkodaClient(CariadBaseClient):
                             e_det.get("startedAt")
                             if isinstance(e_det, dict) else None
                         ),
-                        "kwh": (
-                            e_pv.get("value")
-                            if isinstance(e_pv, dict)
-                            else _charging_kwh(e_pv)
-                        ),
+                        # One reader for both shapes, the same one the
+                        # last-session value uses: a {value, unit} object
+                        # counts only when its unit is kWh.
+                        "kwh": _charging_kwh(e.get("primaryValue")),
                         "duration_min": (
                             e_sv.get("value")
                             if isinstance(e_sv, dict) else None

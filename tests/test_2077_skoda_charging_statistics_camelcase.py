@@ -89,6 +89,23 @@ def test_c_old_value_unit_object_is_still_read() -> None:
     assert d.last_charging_session_kwh == 12.5
 
 
+def test_c2_an_object_counts_as_energy_only_with_a_kwh_unit() -> None:
+    """The per-session list and the last-session value read through one reader.
+
+    Before, the list took ``value`` from any object, so a duration in minutes
+    or a bare ``True`` would have been listed as kWh while the last-session
+    value rejected the same entry.
+    """
+    d = _status([
+        _e({"value": 45, "unit": "MINUTES"}),
+        _e({"value": True, "unit": "kWh"}),
+        _e({"value": 9}),
+        _e({"value": 12.5, "unit": "kWh"}),
+    ])
+    assert _kwhs(d) == [None, None, None, 12.5]
+    assert d.last_charging_session_kwh is None
+
+
 def test_d_junk_strings_are_not_read_as_energy() -> None:
     d = _status([
         _e("n/a"), _e("16 km"), _e("1.234,5 kWh"), _e("~~ 3 kWh"), _e("5 kWh extra"),
@@ -147,6 +164,17 @@ def test_e_charging_power_type_from_details() -> None:
     # legacy shape keeps working
     d2 = _status([_e({"value": 1, "unit": "kWh"}, {"currentType": "dc"}, key="sessionDetails")])
     assert d2.last_charging_session_current_type == "DC"
+
+
+def test_e2_an_empty_details_object_does_not_hide_the_legacy_one() -> None:
+    d = _status([{
+        "primaryValue": {"value": 3, "unit": "kWh"},
+        "details": {},
+        "sessionDetails": {"currentType": "dc", "startedAt": "2026-06-10T05:14:00Z"},
+    }])
+    assert d.last_charging_session_current_type == "DC"
+    assert d.last_charging_session_start == "2026-06-10T05:14:00Z"
+    assert d.recent_charging_sessions[0]["started_at"] == "2026-06-10T05:14:00Z"
 
 
 def test_f_live_shape_does_not_guess_a_start_time_or_a_duration() -> None:
