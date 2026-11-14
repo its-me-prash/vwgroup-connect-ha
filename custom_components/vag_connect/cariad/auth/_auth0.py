@@ -207,20 +207,18 @@ AUTH0_DENIED: Final[frozenset[str]] = frozenset({"volkswagen"})
 class Route:
     """One way to reach the same browser sign-in, bound as a whole.
 
-    The pieces travel together because a cross-check of the design (two
-    independent model families, 2026-11-09) and RFC 6749 §4.1.3 agree on the
-    same point: the ``redirect_uri`` used at the token exchange must be byte-for
-    byte the one used at ``/authorize``. So the route is a sealed tuple, never
-    assembled from a user's choice or from a pasted URL — a mismatch must be
-    impossible rather than merely discouraged.
+    The pieces travel together because RFC 6749 §4.1.3 requires it: the
+    ``redirect_uri`` used at the token exchange must be byte-for-byte the one
+    used at ``/authorize``. So the route is a sealed tuple, never assembled
+    from a user's choice or from a pasted URL — a mismatch must be impossible
+    rather than merely discouraged.
 
     ``catchable`` records whether a desktop browser actually lands on the
     callback so the user can copy it. A custom app scheme (``weconnect://``,
     ``myaudi:///``) does **not** show in the address bar — the 302 to it leaves
     the browser on the previous page, and on a phone the native app intercepts
     it. Only an ``http://localhost`` style callback is copyable without
-    DevTools. This is the single most load-bearing fact for the step's UX and it
-    was the cross-check's sharpest finding.
+    DevTools. This is the single most load-bearing fact for the step's UX.
     """
 
     key: str  # "direct" | "bff"

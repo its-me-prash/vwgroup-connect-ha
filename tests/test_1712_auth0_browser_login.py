@@ -740,7 +740,7 @@ def test_the_strings_cover_every_new_key() -> None:
         assert "http" not in json.dumps(cfg["step"]["auth0"]), "no literal URLs in strings (hassfest)"
 
 
-# ── hardening after an adversarial cross-review (two model families) ──────────
+# ── hardening after review ────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize("err", ["unauthorized_client", "invalid_client", "INVALID_GRANT"])
