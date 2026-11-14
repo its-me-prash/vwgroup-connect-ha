@@ -1447,8 +1447,10 @@ class PorscheClient:
             "X-Client-ID":   _X_CLIENT,
             "User-Agent":    _USER_AGENT,
             "Accept":        "application/json",
-            # #2097 — set last and unconditionally, so neither aiohttp's
-            # interpreter-dependent default nor a caller's header can widen it.
+            # #2097 — set last and unconditionally: aiohttp's
+            # interpreter-dependent default never applies, and a caller's
+            # ``Accept-Encoding`` is overwritten. (Exact key only — this is a
+            # plain dict. No caller passes headers today.)
             "Accept-Encoding": _ACCEPT_ENCODING,
         })
         try:

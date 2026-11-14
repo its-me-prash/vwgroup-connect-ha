@@ -29,6 +29,9 @@ Deliberately NOT done, and pinned below as the reason:
 """
 from __future__ import annotations
 
+from typing import Any
+
+from custom_components.vag_connect.cariad import _reporter_pipeline as rp
 from custom_components.vag_connect.cariad._reporter_pipeline import (
     _is_scout_repair_skipped,
 )
@@ -52,6 +55,52 @@ def _f(path: str, sample: str = "{1 keys}") -> UnexpectedField:
 def test_the_container_no_longer_raises_the_repair() -> None:
     """The reported nuisance: one card per poll for a report that cannot help."""
     assert _is_scout_repair_skipped(_f(_PATH))
+
+
+class _Recorder:
+    """Stands in for homeassistant.helpers.issue_registry."""
+
+    IssueSeverity = __import__(
+        "homeassistant.helpers.issue_registry", fromlist=["IssueSeverity"]
+    ).IssueSeverity
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def async_create_issue(self, *_a: Any, **_k: Any) -> None:
+        self.calls.append("create")
+
+    def async_delete_issue(self, *_a: Any, **_k: Any) -> None:
+        self.calls.append("delete")
+
+
+def _drive(findings: list[UnexpectedField]) -> list[str]:
+    """Run the function a poll runs, and report what it did to the repair."""
+    rec = _Recorder()
+    original = rp.ir
+    rp.ir = rec  # type: ignore[assignment]
+    try:
+        rp.ensure_unexpected_keys_issue(
+            object(),  # type: ignore[arg-type]
+            entry_id="e1", findings=findings, brand="audi",
+            integration_version="5.3.0",
+        )
+    finally:
+        rp.ir = original
+    return rec.calls
+
+
+def test_a_poll_with_only_this_field_leaves_the_repair_alone() -> None:
+    """The effect, not the predicate: no card is raised, and none is deleted.
+
+    Not deleted matters as much as not raised — deleting the registry entry
+    would throw away a dismissal the owner already gave (#1831).
+    """
+    assert _drive([_f(_PATH)]) == []
+
+
+def test_another_unknown_field_next_to_it_still_raises_the_repair() -> None:
+    assert _drive([_f(_PATH), _f("charging.somethingNew", "1")]) == ["create"]
 
 
 def test_the_skip_is_keyed_to_this_leaf_only() -> None:
