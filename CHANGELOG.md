@@ -70,6 +70,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Reconfigure to a different account no longer goes on reading the previous one (#118).** When an entry was switched to another account or another brand in Reconfigure, the stored sign-in of the previous account stayed in place and the entry kept using it. It is now dropped at the switch, so the entry signs in as the account you entered. New credentials for the same account keep the stored sign-in, as before.
 
+- **Audi connect plug&play (DataPlug) cars no longer sign in from scratch at every restart (#118).** The sign-in was never kept for this source, so every Home Assistant restart, every update and every reload went through the full login again. It is now stored and renewed the way the other brands' sign-ins are, and a stored sign-in the plug&play cloud no longer accepts falls back to one ordinary sign-in. An entry that was switched to plug&play in Reconfigure and has failed to set up ever since starts again: the sign-in left behind by the brand it had before used to stop the setup.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added

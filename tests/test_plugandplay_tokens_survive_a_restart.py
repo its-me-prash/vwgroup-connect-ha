@@ -324,6 +324,32 @@ async def test_a_token_file_that_cannot_be_written_does_not_break_the_sign_in(
     assert len(signins) == 1
 
 
+async def test_a_save_hook_that_raises_does_not_break_the_sign_in_or_a_read(
+    signins: _SignIns,
+) -> None:
+    """The storage swallows a failed write itself, so the test above never
+    reaches the client's own guard. The hook is the coordinator's to assign;
+    whatever it does, a sign-in and a read that needed a refresh must finish."""
+    wire = _Wire()
+    client = PlugAndPlayCloudClient(
+        wire, BRAND_AUDI_ACPP, "owner@example.invalid", "pw",
+    )
+    calls: list[str] = []
+
+    async def _boom(tokens: TokenSet) -> None:
+        calls.append(tokens.access_token)
+        raise RuntimeError("storage down")
+
+    client.on_tokens_changed = _boom
+
+    await client.authenticate()
+    wire.refused = {"access-signin1"}
+    assert await client.get_vehicles() == [_VIN]
+
+    assert calls == ["access-signin1", "access-refresh1"]  # it was called, twice
+    assert len(signins) == 1
+
+
 # ── 2. what a restart does with the file ─────────────────────────────────────
 async def test_a_restart_uses_the_stored_tokens_and_does_not_sign_in(
     files: dict[str, Any], signins: _SignIns,
