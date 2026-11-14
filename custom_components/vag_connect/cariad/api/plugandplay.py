@@ -337,6 +337,16 @@ class PlugAndPlayCloudClient:
         self._password = password
         self._spin = spin  # unused (read-only source); kept for interface parity
         self._tokens: TokenSet | None = None
+        # #118. Token persistence hook, same contract as the base client: the
+        # coordinator assigns its storage's ``save`` here and hands a stored set
+        # to ``set_persisted_tokens`` at setup, so a restart renews the session
+        # with one refresh request instead of walking the sign-in pages again.
+        # Signature: ``async def on_tokens_changed(tokens: TokenSet) -> None``.
+        self.on_tokens_changed: Any | None = None
+        # True while the token set in use came from the token file and no
+        # sign-in has happened in this process. Only ``authenticate()`` clears
+        # it. Read in ``get_vehicles()``.
+        self._tokens_from_storage = False
         # brand.name is deliberately NOT 'audi'/'volkswagen' (see BRAND_AUDI_ACPP)
         # so IDKAuth._exchange_code() takes the plain-OAuth branch (no CARIAD
         # x-qmauth attestation) and honours token_url_override below.
@@ -353,10 +363,47 @@ class PlugAndPlayCloudClient:
         self._tokens = await self._auth.authenticate(
             self._email, self._password, mfa_code=mfa_code
         )
+        self._tokens_from_storage = False
+        await self._emit_tokens()
 
     @property
     def tokens(self) -> TokenSet | None:
         return self._tokens
+
+    def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
+        """Take a stored token set so a start needs no sign-in (#118).
+
+        The coordinator calls this before it decides whether to
+        ``authenticate()``. A set is taken only if this client stored it (the
+        tag ``_emit_tokens`` puts on it) and it can renew itself. The token
+        file is keyed by the config entry, and Reconfigure can switch an entry
+        to this brand, so the file may hold what another brand's client wrote:
+        that set is left alone, and its refresh token is never posted to this
+        backend. A set that is not taken leaves the client without tokens; the
+        first read then raises ``AuthenticationError`` and the coordinator
+        signs in.
+        """
+        if (
+            tokens is not None
+            and tokens.refresh_token
+            and tokens.strategy == self._brand.name
+        ):
+            self._tokens = tokens
+            self._tokens_from_storage = True
+
+    async def _emit_tokens(self) -> None:
+        """Hand the current set to the coordinator's save hook (fail-soft)."""
+        if self.on_tokens_changed is None or self._tokens is None:
+            return
+        # Says which client stored the set; see ``set_persisted_tokens``.
+        self._tokens.strategy = self._brand.name
+        try:
+            await self.on_tokens_changed(self._tokens)
+        except Exception as exc:  # noqa: BLE001
+            # Storing is best-effort and must never break a sign-in or a read.
+            # Class name only; nothing about the token set goes to the log.
+            _LOGGER.debug(
+                "plug&play token persistence hook failed: %s", type(exc).__name__)
 
     async def _get(self, path: str, _retry: bool = True) -> tuple[int, Any]:
         if not self._tokens or not self._tokens.access_token:
@@ -391,9 +438,17 @@ class PlugAndPlayCloudClient:
             and self._tokens is not None and self._tokens.refresh_token
         ):
             try:
-                self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                fresh = await self._auth.refresh(self._tokens.refresh_token)
             except Exception:  # noqa: BLE001 — refresh failed → surface the 401
                 return status, body
+            # #118. The storage keeps a set only if it has an id_token, and a
+            # refresh answer may leave it out. Nothing reads this client's
+            # id_token, so the previous one is carried over; without it the
+            # file would keep a refresh token that has just been replaced.
+            if not fresh.id_token:
+                fresh.id_token = self._tokens.id_token
+            self._tokens = fresh
+            await self._emit_tokens()
             return await self._get(path, _retry=False)
         return status, body
 
@@ -603,6 +658,16 @@ class PlugAndPlayCloudClient:
         VINs; the coordinator then calls :meth:`get_status` per car.
         """
         status, body = await self._get("vehicles")
+        if status == 401 and self._tokens_from_storage:
+            # #118. The session came from the token file and the server no
+            # longer takes it, refresh included. An empty list would read as
+            # "no cars": setup would either end there or come up on the cached
+            # cars with a session that cannot read them, and every later start
+            # would meet the same file. Raising makes the coordinator sign in
+            # once, and that sign-in replaces the file. Right after a sign-in
+            # in this process the flag is clear and a 401 stays an empty list,
+            # as before.
+            raise AuthenticationError("plug&play stored session rejected (401)")
         if status != 200 or not isinstance(body, list):
             return []
         vins: list[str] = []
