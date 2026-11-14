@@ -47,8 +47,10 @@ _EMAIL = "owner@example.test"
 _PASSWORD = "a-real-password"
 
 # Every brand whose password sign-in goes through ``CariadBaseClient`` and
-# whose refresh takes the ordinary branch.
-_BRANDS = ["audi", "volkswagen", "bentley", "seat", "cupra", "skoda"]
+# whose refresh takes the ordinary branch. Audi North America is one of them:
+# its client is built on the same base and signs in at the provider's North
+# American host, which is under the same cookie domain.
+_BRANDS = ["audi", "audi_na", "volkswagen", "bentley", "seat", "cupra", "skoda"]
 
 _IDP = URL("https://identity.vwgroup.io/")
 _COOKIE = "remembered-device"
@@ -172,12 +174,18 @@ def _no_market_config_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
 def _password_login(monkeypatch: pytest.MonkeyPatch) -> None:
     """The password login, cut down to its two results: the identity provider
     sets a cookie on the session, and a token set with a refresh token comes
-    back. Patched on the class with ``monkeypatch``, which raises if the
-    method is not there."""
+    back. The first sign-in of a test sets ``_COOKIE_VALUE``, every later one
+    a value of its own, so a test can tell which sign-in a cookie is from.
+    Patched on the class with ``monkeypatch``, which raises if the method is
+    not there."""
+    sign_ins = 0
 
     async def _login(self: Any, email: str, password: str, **kw: Any) -> TokenSet:
+        nonlocal sign_ins
+        sign_ins += 1
+        value = _COOKIE_VALUE if sign_ins == 1 else f"{_COOKIE_VALUE}-{sign_ins}"
         cookie: SimpleCookie = SimpleCookie()
-        cookie[_COOKIE] = _COOKIE_VALUE
+        cookie[_COOKIE] = value
         cookie[_COOKIE]["domain"] = "identity.vwgroup.io"
         cookie[_COOKIE]["path"] = "/"
         self._session.cookie_jar.update_cookies(cookie, response_url=_IDP)
@@ -220,7 +228,7 @@ async def _stored_cookies(token_file: _TokenFile) -> dict[str, str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Positive controls — the instrument can see cookies where they should be
+# Positive controls: the instrument can see cookies where they should be
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -290,3 +298,61 @@ async def test_a_restart_after_a_refresh_gets_the_cookies_back(brand: str) -> No
 
     assert restarted.requests == [], "the stored tokens were used, no sign-in ran"
     assert restarted.cookies() == {_COOKIE: _COOKIE_VALUE}
+
+
+@pytest.mark.parametrize("brand", _BRANDS)
+async def test_the_cookies_are_still_there_after_several_refreshes(brand: str) -> None:
+    """An entry refreshes many times between two sign-ins. Keeping the cookies
+    across the first refresh only would move the loss by an hour."""
+    token_file = _TokenFile()
+    wire = _Wire(200, 200, 200)
+    client = await _start(brand, wire, token_file)
+
+    for _ in range(3):
+        await client._refresh_tokens()
+
+    assert wire.requests == ["POST refresh"] * 3
+    stored = await TokenStorage(token_file).load()
+    assert stored is not None and stored.access_token == "access-3"
+    assert await _stored_cookies(token_file) == {_COOKIE: _COOKIE_VALUE}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# What keeping them must not change
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("brand", _BRANDS)
+async def test_a_new_sign_in_replaces_the_cookies_that_were_kept(brand: str) -> None:
+    """The cookies are kept until there are newer ones, not for ever. When the
+    refresh token is rejected the client signs in again, and what the file
+    holds afterwards has to be what that sign-in left in the session."""
+    token_file = _TokenFile()
+    wire = _Wire(200, 400)
+    client = await _start(brand, wire, token_file)
+    await client._refresh_tokens()
+
+    await client._refresh_tokens()
+
+    assert wire.requests == ["POST refresh", "POST refresh"]
+    assert await _stored_cookies(token_file) == {_COOKIE: f"{_COOKIE_VALUE}-2"}
+
+
+@pytest.mark.parametrize("brand", _BRANDS)
+async def test_a_refresh_adds_no_cookies_to_an_entry_that_has_none(brand: str) -> None:
+    """A token set that came without cookies, for example one stored before
+    cookies were saved at all, stays without them."""
+    token_file = _TokenFile()
+    await TokenStorage(token_file).save(TokenSet(
+        access_token="access-0", refresh_token="refresh-0", id_token="id-0",
+    ))
+    wire = _Wire(200)
+    client = await _start(brand, wire, token_file)
+
+    await client._refresh_tokens()
+
+    assert wire.requests == ["POST refresh"]
+    stored = await TokenStorage(token_file).load()
+    assert stored is not None and stored.access_token == "access-1"
+    assert stored.auth_cookies == []
+    assert wire.cookies() == {}
