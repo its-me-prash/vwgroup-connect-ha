@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal entfernen",
           "supplementary_tibber": "Tibber-Lesekanal hinzufügen oder aktualisieren (E-Auto-Ladedaten)",
           "remove_supplementary_tibber": "Tibber-Lesekanal entfernen",
+          "link_obd_source": "Auto mit lokaler OBD-Quelle verknüpfen (DrivePulse)",
+          "remove_obd_source": "Alle Verknüpfungen mit lokalen OBD-Quellen entfernen",
           "abrp_enable": "ABRP-Telemetrie senden",
           "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
           "abrp_user_token": "ABRP-Token (pro Fahrzeug)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "Weitergeleitete URL (oder der Code)"
         }
       },
+      "link_obd_source": {
+        "title": "Auto mit lokaler OBD-Quelle verknüpfen",
+        "description": "Verknüpfe eines deiner Autos mit einem lokalen OBD-Gerät, derzeit aus der DrivePulse-Integration. Die Werte füllen nur Lücken (Tankfüllstand, Ladezustand, Reichweite, 12V-Batterie) und können einen älteren Tankfüllstand aus dem EU-Data-Act-Portal ersetzen. Das Gerät kennt deine VIN nicht, daher musst du das Auto selbst auswählen. Wählst du das falsche Auto, zeigt es die Werte eines anderen Autos an.",
+        "data": {
+          "vehicle": "Auto",
+          "obd_device": "OBD-Gerät"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU Two-Way (Befehle + Live-Daten, BETA)",
         "description": "**Experimentell, freiwillig — nur Volkswagen.** Fügt Zwei-Wege-Steuerung (Ver-/Entriegeln, Klima, Laden) und Live-CARIAD-Daten hinzu, indem du dich mit deiner Volkswagen ID anmeldest. Da Volkswagen auf diesem Weg nur ein 1-Stunden-Token ausstellt, wird dein Passwort **gespeichert**, damit die Integration es automatisch erneuern kann. Es wird nur an Volkswagens eigenen Login-Server gesendet und nie in Logs oder Diagnose geschrieben. Du möchtest kein Passwort speichern? Nutze stattdessen die nur-lesenden Kanäle. **Voraussetzung:** Deine Volkswagen ID muss Hauptnutzer des Fahrzeugs sein.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "Es wurde kein Gerät der DrivePulse-Integration gefunden. Richte zuerst DrivePulse ein und versuche es dann erneut.",
+      "obd_device_in_use": "Dieses Gerät ist bereits mit einem anderen Auto verknüpft. Entferne zuerst diese Verknüpfung oder wähle ein anderes Gerät.",
       "abrp_credentials_required": "Zum Aktivieren von ABRP musst du sowohl den api_key als auch den Fahrzeug-Token eingeben.",
       "invalid_auth": "Anmeldung fehlgeschlagen. Prüfe E-Mail-Adresse und Passwort deiner Volkswagen ID.",
       "cannot_connect": "Volkswagen konnte nicht erreicht werden. Bitte erneut versuchen.",

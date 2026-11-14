@@ -125,6 +125,71 @@ _LIVE_CLOSURE = frozenset({
 # managed fields excluded above.
 _LIVE_SUPERSEDE = _LIVE_TELEMETRY | _LIVE_CLOSURE
 
+# Held push snapshots: a THIRD source class next to batch and live.
+#
+# A channel in this set does not answer a read. It delivers a value when an
+# event happens to arrive (a phone app after a trip, a dongle on ignition) and
+# the integration then HOLDS that value until the next one. So it is neither a
+# batch export nor a live read, and every rule that reasons "not batch, hence
+# live" would be wrong about it: the value can be days old.
+#
+# It also arrives without the car's identity. The VIN guard in merge_channels
+# compares VINs, and for these sources the VIN comes from a link the user set
+# by hand, so that guard cannot catch a wrong car. The rules that key on this
+# set stand in for it: such a source may fill only the fields named below,
+# never proves a drivetrain, never dates the car (``last_seen_at``), and may
+# displace a batch value only when it is measurably newer.
+_HELD_PUSH_SOURCES = frozenset({"drivepulse"})
+
+# The only fields a held source may contribute at all, by gap-fill or otherwise.
+_HELD_FILLABLE_FIELDS = frozenset({
+    "fuel_level", "battery_soc", "range_km", "voltage_12v",
+})
+
+# Of those, the fields where a held value may displace a BATCH value that is
+# older by at least the margin. ``battery_soc`` is deliberately absent: whether
+# a dongle reports the display value or the raw BMS value is not established,
+# and a sensor that alternates between the two would jump.
+_HELD_SUPERSEDE_FIELDS = frozenset({"fuel_level"})
+_HELD_FRESHNESS_MARGIN_S = 900.0
+
+
+def is_held_source(owner: object) -> bool:
+    """True when *owner* names a held push source.
+
+    For an owner read out of a snapshot's ``field_sources``. A snapshot can
+    come from the cache on disk, and a damaged entry (a list where a channel
+    name belongs) must read as "not held" rather than raise: a bare ``in`` on
+    the frozenset would try to hash it, and this check runs for every car,
+    linked or not.
+    """
+    return isinstance(owner, str) and owner in _HELD_PUSH_SOURCES
+
+
+def _captured_ts(vd: "VehicleData | None", f_name: str) -> Any:
+    """The raw per-field capture stamp *vd* carries for *f_name*, if any."""
+    stamps = getattr(vd, "field_captured_ts", None)
+    return stamps.get(f_name) if isinstance(stamps, dict) else None
+
+
+def _parse_ts(raw: Any) -> datetime | None:
+    """Tolerant stamp parser for the held-supersede age gate.
+
+    Accepts an ISO string (``Z`` or an offset) or a ``datetime``; a naive time
+    is taken as UTC. Anything else is ``None``, which the gate reads as "no
+    evidence", so the batch value stands.
+    """
+    if isinstance(raw, datetime):
+        ts = raw
+    elif isinstance(raw, str) and raw:
+        try:
+            ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+
 
 def merge_channels(
     sources: list[tuple[str, "VehicleData"]],
@@ -172,6 +237,10 @@ def merge_channels(
         for f in fields(merged):
             if f.name in _SKIP_FIELDS:
                 continue
+            if name in _HELD_PUSH_SOURCES and f.name not in _HELD_FILLABLE_FIELDS:
+                # A held snapshot may carry more than this, but its link to the
+                # car is hand-set, so only the short list is trusted at all.
+                continue
             if _unset(f.name, getattr(merged, f.name)):
                 new = getattr(vd, f.name)
                 if not _unset(f.name, new):
@@ -191,12 +260,17 @@ def merge_channels(
     # channel is present (EU-DA-only cars keep their value) or when a live channel
     # already owns the field. Order-preserving (walks ``sources`` in priority
     # order) and provenance-correct.
-    if any(nm not in _BATCH_SOURCES for nm, _ in sources):
+    # A held push source is not live (its value can be days old), so it neither
+    # arms this block nor takes part in it; its own, age-gated rule follows.
+    if any(
+        nm not in _BATCH_SOURCES and nm not in _HELD_PUSH_SOURCES
+        for nm, _ in sources
+    ):
         for f_name in _LIVE_SUPERSEDE:
             if field_sources.get(f_name) not in _BATCH_SOURCES:
                 continue  # a live channel already owns it, or nobody set it
             for nm, vd in sources:
-                if nm in _BATCH_SOURCES:
+                if nm in _BATCH_SOURCES or nm in _HELD_PUSH_SOURCES:
                     continue
                 live_val = getattr(vd, f_name, None)
                 if not _unset(f_name, live_val):
@@ -204,6 +278,34 @@ def merge_channels(
                     field_sources[f_name] = nm
                     contributors.add(nm)
                     break
+
+    # Held supersede: a held value may displace a batch value only when BOTH
+    # carry a capture stamp and the held one is newer by the margin. Without two
+    # stamps there is no evidence of which is fresher, and channel class says
+    # nothing here (unlike live vs batch), so the batch stands. Runs after the
+    # live block, so a field a live channel already took is no longer batch-owned.
+    for f_name in _HELD_SUPERSEDE_FIELDS:
+        owner = field_sources.get(f_name)
+        if owner not in _BATCH_SOURCES:
+            continue
+        batch_vd = next((vd for nm, vd in sources if nm == owner), None)
+        batch_ts = _parse_ts(_captured_ts(batch_vd, f_name))
+        if batch_ts is None:
+            continue
+        for nm, vd in sources:
+            if nm not in _HELD_PUSH_SOURCES:
+                continue
+            held_val = getattr(vd, f_name, None)
+            if _unset(f_name, held_val):
+                continue
+            held_ts = _parse_ts(_captured_ts(vd, f_name))
+            if held_ts is None:
+                continue
+            if (held_ts - batch_ts).total_seconds() >= _HELD_FRESHNESS_MARGIN_S:
+                setattr(merged, f_name, copy.deepcopy(held_val))
+                field_sources[f_name] = nm
+                contributors.add(nm)
+                break
 
     # v4.7.8 (#923/#1378) — position: FRESHEST capture wins, not merge order.
     # The EU-DA batch feed can now carry a pin (``persLocation``), and with the
@@ -217,6 +319,8 @@ def merge_channels(
     _best_vd: VehicleData | None = None
     _best_ts: datetime | None = None
     for nm, vd in sources:
+        if nm in _HELD_PUSH_SOURCES:
+            continue  # a pin over a hand-set link is not this car's position
         lat = getattr(vd, "latitude", None)
         lon = getattr(vd, "longitude", None)
         ts_raw = getattr(vd, "position_captured_at", None)
@@ -267,6 +371,10 @@ def merge_channels(
     _ls_vd: VehicleData | None = None
     _ls_ts: datetime | None = None
     for nm, vd in sources:
+        if nm in _HELD_PUSH_SOURCES:
+            # A held event is not a contact with the car; letting it date the
+            # car would hide a stale read path behind a fresh-looking anchor.
+            continue
         ls_dt = _ls_dt(vd)
         if ls_dt is None:
             continue
@@ -281,7 +389,7 @@ def merge_channels(
         field_sources["last_seen_at"] = _ls_nm
         contributors.add(_ls_nm)
 
-    _merge_drivetrain(merged, sources)
+    _merge_drivetrain(merged, sources, field_sources)
 
     # Provenance = the channels that actually contributed a value: "+"-joined
     # when several did, the single channel name when only one had data, None
@@ -416,15 +524,50 @@ def drivetrain_from_evidence(
     return flags
 
 
+def held_blind_getter(
+    get: Callable[[str], Any], field_sources: Any,
+) -> Callable[[str], Any]:
+    """Wrap *get* so a field owned by a held push source reads as ``None``.
+
+    For the callers of :func:`drivetrain_from_evidence`. A held value is not
+    evidence of a drivetrain: it reaches the car through a hand-set link, and
+    the rule is additive, so one wrong reading would turn a combustion car into
+    a hybrid for good. ``field_sources`` is the per-field owner map of the same
+    snapshot; anything that is not a mapping means "no owners known" and leaves
+    *get* unchanged in effect.
+    """
+    owners = field_sources if isinstance(field_sources, dict) else {}
+
+    def _get(key: str) -> Any:
+        if is_held_source(owners.get(key)):
+            return None
+        return get(key)
+
+    return _get
+
+
 def _merge_drivetrain(
-    merged: "VehicleData", sources: list[tuple[str, "VehicleData"]]
+    merged: "VehicleData",
+    sources: list[tuple[str, "VehicleData"]],
+    field_sources: dict[str, str] | None = None,
 ) -> None:
     """Union the additive drivetrain flags across channels and re-derive the
-    EV/PHEV/ICE classification from the merged result."""
+    EV/PHEV/ICE classification from the merged result.
+
+    ``field_sources`` is the merge's per-field owner map; a field a held push
+    source owns is read as absent, and a held source's own asserted flags are
+    not counted, because the rule only ever adds and a hand-set link may point
+    at the wrong car.
+    """
     for name, value in drivetrain_from_evidence(
-        lambda k: getattr(merged, k, None),
-        asserted_battery=any(vd.has_battery for _n, vd in sources),
-        asserted_combustion=any(vd.has_combustion for _n, vd in sources),
+        held_blind_getter(lambda k: getattr(merged, k, None), field_sources),
+        asserted_battery=any(
+            vd.has_battery for n, vd in sources if n not in _HELD_PUSH_SOURCES
+        ),
+        asserted_combustion=any(
+            vd.has_combustion for n, vd in sources
+            if n not in _HELD_PUSH_SOURCES
+        ),
     ).items():
         setattr(merged, name, value)
 
@@ -550,6 +693,9 @@ async def gather_and_merge(
     # whose position is staler than another's will show the preferred channel's
     # older fix (the whole point of the option is "trust this channel", so this is
     # intended; the motivating case prefers the FRESHER channel).
-    if preferred and preferred != "auto":
+    #
+    # A held push source can never be preferred: at the front it would become
+    # the base and own every field it carries, past every rule above.
+    if preferred and preferred != "auto" and preferred not in _HELD_PUSH_SOURCES:
         sources.sort(key=lambda s: 0 if s[0] == preferred else 1)
     return merge_channels(sources)

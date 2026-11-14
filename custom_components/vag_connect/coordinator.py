@@ -52,6 +52,7 @@ from .const import (
     advised_scan_interval_from_budget,
 )
 from homeassistant.helpers import device_registry as dr
+from .cariad._channel_merge import _HELD_PUSH_SOURCES, is_held_source
 from .cariad._error_reporter import ErrorRingBuffer, record_error
 from .cariad._reporter_pipeline import (
     ensure_error_reporter_issue,
@@ -133,8 +134,21 @@ def _values_moved(
     """
     if not isinstance(previous, dict):
         return None
+    # A reading relayed by a held push source (a dongle through a phone app)
+    # says nothing about whether the car's own feed is alive: it changes after
+    # every trip while the portal can be frozen for days. Counted here, one
+    # such change would clear the stale-data Repair this rule exists to keep
+    # honest, and the owner flipping back to the batch would do it again.
+    prev_owners = previous.get("field_sources")
+    cur_owners = current.get("field_sources")
+
+    def _held(owners: Any, key: str) -> bool:
+        return isinstance(owners, dict) and is_held_source(owners.get(key))
+
     for key in _LIVENESS_FIELDS:
         if key not in previous or key not in current:
+            continue
+        if _held(prev_owners, key) or _held(cur_owners, key):
             continue
         before, now = previous.get(key), current.get(key)
         if before is None or now is None:
@@ -148,6 +162,31 @@ def _values_moved(
 #: captured it. They are ordinary keys in the snapshot dict, which is why the
 #: gap-fill below has to treat them specially.
 _PROVENANCE_MAPS = ("field_sources", "field_captured_ts", "field_source_leaf")
+
+
+def _release_held(data: dict[str, Any], keys: list[str]) -> None:
+    """Remove a held push source's side-map entries for *keys*, in place.
+
+    For a field whose held value was just replaced by one of this car's own
+    (the value itself is the caller's business). Without this the new value
+    would keep the dongle's name and capture time. The held source's token
+    leaves ``source_channel`` once it owns no field any more.
+    """
+    for name in (*_PROVENANCE_MAPS, "ambiguous_fields"):
+        entries = data.get(name)
+        if isinstance(entries, dict):
+            for key in keys:
+                entries.pop(key, None)
+    owners = data.get("field_sources")
+    if isinstance(owners, dict) and any(
+        is_held_source(src) for src in owners.values()
+    ):
+        return
+    channel = data.get("source_channel")
+    if isinstance(channel, str):
+        data["source_channel"] = "+".join(
+            t for t in channel.split("+") if t and t not in _HELD_PUSH_SOURCES
+        ) or None
 
 
 def _gap_fill_from_export(
@@ -175,14 +214,33 @@ def _gap_fill_from_export(
 
     A live value is never clobbered, which is the rule this whole import rests
     on, and an entry already present in the destination map is left alone.
+
+    A value owned by a held push source is not a live value in that sense. It
+    is a dongle reading on loan, gone again once its hold time is over or the
+    link is removed, and the next poll takes it out of the cached snapshot
+    anyway. Left standing here it would turn the export's own reading away,
+    and the field would end up empty where the import alone had filled it. So
+    such a field counts as empty, and the held source's entries for it leave
+    the side maps before the export's are copied in.
     """
+    owners = current.get("field_sources")
+    held_owned = {
+        key for key, src in owners.items() if is_held_source(src)
+    } if isinstance(owners, dict) else set()
     filled: list[str] = []
+    released: list[str] = []
     for key, val in hist.items():
         if val is None or key in _PROVENANCE_MAPS:
             continue
-        if current.get(key) is None:  # never clobber a live value
+        if key in held_owned:
             current[key] = val
             filled.append(key)
+            released.append(key)
+        elif current.get(key) is None:  # never clobber a live value
+            current[key] = val
+            filled.append(key)
+    if released:
+        _release_held(current, released)
     for name in _PROVENANCE_MAPS:
         source = hist.get(name)
         if not isinstance(source, dict):
@@ -303,12 +361,19 @@ def _has_live_contributor(data: dict[str, Any]) -> bool:
     Absent, blank or not a string returns **False**, which keeps the behaviour
     that predates #1917: a car we cannot classify stays on the old path rather
     than being moved silently onto the new one.
+
+    A held push source is not a live contributor either. It relays a reading
+    that can be days old and never sets ``last_seen_at``, so counting it would
+    let that anchor outvote the batch stamps on a car whose only read path is
+    the batch, which is the very case the anchor must not decide.
     """
     raw = data.get("source_channel")
     if not isinstance(raw, str) or not raw.strip():
         return False
     return any(
-        tok and not any(marker in tok for marker in _BATCH_CHANNEL_MARKERS)
+        tok
+        and tok not in _HELD_PUSH_SOURCES
+        and not any(marker in tok for marker in _BATCH_CHANNEL_MARKERS)
         for tok in (part.strip().lower() for part in raw.split("+"))
     )
 
@@ -365,6 +430,18 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
     """
     stamps = data.get("field_captured_ts")
     if isinstance(stamps, dict):
+        # A stamp on a field a held push source owns dates a relayed dongle
+        # reading, not the car's feed. Left in, the newest stamp would be that
+        # reading after every trip and a feed frozen for days would read as
+        # minutes old. Same reasoning as the dongle "Datenstand" note at the
+        # fall-through below; judged by the field's CURRENT owner, because the
+        # stamp map itself carries no channel.
+        owners = data.get("field_sources")
+        if isinstance(owners, dict):
+            stamps = {
+                k: v for k, v in stamps.items()
+                if not is_held_source(owners.get(k))
+            }
         # No emptiness test on the map itself: it would be redundant. An empty
         # map and a map whose every stamp is unparseable both yield an empty
         # ``ages``, and the guard below already falls through for that — a
@@ -2048,6 +2125,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from homeassistant.helpers.json import JSONEncoder  # noqa: PLC0415
         from .cariad.vehicle_cache import (  # noqa: PLC0415
             VEHICLE_CACHE_VERSION,
+            strip_held,
             vehicle_cache_key,
         )
         self._vehicle_store: Store[dict[str, Any]] = Store(
@@ -2114,7 +2192,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     if vin == "_meta" or vin in self.vehicles:
                         continue
                     if isinstance(vdata, dict):
-                        restored = dict(vdata)
+                        # A held push value never comes back from the vehicle
+                        # cache: the hold's own store is its only keeper, with
+                        # its real capture time and an expiry. A still-fresh
+                        # reading is merged again on the first read that brings
+                        # data (a held value never fills a failed or empty
+                        # read); an expired one, or one whose link was removed,
+                        # is simply gone.
+                        restored = dict(strip_held(vdata))
                         restored["_restored"] = True
                         restored["_poll_failed"] = False
                         normalize_enum_states(restored)  # #1739 — see docstring
@@ -2549,6 +2634,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug(
                     "Škoda official auto-enroll skipped (%s)", type(exc).__name__
                 )
+            # Opt-in held push source: loaded before the first read, so a
+            # still-fresh reading is merged on that read already. It starts
+            # listening only at the end, once this setup has succeeded.
+            await self._async_setup_drivepulse_hold()
             # #968 companion startup — a companion read is a full app-screen walk
             # (plus every enabled nav-read opt-in), so awaiting it here held
             # config-entry setup, and HA startup, open for minutes. Setup only
@@ -2584,6 +2673,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     # "Old but visible": a VIN we have never seen still falls
                     # through, so a brand-new car appears on first setup.
                     if no_data and self.vehicles.get(vin):
+                        self.vehicles[vin] = self._without_stale_held(
+                            vin, self.vehicles[vin]
+                        )
                         self.vehicles[vin]["_poll_failed"] = True
                         self._redecide_stale(self.vehicles[vin])
                         if hasattr(self, "vehicle_success"):
@@ -2692,6 +2784,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             self.hass.async_create_background_task(
                 _bg_finish(), f"{DOMAIN}_setup_finish"
             )
+            if found > 0:
+                # Only a setup that succeeded is ever shut down again, so only
+                # that one may register bus listeners.
+                self._start_drivepulse_hold()
             return found > 0
 
         except TermsAndConditionsError as err:
@@ -3309,9 +3405,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # to write at all.
                 from .cariad._channel_merge import (  # noqa: PLC0415
                     drivetrain_from_evidence,
+                    held_blind_getter,
                 )
+                # A value a held push source owns in the live snapshot is not
+                # drivetrain evidence here either (see ``held_blind_getter``).
                 for _flag, _flag_val in drivetrain_from_evidence(
-                    current.get,
+                    held_blind_getter(current.get, current.get("field_sources")),
                     asserted_battery=bool(current.get("has_battery"))
                     or bool(hist.get("has_battery")),
                     asserted_combustion=bool(current.get("has_combustion"))
@@ -4757,6 +4856,157 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             pass
 
+    async def _async_setup_drivepulse_hold(self) -> None:
+        """Load the opt-in held push source, if a car is linked. Does not listen yet.
+
+        Must run before the first read: a restored snapshot has its held values
+        stripped (see ``async_setup``), and the hold is what puts a still-fresh
+        one back on the first read that brings data. Without a link this does
+        nothing at all, so an entry that never opted in is untouched. Fail-soft:
+        a problem here costs the supplementary values, never the setup.
+
+        Loading and listening are two steps on purpose, see
+        ``_start_drivepulse_hold``.
+        """
+        from .const import CONF_DRIVEPULSE_LINKS, DRIVEPULSE_HOLD_S  # noqa: PLC0415
+
+        await self._async_stop_drivepulse_hold()
+        links = (self.entry.data or {}).get(CONF_DRIVEPULSE_LINKS)
+        if not isinstance(links, dict) or not links:
+            return
+        try:
+            from .held_push import DrivePulseHold  # noqa: PLC0415
+
+            hold = DrivePulseHold(
+                self.hass, self.entry.entry_id, links, DRIVEPULSE_HOLD_S
+            )
+            await hold.async_load()
+            self._drivepulse_hold: Any = hold
+        except Exception as err:  # noqa: BLE001
+            self._drivepulse_hold = None
+            _LOGGER.debug(
+                "held push source setup skipped (%s)", type(err).__name__
+            )
+
+    def _start_drivepulse_hold(self) -> None:
+        """Start listening for trip events. Called only once setup has succeeded.
+
+        A setup that fails is retried by Home Assistant with a NEW coordinator,
+        and the failed one is never shut down. A listener registered before the
+        outcome is known would stay behind, one more per retry, all of them
+        writing the same store. A hold that was only loaded holds nothing open.
+        """
+        hold = getattr(self, "_drivepulse_hold", None)
+        if hold is None:
+            return
+        try:
+            hold.async_start()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "held push source could not start listening (%s)",
+                type(err).__name__,
+            )
+
+    async def _async_stop_drivepulse_hold(self) -> None:
+        """Stop the held push source and write what is still waiting.
+
+        Used on shutdown, on reload and before a re-setup. Never raises.
+
+        When the link is gone by now (removing it reloads the entry, which
+        lands here) the readings are discarded instead and the store file is
+        deleted, so unlinking leaves nothing of the foreign device behind.
+        """
+        from .const import CONF_DRIVEPULSE_LINKS  # noqa: PLC0415
+
+        hold = getattr(self, "_drivepulse_hold", None)
+        self._drivepulse_hold = None
+        if hold is None:
+            return
+        try:
+            if (self.entry.data or {}).get(CONF_DRIVEPULSE_LINKS):
+                await hold.async_stop()
+            else:
+                await hold.async_discard()
+        except Exception:  # noqa: BLE001 - teardown must not raise
+            pass
+
+    def _drop_stale_held_in_place(self, vin: str) -> None:
+        """Apply ``_without_stale_held`` to the snapshot on record for *vin*.
+
+        For the paths that leave ``self.vehicles[vin]`` untouched and publish
+        it again as it is (a refresh that failed or brought no data).
+        """
+        current = (getattr(self, "vehicles", None) or {}).get(vin)
+        if not isinstance(current, dict):
+            return
+        cleaned = self._without_stale_held(vin, current)
+        if cleaned is not current:
+            with self._vehicles_lock:
+                self.vehicles[vin] = cleaned
+
+    def _held_supplier(self, vin: str) -> "tuple[str, Any] | None":
+        """The held push supplier for *vin*, or ``None`` when nothing fresh is held.
+
+        Returns ``None`` far more often than not, on purpose: the supplier is
+        only offered while a linked device's reading is inside the hold time,
+        so the merge of an unlinked car, or of a linked one whose dongle has
+        been silent, is the merge it always was.
+
+        The drivetrain flags come from the snapshot already on record, never
+        from the held reading itself: a generic dongle cannot tell which energy
+        store a level belongs to, so fuel is only passed on to a car already
+        known to burn it and state of charge only to one known to have a pack.
+        """
+        hold = getattr(self, "_drivepulse_hold", None)
+        if hold is None:
+            return None
+        try:
+            if not hold.has_fresh(vin):
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+        # Imported before the coroutine exists: an import that failed after it
+        # was created would leave a coroutine nobody awaits.
+        from .cariad._drivepulse_source import CHANNEL  # noqa: PLC0415
+
+        current = (getattr(self, "vehicles", None) or {}).get(vin) or {}
+        has_battery = bool(current.get("has_battery"))
+        has_combustion = bool(current.get("has_combustion"))
+
+        async def _read() -> VehicleData | None:
+            try:
+                held: VehicleData | None = hold.vehicle_data(
+                    vin, has_battery=has_battery, has_combustion=has_combustion
+                )
+            except Exception:  # noqa: BLE001 - never sink the poll
+                return None
+            return held
+
+        return (CHANNEL, _read())
+
+    def _without_stale_held(
+        self, vin: str, snapshot: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Drop held push values from a snapshot about to be shown again.
+
+        The paths that re-publish the last snapshot (a failed or empty poll) do
+        not run ``reconcile``, so nothing there would ever remove a held value.
+        While the hold still has a fresh reading for this car the value stays,
+        like every other "old but visible" one; once the hold time is over or
+        the link is gone it must not linger for as long as the outage lasts.
+        Returns the very same object when there is nothing to drop.
+        """
+        hold = getattr(self, "_drivepulse_hold", None)
+        if hold is not None:
+            try:
+                if hold.has_fresh(vin):
+                    return snapshot
+            except Exception:  # noqa: BLE001
+                pass
+        from .cariad.vehicle_cache import strip_held  # noqa: PLC0415
+
+        return strip_held(snapshot)
+
     async def _merge_supplementary(self, vin: str, primary: VehicleData) -> VehicleData:
         """v2.15.0b1 (C1) — union armed supplementary read-only channels onto
         the primary snapshot. No-op (returns ``primary`` unchanged) when no
@@ -4767,10 +5017,28 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         client = self._cariad_client
         readers = getattr(client, "supplementary_readers", None)
-        if readers is None:
-            return annotate_provenance(self._primary_channel_name(), primary)
-        suppliers = readers(vin)
+        suppliers = list(readers(vin)) if readers is not None else []
+        # Opt-in held push source (a linked DrivePulse device). Appended LAST,
+        # so it is the lowest source, and only when a fresh reading is actually
+        # held for this car. That also covers a client that has no
+        # supplementary readers of its own.
+        # Looked up with getattr because the tests bind this method to minimal
+        # stubs that carry only what the merge used before.
+        held_reader = getattr(self, "_held_supplier", None)
+        held_supplier = held_reader(vin) if held_reader is not None else None
+        # True when the held source is the ONLY supplementary channel this poll.
+        only_held = held_supplier is not None and not suppliers
+        if held_supplier is not None:
+            suppliers.append(held_supplier)
         if not suppliers:
+            # A held source that has stopped supplying would otherwise leave its
+            # last diagnostics label standing: the sweep that clears those lives
+            # in gather_and_merge, which this branch never reaches. A stale "ok"
+            # for a source that is no longer asked is worse than no label.
+            _outcomes = getattr(client, "probe_outcomes", None)
+            if isinstance(_outcomes, dict):
+                for _tok in _HELD_PUSH_SOURCES:
+                    _outcomes.pop(f"channel:{_tok}", None)
             # v2.18.0 (B2) — no supplementary channel to union, but the reading
             # still has an origin. Record it so a single-channel car can name
             # its source like everyone else; nothing else about the snapshot is
@@ -4792,6 +5060,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "C1 supplementary merge failed for %s — keeping primary: %s",
                 mask_vin(vin), type(err).__name__,
             )
+            if held_supplier is not None:
+                # If the failure came before the gather, nobody awaited the
+                # held reader; close it so it does not surface as a warning.
+                try:
+                    held_supplier[1].close()
+                except Exception:  # noqa: BLE001
+                    pass
             # Still attribute what we did get — losing provenance exactly when
             # a channel misbehaves is when it's most worth having.
             return annotate_provenance(self._primary_channel_name(), primary)
@@ -4804,6 +5079,30 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # other single-channel reading.
         if getattr(merged, "source_channel", None) is None:
             merged = annotate_provenance(self._primary_channel_name(), merged)
+        if getattr(primary, "no_data", False) and merged is not primary:
+            # The primary brought nothing and the held source is the only one
+            # that did. A dongle reading is not a contact with the car, so it
+            # never stands in for a read that failed: the poll stays the empty
+            # one it was. This also covers a car seen for the first time, where
+            # the caller has no last snapshot to fall back to and would take
+            # the merged result as a success.
+            _toks = [
+                t for t in str(getattr(merged, "source_channel", "") or "").split("+")
+                if t
+            ]
+            if _toks and all(t in _HELD_PUSH_SOURCES for t in _toks):
+                merged = annotate_provenance(self._primary_channel_name(), primary)
+        if only_held and merged is not primary:
+            # The held source was the only other channel. A car without a
+            # supplementary channel keeps the drivetrain flags its client set:
+            # the no-suppliers branch above never re-derives them. Going
+            # through the merge does, and a linked dongle must not be the
+            # reason a car is classified differently, so the primary's flags
+            # go back on. Linking then classifies exactly as not linking does.
+            for _flag in (
+                "has_battery", "has_combustion", "is_electric", "is_hybrid",
+            ):
+                setattr(merged, _flag, getattr(primary, _flag))
         # #966 — the suppliers just ran a vw.de read, which may have silently
         # refreshed the session and rotated its cookie jar. Persist the rotated
         # cookies now, after EVERY supplementary read, not only at arm and once at
@@ -4854,6 +5153,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # primary is never a contributor (all fields at construction
         # default), so any non-None source_channel means live data arrived.
         if merged is empty_primary or not getattr(merged, "source_channel", None):
+            return None
+        # A held push source alone never revives a poll. Its reading is a
+        # relayed dongle value that can be days old, not a contact with the
+        # car: counted as "live data arrived" it would reset the failure
+        # counter and the last-good time on every poll, and a dead read path
+        # would look healthy for as long as the hold time lasts. When a real
+        # supplementary channel revived the poll, the held values ride along.
+        if all(
+            tok in _HELD_PUSH_SOURCES
+            for tok in str(merged.source_channel).split("+") if tok
+        ):
             return None
         # Live supplementary data arrived — this is no longer a no-data poll.
         merged.no_data = False
@@ -5034,6 +5344,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     and val < existing
                 ):
                     continue
+            if is_held_source(field_sources.get(key)):
+                # The official value replaces a held push reading, so that
+                # reading's capture stamp goes with it. Left behind under a
+                # field the official channel now owns, the stale-data verdict
+                # would date an official value by a phone's clock. The held
+                # source's name leaves ``source_channel`` too once this was
+                # its last field: nothing later would take it out, because
+                # every cleanup looks for a field it still owns.
+                _release_held(enriched, [key])
             enriched[key] = val
             field_sources[key] = "skoda_official"
             merged += 1
@@ -5333,7 +5652,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             result = _revived
                     if isinstance(result, Exception):
                         _LOGGER.debug("Poll failed for %s: %s", mask_vin(vin), type(result).__name__)
-                        old = self.vehicles.get(vin, {})
+                        old = self._without_stale_held(vin, self.vehicles.get(vin, {}))
                         old["_poll_failed"] = True
                         self._redecide_stale(old)
                         fresh[vin] = old
@@ -5437,7 +5756,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             if revived is not None:
                                 result = revived
                             else:
-                                old = self.vehicles.get(vin, {})
+                                old = self._without_stale_held(vin, self.vehicles.get(vin, {}))
                                 old["_poll_failed"] = True
                                 self._redecide_stale(old)
                                 fresh[vin] = old
@@ -5470,7 +5789,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                                 "keeping previous data: %s",
                                 mask_vin(vin), type(parse_err).__name__,
                             )
-                            old = self.vehicles.get(vin, {})
+                            old = self._without_stale_held(vin, self.vehicles.get(vin, {}))
                             old["_poll_failed"] = True
                             self._redecide_stale(old)
                             fresh[vin] = old
@@ -5567,7 +5886,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         except Exception:  # noqa: BLE001
                             pass
                     else:
-                        fresh[vin] = self._redecide_stale(self.vehicles.get(vin, {}))
+                        fresh[vin] = self._redecide_stale(
+                            self._without_stale_held(vin, self.vehicles.get(vin, {}))
+                        )
                         self.vehicle_success[vin] = False
                         self.vehicle_failure_count[vin] = (
                             self.vehicle_failure_count.get(vin, 0) + 1
@@ -5855,6 +6176,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """Stop polling loop and release resources."""
         self._started = False
         self._shutting_down = True
+        # Held push source first: stop listening and write the snapshot that
+        # is still waiting for its delayed save, so a reload does not lose the
+        # last event and does not leave a second listener behind. First, so a
+        # failure further down cannot skip it. Never raises.
+        await self._async_stop_drivepulse_hold()
         # v2.0.0 (Big-Bang) — stop push managers before dropping client.
         await self.async_stop_push_managers()
         # v2.15.0b1 (C1) — close the dedicated supplementary vw.de session so
@@ -7888,9 +8214,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 and _tank_cap > 0 and isinstance(_fuel_l, (int, float))
                 and not isinstance(_fuel_l, bool) and _fuel_l >= 0):
             data["fuel_tank_capacity_liters"] = int(round(_tank_cap))
-            if data.get("fuel_level") is None:
+            # A percentage on loan from a held push source is not "a real %"
+            # of this car's own channel: the litres are this poll's reading,
+            # the held value can be days old. The derived value replaces it,
+            # and the held source's entries for the field go with it.
+            _fuel_owners = data.get("field_sources")
+            _fuel_is_held = (
+                isinstance(_fuel_owners, dict)
+                and is_held_source(_fuel_owners.get("fuel_level"))
+            )
+            if data.get("fuel_level") is None or _fuel_is_held:
                 data["fuel_level"] = max(
                     0, min(100, int(round(_fuel_l / _tank_cap * 100))))
+                if _fuel_is_held:
+                    _release_held(data, ["fuel_level"])
 
         # Battery State of Health. Audi device-grant cars now carry a REAL SoH read
         # from the batteryHealthState BFF job (set upstream in the API layer), so we
@@ -8635,6 +8972,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         result = _revived
                 if isinstance(result, Exception):
                     _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), type(result).__name__)
+                    self._drop_stale_held_in_place(vin)
                     continue
                 if isinstance(result, VehicleData):
                     # v2.29.x — portal-safety, mirroring the poll path
@@ -8664,6 +9002,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             vin, result
                         )
                         if revived is None:
+                            self._drop_stale_held_in_place(vin)
                             continue
                         # revive already ran the supplementary merge over the
                         # empty primary → use it directly (mirror the poll
@@ -10192,8 +10531,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 f"token={_abrp.redact(resolved_token)})"
             )
 
-        # Core field gate — never POST without soc (ABRP rejects it).
-        if vehicle.get("battery_soc") is None:
+        # Core field gate: never POST without soc (ABRP rejects it). A state
+        # of charge relayed by a held push source counts as absent here: it is
+        # not sent to a third party, so there is nothing to upload.
+        if not _abrp.has_sendable_soc(vehicle):
             raise HomeAssistantError(
                 f"ABRP send skipped for ...{vin[-4:]}: no battery state-of-"
                 "charge available yet."

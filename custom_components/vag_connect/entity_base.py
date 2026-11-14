@@ -337,8 +337,11 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         entity whose value THIS poll came from the EU Data Act portal.
 
         Portal readers expose per-value freshness; ours names it per entity. Only
-        for EU-DA-sourced values (``field_sources[data_key] == "eu_data_act"``) —
-        every other channel is a live read and the poll time is already the
+        for EU-DA-sourced values (``field_sources[data_key] == "eu_data_act"``)
+        and for values of a held push source (``_HELD_PUSH_SOURCES``): that
+        class is an event snapshot that can be days old and carries a real
+        capture time in ``field_captured_ts``, so it is not a live read either.
+        Every other channel is a live read and the poll time is already the
         capture time. Adds ``data_captured_at`` (ISO, only when a genuine
         per-point timestamp survived onto this field), ``freshness_source``
         ("point" when it did, else "dataset") and ``ambiguous_reading`` (True
@@ -373,7 +376,12 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         """
         desc = getattr(self, "entity_description", None)
         data_key = (getattr(desc, "data_key", "") if desc is not None else "") or ""
-        if not data_key or self._field_source != "eu_data_act":
+        from .cariad._channel_merge import is_held_source  # noqa: PLC0415
+
+        source = self._field_source
+        if not data_key or (
+            source != "eu_data_act" and not is_held_source(source)
+        ):
             return {}
         attrs: dict[str, Any] = {}
         captured = self._vehicle.get("field_captured_ts")

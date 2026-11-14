@@ -14,6 +14,8 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    DeviceSelector,
+    DeviceSelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -44,6 +46,7 @@ from .const import (
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
     CONF_COUNTRY,
+    CONF_DRIVEPULSE_LINKS,
     CONF_EU_DATA_ACT_AUTO_KICKOFF,
     CONF_ENABLE_PUSH_AUDI_VW,
     CONF_ENABLE_PUSH_FCM,
@@ -3508,6 +3511,8 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
         self._otib_client_secret: str = ""
         self._otib_verifier: str = ""
         self._otib_state: str = ""
+        # Options stashed while the "link a local OBD source" sub-step runs.
+        self._oobd_pending_options: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -3646,6 +3651,25 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
                     else:
                         _rp_map.pop(_vin, None)  # auto/blank → back to the default
                 user_input[CONF_READ_PRIORITY] = _rp_map
+            # Local OBD source (DrivePulse). Both switches are popped before any
+            # branch below can return, so neither is ever stored as an option,
+            # whatever else was ticked in the same submit. Removing the links
+            # is applied right here for the same reason: a sub-flow further
+            # down returns early, and the request must not be lost with it.
+            _link_obd = bool(user_input.pop("link_obd_source", False))
+            if user_input.pop("remove_obd_source", False) and (
+                CONF_DRIVEPULSE_LINKS in self._config_entry.data
+            ):
+                _obd_data = {**self._config_entry.data}
+                _obd_data.pop(CONF_DRIVEPULSE_LINKS, None)
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry, data=_obd_data,
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
             # b1/C1 — if the user ticked "add vw.de read channel", branch into
             # the login sub-flow; the remaining options are saved when it
             # completes. Default-False so untouched submits behave exactly as
@@ -3725,7 +3749,14 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
                         self._config_entry.entry_id
                     )
                 )
-                return self.async_create_entry(title="", data=user_input)
+                if not _link_obd:
+                    return self.async_create_entry(title="", data=user_input)
+            # Local OBD source: link a car to a device. Last, after every
+            # remove switch above has been popped and applied, so the options
+            # that wait for this step to finish carry no switch along.
+            if _link_obd:
+                self._oobd_pending_options = dict(user_input)
+                return await self.async_step_link_obd_source()
             return self.async_create_entry(title="", data=user_input)
 
         current_data = self._config_entry.data
@@ -3992,6 +4023,16 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
         if current_data.get(CONF_SUPPLEMENTARY_TIBBER):
             schema[vol.Optional(
                 "remove_supplementary_tibber", default=False,
+            )] = _BOOL_SELECTOR
+        # Local OBD source: the link switch is offered once there is something
+        # to link (a DrivePulse device and a car of this entry), because the
+        # step behind it could not be completed otherwise. The remove switch
+        # shows only while a link map exists.
+        if self._obd_link_possible():
+            schema[vol.Optional("link_obd_source", default=False)] = _BOOL_SELECTOR
+        if current_data.get(CONF_DRIVEPULSE_LINKS):
+            schema[vol.Optional(
+                "remove_obd_source", default=False,
             )] = _BOOL_SELECTOR
         # VW EU Two-Way (650d46ca): Volkswagen-only. Show the add-toggle for a VW
         # entry that has not armed it, and a remove-toggle once armed (so it can
@@ -4474,6 +4515,106 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
             "client_id": self._otib_client_id,
             "client_secret": self._otib_client_secret,
         }
+
+    # ── local OBD source (DrivePulse): link a car to a device ───────────────
+
+    def _obd_source_device_ids(self) -> set[str]:
+        """Device ids of the DrivePulse integration in the device registry."""
+        from homeassistant.helpers import device_registry as dr  # noqa: PLC0415
+
+        ids: set[str] = set()
+        # The registry's device collection is dict-like at runtime but typed
+        # as a plain collection, hence the untyped local.
+        registry_devices: Any = dr.async_get(self.hass).devices
+        for dev in registry_devices.values():
+            if any(i[0] == "drivepulse" for i in (dev.identifiers or ())):
+                ids.add(dev.id)
+                continue
+            for eid in dev.config_entries or ():
+                ent = self.hass.config_entries.async_get_entry(eid)
+                if ent is not None and ent.domain == "drivepulse":
+                    ids.add(dev.id)
+                    break
+        return ids
+
+    def _obd_link_possible(self) -> bool:
+        """True when a DrivePulse device and a car of this entry both exist."""
+        try:
+            if not self._obd_source_device_ids():
+                return False
+        except Exception:  # noqa: BLE001 - an unreadable registry hides the switch
+            return False
+        coord = getattr(self._config_entry, "runtime_data", None)
+        vehicles = getattr(coord, "vehicles", None)
+        return isinstance(vehicles, dict) and bool(vehicles)
+
+    def _obd_device_linked_elsewhere(self, dev_id: str) -> bool:
+        """True when another entry of this integration already links *dev_id*.
+
+        Two entries (two accounts or brands) would otherwise both take the
+        same dongle's readings, and one of the two cars would show the other's.
+        """
+        for other in self.hass.config_entries.async_entries(DOMAIN):
+            if other.entry_id == self._config_entry.entry_id:
+                continue
+            other_links = other.data.get(CONF_DRIVEPULSE_LINKS)
+            if isinstance(other_links, dict) and dev_id in other_links.values():
+                return True
+        return False
+
+    async def async_step_link_obd_source(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Pick one of this entry's cars and the OBD device that belongs to it.
+
+        The source knows no VIN, so the pairing is by hand. A device may serve
+        only one car; a car has at most one device (a new pick replaces it).
+        """
+        errors: dict[str, str] = {}
+        devices = self._obd_source_device_ids()
+        links_raw = self._config_entry.data.get(CONF_DRIVEPULSE_LINKS)
+        links: dict[str, str] = dict(links_raw) if isinstance(links_raw, dict) else {}
+        if user_input is not None:
+            vin = str(user_input.get("vehicle", "")).strip().upper()
+            dev_id = str(user_input.get("obd_device", "")).strip()
+            if not devices or dev_id not in devices:
+                errors["base"] = "no_obd_source"
+            elif any(
+                v == dev_id and k != vin for k, v in links.items()
+            ) or self._obd_device_linked_elsewhere(dev_id):
+                errors["base"] = "obd_device_in_use"
+            else:
+                links[vin] = dev_id
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={**self._config_entry.data, CONF_DRIVEPULSE_LINKS: links},
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+                return self.async_create_entry(
+                    title="", data=self._oobd_pending_options
+                )
+        elif not devices:
+            errors["base"] = "no_obd_source"
+        _coord = getattr(self._config_entry, "runtime_data", None)
+        _vehicles = getattr(_coord, "vehicles", None)
+        _vins = [str(v) for v in _vehicles] if isinstance(_vehicles, dict) else []
+        return self.async_show_form(
+            step_id="link_obd_source",
+            data_schema=vol.Schema({
+                vol.Required("vehicle"): SelectSelector(SelectSelectorConfig(
+                    options=_vins,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )),
+                vol.Required("obd_device"): DeviceSelector(
+                    DeviceSelectorConfig(integration="drivepulse")
+                ),
+            }),
+            errors=errors,
+        )
 
     # ── b1/C1: supplementary vw.de read-channel sub-flow ────────────────────
 
