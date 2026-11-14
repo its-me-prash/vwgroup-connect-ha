@@ -161,6 +161,14 @@ _REDACT_KEYS = frozenset({
     "idToken",
     "id_token_hint",
     "client_secret",
+    # #118. The sign-in's PKCE verifier is now stored with the token set for
+    # Volkswagen US and Canada, because that token endpoint is said to want it
+    # again on every refresh. That makes it a credential of the same rank as
+    # the refresh token it travels with, so it is registered on the same
+    # terms as the token fields above: nothing puts it into a download today.
+    # The JWT pattern would not catch it, a verifier is not JWT-shaped.
+    "code_verifier",
+    "codeVerifier",
     # b11 — supplementary-channel credentials/secrets (added in b8/b9 but never
     # registered here, so the portal password leaked in PLAINTEXT in the
     # diagnostics download — exactly the file users attach to GitHub issues).

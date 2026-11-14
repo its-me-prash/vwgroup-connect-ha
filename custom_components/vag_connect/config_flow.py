@@ -3401,6 +3401,25 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._dag_error = ""
                     return await self.async_step_browser_login_pending()
 
+                # #118. A changed account gets a clean rebuild of the entry's
+                # data above, because carrying the previous account's tokens
+                # forward would be wrong. The token file was not part of that:
+                # it is keyed by the entry, not by the account, so the reload
+                # found it, started no sign-in and went on reading the
+                # previous account until that account's refresh was refused.
+                # A changed brand is the same case with a set minted by
+                # another brand's client.
+                #
+                # Before the entry is updated, not after: the entry has an
+                # update listener, so the change itself can bring a reload.
+                # And before the Porsche save below, which writes the NEW
+                # account's set into the same file.
+                #
+                # Only for a changed account. New credentials for the same
+                # account keep the file; dropping a refreshable set on every
+                # credential update is what #118 was about.
+                if account_changed:
+                    await self._clear_token_store(entry.entry_id)
                 self.hass.config_entries.async_update_entry(
                     entry,
                     title=f"{_brand_label(brand)} — {username}",
