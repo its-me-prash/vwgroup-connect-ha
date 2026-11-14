@@ -13,7 +13,7 @@ it is not the EV range; clear the phantom (range_km already carries the figure).
 
 Soll-values from the issue (34 electric / ~116 petrol / ~150 combined) and the
 dictionary (153e8c40 = combined). The regression guards below encode two
-adversarial review findings (gpt-oss + Gemini via agy): a legit-electric PHEV
+adversarial review findings: a legit-electric PHEV
 must survive, and a combustion-only car must keep the #1316 screen's handoff to
 combustion_range_km.
 """
@@ -42,7 +42,7 @@ def test_q3_phev_combined_on_electric_is_cleared() -> None:
 
 
 def test_combined_source_cleared_even_with_an_electric_engine_type() -> None:
-    """Gemini finding #2: the discriminator must be the SOURCE, not engine_type.
+    """Review finding: the discriminator must be the SOURCE, not engine_type.
     A PHEV that names an ELECTRIC engine_type but ships only the combined UUID
     still had the bug. FAILS BEFORE THE FIX: electric_range_km == 150."""
     d = _map({
@@ -55,14 +55,14 @@ def test_combined_source_cleared_even_with_an_electric_engine_type() -> None:
 
 
 def test_a_legit_electric_phev_range_survives() -> None:
-    """gpt-oss finding: a PHEV whose PRIMARY range IS the electric range (source
+    """Review finding: a PHEV whose PRIMARY range IS the electric range (source
     0ca40e18 / a named leaf, not the combined UUID) must NOT be zeroed."""
     d = _map({_PRIMARY: "48", "fuel_level": "55", "battery_level_HV.value": "50"})
     assert d.electric_range_km == 48
 
 
 def test_a_combustion_only_car_keeps_its_combustion_range() -> None:
-    """Gemini finding #1: a pure-combustion car (no engine_type, no SoC) relies on
+    """Review finding: a pure-combustion car (no engine_type, no SoC) relies on
     the #1316 screen to move the range to combustion_range_km. The fix must run
     AFTER that screen so the handoff is not starved."""
     d = _map({_PRIMARY: "500", "fuel_level": "40"})
