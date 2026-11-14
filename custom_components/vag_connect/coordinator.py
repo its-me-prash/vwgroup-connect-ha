@@ -2107,6 +2107,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from homeassistant.helpers.storage import Store  # noqa: PLC0415
         from .cariad.auth._token_storage import (  # noqa: PLC0415
             TokenStorage,
+            payload_version_for_brand,
             storage_key_for_entry,
             _STORAGE_VERSION,
         )
@@ -2115,7 +2116,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _STORAGE_VERSION,
             storage_key_for_entry(self.entry.entry_id),
         )
-        self._token_storage = TokenStorage(store)
+        # #118. The version this entry's file is WRITTEN under follows the
+        # brand: Volkswagen US and Canada writes one that releases from before
+        # it stored tokens discard instead of tripping over. Loading reads
+        # either. See ``_READABLE_PAYLOAD_VERSIONS``.
+        self._token_storage = TokenStorage(
+            store, payload_version=payload_version_for_brand(brand),
+        )
         persisted = await self._token_storage.load()
 
         # b13 — Portal-safety: restore the last-known-good vehicle snapshot so

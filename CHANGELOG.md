@@ -66,6 +66,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Audi connect plug&play (DataPlug) cars: odometer and last trip are current again (#2100).** The plug&play cloud returns the trip logbook and the fuel log oldest first, and the integration only read the first page. With more than 20 trips logged, the last trip shown was weeks old and the odometer could be hundreds of kilometres short. Every page is read now, and a trip the cloud stored several times counts once.
 - **Audi connect plug&play (DataPlug) cars: "Data as of" no longer shows the first registration date (#2100).** It was taken from a field the owner fills in in the app. It now shows when the car last reported: the end of the last trip or the last parking position, whichever is newer.
 
+- **Volkswagen US and Canada no longer signs in from scratch at every restart (#118).** The sign-in was never kept for this brand, so every Home Assistant restart, every update and every reload went through the full login again, which is the step the North American backend rate-limits. It is now stored and renewed the way the other brands' sign-ins are, and a renewal the backend refuses falls back to one ordinary sign-in.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
