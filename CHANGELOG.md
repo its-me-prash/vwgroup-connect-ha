@@ -66,6 +66,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Audi connect plug&play (DataPlug) cars: odometer and last trip are current again (#2100).** The plug&play cloud returns the trip logbook and the fuel log oldest first, and the integration only read the first page. With more than 20 trips logged, the last trip shown was weeks old and the odometer could be hundreds of kilometres short. Every page is read now, and a trip the cloud stored several times counts once.
 - **Audi connect plug&play (DataPlug) cars: "Data as of" no longer shows the first registration date (#2100).** It was taken from a field the owner fills in in the app. It now shows when the car last reported: the end of the last trip or the last parking position, whichever is newer.
 
+- **Reconfigure with "Enable durable two-way commands" ticked now switches cleanly to a different account (#118).** On that route (Volkswagen and Audi, finished through the code sign-in in the browser) the previous account's stored sign-in stayed in place and the entry could go on using it, and the next Reconfigure dropped the command channel that had just been set up. The entry now ends up on the new account, as it does without the box. A code sign-in that is closed or expires changes nothing.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
