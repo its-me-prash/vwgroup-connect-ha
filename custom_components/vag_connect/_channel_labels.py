@@ -23,6 +23,7 @@ _CHANNEL_LABELS: dict[str, str] = {
     "eu_data_act": "EU Data Act portal",
     "website_authproxy": "vw.de website",
     "tibber": "Tibber",
+    "drivepulse": "DrivePulse (OBD)",
     "mbb": "Car-Net",
     "companion_adb": "Companion app (ADB)",
     "companion_relay": "Companion app (relay)",

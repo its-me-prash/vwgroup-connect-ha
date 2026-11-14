@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "Rimuovi il canale di lettura del portale EU Data Act",
           "supplementary_tibber": "Aggiungi o aggiorna un canale di lettura Tibber (dati di ricarica dell'auto elettrica)",
           "remove_supplementary_tibber": "Rimuovi il canale di lettura Tibber",
+          "link_obd_source": "Collega un'auto a una fonte OBD locale (DrivePulse)",
+          "remove_obd_source": "Rimuovi tutti i collegamenti alle fonti OBD locali",
           "abrp_enable": "Abilita l'invio di telemetria ad ABRP",
           "abrp_api_key": "ABRP api_key (chiave sviluppatore)",
           "abrp_user_token": "Token ABRP (per veicolo)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "URL di reindirizzamento (o il codice)"
         }
       },
+      "link_obd_source": {
+        "title": "Collega un'auto a una fonte OBD locale",
+        "description": "Collega una delle tue auto a un dispositivo OBD locale, per ora dell'integrazione DrivePulse. I suoi valori colmano soltanto le lacune (livello carburante, livello di carica, autonomia, batteria da 12 V) e possono sostituire un valore di carburante più vecchio del portale dati. Il dispositivo non conosce il tuo VIN, quindi devi scegliere tu l'auto. Se scegli l'auto sbagliata, mostrerà i valori di un'altra auto.",
+        "data": {
+          "vehicle": "Auto",
+          "obd_device": "Dispositivo OBD"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU Two-Way (comandi + letture in tempo reale, BETA)",
         "description": "**Sperimentale, opt-in — solo Volkswagen.** Aggiunge il controllo bidirezionale (blocca/sblocca, clima, ricarica) e le letture CARIAD in tempo reale accedendo con il tuo Volkswagen ID. Poiché su questo percorso Volkswagen rilascia solo un token di 1 ora, la tua password viene **memorizzata** così che l'integrazione possa rinnovarlo automaticamente. È inviata solo al server di login di Volkswagen e non viene mai scritta nei log o nella diagnostica. Preferisci non memorizzare una password? Usa invece i canali in sola lettura. **Requisito:** il tuo Volkswagen ID deve essere l'utente principale del veicolo.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "Non è stato trovato nessun dispositivo dell'integrazione DrivePulse. Configura prima DrivePulse, poi riprova.",
+      "obd_device_in_use": "Questo dispositivo è già collegato a un'altra auto. Rimuovi prima quel collegamento o scegli un altro dispositivo.",
       "abrp_credentials_required": "Per abilitare ABRP devi inserire sia la api_key sia il token per veicolo.",
       "invalid_auth": "Accesso non riuscito. Controlla l'email e la password del tuo Volkswagen ID.",
       "cannot_connect": "Impossibile raggiungere Volkswagen. Riprova.",

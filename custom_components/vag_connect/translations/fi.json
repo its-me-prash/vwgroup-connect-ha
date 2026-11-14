@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "Poista EU Data Act -portaalin lukukanava",
           "supplementary_tibber": "Lisää tai päivitä Tibber-lukukanava (sähköauton lataustiedot)",
           "remove_supplementary_tibber": "Poista Tibber-lukukanava",
+          "link_obd_source": "Yhdistä auto paikalliseen OBD-lähteeseen (DrivePulse)",
+          "remove_obd_source": "Poista kaikki paikallisten OBD-lähteiden yhteydet",
           "abrp_enable": "Ota käyttöön ABRP-telemetrian lähetys",
           "abrp_api_key": "ABRP api_key (kehittäjäavain)",
           "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "Uudelleenohjattu URL-osoite (tai koodi)"
         }
       },
+      "link_obd_source": {
+        "title": "Yhdistä auto paikalliseen OBD-lähteeseen",
+        "description": "Yhdistä yksi autoistasi paikalliseen OBD-laitteeseen, tällä hetkellä DrivePulse-integraatiosta. Sen arvot täyttävät vain aukkoja (polttoainetaso, lataustaso, toimintamatka, 12 V:n akku) ja voivat korvata vanhemman polttoainearvon portaalista. Laite ei tunne VIN-tunnustasi, joten sinun on valittava auto itse. Jos valitset väärän auton, näkyviin tulevat toisen auton arvot.",
+        "data": {
+          "vehicle": "Auto",
+          "obd_device": "OBD-laite"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU Two-Way (komennot + live-lukemat, BETA)",
         "description": "**Kokeellinen, valinnainen — vain Volkswagen.** Lisää kaksisuuntaisen ohjauksen (lukitus/avaus, ilmastointi, lataus) ja live-CARIAD-lukemat kirjautumalla Volkswagen ID -tunnuksellasi. Koska Volkswagen myöntää tätä kautta vain 1 tunnin tunnisteen, salasanasi **tallennetaan**, jotta integraatio voi uusia sen automaattisesti. Se lähetetään vain Volkswagenin omalle kirjautumispalvelimelle eikä sitä koskaan kirjata lokeihin tai diagnostiikkaan. Etkö halua tallentaa salasanaa? Käytä sen sijaan vain luku -kanavia. **Edellytys:** Volkswagen ID:si on oltava ajoneuvon ensisijainen käyttäjä.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "DrivePulse-integraatiosta ei löytynyt laitetta. Ota DrivePulse ensin käyttöön ja yritä sitten uudelleen.",
+      "obd_device_in_use": "Tämä laite on jo yhdistetty toiseen autoon. Poista ensin kyseinen yhteys tai valitse toinen laite.",
       "abrp_credentials_required": "ABRP:n käyttöönotto edellyttää sekä api_keyn että ajoneuvokohtaisen tunnisteen syöttämistä.",
       "invalid_auth": "Kirjautuminen epäonnistui. Tarkista Volkswagen ID -sähköpostisi ja -salasanasi.",
       "cannot_connect": "Volkswageniin ei saatu yhteyttä. Yritä uudelleen.",

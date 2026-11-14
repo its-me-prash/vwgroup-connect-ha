@@ -1244,6 +1244,16 @@ async def async_remove_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
     )
     storage = TokenStorage(store)
     await storage.clear()
+    # The opt-in held push source keeps its own small store (a linked dongle's
+    # last reading). It is keyed by the entry id, so a removed entry would
+    # leave it behind for good. Fail-soft: a leftover file must not block the
+    # removal the user asked for.
+    try:
+        from .held_push import async_remove_held_store  # noqa: PLC0415
+
+        await async_remove_held_store(hass, entry.entry_id)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -> bool:

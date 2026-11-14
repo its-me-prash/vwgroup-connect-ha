@@ -23,6 +23,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from .cariad._channel_merge import is_held_source
+
 _LOGGER = logging.getLogger(__name__)
 
 # Boolean field → (event on False→True, event on True→False).
@@ -47,6 +49,14 @@ _TRACKED_FIELDS: tuple[str, ...] = (
 )
 
 _Listener = Callable[[dict[str, Any]], None]
+
+
+def _soc_held(veh: dict[str, Any]) -> bool:
+    """True when ``battery_soc`` is owned by a held push source."""
+    sources = veh.get("field_sources")
+    return isinstance(sources, dict) and is_held_source(
+        sources.get("battery_soc")
+    )
 
 
 class VehicleTransitionDetector:
@@ -80,7 +90,9 @@ class VehicleTransitionDetector:
             if prev is not None:
                 for event_key in self._detect(prev, veh):
                     self._fire(event_key, vin)
-            self._prev[vin] = {k: veh.get(k) for k in _TRACKED_FIELDS}
+            snap = {k: veh.get(k) for k in _TRACKED_FIELDS}
+            snap["_soc_held"] = _soc_held(veh)
+            self._prev[vin] = snap
 
     def _detect(self, prev: dict[str, Any], cur: dict[str, Any]) -> list[str]:
         events: list[str] = []
@@ -96,8 +108,11 @@ class VehicleTransitionDetector:
         po, pn, tgt = (
             prev.get("battery_soc"), cur.get("battery_soc"), cur.get("target_soc")
         )
+        # An owner switch of battery_soc from or to a held push source is a
+        # change of reading, not a charging movement, so it never counts.
         if (
-            isinstance(po, int) and isinstance(pn, int) and isinstance(tgt, int)
+            not prev.get("_soc_held") and not _soc_held(cur)
+            and isinstance(po, int) and isinstance(pn, int) and isinstance(tgt, int)
             and not isinstance(po, bool) and not isinstance(pn, bool)
             and po < tgt <= pn
         ):

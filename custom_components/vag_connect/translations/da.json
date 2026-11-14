@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "Fjern EU Data Act-portallæsekanalen",
           "supplementary_tibber": "Tilføj eller opdater en Tibber-læsekanal (elbilens ladedata)",
           "remove_supplementary_tibber": "Fjern Tibber-læsekanalen",
+          "link_obd_source": "Knyt en bil til en lokal OBD-kilde (DrivePulse)",
+          "remove_obd_source": "Fjern alle forbindelser til lokale OBD-kilder",
           "abrp_enable": "Aktivér ABRP-telemetri-push",
           "abrp_api_key": "ABRP api_key (udviklernøgle)",
           "abrp_user_token": "ABRP-token (pr. køretøj)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "Omdirigeret URL (eller koden)"
         }
       },
+      "link_obd_source": {
+        "title": "Knyt en bil til en lokal OBD-kilde",
+        "description": "Knyt en af dine biler til en lokal OBD-enhed, i øjeblikket fra DrivePulse-integrationen. Dens værdier udfylder kun huller (brændstofniveau, ladeniveau, rækkevidde, 12 V-batteri) og kan erstatte en ældre brændstofværdi fra dataportalen. Enheden kender ikke dit VIN, så du selv skal vælge bilen. Vælger du den forkerte bil, viser den en anden bils værdier.",
+        "data": {
+          "vehicle": "Bil",
+          "obd_device": "OBD-enhed"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU To-vejs (kommandoer + live-aflæsninger, BETA)",
         "description": "**Eksperimentel, tilvalg — kun Volkswagen.** Tilføjer to-vejs-styring (lås/lås op, klima, opladning) og live CARIAD-aflæsninger ved at logge ind med dit Volkswagen ID. Da Volkswagen kun udsteder et token på 1 time ad denne vej, **gemmes** din adgangskode, så integrationen kan forny det automatisk. Den sendes kun til Volkswagens egen loginserver og skrives aldrig til logfiler eller diagnostik. Vil du hellere ikke gemme en adgangskode? Brug de skrivebeskyttede kanaler i stedet. **Forudsætning:** din Volkswagen ID skal være køretøjets primære bruger.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "Der blev ikke fundet nogen enhed fra DrivePulse-integrationen. Opsæt først DrivePulse, og prøv derefter igen.",
+      "obd_device_in_use": "Denne enhed er allerede knyttet til en anden bil. Fjern først den forbindelse, eller vælg en anden enhed.",
       "abrp_credentials_required": "For at aktivere ABRP skal du indtaste både api_key og tokenet pr. køretøj.",
       "invalid_auth": "Login mislykkedes. Tjek din Volkswagen ID-e-mail og adgangskode.",
       "cannot_connect": "Kunne ikke få forbindelse til Volkswagen. Prøv venligst igen.",

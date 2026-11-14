@@ -294,6 +294,8 @@
           "remove_supplementary_eu_portal": "Odebrat čtecí kanál portálu EU Data Act",
           "supplementary_tibber": "Přidat nebo obnovit čtecí kanál Tibber (data o nabíjení elektromobilu)",
           "remove_supplementary_tibber": "Odebrat čtecí kanál Tibber",
+          "link_obd_source": "Propojit vůz s místním zdrojem OBD (DrivePulse)",
+          "remove_obd_source": "Odebrat všechna propojení s místním zdrojem OBD",
           "abrp_enable": "Povolit odesílání telemetrie ABRP",
           "abrp_api_key": "api_key ABRP (vývojářský klíč)",
           "abrp_user_token": "Token ABRP (pro vozidlo)",
@@ -377,6 +379,14 @@
           "tibber_auth_response": "Přesměrovaná URL (nebo kód)"
         }
       },
+      "link_obd_source": {
+        "title": "Propojení vozu s místním zdrojem OBD",
+        "description": "Propojte jeden ze svých vozů s místním zařízením OBD, aktuálně z integrace DrivePulse. Jeho hodnoty jen doplňují chybějící údaje (hladina paliva, stav baterie, dojezd, baterie 12V) a mohou nahradit starší hodnotu paliva z portálu EU Data Act. Zařízení nezná váš VIN, proto vůz musíte vybrat sami. Pokud vyberete špatný vůz, zobrazí hodnoty jiného auta.",
+        "data": {
+          "vehicle": "Vůz",
+          "obd_device": "Zařízení OBD"
+        }
+      },
       "add_vweu_twoway": {
         "title": "VW EU Two-Way (příkazy + živé čtení dat, BETA)",
         "description": "**Experimentální, dobrovolné — pouze Volkswagen.** Přidává obousměrné ovládání (zamknout/odemknout, klimatizace, nabíjení) a živé čtení dat z CARIAD po přihlášení pomocí vašeho Volkswagen ID. Protože Volkswagen na této cestě vydává pouze hodinový token, vaše heslo se **uloží**, aby jej integrace mohla automaticky obnovovat. Odesílá se výhradně na přihlašovací server samotného Volkswagenu a nikdy se nezapisuje do logů ani diagnostiky. Nechcete heslo ukládat? Použijte místo toho kanály jen pro čtení. **Předpoklad:** vaše Volkswagen ID musí být hlavním uživatelem vozidla.",
@@ -391,6 +401,8 @@
       }
     },
     "error": {
+      "no_obd_source": "Nebylo nalezeno žádné zařízení z integrace DrivePulse. Nejprve nastavte DrivePulse a zkuste to znovu.",
+      "obd_device_in_use": "Toto zařízení je už propojené s jiným vozem. Nejprve to propojení odeberte, nebo vyberte jiné zařízení.",
       "abrp_credentials_required": "Pro povolení ABRP musíte zadat jak api_key, tak token vozidla.",
       "invalid_auth": "Přihlášení selhalo. Zkontrolujte e-mail a heslo svého Volkswagen ID.",
       "cannot_connect": "Volkswagen se nepodařilo kontaktovat. Zkuste to prosím znovu.",

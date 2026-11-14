@@ -406,6 +406,19 @@ CONF_READ_PRIORITY               = "read_priority"
 READ_PRIORITY_MODES: tuple[str, ...] = ("auto", "prefer_website_authproxy")
 READ_PRIORITY_DEFAULT = "auto"
 
+# Opt-in link between one of this entry's cars and a device of the separate
+# DrivePulse integration (a generic OBD2 dongle that reports through a phone
+# app). Stored as a ``{VIN: device_id}`` map, set by hand in the options flow:
+# DrivePulse deliberately carries no VIN, so nothing can match the two
+# automatically. A linked device's last trip reading is held and merged as the
+# lowest read source (see ``_HELD_PUSH_SOURCES`` in ``cariad/_channel_merge``).
+# Empty or absent means the feature is off and nothing about a poll changes.
+CONF_DRIVEPULSE_LINKS            = "drivepulse_links"
+# How long a held reading may still be merged after it was captured. A parked
+# car's tank does not change, so this is generous; it exists so a reading from
+# a dongle that was unplugged weeks ago stops being presented.
+DRIVEPULSE_HOLD_S: int = 7 * 24 * 3600
+
 # v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
 # sensors / binary sensors whose value hasn't arrived are not created, so a
 # device isn't flooded with dozens of "unknown" entities. The per-id dynamic

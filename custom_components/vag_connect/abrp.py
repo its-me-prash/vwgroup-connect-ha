@@ -56,6 +56,8 @@ import logging
 from typing import Any
 from urllib.parse import urlencode
 
+from .cariad._channel_merge import is_held_source
+
 _LOGGER = logging.getLogger(__name__)
 
 # Official iternio telemetry endpoint (versioned path "1").
@@ -125,6 +127,25 @@ def _coerce_utc_seconds(value: Any) -> int | None:
     return None
 
 
+def _held_owner(vehicle: dict[str, Any], key: str) -> bool:
+    """True when ``key`` is owned by a held push source (see _channel_merge)."""
+    sources = vehicle.get("field_sources")
+    if not isinstance(sources, dict):
+        return False
+    return is_held_source(sources.get(key))
+
+
+def has_sendable_soc(vehicle: dict[str, Any]) -> bool:
+    """A state of charge exists AND may be sent to ABRP.
+
+    The coordinator's "soc present" gate should use this rather than a bare
+    ``battery_soc is not None`` so a held-source value never starts a send.
+    """
+    return vehicle.get("battery_soc") is not None and not _held_owner(
+        vehicle, "battery_soc"
+    )
+
+
 def build_tlm(vehicle: dict[str, Any], utc: int) -> dict[str, Any]:
     """Map a coordinator vehicle dict to the ABRP ``tlm`` payload.
 
@@ -143,7 +164,9 @@ def build_tlm(vehicle: dict[str, Any], utc: int) -> dict[str, Any]:
     # soc — REQUIRED core field. We always include it; if absent it goes as
     # None which ABRP rejects loudly (better than silently dropping the core
     # field). In practice the caller gates on soc-present before sending.
-    soc = vehicle.get("battery_soc")
+    # A state of charge owned by a held push source counts as absent: it is an
+    # event snapshot over a hand-set link and must not leave Home Assistant.
+    soc = vehicle.get("battery_soc") if has_sendable_soc(vehicle) else None
     tlm["soc"] = soc
 
     # power [kW] — charging only, with sign flip. We have no instantaneous
@@ -182,10 +205,12 @@ def build_tlm(vehicle: dict[str, Any], utc: int) -> dict[str, Any]:
         tlm["capacity"] = float(capacity)
 
     # Range — prefer the EV electric range, fall back to the headline range.
-    est_range = vehicle.get("electric_range_km")
+    range_key = "electric_range_km"
+    est_range = vehicle.get(range_key)
     if est_range is None:
-        est_range = vehicle.get("range_km")
-    if est_range is not None:
+        range_key = "range_km"
+        est_range = vehicle.get(range_key)
+    if est_range is not None and not _held_owner(vehicle, range_key):
         tlm["est_battery_range"] = float(est_range)
 
     # Temperatures.
@@ -215,7 +240,9 @@ def telemetry_fingerprint(vehicle: dict[str, Any]) -> tuple[Any, ...]:
     """
     parts: list[Any] = []
     for key in _FINGERPRINT_KEYS:
-        val = vehicle.get(key)
+        # A value a held push source owns is never uploaded, so a change in it
+        # is not a change for ABRP and must not flag "data changed".
+        val = None if _held_owner(vehicle, key) else vehicle.get(key)
         # Normalise datetime-ish values to ISO string for stable equality.
         try:
             from datetime import datetime
@@ -269,6 +296,11 @@ async def send_telemetry(
     api_key + token are NEVER included in any log line or exception text.
     """
     import json as _json
+
+    # The core field is required; a payload without it (e.g. its soc was held
+    # back because a held push source owns it) is never posted.
+    if tlm.get("soc") is None:
+        raise AbrpError("ABRP send skipped: no sendable state of charge")
 
     # Validate credentials WITHOUT echoing them.
     if not api_key or not token:
