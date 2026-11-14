@@ -53,6 +53,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Audi connect plug&play (DataPlug) cars: the announced end of the service is shown (#2102).** Audi keeps an end date for plug&play in its market configuration: for Germany it is 31 December 2026. A new sensor, Cloud service shutdown date, shows that date once Audi has announced it for the car's market, so owners can see when the car will stop reporting to the cloud. It reads the market configuration once a day.
 - **DrivePulse as an opt-in gap filler (#2105).** If you run the separate DrivePulse integration (a generic OBD2 adapter that reports through a phone app), you can now link one of its devices to a car under Configure. Its last trip readings fill in fuel level, charge level, range and 12 V voltage where your own channels have no value, current or recorded. One exception for the fuel level: when the EU Data Act portal says when its value was measured and the DrivePulse reading is at least 15 minutes newer, the newer one is shown. It stays the lowest source on purpose: it never outranks a live channel, never keeps a failed poll alive, is not sent to ABRP, and removing the link removes its values again.
 
+### Geändert / Changed
+
+- **Internal: a test now ties every passwordless sign-in to the expired-sign-in check (#1813).** Nothing changes in behaviour. If a brand is ever offered a code or browser sign-in while its client lacks that check, the test fails. Two inaccurate code comments about Audi US/CA are corrected.
+
 ### Behoben / Fixed
 
 - **Škoda charging statistics no longer silently vanish (duplicate `timeout` argument).** `get_charging_statistics` passed its own request timeout, which collided with the shared request helper's own `timeout` and raised a `TypeError` that the method's broad `except` swallowed into an empty result — dropping every charging-statistics sensor on 5.3.0. The helper now lets a caller's timeout override cleanly, and the swallowed failure is logged. Thanks @matroeh for the precise trace (#2077). (The camelCase request-body and string-energy parsing he also patched are tracked separately, pending a live response to confirm them against.)
