@@ -72,45 +72,72 @@ def test_a_request_body_is_camelcase_only() -> None:
     assert not any("_" in k for k in body["selectedFilterOptions"][0])
 
 
-def test_b_string_primary_values_sum() -> None:
+def _kwhs(d: Any) -> list[Any]:
+    """Per-session energy as the parser read it, newest first."""
+    return [s["kwh"] for s in d.recent_charging_sessions]
+
+
+def test_b_string_primary_values_are_read_per_session() -> None:
     d = _status([_e("~ 16 kWh"), _e("≈ 7,5 kWh"), _e("12.25 kWh")])
-    assert d.total_charged_energy_kwh == 35.75
+    assert _kwhs(d) == [16.0, 7.5, 12.25]
+    assert d.last_charging_session_kwh == 16.0
 
 
-def test_c_old_value_unit_object_still_sums() -> None:
+def test_c_old_value_unit_object_is_still_read() -> None:
     d = _status([_e({"value": 12.5, "unit": "kWh"}), _e({"value": 7.5, "unit": "kWh"})])
-    assert d.total_charged_energy_kwh == 20.0
+    assert _kwhs(d) == [12.5, 7.5]
     assert d.last_charging_session_kwh == 12.5
 
 
-def test_d_junk_strings_add_nothing() -> None:
-    d = _status([_e("n/a"), _e("16 km"), _e("1.234,5 kWh"), _e("~~ 3 kWh"), _e("5 kWh extra")])
-    assert d.total_charged_energy_kwh is None
-    # junk next to a good one: only the good one counts
-    d2 = _status([_e("n/a"), _e("1.234,5 kWh"), _e("10 kWh")])
-    assert d2.total_charged_energy_kwh == 10.0
+def test_d_junk_strings_are_not_read_as_energy() -> None:
+    d = _status([
+        _e("n/a"), _e("16 km"), _e("1.234,5 kWh"), _e("~~ 3 kWh"), _e("5 kWh extra"),
+        _e("10 kWh"),
+    ])
+    assert _kwhs(d) == [None, None, None, None, None, 10.0]
+    assert d.last_charging_session_kwh is None, (
+        "the newest entry is unreadable, so there is no last-session energy — "
+        "not the next readable one passed off as the last"
+    )
 
 
-def test_d2_three_fraction_digits_are_ambiguous_and_add_nothing() -> None:
+def test_d2_three_fraction_digits_are_ambiguous_and_not_read() -> None:
     """"1,234 kWh" is 1.234 in one locale and 1234 in another — so it is neither."""
-    d = _status([_e("1,234 kWh"), _e("12.345 kWh")])
+    d = _status([_e("1,234 kWh"), _e("12.345 kWh"), _e("7,5 kWh"), _e("12.25 kWh")])
+    # one and two fraction digits are unambiguous; three are not
+    assert _kwhs(d) == [None, None, 7.5, 12.25]
+
+
+def test_d3_no_total_is_published_from_the_90_day_window() -> None:
+    """A sum over a trailing window is not a lifetime counter.
+
+    ``total_charged_energy_kwh`` feeds a TOTAL_INCREASING energy sensor, and the
+    cache clamps it so it cannot fall. A 90-day sum would therefore rise once
+    and then stall near its peak while sessions age out as fast as new ones
+    arrive — the Energy dashboard would record almost no charging. So the
+    sessions are read and the total is left alone, in either response shape.
+    """
+    d = _status([_e("~ 16 kWh"), _e("~ 20 kWh"), _e({"value": 12.5, "unit": "kWh"})])
     assert d.total_charged_energy_kwh is None
-    # one and two fraction digits are unambiguous and still count
-    d2 = _status([_e("7,5 kWh"), _e("12.25 kWh"), _e("1,234 kWh")])
-    assert d2.total_charged_energy_kwh == 19.75
+    assert _kwhs(d) == [16.0, 20.0, 12.5], "the sessions themselves are still read"
 
 
-def test_d3_left_out_entries_are_counted_in_the_debug_log(caplog: Any) -> None:
-    """A total that silently skips entries reads as complete when it is not."""
-    import logging
+def test_d4_the_request_asks_for_a_trailing_window_not_a_lifetime() -> None:
+    """The fact the test above rests on: the body spans 90 days ending today."""
+    from datetime import date
 
-    with caplog.at_level(logging.DEBUG, logger="custom_components.vag_connect.cariad.api.skoda"):
-        d = _status([_e("10 kWh"), _e("n/a"), _e("1,234 kWh")])
-    assert d.total_charged_energy_kwh == 10.0
-    lines = [r.getMessage() for r in caplog.records if "left out of the total" in r.getMessage()]
-    assert len(lines) == 1
-    assert "2 of 3 entries" in lines[0]
-    assert "1,234" not in lines[0] and "n/a" not in lines[0], "counts only, never the values"
+    c = SkodaClient(MagicMock(), "u@t.de", "pw")
+    seen: dict[str, Any] = {}
+
+    async def _request(_method: str, _url: str, **kw: Any) -> Any:
+        seen["json"] = kw.get("json")
+        return {}
+
+    c._request = _request  # type: ignore[method-assign]
+    asyncio.run(c.get_charging_statistics(VIN))
+    after = date.fromisoformat(seen["json"]["startedAfter"])
+    before = date.fromisoformat(seen["json"]["startedBefore"])
+    assert (before - after).days == 90
 
 
 def test_e_charging_power_type_from_details() -> None:

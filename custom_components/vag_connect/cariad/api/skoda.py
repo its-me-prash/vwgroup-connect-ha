@@ -2506,29 +2506,24 @@ class SkodaClient(CariadBaseClient):
                     for entry in entries:
                         if isinstance(entry, dict):
                             all_entries.append(entry)
-            # Lifetime aggregate: sum primaryValue.value (kWh) across
-            # all entries when the value type is kWh.
-            total_kwh = 0.0
-            unreadable = 0
-            for entry in all_entries:
-                pv = entry.get("primaryValue")
-                kwh = _charging_kwh(pv)
-                if kwh is not None:
-                    total_kwh += kwh
-                elif pv is not None:
-                    unreadable += 1
-            if unreadable:
-                # An entry whose energy this parser does not read is left out
-                # of the total. Say so, or the total is silently too small.
-                # Counts only — never the values.
-                _LOGGER.debug(
-                    "Škoda charging statistics: %d of %d entries carry an "
-                    "energy value this parser does not read; they are left "
-                    "out of the total",
-                    unreadable, len(all_entries),
-                )
-            if total_kwh > 0:
-                d.total_charged_energy_kwh = round(total_kwh, 2)
+            # #2077 — each session's energy is read below, but NO total is
+            # published from this endpoint. The request asks for the trailing
+            # ``days_back`` window (90 days), so a sum over the answer is not a
+            # lifetime counter — and ``total_charged_energy_kwh`` is a
+            # TOTAL_INCREASING energy sensor whose long-term statistics are
+            # built from its increases. MONOTONIC_INCREASING_FIELDS clamps the
+            # value so it cannot drop when a session ages out of the window,
+            # which means a window sum would rise once and then stall near its
+            # peak: with steady habits a new session adds about what an
+            # aged-out one removes, and the Energy dashboard would record
+            # almost no charging. Same reasoning as porsche.py ("WHY no
+            # total_charged_energy_kwh").
+            #
+            # This block used to sum the entries and call the result a
+            # "lifetime aggregate". It never was one, and nobody saw it: the
+            # request did not reach the backend until #2077. A true cumulative
+            # has to be built from the sessions themselves.
+            #
             # Last session = first entry (newest first per myskoda model).
             if all_entries:
                 last = all_entries[0]
