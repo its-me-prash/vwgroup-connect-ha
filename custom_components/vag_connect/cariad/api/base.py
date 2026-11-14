@@ -2179,7 +2179,24 @@ class CariadBaseClient:
 
             if self._tokens and self._tokens.refresh_token:
                 try:
+                    # The sign-in cookies ride on the token set: authenticate()
+                    # puts them there so they are saved with the tokens and
+                    # loaded back into the session on the next start. The
+                    # refresh answers with a token set built from the token
+                    # response alone, so taking it as it comes saved an empty
+                    # cookie list at the first refresh after every sign-in. A
+                    # running entry showed nothing, because the live session
+                    # still had the cookies; a restart after that refresh came
+                    # up without them. Review finding, measured in
+                    # tests/test_sign_in_cookies_survive_a_token_refresh.py.
+                    #
+                    # Only the cookies are carried, and only until a full
+                    # sign-in captures newer ones. What else a refreshed set
+                    # should keep is a separate question (#1813).
+                    _sign_in_cookies = list(self._tokens.auth_cookies)
                     self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                    if _sign_in_cookies and not self._tokens.auth_cookies:
+                        self._tokens.auth_cookies = _sign_in_cookies
                     # v1.19.2 (#118) — persist refreshed tokens so the
                     # next HACS update / HA restart picks up the
                     # already-valid session instead of re-running the
