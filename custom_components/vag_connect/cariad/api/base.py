@@ -510,20 +510,29 @@ class CariadBaseClient:
         # portal-interaction problem, so a UK owner whose car cannot use the EU
         # Data Act portal at all was told to go and act in it, once an hour.
         #
-        # Gated on BOTH halves on purpose: no password AND a token set that came
-        # from a device login. A first-ever login has no tokens yet and must
-        # still be allowed through, and an entry that does have a password can
-        # legitimately retry, so neither is touched here.
-        if not self._password and getattr(self._tokens, "strategy", "") in (
-            "device_grant",
-            "device_grant_portal",
-            "mbb",
-            "auth0",  # #1712 — browser (Auth0/PKCE) sign-in, no password held
-        ):
+        # The gate is the missing password and nothing else. It used to ask the
+        # token set as well: ``strategy`` had to name a device login. That half
+        # is the one that failed. The ordinary refresh builds its new token set
+        # from the token response alone, so the tag is gone after the first
+        # renewal and is saved that way. From then on this guard saw an untagged
+        # set, stayed quiet, and the doomed logins ran after all. Asking the
+        # token set also said nothing where there is no token set to ask: a
+        # stored set that does not load, and the Volkswagen rollback in the
+        # coordinator, which discards one on purpose.
+        #
+        # Nothing that could succeed is stopped here. An entry with a password
+        # is not touched. The website sign-in is exempt, because its first step
+        # resumes the stored cookie session and needs no password. Every other
+        # entry that reaches this method without a password was created by a
+        # code or browser sign-in. Those renew their tokens in
+        # ``_refresh_tokens`` and get new ones only from the config flow, never
+        # from a strategy below, and the credential forms all require a password.
+        if not self._password and not self._use_website_proxy:
             from ..exceptions import DeviceLoginExpiredError  # noqa: PLC0415
 
+            _tag = getattr(self._tokens, "strategy", "") or "untagged"
             raise DeviceLoginExpiredError(
-                f"strategy={getattr(self._tokens, 'strategy', '')}"
+                "no token set" if self._tokens is None else f"strategy={_tag}"
             )
         # v2.14.0 — when authenticate() is re-driven with an OTP code (e.g. a
         # coordinator reauth for the website-authproxy channel), feed it to the
