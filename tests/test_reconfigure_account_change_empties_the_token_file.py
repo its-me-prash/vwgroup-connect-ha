@@ -197,7 +197,8 @@ async def test_a_porsche_switch_ends_with_the_new_account_s_tokens_in_the_file(
 
     await _reconfigure(flow, "porsche", "next@example.invalid", validated=fresh)
 
-    assert files[_KEY]["tokens"]["refresh_token"] == "refresh-next"
+    stored = (files.get(_KEY) or {}).get("tokens") or {}
+    assert stored.get("refresh_token") == "refresh-next"
 
 
 async def test_a_switch_that_fails_validation_keeps_the_token_file(

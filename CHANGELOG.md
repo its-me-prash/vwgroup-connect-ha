@@ -68,6 +68,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Volkswagen US and Canada no longer signs in from scratch at every restart (#118).** The sign-in was never kept for this brand, so every Home Assistant restart, every update and every reload went through the full login again, which is the step the North American backend rate-limits. It is now stored and renewed the way the other brands' sign-ins are, and a renewal the backend refuses falls back to one ordinary sign-in.
 
+- **Reconfigure to a different account no longer goes on reading the previous one (#118).** When an entry was switched to another account or another brand in Reconfigure, the stored sign-in of the previous account stayed in place and the entry kept using it. It is now dropped at the switch, so the entry signs in as the account you entered. New credentials for the same account keep the stored sign-in, as before.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
