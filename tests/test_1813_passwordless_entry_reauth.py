@@ -135,6 +135,61 @@ def _client(password: str, strategy: str | None = "device_grant"):
     return me
 
 
+class _Refused:
+    """What the recording session answers: HTTP 400, with nothing in it."""
+
+    status = 400
+    url = "https://wire.invalid/"
+    headers: dict[str, str] = {}
+    history: tuple = ()
+
+    async def __aenter__(self) -> "_Refused":
+        return self
+
+    async def __aexit__(self, *exc: object) -> bool:
+        return False
+
+    async def json(self, *a: object, **k: object) -> dict:
+        return {}
+
+    async def text(self, *a: object, **k: object) -> str:
+        return ""
+
+
+class _RecordingSession:
+    """Stands where the HTTP session is and writes down every request.
+
+    Each request is refused, so a login that does start fails at once instead
+    of waiting for a server.
+    """
+
+    def __init__(self) -> None:
+        self.requests: list[str] = []
+
+    def _refuse(self, method: str, url: object) -> _Refused:
+        self.requests.append(f"{method} {url}")
+        return _Refused()
+
+    def get(self, url: object, **kwargs: object) -> _Refused:
+        return self._refuse("GET", url)
+
+    def post(self, url: object, **kwargs: object) -> _Refused:
+        return self._refuse("POST", url)
+
+    def request(self, method: object, url: object, **kwargs: object) -> _Refused:
+        return self._refuse(str(method).upper(), url)
+
+
+def _factory_client(session: _RecordingSession, password: str):
+    """The real Audi client, built the way the coordinator builds it."""
+    from custom_components.vag_connect.cariad.api.factory import CariadClientFactory
+
+    username = (
+        "owner@example.test" if password else "0a1b2c3d-dead-beef-cafe-000000000000"
+    )
+    return CariadClientFactory.create("audi", session, username, password)
+
+
 class TestPasswordlessEntryDoesNotGuess:
     """Three doomed logins per attempt, with a UUID in the email field."""
 
@@ -149,17 +204,32 @@ class TestPasswordlessEntryDoesNotGuess:
 
     @pytest.mark.asyncio
     async def test_it_sends_nothing_to_the_identity_service(self):
-        """The point is that no doomed login leaves the machine at all."""
-        me = _client(password="")
-        calls: list[str] = []
-        me._authenticate_with_strategy = lambda *a, **k: calls.append("strategy")
+        """The point is that no doomed login leaves the machine at all.
+
+        Measured at the HTTP session of the real Audi client, which is the only
+        way out of it. Review finding: the first version of this test hung a
+        recorder on a method name the client never had, so its list stayed empty
+        whatever the code did. The second half is the control for that: the same
+        recorder on the same client, this time with a password, does see the
+        login start.
+        """
         from custom_components.vag_connect.cariad.exceptions import (
             DeviceLoginExpiredError,
         )
 
+        wire = _RecordingSession()
         with pytest.raises(DeviceLoginExpiredError):
-            await me.authenticate()
-        assert calls == []
+            await _factory_client(wire, password="").authenticate()
+        assert wire.requests == []
+
+        control = _RecordingSession()
+        try:
+            await _factory_client(control, password="hunter2").authenticate()
+        except DeviceLoginExpiredError:  # pragma: no cover
+            pytest.fail("an entry with a password must not be short-circuited")
+        except Exception:
+            pass  # every request is refused, so the login itself cannot succeed
+        assert control.requests, "the recorder saw nothing where a login must start"
 
     @pytest.mark.asyncio
     async def test_the_mbb_strategy_counts_as_passwordless_too(self):
@@ -180,19 +250,33 @@ class TestPasswordlessEntryDoesNotGuess:
             await _client(password="", strategy="device_grant_portal").authenticate()
 
     @pytest.mark.asyncio
-    async def test_a_client_with_no_tokens_at_all_is_left_alone(self):
-        """A first-ever login has no tokens yet and must not be short-circuited."""
+    async def test_an_untagged_token_set_counts_too(self):
+        """The state every running entry is in after its first ordinary refresh:
+        the renewed token set no longer says which sign-in it came from."""
         from custom_components.vag_connect.cariad.exceptions import (
             DeviceLoginExpiredError,
         )
 
-        me = _client(password="", strategy=None)
-        try:
-            await me.authenticate()
-        except DeviceLoginExpiredError:  # pragma: no cover
-            pytest.fail("a tokenless client must not be treated as a dead device login")
-        except Exception:
-            pass  # any other failure is the pre-existing behaviour, which is fine
+        with pytest.raises(DeviceLoginExpiredError):
+            await _client(password="", strategy="").authenticate()
+
+    @pytest.mark.asyncio
+    async def test_a_client_with_no_tokens_at_all_is_stopped_too(self):
+        """No password means there is no login to run, whatever the tokens say.
+
+        This test used to assert the opposite, on the reasoning that a first-ever
+        login has no tokens yet. A first-ever login through this method always
+        has a password: the credential forms require one, and the code and
+        browser sign-ins get their tokens from the config flow. What does arrive
+        here with neither is an entry whose stored token set was discarded or
+        did not load, and that one used to run the whole chain.
+        """
+        from custom_components.vag_connect.cariad.exceptions import (
+            DeviceLoginExpiredError,
+        )
+
+        with pytest.raises(DeviceLoginExpiredError):
+            await _client(password="", strategy=None).authenticate()
 
     @pytest.mark.asyncio
     async def test_a_credential_entry_is_untouched(self):
