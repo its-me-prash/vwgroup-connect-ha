@@ -1,11 +1,11 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""#1012 — the sign-in's PKCE verifier has to survive a token refresh.
+"""#1012: the sign-in's PKCE verifier has to survive a token refresh.
 
 Volkswagen North America's token endpoint wants the verifier of the original
 sign-in replayed on every refresh. The token set a sign-in returns carries it,
-and the first refresh sends it. The token set that refresh RETURNS did not
-carry it any more, so the second refresh went out without the field.
+and the first refresh sends it. The token set that refresh RETURNS used to
+come back without it, so the second refresh went out without the field.
 
 What is and is not established:
 
