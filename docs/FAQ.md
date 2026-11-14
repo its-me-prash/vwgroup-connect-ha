@@ -357,7 +357,7 @@ works.
 
 Sometimes, yes: through the car's OBD port instead of Volkswagen's servers.
 
-[DrivePulse](https://github.com/davideguida0093/drivepulse-home-assistant) is a
+[DrivePulse](https://github.com/davidedrivepulse/drivepulse-home-assistant) is a
 separate Home Assistant integration. It reads a generic OBD2 adapter through a
 phone app and can report fuel level, charge level, range, odometer, 12 V voltage
 and the number of stored trouble codes. It needs no Volkswagen account, so it

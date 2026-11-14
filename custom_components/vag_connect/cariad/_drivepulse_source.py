@@ -13,7 +13,7 @@ module only turns an event into a small JSON-safe snapshot and a snapshot into
 a thin ``VehicleData``. It imports nothing from Home Assistant and never raises.
 
 Field names: DrivePulse webhook schema 1 (``schema/drivepulse-schema-1.json``
-at tag ``v0.1.3`` of ``davideguida0093/drivepulse-home-assistant``). The names
+at tag ``v0.1.3`` of ``davidedrivepulse/drivepulse-home-assistant``). The names
 were typed fresh from that schema; no code was taken over.
 """
 
