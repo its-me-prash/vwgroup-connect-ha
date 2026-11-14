@@ -340,7 +340,7 @@ async def test_a_second_attempt_after_an_expired_code_ends_the_same_way(
         retry = await _submit_the_approval(flow)
         assert retry["step_id"] == "mbb_login"
         flow.hass.config_entries.async_update_entry.assert_not_called()
-        assert files[_KEY] == _previous_account_file()
+        assert files.get(_KEY) == _previous_account_file()
 
         await _settle(flow, await flow.async_step_mbb_login({CONF_SPIN: ""}))
         result = await _submit_the_approval(flow)
@@ -368,7 +368,7 @@ async def test_the_same_account_keeps_its_token_file_and_its_unique_id(
     update = _update(flow)
     assert update.get("unique_id", entry.unique_id) == entry.unique_id
     assert update["data"][CONF_MBB_COMMAND_TOKENS]["refresh_token"] == "cmd-refresh-next"
-    assert files[_KEY] == _previous_account_file()
+    assert files.get(_KEY) == _previous_account_file()
 
 
 async def test_a_dialog_that_is_left_changes_nothing(files: dict[str, Any]) -> None:
@@ -381,7 +381,7 @@ async def test_a_dialog_that_is_left_changes_nothing(files: dict[str, Any]) -> N
 
     assert shown["step_id"] == "browser_login_approve"
     flow.hass.config_entries.async_update_entry.assert_not_called()
-    assert files[_KEY] == _previous_account_file()
+    assert files.get(_KEY) == _previous_account_file()
 
 
 @pytest.mark.parametrize("outcome", ["expired", "refused"])
@@ -397,7 +397,7 @@ async def test_a_sign_in_that_fails_changes_nothing(
 
     assert shown["step_id"] == "mbb_login"
     flow.hass.config_entries.async_update_entry.assert_not_called()
-    assert files[_KEY] == _previous_account_file()
+    assert files.get(_KEY) == _previous_account_file()
 
 
 async def test_without_a_unique_id_from_reconfigure_none_is_written(
@@ -412,4 +412,4 @@ async def test_without_a_unique_id_from_reconfigure_none_is_written(
         await flow._create_or_update_portal_entry(title="T", data={"a": 1})
 
     assert "unique_id" not in _update(flow)
-    assert files[_KEY] == _previous_account_file()
+    assert files.get(_KEY) == _previous_account_file()
