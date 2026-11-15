@@ -104,6 +104,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **The parking brake is asked for as its own status job (#2123).** The Audi app asks for a `parkingBrake` job and reads a true or false value from it. Until now the integration neither asked for the job nor read that shape. It does both now. The job goes out with the status request of every brand that reads through this client: Volkswagen, Volkswagen Commercial Vehicles, Audi in Europe and North America, Bentley and Lamborghini. An Audi S6 (C8) on the European host does not answer the job and still answers the other jobs. No other car and no other host was tried, so this is not confirmed on a car.
 
+- **A failed setup now says which HTTP status it was (#1964).** When setup stopped on a backend error, the log line named only the error class, for example `UpstreamUnavailableError`. That class covers a server error (5xx) as well as the EU Data Act portal answering 404 or 410 for the vehicle list, so a pasted log could not tell the two apart. The line now carries the status, for example `UpstreamUnavailableError (HTTP 404)`. The error message itself stays out of the log, as before. Thanks to @Hollywoodchaos, whose log showed the gap.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
