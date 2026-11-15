@@ -1189,6 +1189,17 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "oilLevel.oilLevelStatus.*",
             "oilLevel.oilLevelStatus.value",
             "oilLevel.oilLevelStatus.value.*",
+            # parkingBrake job: asked for since the Audi app's list of status
+            # jobs was read. The reader takes ``value.value`` (true/false);
+            # the error envelope is the one a refused job sends.
+            "parkingBrake",
+            "parkingBrake.*",
+            "parkingBrake.parkingBrakeStatus",
+            "parkingBrake.parkingBrakeStatus.*",
+            "parkingBrake.parkingBrakeStatus.value",
+            "parkingBrake.parkingBrakeStatus.value.*",
+            "parkingBrake.parkingBrakeStatus.error",
+            "parkingBrake.parkingBrakeStatus.error.*",
             "tyrePressure",
             "tyrePressure.*",
             "tyrePressure.tyrePressureStatus",

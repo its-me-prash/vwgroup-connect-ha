@@ -8,6 +8,12 @@ HONK_AND_FLASH and FLASH_ONLY, and ``duration_s`` is plain seconds (both read
 out of the decompiled app when the endpoint was first grounded). Skoda's own
 DTO carries the same two-value mode but no duration.
 
+Those two are the names of the enum CONSTANTS. On the wire the apps send the
+serial names ``honkandflash`` and ``flash``: the enum serializer of myAudi
+5.6.0 and of We Connect 4.2.1 is built with exactly those two (and accepts
+``honkflash`` as a second spelling when reading). The constant names were
+sent here until an Audi S6 (C8) answered them with ``invalidPayload``.
+
 Nothing is invented here: a brand whose values are not grounded accepts the
 arguments and ignores them, exactly as it already does for latitude/longitude.
 Omitting both reproduces the previous fixed 10-second lights-only signal.
@@ -39,13 +45,13 @@ class TestVolkswagenAudi:
         c, post = _vw()
         asyncio.run(c.command_flash("VIN"))
         assert post.await_args.kwargs["json"] == {
-            "mode": "FLASH_ONLY", "duration_s": 10
+            "mode": "flash", "duration_s": 10
         }
 
     def test_horn_uses_the_grounded_enum_value(self) -> None:
         c, post = _vw()
         asyncio.run(c.command_flash("VIN", honk=True))
-        assert post.await_args.kwargs["json"]["mode"] == "HONK_AND_FLASH"
+        assert post.await_args.kwargs["json"]["mode"] == "honkandflash"
 
     def test_duration_is_sent_as_seconds(self) -> None:
         c, post = _vw()
@@ -56,7 +62,7 @@ class TestVolkswagenAudi:
         c, post = _vw()
         asyncio.run(c.command_flash("VIN", duration_s=20, honk=True))
         assert post.await_args.kwargs["json"] == {
-            "mode": "HONK_AND_FLASH", "duration_s": 20
+            "mode": "honkandflash", "duration_s": 20
         }
 
 

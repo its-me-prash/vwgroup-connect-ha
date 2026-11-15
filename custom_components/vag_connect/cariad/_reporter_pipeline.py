@@ -152,6 +152,34 @@ _SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({
     # LL_GatewUDS family: the tyre-pressure DIDs 0x4E94–0x4E97 were MAPPED as
     # unitless diagnostics, so a different DID must still surface for mapping.
     "ll_gatewuds_readdatabyidentmeasuvalue_life cycle data 5 generation 2_0x3504",
+    # #2078 (and #2081, #2088, #2095) — ``charging.chargingBidirectionalSettings``
+    # on the brand API's ``selectivestatus`` read: four hand-filed copies of one
+    # finding in two days, all on 5.3.0, where the browser sign-in put more Audi
+    # entries on that read.
+    #
+    # Filing it again cannot move the mapping forward. The Scout does not
+    # recurse into an unknown container and samples a dict by its shape, so
+    # every copy says ``{1 keys}`` and none says WHICH key. The inner key is
+    # in the diagnostics download of the integration ENTRY instead: its raw
+    # ``selectivestatus`` section keeps field names, and that is the evidence
+    # asked for on #2078. The download of a single car does not carry it — the
+    # raw section is account-scoped and is dropped from a per-car file.
+    #
+    # What this skip does and does not do — it differs from the entries above:
+    #   * only the per-poll REPAIR stops. The finding is still detected and
+    #     stays in ``unexpected_findings``, so it is still in diagnostics and
+    #     on the observer sensor;
+    #   * it is NOT on the raw_api_fields sensor and never was — that sensor
+    #     reads ``raw_unmapped_fields``, which only the EU-DA portal channel
+    #     writes;
+    #   * the meaning is not guessed. The name suggests bidirectional-charging
+    #     settings; a name is not evidence, so nothing is mapped.
+    #
+    # Deliberately NOT listed in EXPECTED_KEYS to "reveal" the key: the Scout
+    # would then descend and report the inner key as part of the PATH, and
+    # paths are published unmasked — an identifier-shaped key would go out
+    # verbatim. #2078 stays open as the mapping question.
+    "chargingbidirectionalsettings",
 })
 # Substring match on the (masked) sample: #1100's UUID annotation rides in the
 # value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open
@@ -162,7 +190,8 @@ _SCOUT_REPAIR_SKIP_UUIDS: frozenset[str] = frozenset({"c0bb1348", "d5dc7c87"})
 
 def _is_scout_repair_skipped(f: UnexpectedField) -> bool:
     """True if a finding is known/intentionally-unmapped and must not spawn the
-    user-facing Scout repair. It stays in raw_unmapped_fields regardless."""
+    user-facing Scout repair. The finding itself is untouched: an EU-DA leaf
+    stays in raw_unmapped_fields, a brand-API one in unexpected_findings."""
     # #1831 — matched case-insensitively. The portal spells this one
     # ``jobStatus`` while every entry in the set above is lower case, so an
     # exact match would have skipped nothing and the nagging would have carried

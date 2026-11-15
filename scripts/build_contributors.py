@@ -12,9 +12,9 @@ discussion, or left a review, excluding bots and the maintainer, and merges them
 into the list. ADDITIVE: it never removes a name, because a gap in the query is
 not evidence that somebody did not contribute. Idempotent otherwise.
 
-Usage (PowerShell):
-    & "$env:LOCALAPPDATA\\Python\\bin\\python.exe" scripts/build_contributors.py --check
-    & "$env:LOCALAPPDATA\\Python\\bin\\python.exe" scripts/build_contributors.py --write
+Usage:
+    python scripts/build_contributors.py --check
+    python scripts/build_contributors.py --write
 
 ``--check`` prints who would be added or removed and exits 1 if the file is out
 of date, so CI can hold the line; ``--write`` updates it. Needs the ``gh`` CLI

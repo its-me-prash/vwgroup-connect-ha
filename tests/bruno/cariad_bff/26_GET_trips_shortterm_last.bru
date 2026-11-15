@@ -1,0 +1,35 @@
+meta {
+  name: GET trips shortterm last (#1805)
+  type: http
+  seq: 26
+}
+
+get {
+  url: {{base_url}}/vehicle/v1/trips/{{vin}}/shortterm/last
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  #1805: the address the Audi app reads the last short-term trip from
+  (myAudi 5.9.0). The trip type is in lower case. The answer carries the
+  trip, or a list of trips, under "data".
+
+  The integration asks this address only when
+  /vehicle/v1/vehicles/{vin}/tripstatistics?type=shortTerm answers 404.
+  A 404 here, or an answer without a trip, ends it: the long-term and
+  cyclic addresses are then not asked.
+
+  Read from the app's request format. Not confirmed on a car.
+
+  Implementation: VWEUClient._fetch_trips_app_route() in
+  cariad/api/vw_eu.py. Audi inherits.
+}

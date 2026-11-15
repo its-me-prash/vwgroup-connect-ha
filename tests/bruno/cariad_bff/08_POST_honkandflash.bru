@@ -21,8 +21,8 @@ headers {
 
 body:json {
   {
-    "mode": "FLASH_ONLY",
-    "duration": 10
+    "mode": "flash",
+    "duration_s": 10
   }
 }
 
@@ -31,9 +31,15 @@ docs {
   the honkandflash command endpoint. The older vehicleLights/flash
   endpoint was a guessed shape and returns 400.
 
-  The integration first sends FLASH_ONLY without userPosition. If the
-  backend rejects the bare body and a last-known position is available,
-  VWEUClient.command_flash() retries with userPosition.
+  mode is the serial name the apps send ("flash", "honkandflash"), not
+  the enum constant name (FLASH_ONLY, HONK_AND_FLASH).
+
+  userPosition is a required element of the request in the apps. When a
+  last-known position is available, VWEUClient.command_flash() sends it
+  with the first request, as "userPosition": {"latitude": ...,
+  "longitude": ...}, and the answer to that request is final. The body
+  above is the form without a position; the integration sends it only
+  when no position is known.
 
   Implementation: VWEUClient.command_flash() in cariad/api/vw_eu.py.
   Audi inherits.

@@ -45,8 +45,9 @@ _BASE = "https://emea.bff.cariad.digital"
 # came in via cross-brand JOBS2QUERY) and the BFF ignores unknown job tokens, so
 # keeping them is a harmless no-op on firmware that dropped them and still delivers
 # 12V/tyre data on firmware that keeps them. NB: windowHeating / honkAndFlash /
-# batteryHealthState / parkingBrake are NOT selectivestatus jobs — they are their
-# own endpoints; do not add them here.
+# batteryHealthState are NOT part of this list: they are their own requests; do
+# not add them here. parkingBrake IS a status job in the Audi app (myAudi 5.9.0,
+# ``CapabilityStatusJob``, androguard) and is asked for below.
 _SELECTIVE_STATUS_JOBS = ",".join([
     "access",
     # v2.11.0 (cross-brand upstream audit): activeVentilation job was
@@ -89,6 +90,10 @@ _SELECTIVE_STATUS_JOBS = ",".join([
     # data on the standard /selectivestatus surface, we just never
     # asked for the job.
     "oilLevel",
+    # The Audi app asks for the parking brake as a status job. An Audi S6 (C8)
+    # does not answer it and the request is unharmed by that (HTTP 207, the
+    # job is simply absent), so cars that do report it are the ones that gain.
+    "parkingBrake",
     "tyrePressure",
     "readiness",
     "userCapabilities",
@@ -894,8 +899,10 @@ class VWEUClient(CariadBaseClient):
         url = f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics"
         try:
             with self._parser_job("trip_statistics"):
+                short_answered = False
                 try:
                     trip_short = await self._get(url, params={"type": "shortTerm"})
+                    short_answered = True
                     trip_long = await self._get(url, params={"type": "longTerm"})
                 except APIError as err:
                     # #1805 — the CARIAD-BFF tripstatistics endpoint is simply
@@ -908,19 +915,87 @@ class VWEUClient(CariadBaseClient):
                     # hourly cache below already stops the endpoint being re-hit.
                     if err.status != 404:
                         raise
-                # v2.10.0 — "cyclic" = since-refuel / since-recharge aggregator
-                # (an Energy-Dashboard building block). Newer-firmware capability;
-                # some pre-2024 vehicles 404 it, so treat a miss as a soft-fail.
-                try:
-                    trip_refuel = await self._get(url, params={"type": "cyclic"})
-                except Exception:  # noqa: BLE001
-                    pass
+                if not short_answered:
+                    # #1805: the short-term request itself answered 404. The
+                    # Audi app does not use that address at all; it reads the
+                    # trips from ``/trips/<vin>/<type>/last``. Ask there before
+                    # concluding that the car has no trips. Once the old address
+                    # has answered the short-term request, nothing changes.
+                    trip_short, trip_long, trip_refuel = (
+                        await self._fetch_trips_app_route(vin, base)
+                    )
+                else:
+                    # v2.10.0 — "cyclic" = since-refuel / since-recharge aggregator
+                    # (an Energy-Dashboard building block). Newer-firmware capability;
+                    # some pre-2024 vehicles 404 it, so treat a miss as a soft-fail.
+                    try:
+                        trip_refuel = await self._get(url, params={"type": "cyclic"})
+                    except Exception:  # noqa: BLE001
+                        pass
         except Exception:  # noqa: BLE001
             pass
         # Cache whatever we got — including empties on a dead endpoint, so a 404
         # host is not re-hit every poll for the next hour.
         self._trip_stats_raw_cache[vin] = (now, trip_short, trip_long, trip_refuel)
         return trip_short, trip_long, trip_refuel
+
+    @staticmethod
+    def _trip_envelope(answer: Any) -> dict[str, Any]:
+        """Bring an answer of the app's trip address into ``{"tripData": [...]}``.
+
+        The app reads the trip (or a list of trips) under ``data``. The trip
+        itself has the field names ``_parse_trip_statistics`` already reads
+        (``tripEndTimestamp``, ``mileage_km``, ``travelTime`` ...). Anything
+        that is not a trip gives an empty dict, so the reader leaves its fields
+        alone.
+        """
+        data = answer.get("data", answer) if isinstance(answer, dict) else answer
+        if isinstance(data, dict):
+            data = [data]
+        if not isinstance(data, list):
+            return {}
+        trips = [
+            t for t in data
+            if isinstance(t, dict) and ("tripEndTimestamp" in t or "mileage_km" in t)
+        ]
+        return {"tripData": trips} if trips else {}
+
+    async def _fetch_trips_app_route(
+        self, vin: str, base: str
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """#1805: trip statistics over the addresses the Audi app uses.
+
+        ``GET <base>/vehicle/v1/trips/<vin>/<type>/last`` with the type in lower
+        case: ``shortterm``, ``longterm``, ``cyclic`` (myAudi 5.9.0, androguard:
+        the request builders append ``/trips/``, the VIN, ``/``, the lower-cased
+        trip type and ``/last``). The short-term request decides: a 404 there
+        means the car has no trips on this address either and nothing more is
+        asked. The other two types are optional, as ``cyclic`` always was.
+
+        Not confirmed on a car.
+        """
+        # The three addresses are written out in full, one literal each, so
+        # the Bruno drift check can pair every one with its example request.
+        try:
+            short = self._trip_envelope(
+                await self._get(f"{base}/vehicle/v1/trips/{vin}/shortterm/last")
+            )
+        except APIError as err:
+            if err.status != 404:
+                raise
+            return {}, {}, {}
+        if not short:
+            return {}, {}, {}
+        rest: list[dict[str, Any]] = []
+        for url in (
+            f"{base}/vehicle/v1/trips/{vin}/longterm/last",
+            f"{base}/vehicle/v1/trips/{vin}/cyclic/last",
+        ):
+            try:
+                rest.append(self._trip_envelope(await self._get(url)))
+            except Exception:  # noqa: BLE001 - optional, a miss is not a failure
+                rest.append({})
+        return short, rest[0], rest[1]
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full vehicle status via selectivestatus."""
@@ -1338,6 +1413,63 @@ class VWEUClient(CariadBaseClient):
             fallback_payload=fallback_payload,
         )
 
+    # The on/off settings the Audi app's climatisation start carries next to the
+    # target temperature and the mode (myAudi 5.9.0, androguard:
+    # ``SetClimatisationSettings$ActionDTO``). Note the 'z' in the second one.
+    _CLIMATE_SETTING_FLAGS: tuple[str, ...] = (
+        "climatisationWithoutExternalPower",
+        "climatizationAtUnlock",
+        "windowHeatingEnabled",
+        "zoneFrontLeftEnabled",
+        "zoneFrontRightEnabled",
+        "zoneRearLeftEnabled",
+        "zoneRearRightEnabled",
+    )
+
+    async def _climate_start_body_from_settings(self, vin: str) -> dict[str, Any] | None:
+        """The climatisation start body built from the car's current settings.
+
+        #912: the Audi app sends ``POST .../climatisation/start`` with the
+        same body it uses to save the settings: what the car currently reports
+        (target temperature with its unit, the on/off settings above, the
+        mode, and the two nested settings for ventilation and auxiliary
+        heating). The status reports the temperature as ``targetTemperature_C``;
+        the request carries ``targetTemperature`` plus ``targetTemperatureUnit``.
+        ``heaterSource`` and the capture time are status-only and not sent.
+
+        A key the car does not report is not sent and nothing is forced. Only
+        the mode falls back to ``comfort``, which the PPE body always carried.
+        Returns ``None`` when the settings cannot be read, so the caller keeps
+        its earlier body: a failed read must never fail the start.
+
+        Not confirmed on a car: built from the app's request classes.
+        """
+        try:
+            raw = await self._get(
+                f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/selectivestatus",
+                params={"jobs": "climatisation"},
+            )
+            settings = raw["climatisation"]["climatisationSettings"]["value"]
+        except Exception:  # noqa: BLE001 - unreadable settings, the earlier body goes out
+            return None
+        if not isinstance(settings, dict) or not settings:
+            return None
+        body: dict[str, Any] = {}
+        temp = settings.get("targetTemperature_C")
+        if isinstance(temp, (int, float)) and not isinstance(temp, bool):
+            body["targetTemperature"] = float(temp)
+            body["targetTemperatureUnit"] = "celsius"
+        for key in self._CLIMATE_SETTING_FLAGS:
+            if isinstance(settings.get(key), bool):
+                body[key] = settings[key]
+        for key in ("activeVentilationSettings", "auxiliaryHeatingSettings"):
+            nested = settings.get(key)
+            if isinstance(nested, dict) and nested:
+                body[key] = dict(nested)
+        mode = settings.get("climatisationMode")
+        body["climatisationMode"] = mode if isinstance(mode, str) and mode else "comfort"
+        return body
+
     async def command_start_climate(
         self, vin: str, ppe_mode: bool = False
     ) -> None:
@@ -1364,7 +1496,10 @@ class VWEUClient(CariadBaseClient):
             await _tgt._command_mbb_op(vin, "climate_start")
             return
         if ppe_mode:
-            start_body = {
+            # #912: the Audi app starts with the car's own current settings
+            # (see _climate_start_body_from_settings). Only when those cannot
+            # be read does the earlier three-key body go out.
+            start_body = await self._climate_start_body_from_settings(vin) or {
                 "climatisationMode": "comfort",
                 "climatisationWithoutExternalPower": True,
                 "windowHeatingEnabled": True,
@@ -1424,11 +1559,20 @@ class VWEUClient(CariadBaseClient):
         """
         body: dict[str, Any] = {}
         if ppe_mode:
-            # PPE body validator rejects targetTemperature* outright, so the
-            # caller's temp_c is dropped rather than failing the whole command.
-            temp_c = None
-            if climatisation_mode is None:
-                climatisation_mode = "comfort"
+            # #912: start from the car's own settings, as the Audi app does,
+            # and lay the caller's choices over them below.
+            reported = await self._climate_start_body_from_settings(vin)
+            if reported is None:
+                # Settings not readable: the earlier PPE rule. The temperature
+                # is dropped rather than failing the whole command.
+                temp_c = None
+                if climatisation_mode is None:
+                    climatisation_mode = "comfort"
+            else:
+                body = dict(reported)
+                if "targetTemperature" not in reported:
+                    # A car that reports no target temperature is sent none.
+                    temp_c = None
         if temp_c is not None:
             # #752 audit — the CARIAD climatisation/start action takes
             # targetTemperature + targetTemperatureUnit (as our own simpler
@@ -1542,7 +1686,13 @@ class VWEUClient(CariadBaseClient):
           ``durationInSeconds`` field (grounded in the decoded APK).
         - **Mode**: the CARIAD ``HonkAndFlashParameters$Mode`` enum has
           exactly two members — ``HONK_AND_FLASH`` and ``FLASH_ONLY``.
-          We flash only, so ``mode = "FLASH_ONLY"``.
+          Those are the names of the CONSTANTS. On the wire the apps send
+          the serial names: ``honkandflash`` and ``flash``. The enum
+          serializer of myAudi 5.6.0 and of We Connect 4.2.1 is built with
+          exactly those two, and accepts ``honkflash`` as a second spelling
+          when reading. We flash only by default, so ``mode = "flash"``.
+          The constant names were sent here before; an Audi S6 (C8)
+          answered them with ``invalidPayload`` (4101).
         - **duration**: integer seconds; the app exposes a
           ``HonkAndFlashDuration`` config — 10 s is a safe default.
 
@@ -1550,18 +1700,24 @@ class VWEUClient(CariadBaseClient):
         position (it shows ``location_disabled_alert`` and blocks the call
         without a fix), so the BFF very likely requires ``userPosition``.
 
-        Resilient strategy (mirrors SEAT/CUPRA ``command_flash``): send the
-        bare ``mode``/``duration`` body first — some firmwares accept it and
-        this unblocks users whose vehicle has never reported GPS — and only
-        if the backend answers ``400`` do we retry with ``userPosition``
-        built from the caller-supplied coordinates. If the bare body 400s
-        and no coordinates are available, raise an actionable ``APIError``.
+        A known position goes out with the FIRST request. In the apps
+        ``userPosition`` is a required element of the request
+        (``HonkAndFlashParameters`` in myAudi 5.8.1: ``duration_s``, ``mode``
+        and ``userPosition``, none of them optional), so they never send a
+        flash without it. That request is one shape and its answer is final.
 
-        ️ Live-test gate: ``userPosition``/``latitude``/``longitude`` keys
-        and the location-gating UI behaviour are confirmed statically, but
-        whether the BFF *hard-rejects* a flash with ``userPosition`` omitted
-        (vs. only the honk variant) is the one detail not provable from the
-        static strings. The bare-body-then-position retry covers both cases.
+        Measured on an Audi S6 (C8) with an active licence: the request
+        without a position was answered ``502`` with BFF code 2105
+        (``requestIsIncorrect``); the car flashed once the request carried
+        the position and the mode under its wire name. Before this, the
+        position was only added after an HTTP ``400``, which that backend
+        never sends, and the request without it was repeated four times
+        (about 21 s of 5xx retries) ahead of the one that worked.
+
+        Without a known position the bare body is still sent, so a car that
+        never reported one is not shut out up front. A ``400`` to that body
+        becomes an actionable ``APIError``; any other refusal is passed on
+        unchanged.
         """
         # v2.17.3 — MBB gate (the footgun this fixes): command_flash was the
         # ONE write command missing the ``_mbb_command_target()`` guard that
@@ -1589,36 +1745,35 @@ class VWEUClient(CariadBaseClient):
         # exactly HONK_AND_FLASH and FLASH_ONLY, and ``duration_s`` is plain
         # seconds. Defaults reproduce the previous fixed 10-second flash.
         body: dict[str, Any] = {
-            "mode": "HONK_AND_FLASH" if honk else "FLASH_ONLY",
+            # the serial names, not the names of the enum constants
+            "mode": "honkandflash" if honk else "flash",
             "duration_s": int(duration_s),
         }
-        try:
-            await self._post_command(vin, "honkandflash", json=body)
-            return
-        except APIError as exc:
-            if exc.status != 400:
-                raise
-            # 400 → most likely the BFF wants a bounding ``userPosition``.
-            # Retry with coordinates if we have them; otherwise surface an
-            # actionable hint instead of an opaque "API error 400".
-            if latitude is None or longitude is None:
-                raise APIError(
-                    400,
-                    f"{self._base_for_vin(vin)}"
-                    f"/vehicle/v1/vehicles/{vin}/honkandflash",
-                    "honk-and-flash rejected the bare body (the BFF likely "
-                    "requires userPosition) AND no GPS position is available "
-                    "for this vehicle. Wake the car / wait for a status poll "
-                    "so a parking position is reported, then retry. If GPS "
-                    "stays empty, check whether privacy-mode is enabled in "
-                    "the head-unit settings.",
-                ) from exc
+        if latitude is not None and longitude is not None:
             body["userPosition"] = {
                 # Truncate to ~11 m precision, matching the SEAT path.
                 "latitude": int(latitude * 10000) / 10000,
                 "longitude": int(longitude * 10000) / 10000,
             }
+        try:
             await self._post_command(vin, "honkandflash", json=body)
+        except APIError as exc:
+            if "userPosition" in body or exc.status != 400:
+                raise
+            # 400 to the bare body → most likely the BFF wants ``userPosition``
+            # and there is none to send: surface an actionable hint instead
+            # of an opaque "API error 400".
+            raise APIError(
+                400,
+                f"{self._base_for_vin(vin)}"
+                f"/vehicle/v1/vehicles/{vin}/honkandflash",
+                "honk-and-flash rejected the bare body (the BFF likely "
+                "requires userPosition) AND no GPS position is available "
+                "for this vehicle. Wake the car / wait for a status poll "
+                "so a parking position is reported, then retry. If GPS "
+                "stays empty, check whether privacy-mode is enabled in "
+                "the head-unit settings.",
+            ) from exc
 
     async def command_wake(self, vin: str) -> None:
         """Wake vehicle — Cariad-BFF first, MBB legacy fallback.
@@ -3324,12 +3479,19 @@ class VWEUClient(CariadBaseClient):
         multi-word modes follow the same camelCase the read side already aliases
         (e.g. preferredChargingTimes) — even though the READ enum is UPPER_SNAKE.
         (The exotic modes beyond manual/timer are best-effort until live-confirmed.)
+
+        The values are the eight of the apps' ``ChargeModes.Mode`` (read from
+        myAudi 5.8.1; the same literals are in We Connect 4.3.2). Seven are the
+        plain lower-camelCase of the constant name; ``IMMEDIATE_CHARGING_OBD``
+        is ``immediateChargingOBD`` with ``OBD`` in capitals.
         """
         _parts = [p for p in str(mode).strip().lower().split("_") if p]
         _mode = (
             _parts[0] + "".join(p.capitalize() for p in _parts[1:])
             if _parts else ""
         )
+        if _mode == "immediateChargingObd":
+            _mode = "immediateChargingOBD"
         await self._settings_put_with_fallback(
             vin, "charging/mode",
             put_body={"preferredChargeMode": _mode},
@@ -3673,6 +3835,9 @@ class VWEUClient(CariadBaseClient):
                         float(avg_fuel) / 10.0
                     )
                 avg_elec = last.get("averageElectricEngineConsumption")
+                if avg_elec is None:
+                    # #1805: the name the Audi app's trip carries.
+                    avg_elec = last.get("averageElectricConsumption")
                 if isinstance(avg_elec, (int, float)):
                     d.last_trip_avg_electric_consumption_kwh_100km = (
                         float(avg_elec) / 10.0
@@ -3758,6 +3923,8 @@ class VWEUClient(CariadBaseClient):
                         float(lt_fuel) / 10.0
                     )
                 lt_elec = first.get("averageElectricEngineConsumption")
+                if lt_elec is None:
+                    lt_elec = first.get("averageElectricConsumption")
                 if isinstance(lt_elec, (int, float)):
                     d.lifetime_avg_electric_consumption_kwh_100km = (
                         float(lt_elec) / 10.0
@@ -3815,6 +3982,8 @@ class VWEUClient(CariadBaseClient):
         if isinstance(avg_fuel, (int, float)):
             d.refuel_trip_avg_fuel_consumption_l_100km = float(avg_fuel) / 10.0
         avg_elec = first.get("averageElectricEngineConsumption")
+        if avg_elec is None:
+            avg_elec = first.get("averageElectricConsumption")
         if isinstance(avg_elec, (int, float)):
             d.refuel_trip_avg_electric_consumption_kwh_100km = (
                 float(avg_elec) / 10.0
@@ -5401,7 +5570,13 @@ class VWEUClient(CariadBaseClient):
         oil_value = v(raw, "oilLevel", "oilLevelStatus", "value")
         if isinstance(oil_value, dict):
             oil_status = oil_value.get("value")
-            if isinstance(oil_status, str):
+            if isinstance(oil_status, bool):
+                # Some cars send true/false instead of a text (measured on an
+                # Audi S6 C8). The app reads it as "oil level in order", so
+                # false is the warning. There is no text to pass on, so
+                # oil_level_status stays empty.
+                d.oil_level_warning = not oil_status
+            elif isinstance(oil_status, str):
                 d.oil_level_status = oil_status
                 # PROBLEM device class convention: True = warning,
                 # False = OK. Unknown strings leave the bool None so
@@ -5419,8 +5594,11 @@ class VWEUClient(CariadBaseClient):
         # v2.15.1 — flat `oilLevelResult` wire-key (BFF dialect). Maps into the
         # same oil_level_status field + derives oil_level_warning with the same
         # logic as the structured oilLevel block above. Guard is None so the
-        # structured path (when present) stays authoritative.
-        if d.oil_level_status is None:
+        # structured path (when present) stays authoritative. A true/false
+        # oil level decides the warning and leaves the text empty, so the
+        # warning is part of the guard: otherwise this fallback would run after
+        # it and could overwrite the warning it had just set.
+        if d.oil_level_status is None and d.oil_level_warning is None:
             oil_result = _find_flat(raw, "oilLevelResult")
             if isinstance(oil_result, str) and oil_result:
                 d.oil_level_status = oil_result
@@ -5799,7 +5977,15 @@ class VWEUClient(CariadBaseClient):
                 d.battery_cap_kwh = _cap / 1000.0 if _cap > 500 else _cap
 
         # parkingBrakeStatus → parking_brake_engaged (shared field). enum→bool.
-        _pbrk = _find_flat(raw, "parkingBrakeStatus")
+        # The parkingBrake job sends its own block with a true/false value
+        # (true = engaged, the shape the Audi app reads). When that block
+        # carries a value it decides; the flat leaf is the older form.
+        _pbrk_block = v(raw, "parkingBrake", "parkingBrakeStatus", "value", "value")
+        _pbrk = (
+            _pbrk_block
+            if isinstance(_pbrk_block, bool)
+            else _find_flat(raw, "parkingBrakeStatus")
+        )
         if _pbrk is not None:
             if isinstance(_pbrk, bool):
                 d.parking_brake_engaged = _pbrk

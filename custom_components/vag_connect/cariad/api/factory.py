@@ -48,8 +48,8 @@ class CariadClientFactory:
           seat          — SEAT (OLA server)
           cupra         — CUPRA (OLA server)
           volkswagen_na — VW North America (US/CA, b-h-s.spr.{cc}00.p.con-veh.net)
-          audi_na       — Audi North America (US/CA, shared VW-Group NA backend;
-                          SCAFFOLD — client_id pending the US myAudi APK sweep)
+          audi_na       — Audi North America (myAudi US/CA; the CARIAD BFF in
+                          the NA region, the same client family as Audi EU)
           porsche       — Porsche Connect (Auth0, api.ppa.porsche.com)
           bentley       — Bentley (My Bentley, Audi IDK client/tenant; read-only)
 
@@ -78,8 +78,20 @@ class CariadClientFactory:
         if lower == "volkswagen_na":
             return VWNAClient(session, email, password, spin, country=country)
         if lower == "audi_na":
-            # v2.18.2 — Audi US/CA on the shared VW-Group NA backend (subclass of
-            # VWNAClient). SWEEP-GATED: myAudi NA client_id pending (see audi_na.py).
+            # Audi US/CA. NOT the VW North America stack above: ``AudiNAClient``
+            # is a ``VWEUClient`` on the CARIAD BFF in the NA region (see
+            # audi_na.py), so it takes ``CariadBaseClient.authenticate`` and the
+            # base refresh path, exactly like Audi EU.
+            #
+            # #1813 review finding: this comment used to call it a subclass of
+            # ``VWNAClient`` with its client id still pending. Neither was true
+            # when the class was added in v2.19.0 or at any time since, and it
+            # matters which one it is:
+            # ``VWNAClient`` signs in on its own and has no check for an entry
+            # that holds no password; that check lives in ``CariadBaseClient``.
+            # Audi US/CA is the one North America brand with a code sign-in, so
+            # it needs that check and gets it from ``CariadBaseClient``. tests/
+            # test_1813_passwordless_brands_carry_the_guard.py holds that.
             return AudiNAClient(session, email, password, spin, country=country)
         if lower == "porsche":
             return PorscheClient(session, email, password, spin)
