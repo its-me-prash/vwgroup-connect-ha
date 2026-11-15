@@ -23,7 +23,7 @@ import pkgutil
 import textwrap
 from functools import partial
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -180,12 +180,25 @@ def _platform_coord(client: Any) -> MagicMock:
     coord.is_companion.return_value = False
     coord.command_capability_supported.return_value = None
     coord.read_capability_hidden.return_value = False
+    coord.entry.entry_id = "ENTRY_A"
+    coord.entry.data = {}
     return coord
 
 
 def _built(
     module_name: str, brand: str, client: Any, vehicle: dict[str, Any] | None = None,
 ) -> list[str]:
+    """Names (description key, else class name) of what ``_added`` returns."""
+    names = []
+    for ent in _added(module_name, brand, client, vehicle):
+        desc = getattr(ent, "entity_description", None)
+        names.append(getattr(desc, "key", None) or type(ent).__name__)
+    return names
+
+
+def _added(
+    module_name: str, brand: str, client: Any, vehicle: dict[str, Any] | None = None,
+) -> list[Any]:
     """What the platform adds in its FIRST spawn pass, through the real spawner.
 
     The first pass is the one that matters: the spawner adds entities and never
@@ -201,11 +214,7 @@ def _built(
     entry.data = {"brand": brand}
     added: list[Any] = []
     asyncio.run(module.async_setup_entry(MagicMock(), entry, added.extend))
-    names = []
-    for ent in added:
-        desc = getattr(ent, "entity_description", None)
-        names.append(getattr(desc, "key", None) or type(ent).__name__)
-    return names
+    return added
 
 
 @pytest.mark.parametrize(
@@ -213,6 +222,9 @@ def _built(
     [("skoda", SkodaClient), ("seat", SeatCupraClient), ("cupra", SeatCupraClient)],
 )
 def test_no_charge_mode_select_without_the_command(brand: str, cls: type) -> None:
+    # Read-only is switched off by hand here. A real SEAT/CUPRA entry is forced
+    # read-only (coordinator.is_read_only), so for those brands this guards the
+    # client gate, not a control a user could see today.
     assert "VagChargeModeSelect" not in _built("select", brand, _bare(cls))
 
 
@@ -267,3 +279,130 @@ def test_vw_eu_keeps_both_battery_care_controls() -> None:
     client = _bare(VWEUClient)
     assert "VagBatteryCareSwitch" in _built("switch", "volkswagen", client, _CARE)
     assert "battery_care_target" in _built("number", "volkswagen", client, _CARE)
+
+
+# ── registry: a control an earlier version created is removed once ──────────
+
+_VIN = "VIN0000000000TEST"
+
+
+class _FakeRegistry:
+    """The four registry calls the cleanup uses, recording removals."""
+
+    def __init__(self, entries: dict[tuple[str, str], tuple[str, str]]) -> None:
+        # (platform, unique_id) -> (entity_id, owning config entry id)
+        self.entries = dict(entries)
+        self.removed: list[str] = []
+
+    def async_get_entity_id(self, platform: str, domain: str, unique_id: str) -> str | None:
+        assert domain == "vag_connect"
+        hit = self.entries.get((platform, unique_id))
+        return hit[0] if hit else None
+
+    def async_get(self, entity_id: str) -> Any:
+        for eid, owner in self.entries.values():
+            if eid == entity_id:
+                return MagicMock(config_entry_id=owner)
+        return None
+
+    def async_remove(self, entity_id: str) -> None:
+        self.removed.append(entity_id)
+
+
+def _removed_after_setup(
+    module_name: str, brand: str, client: Any, entries: dict[tuple[str, str], tuple[str, str]],
+) -> list[str]:
+    registry = _FakeRegistry(entries)
+    with patch("homeassistant.helpers.entity_registry.async_get", return_value=registry):
+        _built(module_name, brand, client, _CARE)
+    return registry.removed
+
+
+@pytest.mark.parametrize(
+    ("module_name", "brand", "cls", "key"),
+    [
+        ("select", "skoda", SkodaClient, "charge_mode_select"),
+        ("number", "skoda", SkodaClient, "min_soc"),
+        ("number", "skoda", SkodaClient, "battery_care_target"),
+        ("switch", "skoda_official", SkodaOfficialClient, "battery_care_switch"),
+    ],
+)
+def test_an_unsendable_control_left_by_an_earlier_version_is_removed(
+    module_name: str, brand: str, cls: type, key: str,
+) -> None:
+    entity_id = f"{module_name}.old_{key}"
+    entries = {(module_name, f"{_VIN}_{key}"): (entity_id, "ENTRY_A")}
+    assert _removed_after_setup(module_name, brand, _bare(cls), entries) == [entity_id]
+
+
+def test_a_sendable_control_is_never_removed() -> None:
+    entries = {
+        ("select", f"{_VIN}_charge_mode_select"): ("select.vw_mode", "ENTRY_A"),
+        ("number", f"{_VIN}_min_soc"): ("number.vw_min", "ENTRY_A"),
+        ("number", f"{_VIN}_battery_care_target"): ("number.vw_care", "ENTRY_A"),
+        ("switch", f"{_VIN}_battery_care_switch"): ("switch.vw_care", "ENTRY_A"),
+    }
+    for module_name in ("select", "number", "switch"):
+        assert _removed_after_setup(module_name, "volkswagen", _bare(VWEUClient), entries) == []
+
+
+def test_skoda_keeps_its_working_battery_care_switch_entry() -> None:
+    entries = {("switch", f"{_VIN}_battery_care_switch"): ("switch.care", "ENTRY_A")}
+    assert _removed_after_setup("switch", "skoda", _bare(SkodaClient), entries) == []
+
+
+def test_an_entity_of_another_entry_is_never_removed() -> None:
+    # A Škoda entry and an official-API entry for the same car share unique
+    # ids; the official entry must not delete the Škoda entry's working switch.
+    entries = {("switch", f"{_VIN}_battery_care_switch"): ("switch.care", "ENTRY_B")}
+    assert _removed_after_setup("switch", "skoda_official", _bare(SkodaOfficialClient), entries) == []
+
+
+def test_cleanup_keys_are_the_keys_the_platforms_build() -> None:
+    # A renamed entity key would make the cleanup miss silently; every listed
+    # key must be one the platform really creates where the command exists.
+    from custom_components.vag_connect.entity_base import UNSENDABLE_CONTROLS
+
+    for platform, controls in UNSENDABLE_CONTROLS.items():
+        keys = {getattr(e, "_key", None) for e in _added(platform, "volkswagen", _bare(VWEUClient), _CARE)}
+        for key, _command in controls:
+            assert key in keys, f"{platform}: {key} is not a key the platform builds"
+
+
+def _real_entity_registry() -> Any:
+    """A real ``EntityRegistry`` on a mocked hass, persistence stubbed out."""
+    from homeassistant.helpers import entity_registry as ha_er
+
+    hass = MagicMock()
+    registry = ha_er.EntityRegistry(hass)
+    registry.async_schedule_save = MagicMock()  # type: ignore[method-assign]
+    # What async_load sets up for an empty store, without reading one.
+    registry.entities = ha_er.EntityRegistryItems(hass)
+    registry.deleted_entities = {}
+    registry.settings = ha_er.EntityRegistrySettings()
+    registry._entities_data = registry.entities.data
+    return registry
+
+
+def _owned_by(entry_id: str) -> Any:
+    entry = MagicMock(entry_id=entry_id, disabled_by=None)
+    entry.domain = "vag_connect"
+    return entry
+
+
+def test_cleanup_against_a_real_entity_registry() -> None:
+    # The fake above cannot catch a wrong argument order or attribute name;
+    # this pins the four registry calls against the installed Home Assistant.
+    registry = _real_entity_registry()
+    mine = registry.async_get_or_create(
+        "select", "vag_connect", f"{_VIN}_charge_mode_select", config_entry=_owned_by("ENTRY_A"),
+    )
+    theirs = registry.async_get_or_create(
+        "number", "vag_connect", f"{_VIN}_min_soc", config_entry=_owned_by("ENTRY_B"),
+    )
+    with patch("homeassistant.helpers.entity_registry.async_get", return_value=registry):
+        _built("select", "skoda", _bare(SkodaClient), _CARE)
+        _built("number", "skoda", _bare(SkodaClient), _CARE)
+    assert registry.async_get(mine.entity_id) is None
+    # Control: the other entry's entity survives, so removal is not wholesale.
+    assert registry.async_get(theirs.entity_id) is not None

@@ -38,7 +38,11 @@ from .const import (
 )
 from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
-from .entity_base import VagConnectEntity, register_dynamic_spawner
+from .entity_base import (
+    VagConnectEntity,
+    drop_unsendable_controls,
+    register_dynamic_spawner,
+)
 
 if TYPE_CHECKING:
     pass
@@ -224,6 +228,7 @@ async def async_setup_entry(
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
         drop_retired_climate(hass, coordinator, "number", vin)
+        drop_unsendable_controls(hass, coordinator, "number", vin)
         has_battery = vehicle.get("has_battery", False)
         for desc in NUMBER_DESCRIPTIONS:
             if desc.condition == "electric" and not has_battery:

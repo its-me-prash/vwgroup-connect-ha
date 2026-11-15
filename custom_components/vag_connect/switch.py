@@ -12,7 +12,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
-from .entity_base import VagConnectEntity, register_dynamic_spawner
+from .entity_base import (
+    VagConnectEntity,
+    drop_unsendable_controls,
+    register_dynamic_spawner,
+)
 
 
 # b13 — platinum parallel-updates rule: the coordinator's background poll
@@ -49,6 +53,7 @@ async def async_setup_entry(
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
+        drop_unsendable_controls(hass, coordinator, "switch", vin)
         if _supported(vin, "command_lock"):
             entities.append(VagLockSwitch(coordinator, vin))
         if coordinator.is_companion():
