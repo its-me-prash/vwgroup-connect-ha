@@ -88,6 +88,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Audi connect plug&play (DataPlug) cars no longer sign in from scratch at every restart (#118).** The sign-in was never kept for this source, so every Home Assistant restart, every update and every reload went through the full login again. It is now stored and renewed the way the other brands' sign-ins are, and a stored sign-in the plug&play cloud no longer accepts falls back to one ordinary sign-in. An entry that was switched to plug&play in Reconfigure and has failed to set up ever since starts again: the sign-in left behind by the brand it had before used to stop the setup.
 
+- **Reconfigure with "Enable durable two-way commands" ticked now switches cleanly to a different account (#118).** On that route (Volkswagen and Audi, finished through the code sign-in in the browser) the previous account's stored sign-in stayed in place and the entry could go on using it, and the next Reconfigure dropped the command channel that had just been set up. The entry now ends up on the new account, as it does without the box. A code sign-in that is closed or expires changes nothing.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
