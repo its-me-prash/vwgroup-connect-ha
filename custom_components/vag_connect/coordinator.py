@@ -2916,6 +2916,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _parts = [p for p in (err.name, getattr(err, "name_from", None)) if p]
                 if _parts:
                     _detail = " [failed import: " + " -> ".join(_parts) + "]"
+            # #1964: the class name alone is just as useless for an
+            # UpstreamUnavailableError. Since 5.2.2 that class is raised for a
+            # 404 or 410 on the EU Data Act portal's vehicle list as well as
+            # for 5xx answers, and "setup failed: UpstreamUnavailableError"
+            # does not say which. The reporter's log showed exactly that line,
+            # and nobody could tell from it whether the portal was down or had
+            # refused the list. A status code is not a secret; it is appended
+            # on its own, as the sign-in strategy line in cariad/api/base.py
+            # does (#1915), and NOT by un-redacting the message. Only an int
+            # is taken: a foreign exception may call anything "status".
+            _status = getattr(err, "status", None)
+            if isinstance(_status, int):
+                _detail += f" (HTTP {_status})"
             _LOGGER.error(
                 "VW Group Connect setup failed: %s%s "
                 "(message redacted, see DEBUG for details)",
