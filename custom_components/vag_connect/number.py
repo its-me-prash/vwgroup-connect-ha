@@ -237,12 +237,15 @@ async def async_setup_entry(
             ):
                 continue
             # v2.18.0 — gate on the READ having produced a value rather than on
-            # the brand: every client inherits the command stub from the base
-            # class, so a capability/hasattr check can't tell us who really has
-            # the feature. A car that reports a care target has it.
-            if (
-                desc.condition == "battery_care"
-                and vehicle.get("battery_care_target_soc_pct") is None
+            # the brand: a car that reports a care target has the feature.
+            # #2122 — and the client must be able to send the setting: Škoda
+            # reports the target but only inherits the placeholder, and the
+            # official Škoda API has no command for it at all.
+            if desc.condition == "battery_care" and (
+                vehicle.get("battery_care_target_soc_pct") is None
+                or not coordinator.command_method_available(
+                    "command_set_battery_care_target"
+                )
             ):
                 continue
             cmd_id = _CMD_ID.get(desc.key)

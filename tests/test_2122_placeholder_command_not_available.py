@@ -32,6 +32,7 @@ from custom_components.vag_connect.cariad.api.audi import AudiClient
 from custom_components.vag_connect.cariad.api.base import CariadBaseClient
 from custom_components.vag_connect.cariad.api.seat_cupra import SeatCupraClient
 from custom_components.vag_connect.cariad.api.skoda import SkodaClient
+from custom_components.vag_connect.cariad.api.skoda_official import SkodaOfficialClient
 from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
 from custom_components.vag_connect.coordinator import VagConnectCoordinator
 
@@ -182,7 +183,9 @@ def _platform_coord(client: Any) -> MagicMock:
     return coord
 
 
-def _built(module_name: str, brand: str, client: Any) -> list[str]:
+def _built(
+    module_name: str, brand: str, client: Any, vehicle: dict[str, Any] | None = None,
+) -> list[str]:
     """What the platform adds in its FIRST spawn pass, through the real spawner.
 
     The first pass is the one that matters: the spawner adds entities and never
@@ -192,7 +195,7 @@ def _built(module_name: str, brand: str, client: Any) -> list[str]:
     """
     module = importlib.import_module(f"custom_components.vag_connect.{module_name}")
     coord = _platform_coord(client)
-    coord.vehicles = {"VIN0000000000TEST": {"has_battery": True}}
+    coord.vehicles = {"VIN0000000000TEST": vehicle or {"has_battery": True}}
     entry = MagicMock()
     entry.runtime_data = coord
     entry.data = {"brand": brand}
@@ -233,3 +236,34 @@ def test_no_min_soc_slider_without_the_command(brand: str, cls: type) -> None:
 
 def test_vw_eu_still_gets_the_min_soc_slider() -> None:
     assert "min_soc" in _built("number", "volkswagen", _bare(VWEUClient))
+
+
+# ── battery care: read-gated controls also need a command that can be sent ───
+
+_CARE = {"has_battery": True, "battery_care_enabled": True, "battery_care_target_soc_pct": 80}
+
+
+def test_skoda_gets_no_battery_care_target_slider() -> None:
+    # Škoda reports the care target but only inherits the placeholder for
+    # setting it, so the slider could only ever raise NotImplementedError.
+    built = _built("number", "skoda", _bare(SkodaClient), _CARE)
+    assert "battery_care_target" not in built
+    assert "target_soc" in built  # positive control: the builder did run
+
+
+def test_skoda_keeps_its_battery_care_switch() -> None:
+    # SkodaClient implements command_set_battery_care itself.
+    assert "VagBatteryCareSwitch" in _built("switch", "skoda", _bare(SkodaClient), _CARE)
+
+
+def test_skoda_official_gets_neither_battery_care_control() -> None:
+    # The official API reads battery care but has no command for it at all.
+    client = _bare(SkodaOfficialClient)
+    assert "VagBatteryCareSwitch" not in _built("switch", "skoda_official", client, _CARE)
+    assert "battery_care_target" not in _built("number", "skoda_official", client, _CARE)
+
+
+def test_vw_eu_keeps_both_battery_care_controls() -> None:
+    client = _bare(VWEUClient)
+    assert "VagBatteryCareSwitch" in _built("switch", "volkswagen", client, _CARE)
+    assert "battery_care_target" in _built("number", "volkswagen", client, _CARE)
