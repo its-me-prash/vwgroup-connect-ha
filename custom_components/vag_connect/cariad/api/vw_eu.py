@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .._mbb import MbbOperationList
 
+from .._bff_error_codes import bff_error_name
 from .._util import (
     compute_connection_state,
     drop_charge_sentinel,
@@ -29,6 +30,7 @@ from ..exceptions import (
     PortalSessionExpiredError,
     SpinError,
     VehicleCommandError,
+    extract_safe_error_code,
 )
 from ..models import BRAND_VW_EU, VehicleData
 from .base import CariadBaseClient
@@ -1557,6 +1559,14 @@ class VWEUClient(CariadBaseClient):
         built from the caller-supplied coordinates. If the bare body 400s
         and no coordinates are available, raise an actionable ``APIError``.
 
+        The same second attempt runs when the bare body is refused with BFF
+        code 2105 (``requestIsIncorrect``) on any status. Measured on an Audi
+        S6 (C8) with an active licence and a reporting car: the answer to the
+        bare body is ``502`` with code 2105, never ``400``, so the position
+        was never sent. Whether the position is what that backend misses is
+        not proven by this; the attempt is one send and its answer is final.
+        Without coordinates the backend's own error is passed on unchanged.
+
         ️ Live-test gate: ``userPosition``/``latitude``/``longitude`` keys
         and the location-gating UI behaviour are confirmed statically, but
         whether the BFF *hard-rejects* a flash with ``userPosition`` omitted
@@ -1596,12 +1606,22 @@ class VWEUClient(CariadBaseClient):
             await self._post_command(vin, "honkandflash", json=body)
             return
         except APIError as exc:
-            if exc.status != 400:
+            # The code is read with the same function that puts it into the
+            # message the user sees, so this fires on exactly the answers
+            # that were reported as "(2105)".
+            _code = extract_safe_error_code(exc.body)
+            request_incorrect = (
+                _code.isdecimal()
+                and bff_error_name(int(_code)) == "requestIsIncorrect"
+            )
+            if exc.status != 400 and not request_incorrect:
                 raise
             # 400 → most likely the BFF wants a bounding ``userPosition``.
             # Retry with coordinates if we have them; otherwise surface an
             # actionable hint instead of an opaque "API error 400".
             if latitude is None or longitude is None:
+                if exc.status != 400:
+                    raise
                 raise APIError(
                     400,
                     f"{self._base_for_vin(vin)}"

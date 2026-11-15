@@ -1246,6 +1246,112 @@ class TestVWEUCommands:
         with pytest.raises(APIError):
             asyncio.run(client.command_flash("VIN1"))
 
+    @staticmethod
+    def _flash_client(statuses_and_bodies):
+        """A client whose session answers in the given order, plus the bodies
+        it was sent. Each body is copied AT SEND TIME: ``command_flash`` adds
+        ``userPosition`` to the same dict, so the mock's own ``call_args`` would
+        show the position on the earlier sends too."""
+        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
+        from custom_components.vag_connect.cariad.models import TokenSet
+
+        responses = []
+        for status, text in statuses_and_bodies:
+            resp = AsyncMock()
+            resp.status = status
+            resp.headers = {"Content-Type": "application/json"}
+            resp.text = AsyncMock(return_value=text)
+            resp.__aenter__ = AsyncMock(return_value=resp)
+            resp.__aexit__ = AsyncMock(return_value=False)
+            responses.append(resp)
+        sent: list[dict] = []
+
+        def _send(*_args, **kwargs):
+            sent.append(dict(kwargs["json"]))
+            return responses.pop(0)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=_send)
+        client = VWEUClient(session, "u@t.de", "pw")
+        client._tokens = TokenSet("acc", "ref", "id")
+        return client, sent
+
+    # The bare body costs four sends on a 502: the first one plus the three
+    # 5xx retries of ``_request``.
+    _REQUEST_INCORRECT = (502, '{"error":{"code":2105}}')
+    _LICENCE_INACTIVE = (502, '{"error":{"code":4007}}')
+    _NO_SLEEP = "custom_components.vag_connect.cariad.api.base.asyncio.sleep"
+
+    def test_command_flash_retries_with_userposition_on_request_incorrect(self):
+        """A bare body refused with BFF code 2105 (``requestIsIncorrect``) is
+        sent once more with ``userPosition``, like a 400.
+
+        Measured on an Audi S6 (C8) with an active licence and a reporting
+        car: the backend answers the bare body with HTTP 502 and code 2105,
+        never with 400, so the position was never sent."""
+        client, sent = self._flash_client([self._REQUEST_INCORRECT] * 4 + [(204, "")])
+        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
+            asyncio.run(
+                client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
+            )
+
+        assert len(sent) == 5
+        assert all("userPosition" not in body for body in sent[:4])
+        assert sent[4]["userPosition"] == {"latitude": 48.1374, "longitude": 11.5754}
+        assert sent[4]["mode"] == "FLASH_ONLY"
+
+    def test_command_flash_position_attempt_runs_exactly_once(self):
+        """The attempt with the position is one send, not a loop: when the
+        backend refuses that one too, its error reaches the caller."""
+        from custom_components.vag_connect.cariad.exceptions import APIError
+
+        client, sent = self._flash_client([self._REQUEST_INCORRECT] * 6)
+        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
+            with pytest.raises(APIError) as err:
+                asyncio.run(
+                    client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
+                )
+
+        assert err.value.status == 502
+        assert len(sent) == 5
+        assert "userPosition" in sent[4]
+
+    def test_command_flash_other_bff_code_gets_no_position_attempt(self):
+        """Any other refusal keeps its own meaning. 4007 is the inactive
+        licence: a position would not help, and the caller must see the 4007."""
+        from custom_components.vag_connect.cariad.exceptions import (
+            APIError,
+            extract_safe_error_code,
+        )
+
+        client, sent = self._flash_client([self._LICENCE_INACTIVE] * 4 + [(204, "")])
+        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
+            with pytest.raises(APIError) as err:
+                asyncio.run(
+                    client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
+                )
+
+        assert extract_safe_error_code(err.value.body) == "4007"
+        assert len(sent) == 4
+        assert all("userPosition" not in body for body in sent)
+
+    def test_command_flash_request_incorrect_without_coords_keeps_the_error(self):
+        """No position known: nothing to add, so the backend's own answer is
+        what the caller gets, code included."""
+        from custom_components.vag_connect.cariad.exceptions import (
+            APIError,
+            extract_safe_error_code,
+        )
+
+        client, sent = self._flash_client([self._REQUEST_INCORRECT] * 4 + [(204, "")])
+        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
+            with pytest.raises(APIError) as err:
+                asyncio.run(client.command_flash("VIN1"))
+
+        assert err.value.status == 502
+        assert extract_safe_error_code(err.value.body) == "2105"
+        assert len(sent) == 4
+
     def test_command_wake(self):
         client = self._client()
         asyncio.run(client.command_wake("VIN1"))
