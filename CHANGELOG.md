@@ -74,6 +74,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **A code sign-in entry asks for a new sign-in again once its tokens stop renewing.** Entries created with the brand app's code sign-in store no password, and the check that keeps them from trying e-mail logins that cannot work relied on a marker that the first ordinary token renewal removed. It now only asks whether the entry holds a password, so it holds after a renewal and after a restart, also on Audi, SEAT, CUPRA and Škoda entries that are already running. Entries with a password and the volkswagen.de website sign-in are unchanged. Thanks @ratclma. Refs #1813.
 
+- **The sign-in cookies saved with the tokens now survive a token refresh.** They are written at sign-in and loaded back on the next start, but the first token refresh saved an empty list over them, so a restart after that came up without them. Review finding from the work on #1813.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
