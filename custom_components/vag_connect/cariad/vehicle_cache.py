@@ -478,27 +478,39 @@ def _heal_cached_combined_range(
     keeps it for good. The #1316 heal does not reach it, because it only fires
     on a car without a battery.
 
-    The snapshot does not say which leaf the stored value came from
-    (``field_source_leaf`` names only the leaves read with ``record_as``), so
-    it is dropped on proof only, all of:
+    Nothing is dropped unless this poll's headline range came from the
+    combined leaf on a car that reports fuel (the shape in which the mapper
+    withholds the combined figure), no other channel can have delivered the
+    value (its owner is the portal, or, once carry-forward has dropped the
+    owner, the portal is the only channel the car reads), and no export import
+    filled it in (#1780 carries those forward on purpose). An electric range
+    this poll did bring wins over the stored one anyway.
 
-    * this poll's headline range came from the combined leaf on a car that
-      reports fuel: the shape in which the mapper withholds the combined
-      figure (an electric range this poll did bring wins over the stored one
-      anyway, so it needs no check here);
-    * the stored value equals a combined figure, either this poll's or the
-      stored ``range_km`` when that came from the combined leaf too. With fuel
-      in the tank a plug-in's real electric range is below its combined range,
-      and the one exception, a combustion range of 0 at fuel reserve, leaves
-      the figure on an engine's own field as well;
-    * no other channel delivered it: its owner is the portal, or, once carry-
-      forward has dropped the owner, the portal is the only channel the car
-      reads; and no export import filled it in (#1780 carries those forward on
-      purpose).
+    Then the leaf decides. Since this version the mapper names the leaf of the
+    electric range and :func:`reconcile` carries the name along with a carried
+    value, and the mapper never delivers the combined figure on a car with
+    fuel, so a named value is kept. A value without a name was stored by
+    5.4.0 or earlier:
 
-    A stored value that equals no combined figure is kept. A phantom frozen
-    since 5.4.0 looks like that once the car has driven, but so does a real
-    electric range carried over a poll that lacked one, and that must stay.
+    * kept when it also sits on an engine's own range field: at fuel reserve
+      the combustion range can read 0, a real electric range then equals the
+      combined one, and the poll that split the range by engine stored it
+      there too, which the phantom never came with;
+    * if the portal delivered it in the last poll, dropped only when it equals
+      that poll's ``range_km`` and that came from the combined leaf: the
+      phantom was read from the same leaf in the same poll. 5.4.0 never
+      delivered the combined figure on a car with fuel, and a match with a
+      LATER poll's combined range is a coincidence, not proof. A snapshot
+      from before 5.1.0 names no leaf at all, so its phantom survives one
+      poll and goes with the next under the rule below;
+    * dropped when no channel owns it, because it was carried. Up to 5.4.0 the
+      only value the portal put there without a real electric leaf behind it
+      was the combined figure. This is where the heal can be wrong, in two
+      narrow cases: a real electric range that 5.4.0 carried over a poll
+      without one, dropped at the first poll of this version; and a value
+      from a channel the car no longer reads, once the portal is the only one
+      left. Either comes back with the next poll that delivers a real value.
+
     Returns a shallow copy only when the value is dropped.
     """
     from ._channel_merge import _BATCH_SOURCES  # noqa: PLC0415
@@ -512,37 +524,61 @@ def _heal_cached_combined_range(
     if (not isinstance(fresh_leaves, dict)
             or fresh_leaves.get("range_km") != _COMBINED_RANGE_LEAF):
         return previous
-    combined = [fresh.get("range_km")]
-    prev_leaves = previous.get("field_source_leaf")
-    if (isinstance(prev_leaves, dict)
-            and prev_leaves.get("range_km") == _COMBINED_RANGE_LEAF):
-        combined.append(previous.get("range_km"))
-    if cached not in combined:
-        return previous
-    # At fuel reserve the combustion range can read 0, and then a real
-    # electric range equals the combined one. The poll that split the range
-    # by engine stored the same figure on an engine's own field; the phantom
-    # never came with that split.
-    if cached in (previous.get("secondary_engine_range_km"),
-                  previous.get("combustion_range_km")):
+    imported = previous.get("field_imported_from_export")
+    if isinstance(imported, list) and "electric_range_km" in imported:
         return previous
     owners = previous.get("field_sources")
     owner = owners.get("electric_range_km") if isinstance(owners, dict) else None
     if owner is None:
-        # Carried at least once, and reconcile does not carry the owner along.
-        # Only on a car that reads the portal alone did the portal put it there.
         armed = previous.get("channel_status")
         if (not isinstance(armed, dict) or not armed
                 or not set(armed) <= _BATCH_SOURCES):
             return previous
     elif owner not in _BATCH_SOURCES:
         return previous
-    imported = previous.get("field_imported_from_export")
-    if isinstance(imported, list) and "electric_range_km" in imported:
+    prev_leaves = previous.get("field_source_leaf")
+    if not isinstance(prev_leaves, dict):
+        prev_leaves = {}
+    if prev_leaves.get("electric_range_km") is not None:
+        return previous
+    if cached in (previous.get("secondary_engine_range_km"),
+                  previous.get("combustion_range_km")):
+        return previous
+    if owner is not None and (
+        prev_leaves.get("range_km") != _COMBINED_RANGE_LEAF
+        or cached != previous.get("range_km")
+    ):
         return previous
     previous = dict(previous)
     previous.pop("electric_range_km", None)
     return previous
+
+
+def _carry_electric_range_leaf(
+    merged: dict[str, Any], fresh: dict[str, Any], previous: dict[str, Any],
+) -> None:
+    """Keep the leaf name with a carried ``electric_range_km`` (#1970), in place.
+
+    ``merged`` starts as the fresh poll, so a value carried from ``previous``
+    arrives without its ``field_source_leaf`` entry. For this one field the
+    name is evidence: :func:`_heal_cached_combined_range` keeps a named value
+    and treats an unnamed one as stored by 5.4.0 or earlier. Without the name
+    travelling along, a real electric range would count as old after one poll
+    that lacked it. The fresh poll's map is copied, never modified.
+    """
+    if fresh.get("electric_range_km") is not None:
+        return
+    if merged.get("electric_range_km") is None:
+        return
+    prev_leaves = previous.get("field_source_leaf")
+    leaf = (prev_leaves.get("electric_range_km")
+            if isinstance(prev_leaves, dict) else None)
+    if not isinstance(leaf, str) or not leaf:
+        return
+    leaves = merged.get("field_source_leaf")
+    leaves = dict(leaves) if isinstance(leaves, dict) else {}
+    leaves["electric_range_km"] = leaf
+    merged["field_source_leaf"] = leaves
 
 
 # Per-field provenance maps that name a field by key. A value removed by
@@ -747,6 +783,9 @@ def reconcile(
     for field in CARRY_FORWARD_FIELDS:
         if merged.get(field) is None and previous.get(field) is not None:
             merged[field] = previous[field]
+    # #1970 — the electric range's leaf name is the heal's evidence; it
+    # travels with a carried value.
+    _carry_electric_range_leaf(merged, fresh, previous)
     # #465 — immutable vw.de master data: hold the last-known value when the fresh
     # poll's value is FALSY (None / "" / {} / []) but a truthy one was recorded. A
     # fresh truthy value always wins. Truthiness (not ``is None``) is deliberate so
