@@ -497,6 +497,22 @@ class CariadBaseClient:
         transparently. The 5-strategy storm-guard in _refresh_tokens
         prevents runaway loops.
         """
+        # #1964: while the client holds a browser (Auth0/PKCE) session, none of
+        # the strategies below may run, with or without a stored password.
+        # Attaching that sign-in to an entry keeps the entry's password on
+        # purpose (the portal channel signs in with it), so "has a password"
+        # says nothing about how the session in hand was made. Every strategy
+        # below would put a different session in its place and hand it to the
+        # token store, and none of them can renew a browser session. That
+        # session renews in ``_refresh_tokens`` and is replaced only by a new
+        # browser sign-in in the config flow. A fresh client, as the config
+        # flow builds for a credential sign-in, holds no session and is not
+        # affected. Kept apart from the passwordless guard further down: that
+        # one asks about the entry, this one about the session.
+        if getattr(self._tokens, "strategy", "") == "auth0":
+            from ..exceptions import DeviceLoginExpiredError  # noqa: PLC0415
+
+            raise DeviceLoginExpiredError("strategy=auth0")
         # Strategy descriptor: (kind, kwargs) where kind is "idk" for the
         # standard IDKAuth.authenticate path and "data_act_portal" for the
         # last-resort read-only fallback.
