@@ -66,6 +66,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Audi connect plug&play (DataPlug) cars: odometer and last trip are current again (#2100).** The plug&play cloud returns the trip logbook and the fuel log oldest first, and the integration only read the first page. With more than 20 trips logged, the last trip shown was weeks old and the odometer could be hundreds of kilometres short. Every page is read now, and a trip the cloud stored several times counts once.
 - **Audi connect plug&play (DataPlug) cars: "Data as of" no longer shows the first registration date (#2100).** It was taken from a field the owner fills in in the app. It now shows when the car last reported: the end of the last trip or the last parking position, whichever is newer.
 
+- **Flash lights: the mode value is corrected and the position is sent with the first request (Audi, Volkswagen).** The mode was sent under a name the backend does not accept, and the car's position was only added after an HTTP 400, while this backend refuses with a 502. So the command failed with `API error 502`. The mode now uses the values the apps send, and a known position is sent with the first request. Tested on an Audi S6 (C8), where the car flashed once the request carried the corrected mode and the position. The horn variant, the longer durations and Volkswagen cars were not tested on a car.
+
+- **The `IMMEDIATE_CHARGING_OBD` charge mode is sent with the spelling the apps use.** Selecting it sent `immediateChargingObd`, which is in neither manufacturer app. The value is `immediateChargingOBD`. Not tested on a car.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
