@@ -57,11 +57,13 @@ CAPABILITY_MAP: Final[dict[str, dict[str, "str | tuple[str, ...]"]]] = {
     # gate also reads the older list form {capabilities: [{id, status}]}.
     # status=[] → fully usable; non-empty → limitation present
     #
-    # Every id the gate asks for must be one the backend can list. The
+    # Every id the gate asks for should be one the backend can list. The
     # apps' vehicle library defines 133 capability ids (myAudi 5.9.0 and
-    # We Connect 4.8.1, the same set in both, read with androguard). An
-    # id outside that set never appears in a document, so a row carrying
-    # one would hide its control on every car whose document is loaded.
+    # We Connect 4.8.1, the same set in both, read with androguard). That
+    # set is the best list there is, not a complete one: the measured S6
+    # document carries two ids it does not define (``fuelStatus``,
+    # ``ignition``). A row whose ids no document lists is answered "no"
+    # for every car whose document is loaded.
     # ─────────────────────────────────────────────────────────────────
     "volkswagen": {
         "command_lock": "access",                #  verified — used by lock platform
@@ -81,9 +83,10 @@ CAPABILITY_MAP: Final[dict[str, dict[str, "str | tuple[str, ...]"]]] = {
         "command_wake": ("vehicleWakeUpTrigger", "vehicleWakeUp"),
         # The apps' library has no window heating capability of its own: the
         # window heating status and its start/stop actions belong to
-        # climatisation. ``windowHeating`` is not among the 133 ids, so on
-        # its own it could never be listed there. It stays as a second id so
-        # that a document which does carry it keeps the switch.
+        # climatisation. ``windowHeating`` is not among the 133 ids (an
+        # older list, the capability enum of We Connect 4.3.2, does name
+        # it). It stays as a second id so that a document which does carry
+        # it keeps the switch.
         "command_start_window_heating": ("climatisation", "windowHeating"),
         "command_stop_window_heating": ("climatisation", "windowHeating"),
         "command_set_climate_temperature": "climatisation",

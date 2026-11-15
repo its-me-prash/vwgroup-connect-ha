@@ -115,6 +115,39 @@ def test_object_values_that_are_no_entries_are_skipped() -> None:
     assert coord.vehicle_supports_capability("VIN1", "broken") is False
 
 
+def test_list_items_that_are_no_entries_are_skipped() -> None:
+    # The callers used to skip these themselves. The shared reader does it
+    # now, so the list form needs the same guard the object form has.
+    doc = {"capabilities": [None, "text", 7, {"id": "access", "status": []}]}
+    coord = _coord(doc)
+    assert coord.vehicle_supports_capability("VIN1", "access") is True
+    assert coord.vehicle_supports_capability("VIN1", "climatisation") is False
+    assert coord.capability_gating_reason("VIN1", "access") is None
+    assert _capability_listed(doc, "access") is True
+
+
+@pytest.mark.parametrize("own_id", [None, ""])
+def test_object_entry_with_an_empty_id_takes_it_from_its_key(own_id: Any) -> None:
+    # An ``id`` that is there but empty names nothing; the key is the id.
+    doc = {"capabilities": {"access": {"id": own_id, "status": []}}}
+    assert _coord(doc).vehicle_supports_capability("VIN1", "access") is True
+    assert _capability_listed(doc, "access") is True
+
+
+@pytest.mark.parametrize("capabilities", [{}, []], ids=["object", "list"])
+def test_an_empty_document_is_loaded_and_lists_nothing(capabilities: Any) -> None:
+    # No entry and no error flag: the document is there and lists nothing, so
+    # the answer is no, not unknown. The empty list always answered so. The
+    # empty object answered unknown while the object form was not read, and
+    # answers like the empty list now.
+    doc = {"capabilities": capabilities}
+    coord = _coord(doc)
+    assert coord.vehicle_supports_capability("VIN1", "access") is False
+    assert coord.command_capability_supported("VIN1", "command_lock") is False
+    assert _capability_listed(doc, "access") is False
+    assert coord.capability_gating_reason("VIN1", "access") is None
+
+
 @pytest.mark.parametrize(
     "doc",
     [
@@ -221,6 +254,15 @@ def test_window_heating_hides_when_neither_id_is_listed() -> None:
 def test_wake_shows_when_only_the_plain_wake_capability_is_listed() -> None:
     coord = _coord({"capabilities": {"vehicleWakeUp": {"id": "vehicleWakeUp", "status": []}}})
     assert coord.command_capability_supported("VIN1", "command_wake") is True
+
+
+def test_wake_still_shows_when_only_the_trigger_capability_is_listed() -> None:
+    # The id the row carried before must keep working, in both forms.
+    for doc in (
+        {"capabilities": {"vehicleWakeUpTrigger": {"id": "vehicleWakeUpTrigger", "status": []}}},
+        {"capabilities": [{"id": "vehicleWakeUpTrigger", "status": []}]},
+    ):
+        assert _coord(doc).command_capability_supported("VIN1", "command_wake") is True
 
 
 def test_wake_hides_when_no_wake_capability_is_listed() -> None:
