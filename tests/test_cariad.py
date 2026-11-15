@@ -1195,39 +1195,22 @@ class TestVWEUCommands:
         # Bare body first → no userPosition unless the backend 400s.
         assert "userPosition" not in body
 
-    def test_command_flash_retries_with_userposition_on_400(self):
-        """v2.15.5 — when the bare body is rejected with 400, retry with a
-        ``userPosition`` built from the caller-supplied coordinates."""
-        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
-        from custom_components.vag_connect.cariad.models import TokenSet
+    def test_command_flash_sends_the_position_with_the_first_request(self):
+        """A known position goes out with the FIRST request, in one send.
 
-        # First response 400 (bare body), second 204 (with userPosition).
-        resp_400 = AsyncMock()
-        resp_400.status = 400
-        resp_400.headers = {"Content-Type": "application/json"}
-        resp_400.json = AsyncMock(return_value={"error": "needs userPosition"})
-        resp_400.text = AsyncMock(return_value='{"error":"needs userPosition"}')
-        resp_400.__aenter__ = AsyncMock(return_value=resp_400)
-        resp_400.__aexit__ = AsyncMock(return_value=False)
-        resp_ok = AsyncMock()
-        resp_ok.status = 204
-        resp_ok.headers = {"Content-Type": "application/json"}
-        resp_ok.__aenter__ = AsyncMock(return_value=resp_ok)
-        resp_ok.__aexit__ = AsyncMock(return_value=False)
-        session = MagicMock()
-        session.request = MagicMock(side_effect=[resp_400, resp_ok])
-        client = VWEUClient(session, "u@t.de", "pw")
-        client._tokens = TokenSet("acc", "ref", "id")
-
+        ``userPosition`` is a required element of the apps' request
+        (``HonkAndFlashParameters`` in myAudi 5.8.1: ``duration_s``, ``mode``,
+        ``userPosition``, none of them optional), so the apps never send a
+        flash without it. An Audi S6 (C8) flashed once the request carried
+        the position."""
+        client, sent = self._flash_client([(204, "")])
         asyncio.run(
             client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
         )
 
-        assert session.request.call_count == 2
-        retry_body = session.request.call_args_list[1].kwargs["json"]
-        assert retry_body["mode"] == "flash"
-        assert retry_body["userPosition"]["latitude"] == 48.1374
-        assert retry_body["userPosition"]["longitude"] == 11.5754
+        assert len(sent) == 1
+        assert sent[0]["mode"] == "flash"
+        assert sent[0]["userPosition"] == {"latitude": 48.1374, "longitude": 11.5754}
 
     def test_command_flash_400_without_coords_raises(self):
         """v2.15.5 — bare-body 400 + no coordinates → actionable APIError,
@@ -1281,36 +1264,20 @@ class TestVWEUCommands:
         client._tokens = TokenSet("acc", "ref", "id")
         return client, sent
 
-    # The bare body costs four sends on a 502: the first one plus the three
-    # 5xx retries of ``_request``.
+    # A 502 costs four sends: the first one plus the three 5xx retries of
+    # ``_request``, all with the same body.
     _REQUEST_INCORRECT = (502, '{"error":{"code":2105}}')
-    _LICENCE_INACTIVE = (502, '{"error":{"code":4007}}')
     _NO_SLEEP = "custom_components.vag_connect.cariad.api.base.asyncio.sleep"
 
-    def test_command_flash_retries_with_userposition_on_request_incorrect(self):
-        """A bare body refused with BFF code 2105 (``requestIsIncorrect``) is
-        sent once more with ``userPosition``, like a 400.
+    def test_command_flash_refusal_with_the_position_is_final(self):
+        """A request that carried the position is not sent again in another
+        shape: the backend's own answer reaches the caller, code included."""
+        from custom_components.vag_connect.cariad.exceptions import (
+            APIError,
+            extract_safe_error_code,
+        )
 
-        Measured on an Audi S6 (C8) with an active licence and a reporting
-        car: the backend answers the bare body with HTTP 502 and code 2105,
-        never with 400, so the position was never sent."""
         client, sent = self._flash_client([self._REQUEST_INCORRECT] * 4 + [(204, "")])
-        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
-            asyncio.run(
-                client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
-            )
-
-        assert len(sent) == 5
-        assert all("userPosition" not in body for body in sent[:4])
-        assert sent[4]["userPosition"] == {"latitude": 48.1374, "longitude": 11.5754}
-        assert sent[4]["mode"] == "flash"
-
-    def test_command_flash_position_attempt_runs_exactly_once(self):
-        """The attempt with the position is one send, not a loop: when the
-        backend refuses that one too, its error reaches the caller."""
-        from custom_components.vag_connect.cariad.exceptions import APIError
-
-        client, sent = self._flash_client([self._REQUEST_INCORRECT] * 6)
         with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
             with pytest.raises(APIError) as err:
                 asyncio.run(
@@ -1318,27 +1285,9 @@ class TestVWEUCommands:
                 )
 
         assert err.value.status == 502
-        assert len(sent) == 5
-        assert "userPosition" in sent[4]
-
-    def test_command_flash_other_bff_code_gets_no_position_attempt(self):
-        """Any other refusal keeps its own meaning. 4007 is the inactive
-        licence: a position would not help, and the caller must see the 4007."""
-        from custom_components.vag_connect.cariad.exceptions import (
-            APIError,
-            extract_safe_error_code,
-        )
-
-        client, sent = self._flash_client([self._LICENCE_INACTIVE] * 4 + [(204, "")])
-        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
-            with pytest.raises(APIError) as err:
-                asyncio.run(
-                    client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
-                )
-
-        assert extract_safe_error_code(err.value.body) == "4007"
+        assert extract_safe_error_code(err.value.body) == "2105"
         assert len(sent) == 4
-        assert all("userPosition" not in body for body in sent)
+        assert all("userPosition" in body for body in sent)
 
     def test_command_flash_request_incorrect_without_coords_keeps_the_error(self):
         """No position known: nothing to add, so the backend's own answer is
