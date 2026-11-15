@@ -272,11 +272,17 @@ def test_1231_single_channel_eu_da_soc_still_energy_corrected() -> None:
     """No regression to #1195/Fishermanjb: when battery_soc itself came from the
     EU-DA batch feed (single channel — soc AND energy from the same feed,
     ``_fresh_soc_is_live`` False), the single-value sanity STILL fires. Stale 94 sits
-    26 above the fresh 68 % energy on a not-charging car → replaced with 68."""
-    prev = {"battery_soc": 94, "battery_soc_from_hv": True}
+    26 above the fresh 68 % energy on a not-charging car → replaced with 68.
+
+    The provenance flag is False here, as it is on the car this case comes from:
+    its payload has no ``battery_level_HV`` pair (#1195, maintainer's reading of
+    the reporter's diagnostic, 2026-08-20). The fixture used to carry True; a
+    reading that does come from a VALID pair is no longer replaced (#2096) and is
+    covered by ``test_2096_valid_hv_soc_is_not_overruled_by_energy.py``."""
+    prev = {"battery_soc": 94, "battery_soc_from_hv": False}
     fresh = {
         "battery_soc": 94,
-        "battery_soc_from_hv": True,
+        "battery_soc_from_hv": False,
         "battery_available_kwh": 43.5, "battery_cap_kwh": 64.0,  # ratio 67.97 %
         "charging_state": "NOT_READY_FOR_CHARGING", "is_charging": False,
         "field_sources": {"battery_soc": "eu_data_act"},
