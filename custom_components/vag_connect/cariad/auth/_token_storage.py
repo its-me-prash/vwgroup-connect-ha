@@ -33,11 +33,20 @@ Per config-entry, single key ``vag_connect_tokens``, version 1:
       }
     }
 
+Later additions to ``tokens``, all optional on load: ``strategy`` and
+``auth_cookies`` (v2.8.0), ``code_verifier`` (#118, the sign-in's PKCE
+verifier, non-empty for Volkswagen US and Canada only). That brand's file
+carries ``"version": 2`` for the reason given at ``_READABLE_PAYLOAD_VERSIONS``.
+
 ### Privacy
 
 - Tokens never appear in logs (existing privacy-redaction in
   ``_unexpected_keys.py:_JWT_RE`` handles them in diagnostics
   exports).
+- The PKCE verifier is not JWT-shaped, so that pattern would not catch it.
+  It is registered by name in ``diagnostics._REDACT_KEYS`` instead, next to
+  the three token fields. Nothing reads this file or a client's token set
+  into a diagnostics download today.
 - HA's Store helper writes to ``.storage/`` which is part of the
   HA config volume — encrypted at rest if the user enabled disk
   encryption on HA OS, otherwise plain JSON (same trust level as
@@ -70,6 +79,33 @@ _LOGGER = logging.getLogger(__name__)
 # ever add per-brand token-isolation in a multi-brand config).
 _STORAGE_VERSION = 1
 
+# #118, Volkswagen US and Canada. Payload versions this loader reads, and the
+# version a brand's file is written under.
+#
+# The payload shape did not change: version 2 is version 1 plus an optional
+# ``code_verifier``, which version 1 files simply do not carry. The second
+# version exists for the direction a schema version usually does not think
+# about, a file written by this release and read by an OLDER one. Every
+# release up to 5.3.0 hands a loaded token set to
+# ``client.set_persisted_tokens`` without checking that the client has that
+# method, and the North America client did not have it. So an older release
+# that finds a readable file for such an entry raises on every setup attempt
+# and the entry stays in setup retry until it is deleted. The same older
+# releases discard a payload version they do not know and sign in instead
+# (the check in ``load`` has been there since v1.19.2), which is exactly the
+# behaviour they had before this brand stored anything.
+#
+# Only that one brand writes version 2. Every other brand keeps writing
+# version 1, so a downgrade costs none of them their stored tokens; for an
+# entry without a password that would be the end of the entry.
+_READABLE_PAYLOAD_VERSIONS = (1, 2)
+_PAYLOAD_VERSION_BY_BRAND = {"volkswagen_na": 2}
+
+
+def payload_version_for_brand(brand: str) -> int:
+    """Return the payload version a brand's token file is written under."""
+    return _PAYLOAD_VERSION_BY_BRAND.get(str(brand or "").lower(), _STORAGE_VERSION)
+
 # Storage key suffix. HA's Store helper namespaces by integration
 # domain automatically when ``Store(hass, version, key)`` is called
 # from inside a custom_component, so the file lives at
@@ -95,7 +131,7 @@ class TokenStorage:
     4. On config-entry remove: ``clear()``
     """
 
-    def __init__(self, store: Any) -> None:
+    def __init__(self, store: Any, payload_version: int = _STORAGE_VERSION) -> None:
         """Initialise.
 
         Args:
@@ -104,8 +140,13 @@ class TokenStorage:
                 ``async_remove() -> None`` coroutine methods.
                 In production this is ``homeassistant.helpers.storage.Store``;
                 in tests it's a dict-backed fake.
+            payload_version: The version ``save`` writes. The coordinator
+                passes ``payload_version_for_brand(brand)``; every other
+                caller writes for a brand that stays on the default. Loading
+                does not depend on it.
         """
         self._store = store
+        self._payload_version = payload_version
 
     async def load(self) -> TokenSet | None:
         """Load the persisted TokenSet, or None if never saved /
@@ -127,12 +168,16 @@ class TokenStorage:
             return None
         if not isinstance(data, dict):
             return None
-        if data.get("version") != _STORAGE_VERSION:
+        # A tuple, not a set: a damaged file can hold an unhashable value here
+        # and ``in`` on a tuple compares instead of hashing. Strings are not
+        # versions ("2" is discarded), matching what ``!= 1`` always did.
+        version = data.get("version")
+        if isinstance(version, str) or version not in _READABLE_PAYLOAD_VERSIONS:
             _LOGGER.info(
                 "vag_connect token storage version mismatch "
-                "(got %r, want %d) — discarding",
-                data.get("version"),
-                _STORAGE_VERSION,
+                "(got %r, want one of %s), discarding",
+                version,
+                _READABLE_PAYLOAD_VERSIONS,
             )
             return None
         tok = data.get("tokens")
@@ -157,6 +202,9 @@ class TokenStorage:
                 expires_at=float(tok.get("expires_at") or 0),
                 strategy=str(tok.get("strategy") or ""),
                 auth_cookies=auth_cookies,
+                # #118. Empty for every file written before the verifier was
+                # stored and for every brand whose refresh does not want it.
+                code_verifier=str(tok.get("code_verifier") or ""),
             )
         except (TypeError, ValueError) as err:
             _LOGGER.info(
@@ -180,7 +228,7 @@ class TokenStorage:
             _LOGGER.debug("Refusing to save incomplete TokenSet")
             return
         payload = {
-            "version": _STORAGE_VERSION,
+            "version": self._payload_version,
             "tokens": {
                 "access_token": tokens.access_token,
                 "refresh_token": tokens.refresh_token,
@@ -191,6 +239,12 @@ class TokenStorage:
                 # OTP needs device-bound cookies surviving restart).
                 "strategy": tokens.strategy,
                 "auth_cookies": tokens.auth_cookies,
+                # #118. The sign-in's PKCE verifier, which the North America
+                # token endpoint is said to want again on every refresh
+                # (#1012). Stored next to the refresh token it belongs to:
+                # a set without it could not renew itself after a restart.
+                # Empty for every other brand.
+                "code_verifier": tokens.code_verifier,
             },
         }
         try:
