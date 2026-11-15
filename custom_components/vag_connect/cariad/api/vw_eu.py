@@ -1544,7 +1544,13 @@ class VWEUClient(CariadBaseClient):
           ``durationInSeconds`` field (grounded in the decoded APK).
         - **Mode**: the CARIAD ``HonkAndFlashParameters$Mode`` enum has
           exactly two members — ``HONK_AND_FLASH`` and ``FLASH_ONLY``.
-          We flash only, so ``mode = "FLASH_ONLY"``.
+          Those are the names of the CONSTANTS. On the wire the apps send
+          the serial names: ``honkandflash`` and ``flash``. The enum
+          serializer of myAudi 5.6.0 and of We Connect 4.2.1 is built with
+          exactly those two, and accepts ``honkflash`` as a second spelling
+          when reading. We flash only by default, so ``mode = "flash"``.
+          The constant names were sent here before; an Audi S6 (C8)
+          answered them with ``invalidPayload`` (4101).
         - **duration**: integer seconds; the app exposes a
           ``HonkAndFlashDuration`` config — 10 s is a safe default.
 
@@ -1599,7 +1605,8 @@ class VWEUClient(CariadBaseClient):
         # exactly HONK_AND_FLASH and FLASH_ONLY, and ``duration_s`` is plain
         # seconds. Defaults reproduce the previous fixed 10-second flash.
         body: dict[str, Any] = {
-            "mode": "HONK_AND_FLASH" if honk else "FLASH_ONLY",
+            # the serial names, not the names of the enum constants
+            "mode": "honkandflash" if honk else "flash",
             "duration_s": int(duration_s),
         }
         try:

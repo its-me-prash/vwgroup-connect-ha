@@ -1168,7 +1168,12 @@ class TestVWEUCommands:
 
         Grounded in the decompiled We Connect EU app:
         - POST .../vehicle/v1/vehicles/{vin}/honkandflash
-        - body {"mode": "FLASH_ONLY", "duration": <int>}
+        - body {"mode": "flash", "duration_s": <int>}
+
+        ``mode`` carries the SERIAL name the apps put on the wire (``flash``,
+        ``honkandflash``), not the name of the enum constant (``FLASH_ONLY``,
+        ``HONK_AND_FLASH``). The enum serializer of myAudi 5.6.0 and of
+        We Connect 4.2.1 is built with exactly those two names.
         """
         client = self._client()
         asyncio.run(client.command_flash("VIN1"))
@@ -1182,7 +1187,7 @@ class TestVWEUCommands:
         assert url.endswith("/vehicle/v1/vehicles/VIN1/honkandflash")
         assert "vehicleLights/flash" not in url
         # Real body schema — mode enum value + integer duration, no "action".
-        assert body["mode"] == "FLASH_ONLY"
+        assert body["mode"] == "flash"
         # #752 — APK-grounded key is duration_s (@SerialName), not "duration".
         assert isinstance(body["duration_s"], int)
         assert "duration" not in body
@@ -1220,7 +1225,7 @@ class TestVWEUCommands:
 
         assert session.request.call_count == 2
         retry_body = session.request.call_args_list[1].kwargs["json"]
-        assert retry_body["mode"] == "FLASH_ONLY"
+        assert retry_body["mode"] == "flash"
         assert retry_body["userPosition"]["latitude"] == 48.1374
         assert retry_body["userPosition"]["longitude"] == 11.5754
 
@@ -1298,7 +1303,7 @@ class TestVWEUCommands:
         assert len(sent) == 5
         assert all("userPosition" not in body for body in sent[:4])
         assert sent[4]["userPosition"] == {"latitude": 48.1374, "longitude": 11.5754}
-        assert sent[4]["mode"] == "FLASH_ONLY"
+        assert sent[4]["mode"] == "flash"
 
     def test_command_flash_position_attempt_runs_exactly_once(self):
         """The attempt with the position is one send, not a loop: when the
