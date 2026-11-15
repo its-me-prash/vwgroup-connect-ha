@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **A plug-in hybrid's electric range no longer keeps the combined figure stored before 5.4.0 (#1970).** 5.4.0 stopped putting a PHEV's combined cruising range on `electric_range_km`, but that field keeps its last value when a poll brings none, and the vehicle snapshot is saved to disk, so an existing install went on showing the stored figure (the Audi Q3's 150 km). The snapshot does not record which portal leaf the value came from, so it is now dropped only where the data proves it is the combined figure: the poll's headline range came from the combined-range leaf on a car that reports fuel, and the stored value equals this poll's combined range or a stored `range_km` taken from that same leaf. A value another channel delivered, a value from an export import, and a real electric range that matches the combined one at fuel reserve are kept, and so is any stored value that matches no combined figure. That last rule means a snapshot that already ran 5.4.0 is only cleaned up while its frozen value still matches: once the combined range has moved, the old figure cannot be told apart from a real electric range carried over a poll, and it stays. Left open until confirmed on the reporter's car. (#1970)
+
 ## [5.4.0] - 2026-11-15 — "Staying signed in / Angemeldet bleiben"
 
 ### Hinzugefügt / Added
