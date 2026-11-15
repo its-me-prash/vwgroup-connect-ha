@@ -8,7 +8,7 @@
     "sources": [
       "Phase A.7 smali analysis of cached Audi 5.4.1 + VW 3.61.0 APKs (androguard-based, see _private/smali-cryptopattern-*.json)",
       "Path 2.5 direct qmauth-id string trace (DEFINITIVE NEGATIVE — all 8 qmauth markers ABSENT from DEX strings in both APKs)",
-      "Deep research agent across 6 competitor projects: evcc / upstream / volkswagencarnet / pycupra / myskoda / ioBroker.vw-connect",
+      "Review of 6 competitor projects: evcc / upstream / volkswagencarnet / pycupra / myskoda / ioBroker.vw-connect",
       "production models.py BrandConfig hardcoded values (cross-verified against upstream byte-array reconstruction)"
     ],
     "static_analysis_verdict": "DEAD-END for qmauth secret extraction. qmauth secrets + client_ids are runtime-constructed from R8-obfuscated byte arrays + likely BuildConfig injection. Static APK analysis cannot recover these without Frida/emulator setup."
@@ -28,7 +28,7 @@
     "deprecated_since": "2026-05-28T06:00:00Z",
     "deprecation_event": "VW shut down legacy /login/v1/idk/* at Azure Application Gateway WAF. Returns HTTP 403 from Microsoft-Azure-Application-Gateway/v2 for any client regardless of headers/UA/query.",
     "qmauth_signing": {
-      "_comment": "X-QMAuth HMAC-SHA256 header signed against 100-second time bucket. Required on ALL token exchange + refresh on CARIAD-BFF (Audi + VW EU). Universal across CARIAD-BFF — NOT Audi-only as initially hypothesised (refuted by ioBroker commit 884269b1 + research agent cross-source check).",
+      "_comment": "X-QMAuth HMAC-SHA256 header signed against 100-second time bucket. Required on ALL token exchange + refresh on CARIAD-BFF (Audi + VW EU). Universal across CARIAD-BFF — NOT Audi-only as initially hypothesised (refuted by ioBroker commit 884269b1 + a cross-source check).",
       "algorithm": "HMAC-SHA256",
       "time_bucket_seconds": 100,
       "header_value_format": "v1:<qmClientId>:<hex_hmac>",
@@ -62,7 +62,7 @@
       "x-android-package-name": "(per brand — de.myaudi.mobile.assistant for Audi, de.volkswagen.weconnect for VW EU)",
       "x-assertion": "0",
       "x_assertion_validation": "Currently presence-only check; value '0' (dummy) accepted per ioBroker observation. WARNING: anna_attestation_enabled remote-config flag in VW APK could flip server-side to require real Play Integrity attestation — when that happens, dummy '0' stops working and we need real attestation values. Watch-item for daily atlas.",
-      "_source": "evcc PR #30292 + ioBroker commit 884269b1 + verified against AttestationEnabledUseCase smali in VW 3.61.0 APK (research agent finding)",
+      "_source": "evcc PR #30292 + ioBroker commit 884269b1 + verified against AttestationEnabledUseCase smali in VW 3.61.0 APK",
       "_v2513_update_2026_05_30": "Audi 5.5.0 APK forensics (manual local extraction) revealed the full architecture: x-assertion is the slot that will eventually carry a Google Play Integrity JWT, not the current dummy '0'. See #347 for class-level breakdown."
     },
     "play_integrity_attestation": {

@@ -23,7 +23,7 @@ typed result or None — they NEVER raise. Property tests in
 input via hypothesis (same pattern as v1.24.2's
 ``test_v1242_property_safe_helpers.py``).
 
-Audit trail: 5-Agent Master-Audit 2026-05-08 → Sprint-C plan in
+Audit trail: master audit 2026-05-08 → Sprint-C plan in
 ``docs/SPRINT_C_v1.25.0_PLAN.md`` PR-A.
 """
 

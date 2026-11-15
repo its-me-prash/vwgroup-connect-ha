@@ -356,8 +356,8 @@ def test_a_token_response_without_an_access_token_is_a_failure() -> None:
 
 # ---------------------------------------------------------------------------
 # The two switchable routes, and the pasted-redirect handling. Every assertion
-# here is a contract the design cross-check (two model families, 2026-11-09)
-# demanded: route<->callback sealed, state bound, the pasted code never echoed.
+# here is a contract of the design: route<->callback sealed, state bound, the
+# pasted code never echoed.
 
 def test_direct_route_exists_for_every_open_brand() -> None:
     from custom_components.vag_connect.cariad.auth import _auth0
@@ -535,7 +535,7 @@ def test_the_bff_route_builds_against_the_bff_host() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Hardening added after an adversarial cross-review (two model families).
+# Hardening added after review.
 
 
 def test_a_code_in_the_port_position_is_refused_without_leaking() -> None:

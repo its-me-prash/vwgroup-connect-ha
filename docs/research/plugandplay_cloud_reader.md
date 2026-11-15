@@ -438,7 +438,7 @@ position timestamps (ms since epoch, same as carport dates but wanting time-of-d
 The acpp access token (`aud` = the acpp client itself, `scp: profile email openid`) is **not
 BFF-whitelisted**: `emea.bff.cariad.digital/vehicle/v1/*` → `403 "clientId in the token claim is
 either unknown or not whitelisted"`. Confirms the BFF client-whitelist gate; this is not a wall
-bypass, it is its own silo. (Consistent with `vag_connect_apk_sweep` client sweep.)
+bypass, it is its own silo. (Consistent with the earlier client-id sweep of the app packages.)
 
 ## VW (wcg) — mapped, tester-gated
 
@@ -497,10 +497,10 @@ channels (driverlogs/fuellog equivalents) are unmapped — expect a similar but 
 
 ## Reference
 
-Working, credential-driven probes used to validate this live are in the session scratchpad
+Working, credential-driven probes used to validate this live are kept outside the repository
 (`acpp_login.py`, `acpp_read.sh`, `acpp_bff.sh`, plus 2026-09-02 re-probes of driverlogs / fuellog /
-achievements / parking) — **not committed** (they read `~/.claude/private` creds and cache a token in
-`~/.claude/private/acpp_token.json`). The 2026-11-13 probes (one refresh + `vehicles`, `driverlogs`,
+achievements / parking) — **not committed** (they read credentials from a private local file and
+cache a token next to it). The 2026-11-13 probes (one refresh + `vehicles`, `driverlogs`,
 `polldata`, `provalue`, then one `driverlogs?limit=100` and one `fuellog?limit=50` check, each a single
 calm request; second pass: one `polldata?limit=300`, one `limit=1` per duplicate copy and on the
 newest trip, 6 s apart, then one end-to-end `get_status()` of the patched reader) are likewise not
