@@ -100,6 +100,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Trip statistics are also asked for on the address the Audi app uses (#1805).** The integration only knew `.../vehicles/<vin>/tripstatistics`, which answers 404 on the reported RS e-tron GT. The Audi app reads `.../trips/<vin>/shortterm/last` (and `longterm`, `cyclic`). When the old address answers 404, that one is asked now: the short-term request is tried first, and only if it returns a trip are the other two read. The result is kept for an hour, so a car that has neither costs one more request an hour. The app's field name for the electric average (`averageElectricConsumption`) is read as well. Built from the app's request format and not tested on a car. Thanks @bzykcar for the report, which named the address.
 
+- **The oil level warning is read when a car reports the oil level status as true or false (#366).** An Audi S6 (C8) sends `true` or `false` instead of a text. The reader only took text, so the value was dropped and the oil level warning had no value. `true` is read as "no warning" and `false` as a warning: the Audi app names the field behind the value `isOilLevelOK`. A true or false value decides alone: the older flat oil level text elsewhere in the answer is only read when the oil level block gave neither a text nor a true or false value. The shape was measured on that car; the corrected reader was not run on a car.
+
+- **The parking brake is asked for as its own status job (#2123).** The Audi app asks for a `parkingBrake` job and reads a true or false value from it. Until now the integration neither asked for the job nor read that shape. It does both now. The job goes out with the status request of every brand that reads through this client: Volkswagen, Volkswagen Commercial Vehicles, Audi in Europe and North America, Bentley and Lamborghini. An Audi S6 (C8) on the European host does not answer the job and still answers the other jobs. No other car and no other host was tried, so this is not confirmed on a car.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added

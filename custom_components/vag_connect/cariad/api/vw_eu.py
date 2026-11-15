@@ -45,8 +45,9 @@ _BASE = "https://emea.bff.cariad.digital"
 # came in via cross-brand JOBS2QUERY) and the BFF ignores unknown job tokens, so
 # keeping them is a harmless no-op on firmware that dropped them and still delivers
 # 12V/tyre data on firmware that keeps them. NB: windowHeating / honkAndFlash /
-# batteryHealthState / parkingBrake are NOT selectivestatus jobs — they are their
-# own endpoints; do not add them here.
+# batteryHealthState are NOT part of this list: they are their own requests; do
+# not add them here. parkingBrake IS a status job in the Audi app (myAudi 5.9.0,
+# ``CapabilityStatusJob``, androguard) and is asked for below.
 _SELECTIVE_STATUS_JOBS = ",".join([
     "access",
     # v2.11.0 (cross-brand upstream audit): activeVentilation job was
@@ -89,6 +90,10 @@ _SELECTIVE_STATUS_JOBS = ",".join([
     # data on the standard /selectivestatus surface, we just never
     # asked for the job.
     "oilLevel",
+    # The Audi app asks for the parking brake as a status job. An Audi S6 (C8)
+    # does not answer it and the request is unharmed by that (HTTP 207, the
+    # job is simply absent), so cars that do report it are the ones that gain.
+    "parkingBrake",
     "tyrePressure",
     "readiness",
     "userCapabilities",
@@ -5565,7 +5570,13 @@ class VWEUClient(CariadBaseClient):
         oil_value = v(raw, "oilLevel", "oilLevelStatus", "value")
         if isinstance(oil_value, dict):
             oil_status = oil_value.get("value")
-            if isinstance(oil_status, str):
+            if isinstance(oil_status, bool):
+                # Some cars send true/false instead of a text (measured on an
+                # Audi S6 C8). The app reads it as "oil level in order", so
+                # false is the warning. There is no text to pass on, so
+                # oil_level_status stays empty.
+                d.oil_level_warning = not oil_status
+            elif isinstance(oil_status, str):
                 d.oil_level_status = oil_status
                 # PROBLEM device class convention: True = warning,
                 # False = OK. Unknown strings leave the bool None so
@@ -5583,8 +5594,11 @@ class VWEUClient(CariadBaseClient):
         # v2.15.1 — flat `oilLevelResult` wire-key (BFF dialect). Maps into the
         # same oil_level_status field + derives oil_level_warning with the same
         # logic as the structured oilLevel block above. Guard is None so the
-        # structured path (when present) stays authoritative.
-        if d.oil_level_status is None:
+        # structured path (when present) stays authoritative. A true/false
+        # oil level decides the warning and leaves the text empty, so the
+        # warning is part of the guard: otherwise this fallback would run after
+        # it and could overwrite the warning it had just set.
+        if d.oil_level_status is None and d.oil_level_warning is None:
             oil_result = _find_flat(raw, "oilLevelResult")
             if isinstance(oil_result, str) and oil_result:
                 d.oil_level_status = oil_result
@@ -5963,7 +5977,15 @@ class VWEUClient(CariadBaseClient):
                 d.battery_cap_kwh = _cap / 1000.0 if _cap > 500 else _cap
 
         # parkingBrakeStatus → parking_brake_engaged (shared field). enum→bool.
-        _pbrk = _find_flat(raw, "parkingBrakeStatus")
+        # The parkingBrake job sends its own block with a true/false value
+        # (true = engaged, the shape the Audi app reads). When that block
+        # carries a value it decides; the flat leaf is the older form.
+        _pbrk_block = v(raw, "parkingBrake", "parkingBrakeStatus", "value", "value")
+        _pbrk = (
+            _pbrk_block
+            if isinstance(_pbrk_block, bool)
+            else _find_flat(raw, "parkingBrakeStatus")
+        )
         if _pbrk is not None:
             if isinstance(_pbrk, bool):
                 d.parking_brake_engaged = _pbrk
