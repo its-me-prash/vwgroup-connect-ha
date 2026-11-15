@@ -1542,7 +1542,13 @@ class VWEUClient(CariadBaseClient):
           ``durationInSeconds`` field (grounded in the decoded APK).
         - **Mode**: the CARIAD ``HonkAndFlashParameters$Mode`` enum has
           exactly two members — ``HONK_AND_FLASH`` and ``FLASH_ONLY``.
-          We flash only, so ``mode = "FLASH_ONLY"``.
+          Those are the names of the CONSTANTS. On the wire the apps send
+          the serial names: ``honkandflash`` and ``flash``. The enum
+          serializer of myAudi 5.6.0 and of We Connect 4.2.1 is built with
+          exactly those two, and accepts ``honkflash`` as a second spelling
+          when reading. We flash only by default, so ``mode = "flash"``.
+          The constant names were sent here before; an Audi S6 (C8)
+          answered them with ``invalidPayload`` (4101).
         - **duration**: integer seconds; the app exposes a
           ``HonkAndFlashDuration`` config — 10 s is a safe default.
 
@@ -1550,18 +1556,24 @@ class VWEUClient(CariadBaseClient):
         position (it shows ``location_disabled_alert`` and blocks the call
         without a fix), so the BFF very likely requires ``userPosition``.
 
-        Resilient strategy (mirrors SEAT/CUPRA ``command_flash``): send the
-        bare ``mode``/``duration`` body first — some firmwares accept it and
-        this unblocks users whose vehicle has never reported GPS — and only
-        if the backend answers ``400`` do we retry with ``userPosition``
-        built from the caller-supplied coordinates. If the bare body 400s
-        and no coordinates are available, raise an actionable ``APIError``.
+        A known position goes out with the FIRST request. In the apps
+        ``userPosition`` is a required element of the request
+        (``HonkAndFlashParameters`` in myAudi 5.8.1: ``duration_s``, ``mode``
+        and ``userPosition``, none of them optional), so they never send a
+        flash without it. That request is one shape and its answer is final.
 
-        ️ Live-test gate: ``userPosition``/``latitude``/``longitude`` keys
-        and the location-gating UI behaviour are confirmed statically, but
-        whether the BFF *hard-rejects* a flash with ``userPosition`` omitted
-        (vs. only the honk variant) is the one detail not provable from the
-        static strings. The bare-body-then-position retry covers both cases.
+        Measured on an Audi S6 (C8) with an active licence: the request
+        without a position was answered ``502`` with BFF code 2105
+        (``requestIsIncorrect``); the car flashed once the request carried
+        the position and the mode under its wire name. Before this, the
+        position was only added after an HTTP ``400``, which that backend
+        never sends, and the request without it was repeated four times
+        (about 21 s of 5xx retries) ahead of the one that worked.
+
+        Without a known position the bare body is still sent, so a car that
+        never reported one is not shut out up front. A ``400`` to that body
+        becomes an actionable ``APIError``; any other refusal is passed on
+        unchanged.
         """
         # v2.17.3 — MBB gate (the footgun this fixes): command_flash was the
         # ONE write command missing the ``_mbb_command_target()`` guard that
@@ -1589,36 +1601,35 @@ class VWEUClient(CariadBaseClient):
         # exactly HONK_AND_FLASH and FLASH_ONLY, and ``duration_s`` is plain
         # seconds. Defaults reproduce the previous fixed 10-second flash.
         body: dict[str, Any] = {
-            "mode": "HONK_AND_FLASH" if honk else "FLASH_ONLY",
+            # the serial names, not the names of the enum constants
+            "mode": "honkandflash" if honk else "flash",
             "duration_s": int(duration_s),
         }
-        try:
-            await self._post_command(vin, "honkandflash", json=body)
-            return
-        except APIError as exc:
-            if exc.status != 400:
-                raise
-            # 400 → most likely the BFF wants a bounding ``userPosition``.
-            # Retry with coordinates if we have them; otherwise surface an
-            # actionable hint instead of an opaque "API error 400".
-            if latitude is None or longitude is None:
-                raise APIError(
-                    400,
-                    f"{self._base_for_vin(vin)}"
-                    f"/vehicle/v1/vehicles/{vin}/honkandflash",
-                    "honk-and-flash rejected the bare body (the BFF likely "
-                    "requires userPosition) AND no GPS position is available "
-                    "for this vehicle. Wake the car / wait for a status poll "
-                    "so a parking position is reported, then retry. If GPS "
-                    "stays empty, check whether privacy-mode is enabled in "
-                    "the head-unit settings.",
-                ) from exc
+        if latitude is not None and longitude is not None:
             body["userPosition"] = {
                 # Truncate to ~11 m precision, matching the SEAT path.
                 "latitude": int(latitude * 10000) / 10000,
                 "longitude": int(longitude * 10000) / 10000,
             }
+        try:
             await self._post_command(vin, "honkandflash", json=body)
+        except APIError as exc:
+            if "userPosition" in body or exc.status != 400:
+                raise
+            # 400 to the bare body → most likely the BFF wants ``userPosition``
+            # and there is none to send: surface an actionable hint instead
+            # of an opaque "API error 400".
+            raise APIError(
+                400,
+                f"{self._base_for_vin(vin)}"
+                f"/vehicle/v1/vehicles/{vin}/honkandflash",
+                "honk-and-flash rejected the bare body (the BFF likely "
+                "requires userPosition) AND no GPS position is available "
+                "for this vehicle. Wake the car / wait for a status poll "
+                "so a parking position is reported, then retry. If GPS "
+                "stays empty, check whether privacy-mode is enabled in "
+                "the head-unit settings.",
+            ) from exc
 
     async def command_wake(self, vin: str) -> None:
         """Wake vehicle — Cariad-BFF first, MBB legacy fallback.
@@ -3324,12 +3335,19 @@ class VWEUClient(CariadBaseClient):
         multi-word modes follow the same camelCase the read side already aliases
         (e.g. preferredChargingTimes) — even though the READ enum is UPPER_SNAKE.
         (The exotic modes beyond manual/timer are best-effort until live-confirmed.)
+
+        The values are the eight of the apps' ``ChargeModes.Mode`` (read from
+        myAudi 5.8.1; the same literals are in We Connect 4.3.2). Seven are the
+        plain lower-camelCase of the constant name; ``IMMEDIATE_CHARGING_OBD``
+        is ``immediateChargingOBD`` with ``OBD`` in capitals.
         """
         _parts = [p for p in str(mode).strip().lower().split("_") if p]
         _mode = (
             _parts[0] + "".join(p.capitalize() for p in _parts[1:])
             if _parts else ""
         )
+        if _mode == "immediateChargingObd":
+            _mode = "immediateChargingOBD"
         await self._settings_put_with_fallback(
             vin, "charging/mode",
             put_body={"preferredChargeMode": _mode},
