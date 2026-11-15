@@ -84,6 +84,40 @@ def test_oil_level_error_block_sets_nothing() -> None:
     assert data.oil_level_status is None
 
 
+@pytest.mark.parametrize("value", [1, 0])
+def test_oil_level_number_is_not_taken_as_true_or_false(value: int) -> None:
+    # True and False are numbers to Python. A 1 or a 0 from the backend is not
+    # the true/false shape and must stay undecided, as it did before.
+    data = _oil(value)
+    assert data.oil_level_warning is None
+    assert data.oil_level_status is None
+
+
+@pytest.mark.parametrize(
+    ("value", "flat", "warning"),
+    [(False, "ok", True), (True, "low", False), (False, "normal", True), (True, "warningLow", False)],
+)
+def test_oil_level_true_or_false_is_not_overridden_by_a_flat_text(value: bool, flat: str, warning: bool) -> None:
+    # The older flat ``oilLevelResult`` text is a fallback for an answer that
+    # has no oil level block. Once the block has decided, it must not decide
+    # again, and it must not put a text next to a warning it contradicts.
+    raw = {
+        "oilLevel": {"oilLevelStatus": {"value": {"value": value, "carCapturedTimestamp": _TS}}},
+        "elsewhere": {"oilLevelResult": flat},
+    }
+    data = _parse(raw)
+    assert data.oil_level_warning is warning
+    assert data.oil_level_status is None
+
+
+@pytest.mark.parametrize(("flat", "warning"), [("ok", False), ("low", True)])
+def test_oil_level_flat_text_still_decides_without_a_block(flat: str, warning: bool) -> None:
+    # Control for the test above: the fallback itself is unchanged.
+    data = _parse({"elsewhere": {"oilLevelResult": flat}})
+    assert data.oil_level_status == flat
+    assert data.oil_level_warning is warning
+
+
 # ── parking brake ────────────────────────────────────────────────────────────
 
 
@@ -116,6 +150,13 @@ def test_parking_brake_block_wins_over_a_flat_leaf_elsewhere() -> None:
         "other": {"parkingBrakeStatus": "engaged"},
     }
     assert _parse(raw).parking_brake_engaged is False
+
+
+@pytest.mark.parametrize("value", ["engaged", 1, 0])
+def test_parking_brake_block_takes_only_true_or_false(value: Any) -> None:
+    # The app reads a true/false value from this block. A text or a number
+    # there is not that shape; nothing is read from it.
+    assert _brake(value).parking_brake_engaged is None
 
 
 def test_parking_brake_job_is_requested() -> None:

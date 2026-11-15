@@ -5430,8 +5430,11 @@ class VWEUClient(CariadBaseClient):
         # v2.15.1 — flat `oilLevelResult` wire-key (BFF dialect). Maps into the
         # same oil_level_status field + derives oil_level_warning with the same
         # logic as the structured oilLevel block above. Guard is None so the
-        # structured path (when present) stays authoritative.
-        if d.oil_level_status is None:
+        # structured path (when present) stays authoritative. A true/false
+        # oil level decides the warning and leaves the text empty, so the
+        # warning is part of the guard: otherwise this fallback would run after
+        # it and could overwrite the warning it had just set.
+        if d.oil_level_status is None and d.oil_level_warning is None:
             oil_result = _find_flat(raw, "oilLevelResult")
             if isinstance(oil_result, str) and oil_result:
                 d.oil_level_status = oil_result
