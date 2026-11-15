@@ -66,6 +66,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Audi connect plug&play (DataPlug) cars: odometer and last trip are current again (#2100).** The plug&play cloud returns the trip logbook and the fuel log oldest first, and the integration only read the first page. With more than 20 trips logged, the last trip shown was weeks old and the odometer could be hundreds of kilometres short. Every page is read now, and a trip the cloud stored several times counts once.
 - **Audi connect plug&play (DataPlug) cars: "Data as of" no longer shows the first registration date (#2100).** It was taken from a field the owner fills in in the app. It now shows when the car last reported: the end of the last trip or the last parking position, whichever is newer.
 
+- **Škoda and SEAT/CUPRA cars no longer get two charging controls that cannot work (#2122).** The Charging Mode select and the Minimum Charge Level (Hybrid) slider were created on Škoda and SEAT/CUPRA electric and plug-in cars, although neither brand's client can send these two commands; only the Volkswagen EU client and the brands built on it can. On a Škoda Elroq the select showed "unknown", offered six modes, and every choice failed with `NotImplementedError`. The check that decides whether a control is created counted a command the brand client only inherits as an empty placeholder as one it can send. It no longer does, so both controls are gone on those cars. Škoda's current charge mode is still shown by the Preferred charge mode diagnostic sensor.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added

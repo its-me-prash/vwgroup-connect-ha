@@ -7159,8 +7159,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         press (the "Unexpected exception" traceback class). Command-entity spawn
         sites gate on this in addition to the capability check, mirroring the
         long-standing guard in ``switch.py``. Matters for the companion (ADB)
-        client, which implements only climate + charge; a full network client
-        has every command method, so this is a no-op for existing setups.
+        client, which implements only climate + charge, and (#2122) for the
+        network clients built on ``CariadBaseClient``: there ``supports_command``
+        counts a command the client only inherits as the base-class placeholder
+        (``raise NotImplementedError``) as missing.
         A missing/None client returns True so setup-time entity creation before
         the client is built is unaffected (capability check still applies).
         """
