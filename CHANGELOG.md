@@ -80,6 +80,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **The sign-in cookies saved with the tokens now survive a token refresh.** They are written at sign-in and loaded back on the next start, but the first token refresh saved an empty list over them, so a restart after that came up without them. Review finding from the work on #1813.
 
+- **Volkswagen US and Canada: every token renewal sends the value from the sign-in, not just the first (#1012).** A token renewal is meant to send along a value from the original sign-in. The first renewal after a sign-in sent it, but the renewed tokens no longer carried it, so the next renewal went out without it. It is carried from one renewal to the next now. Going by the notes behind #1012, the server refuses a renewal without that value, and the integration then signs in again in full, which would have happened on every second renewal. That refusal was not reproduced here. What was measured is the request the integration sends.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added

@@ -1580,7 +1580,15 @@ class IDKAuth:
                 raise AuthenticationError(f"Token refresh returned HTTP {resp.status}")
             payload: dict[str, Any] = await resp.json()
 
-        return self._parse_tokens(payload, fallback_refresh=refresh_token)
+        # #1012: the refreshed token set has to carry the verifier on, or only
+        # the first refresh after a sign-in can replay it. Scoped by the same
+        # con-veh marker that gates sending it, as the code exchange does, so
+        # the field stays empty for every other brand.
+        return self._parse_tokens(
+            payload,
+            fallback_refresh=refresh_token,
+            code_verifier=code_verifier if "con-veh" in token_url else "",
+        )
 
     async def _refresh_skoda(self, refresh_token: str) -> TokenSet:
         """Škoda uses a proprietary refresh endpoint."""
@@ -2276,9 +2284,9 @@ class IDKAuth:
             access_token=access,
             refresh_token=refresh,
             id_token=id_tok,
-            # #1012 — carried only when the caller (the con-veh exchange) passes
-            # it, or preserved across a refresh via fallback so it survives the
-            # whole token lifetime.
+            # #1012: carried only when the caller passes it. Two callers do, the
+            # con-veh code exchange and the con-veh refresh, which hands on the
+            # one it was given, so it survives the whole token lifetime.
             code_verifier=code_verifier,
         )
 
