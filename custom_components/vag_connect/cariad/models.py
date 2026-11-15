@@ -408,6 +408,25 @@ class TokenSet:
         """
         return bool(self.access_token and self.id_token)
 
+    def keep_id_token_from(self, previous: "TokenSet | None") -> "TokenSet":
+        """Keep ``previous``'s id token when this refreshed set has none.
+
+        An id token is optional in an OpenID Connect refresh response. A set
+        built from a response without one has an empty id token, and
+        :meth:`is_valid` then says no: the token storage refuses to save it,
+        so the file keeps the previous set with its old refresh token, and the
+        user id and country read from the id token are gone from memory.
+
+        The previous id token is the one the client used until this refresh,
+        and every claim read from it (user id, country) is the same after a
+        refresh; an account switch always goes through a full sign-in. A set
+        that carries an id token of its own is left as it is. Returns ``self``
+        so a caller can write ``fresh.keep_id_token_from(old)``.
+        """
+        if not self.id_token and previous is not None and previous.id_token:
+            self.id_token = previous.id_token
+        return self
+
     def needs_refresh(self) -> bool:
         """True if token expires within 60 seconds or expiry is unknown."""
         if not self.expires_at:

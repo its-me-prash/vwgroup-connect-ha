@@ -536,6 +536,26 @@ class VWNAClient:
                 type(err).__name__,
             )
 
+    @staticmethod
+    def _id_token_expired(id_token: str) -> bool:
+        """True when the id token's ``exp`` claim lies in the past (60 s skew).
+
+        Decoded locally, the signature is not checked. A token without a
+        readable ``exp`` counts as not expired, which is how it was treated
+        before this check existed.
+        """
+        try:
+            import base64  # noqa: PLC0415
+            import json as _json  # noqa: PLC0415
+            payload_b64 = id_token.split(".")[1]
+            payload_b64 += "=" * (-len(payload_b64) % 4)
+            exp = _json.loads(base64.urlsafe_b64decode(payload_b64)).get("exp")
+        except Exception:  # noqa: BLE001
+            return False
+        if not isinstance(exp, (int, float)) or isinstance(exp, bool):
+            return False
+        return exp - 60 <= datetime.now(tz=timezone.utc).timestamp()
+
     def _user_id_from_id_token(self) -> str | None:
         """The ``sub`` claim of the current id token, decoded locally."""
         if not self._tokens or not self._tokens.id_token:
@@ -666,6 +686,19 @@ class VWNAClient:
 
         id_token = self._tokens.id_token if self._tokens else None
         if not id_token:
+            return None
+        # An id token that has run out is not sent. A refresh can keep the
+        # sign-in's id token when its answer carries none (keep_id_token_from),
+        # and that one ages with every hour. A session exchange the server
+        # refuses is retried once and then switches this path off with a
+        # warning that the S-PIN may be wrong, and each attempt is made on an
+        # S-PIN challenge. So an expired id token takes the standard reads, as
+        # an empty one always did.
+        if self._id_token_expired(id_token):
+            _LOGGER.debug(
+                "VW NA read-session: the id token has run out — using the "
+                "standard reads until the next sign-in or refresh brings a new one"
+            )
             return None
 
         challenge_url = f"{self._base}/ss/v1/user/{self._user_id}/challenge"
@@ -2081,10 +2114,13 @@ class VWNAClient:
                 # binds the refresh to it. Empty on a token set from before the
                 # fix, in which case the refresh fails and we fall through to a
                 # full re-login below (which now carries the verifier again).
-                self._tokens = await self._auth.refresh(
+                fresh = await self._auth.refresh(
                     self._tokens.refresh_token,
                     code_verifier=self._tokens.code_verifier,
                 )
+                # A refresh answer without an id token would leave a set the
+                # token storage refuses to save (see keep_id_token_from).
+                self._tokens = fresh.keep_id_token_from(self._tokens)
                 # #118. The refreshed set replaces the stored one, so a restart
                 # does not come back with a refresh token already spent.
                 await self._notify_tokens_changed()

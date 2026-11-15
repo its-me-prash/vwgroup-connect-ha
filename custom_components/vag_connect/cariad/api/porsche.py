@@ -1607,7 +1607,9 @@ class PorscheClient:
 
             if self._tokens and self._tokens.refresh_token:
                 try:
-                    self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                    self._tokens = (
+                        await self._auth.refresh(self._tokens.refresh_token)
+                    ).keep_id_token_from(self._tokens)
                     await self._emit_tokens()  # v4.7.7 — persist the rotated token
                     return
                 except TokenExpiredError:
