@@ -1017,6 +1017,39 @@ def _mbb_command_capability(
 _SKODA_KEY_MGMT_CAPABILITY = "PUBLIC_API_KEY_MANAGEMENT"
 
 
+def _capability_entries(caps: Any) -> list[dict[str, Any]] | None:
+    """The entries of a cached capabilities document, or ``None`` when there are none to read.
+
+    Two forms are in use for ``capabilities``:
+
+    - a LIST of entries, each carrying its ``id`` (SEAT/CUPRA, Škoda);
+    - an OBJECT keyed by capability id (the Volkswagen and Audi vehicle backend,
+      measured on an Audi S6 C8: 52 entries next to ``parameters`` and ``vin``).
+      An entry there normally repeats its ``id``; where it does not, the key is
+      the id.
+
+    ``None`` means "nothing to read" (no document, or ``capabilities`` has
+    neither form), so callers must not gate on it. An empty list or object is a
+    loaded document that lists nothing. Values that are not entries are
+    skipped. This only reads the form: whether a document the backend flagged
+    with ``errors`` may be used is each caller's decision, as it was before.
+    Pure and total.
+    """
+    if not isinstance(caps, dict):
+        return None
+    items = caps.get("capabilities")
+    if isinstance(items, list):
+        return [entry for entry in items if isinstance(entry, dict)]
+    if isinstance(items, dict):
+        entries: list[dict[str, Any]] = []
+        for key, entry in items.items():
+            if not isinstance(entry, dict):
+                continue
+            entries.append(entry if entry.get("id") else {**entry, "id": key})
+        return entries
+    return None
+
+
 def _capability_listed(caps: Any, capability_id: str) -> bool | None:
     """Is *capability_id* present in a cached capabilities document? Tri-state.
 
@@ -1034,13 +1067,10 @@ def _capability_listed(caps: Any, capability_id: str) -> bool | None:
         return None
     if isinstance(caps.get("errors"), list) and caps["errors"]:
         return None
-    items = caps.get("capabilities")
-    if not isinstance(items, list):
+    items = _capability_entries(caps)
+    if items is None:
         return None
-    return any(
-        isinstance(entry, dict) and entry.get("id") == capability_id
-        for entry in items
-    )
+    return any(entry.get("id") == capability_id for entry in items)
 
 
 def _parse_trip_statistics(
@@ -6987,12 +7017,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # falsely gate every entity.
         if isinstance(caps.get("errors"), list) and caps["errors"]:
             return None
-        items = caps.get("capabilities")
-        if not isinstance(items, list):
+        # Both forms of the document are read: a list of entries, or an
+        # object keyed by capability id (Volkswagen and Audi).
+        items = _capability_entries(caps)
+        if items is None:
             return None
         for entry in items:
-            if not isinstance(entry, dict):
-                continue
             if entry.get("id") != capability_id:
                 continue
             # Skoda extra signals — explicit False on active/user-enabled
@@ -7057,13 +7087,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
         caps = getattr(self, "vehicle_capabilities", {}).get(vin)
-        if not isinstance(caps, dict):
-            return None
-        items = caps.get("capabilities")
-        if not isinstance(items, list):
+        items = _capability_entries(caps)
+        if items is None:
             return None
         for entry in items:
-            if not isinstance(entry, dict) or entry.get("id") != capability_id:
+            if entry.get("id") != capability_id:
                 continue
             reason = capability_status_reason(entry.get("status"))
             if reason is not None:

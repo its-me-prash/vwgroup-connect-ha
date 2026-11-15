@@ -52,8 +52,16 @@ CAPABILITY_MAP: Final[dict[str, dict[str, "str | tuple[str, ...]"]]] = {
     # ─────────────────────────────────────────────────────────────────
     # VW EU CARIAD-BFF — capabilities endpoint:
     #   GET /vehicle/v1/vehicles/{vin}/capabilities
-    # Schema: {capabilities: [{id, status: [...]}]}
+    # Schema: {capabilities: {<id>: {id, status: [...], operations, ...}}}
+    # an OBJECT keyed by capability id (measured on an Audi S6 C8); the
+    # gate also reads the older list form {capabilities: [{id, status}]}.
     # status=[] → fully usable; non-empty → limitation present
+    #
+    # Every id the gate asks for must be one the backend can list. The
+    # apps' vehicle library defines 133 capability ids (myAudi 5.9.0 and
+    # We Connect 4.8.1, the same set in both, read with androguard). An
+    # id outside that set never appears in a document, so a row carrying
+    # one would hide its control on every car whose document is loaded.
     # ─────────────────────────────────────────────────────────────────
     "volkswagen": {
         "command_lock": "access",                #  verified — used by lock platform
@@ -67,11 +75,17 @@ CAPABILITY_MAP: Final[dict[str, dict[str, "str | tuple[str, ...]"]]] = {
         "command_set_charge_mode": "charging",
         "command_set_min_soc": "charging",
         "command_set_max_charge_current": "charging",
-        # ️ [Inference] — pattern from CARIAD vocabulary, not yet seen
-        # in a Scout-Whitelist-confirmed capabilities response.
-        "command_wake": "vehicleWakeUpTrigger",
-        "command_start_window_heating": "windowHeating",
-        "command_stop_window_heating": "windowHeating",
+        # Both wake capabilities are ids of the apps' library, and the client
+        # tries the trigger route first and the plain wake route after it, so
+        # either one listed is enough to offer the button.
+        "command_wake": ("vehicleWakeUpTrigger", "vehicleWakeUp"),
+        # The apps' library has no window heating capability of its own: the
+        # window heating status and its start/stop actions belong to
+        # climatisation. ``windowHeating`` is not among the 133 ids, so on
+        # its own it could never be listed there. It stays as a second id so
+        # that a document which does carry it keeps the switch.
+        "command_start_window_heating": ("climatisation", "windowHeating"),
+        "command_stop_window_heating": ("climatisation", "windowHeating"),
         "command_set_climate_temperature": "climatisation",
         "command_set_departure_timer": "departureTimers",
         # v2.8.0 - Audi + VW EU engine pre-heater (Standheizung). Cap-id
@@ -253,13 +267,15 @@ CAPABILITY_MAP["seat"] = CAPABILITY_MAP["cupra"]
 # v1.14.0 (#28) — Audi-only ICE Engine Start. Replace the alias with a
 # COPY so we can add Audi-specific entries without polluting VW EU's
 # table (the alias trick above shares the same dict by reference).
-# ️ [Inference] cap-id ``engineRemoteStart`` is the camelCase guess
-# that matches CARIAD vocabulary patterns (``honkAndFlash``,
-# ``vehicleWakeUpTrigger``). NOT confirmed in a live capabilities
-# response yet — when a Scout report surfaces the real id we update.
+# The id is ``engineControl``: the capability the myAudi app's engine start
+# and stop check (``connectedvehicle/engine/EngineControl``, myAudi 5.9.0,
+# androguard). The earlier ``engineRemoteStart`` was a guess from the naming
+# pattern and is not an id of the library; it stays as a second id so that
+# this row hides nothing the earlier one would have shown. Neither has been
+# seen in a live document yet.
 CAPABILITY_MAP["audi"] = dict(CAPABILITY_MAP["audi"])
-CAPABILITY_MAP["audi"]["command_engine_start"] = "engineRemoteStart"
-CAPABILITY_MAP["audi"]["command_engine_stop"] = "engineRemoteStart"
+CAPABILITY_MAP["audi"]["command_engine_start"] = ("engineControl", "engineRemoteStart")
+CAPABILITY_MAP["audi"]["command_engine_stop"] = ("engineControl", "engineRemoteStart")
 
 
 def cap_id_for(brand: str, command_id: str) -> str | tuple[str, ...] | None:
