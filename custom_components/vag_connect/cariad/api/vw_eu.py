@@ -1338,6 +1338,63 @@ class VWEUClient(CariadBaseClient):
             fallback_payload=fallback_payload,
         )
 
+    # The on/off settings the Audi app's climatisation start carries next to the
+    # target temperature and the mode (myAudi 5.9.0, androguard:
+    # ``SetClimatisationSettings$ActionDTO``). Note the 'z' in the second one.
+    _CLIMATE_SETTING_FLAGS: tuple[str, ...] = (
+        "climatisationWithoutExternalPower",
+        "climatizationAtUnlock",
+        "windowHeatingEnabled",
+        "zoneFrontLeftEnabled",
+        "zoneFrontRightEnabled",
+        "zoneRearLeftEnabled",
+        "zoneRearRightEnabled",
+    )
+
+    async def _climate_start_body_from_settings(self, vin: str) -> dict[str, Any] | None:
+        """The climatisation start body built from the car's current settings.
+
+        #912: the Audi app sends ``POST .../climatisation/start`` with the
+        same body it uses to save the settings: what the car currently reports
+        (target temperature with its unit, the on/off settings above, the
+        mode, and the two nested settings for ventilation and auxiliary
+        heating). The status reports the temperature as ``targetTemperature_C``;
+        the request carries ``targetTemperature`` plus ``targetTemperatureUnit``.
+        ``heaterSource`` and the capture time are status-only and not sent.
+
+        A key the car does not report is not sent and nothing is forced. Only
+        the mode falls back to ``comfort``, which the PPE body always carried.
+        Returns ``None`` when the settings cannot be read, so the caller keeps
+        its earlier body: a failed read must never fail the start.
+
+        Not confirmed on a car: built from the app's request classes.
+        """
+        try:
+            raw = await self._get(
+                f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/selectivestatus",
+                params={"jobs": "climatisation"},
+            )
+            settings = raw["climatisation"]["climatisationSettings"]["value"]
+        except Exception:  # noqa: BLE001 - unreadable settings, the earlier body goes out
+            return None
+        if not isinstance(settings, dict) or not settings:
+            return None
+        body: dict[str, Any] = {}
+        temp = settings.get("targetTemperature_C")
+        if isinstance(temp, (int, float)) and not isinstance(temp, bool):
+            body["targetTemperature"] = float(temp)
+            body["targetTemperatureUnit"] = "celsius"
+        for key in self._CLIMATE_SETTING_FLAGS:
+            if isinstance(settings.get(key), bool):
+                body[key] = settings[key]
+        for key in ("activeVentilationSettings", "auxiliaryHeatingSettings"):
+            nested = settings.get(key)
+            if isinstance(nested, dict) and nested:
+                body[key] = dict(nested)
+        mode = settings.get("climatisationMode")
+        body["climatisationMode"] = mode if isinstance(mode, str) and mode else "comfort"
+        return body
+
     async def command_start_climate(
         self, vin: str, ppe_mode: bool = False
     ) -> None:
@@ -1364,7 +1421,10 @@ class VWEUClient(CariadBaseClient):
             await _tgt._command_mbb_op(vin, "climate_start")
             return
         if ppe_mode:
-            start_body = {
+            # #912: the Audi app starts with the car's own current settings
+            # (see _climate_start_body_from_settings). Only when those cannot
+            # be read does the earlier three-key body go out.
+            start_body = await self._climate_start_body_from_settings(vin) or {
                 "climatisationMode": "comfort",
                 "climatisationWithoutExternalPower": True,
                 "windowHeatingEnabled": True,
@@ -1424,11 +1484,20 @@ class VWEUClient(CariadBaseClient):
         """
         body: dict[str, Any] = {}
         if ppe_mode:
-            # PPE body validator rejects targetTemperature* outright, so the
-            # caller's temp_c is dropped rather than failing the whole command.
-            temp_c = None
-            if climatisation_mode is None:
-                climatisation_mode = "comfort"
+            # #912: start from the car's own settings, as the Audi app does,
+            # and lay the caller's choices over them below.
+            reported = await self._climate_start_body_from_settings(vin)
+            if reported is None:
+                # Settings not readable: the earlier PPE rule. The temperature
+                # is dropped rather than failing the whole command.
+                temp_c = None
+                if climatisation_mode is None:
+                    climatisation_mode = "comfort"
+            else:
+                body = dict(reported)
+                if "targetTemperature" not in reported:
+                    # A car that reports no target temperature is sent none.
+                    temp_c = None
         if temp_c is not None:
             # #752 audit — the CARIAD climatisation/start action takes
             # targetTemperature + targetTemperatureUnit (as our own simpler
