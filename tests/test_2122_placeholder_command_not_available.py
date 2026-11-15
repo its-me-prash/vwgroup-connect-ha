@@ -16,13 +16,14 @@ agrees with it, for every client that inherits from the base class.
 from __future__ import annotations
 
 import ast
+import asyncio
 import importlib
 import inspect
 import pkgutil
 import textwrap
 from functools import partial
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -182,23 +183,23 @@ def _platform_coord(client: Any) -> MagicMock:
 
 
 def _built(module_name: str, brand: str, client: Any) -> list[str]:
+    """What the platform adds in its FIRST spawn pass, through the real spawner.
+
+    The first pass is the one that matters: the spawner adds entities and never
+    removes them. The client is built synchronously in ``async_setup`` before
+    the platforms are forwarded, so this gate is already decidable here, unlike
+    a gate that waits for the capability document fetched in the background.
+    """
     module = importlib.import_module(f"custom_components.vag_connect.{module_name}")
     coord = _platform_coord(client)
+    coord.vehicles = {"VIN0000000000TEST": {"has_battery": True}}
     entry = MagicMock()
     entry.runtime_data = coord
     entry.data = {"brand": brand}
-    captured: list[Any] = []
-    with patch.object(
-        module, "register_dynamic_spawner",
-        lambda _e, _c, _add, build: captured.append(build),
-    ):
-        import asyncio
-
-        asyncio.run(module.async_setup_entry(MagicMock(), entry, lambda _ents: None))
-    assert len(captured) == 1
-    entities = captured[0]("VIN0000000000TEST", {"has_battery": True})
+    added: list[Any] = []
+    asyncio.run(module.async_setup_entry(MagicMock(), entry, added.extend))
     names = []
-    for ent in entities:
+    for ent in added:
         desc = getattr(ent, "entity_description", None)
         names.append(getattr(desc, "key", None) or type(ent).__name__)
     return names
