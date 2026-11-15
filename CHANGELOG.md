@@ -96,6 +96,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **The `IMMEDIATE_CHARGING_OBD` charge mode is sent with the spelling the apps use (#752).** Selecting it sent `immediateChargingObd`, which is in neither manufacturer app. The value is `immediateChargingOBD`. Not tested on a car.
 
+- **Audi, with the PPE option on: the climate start now sends the settings the car reports (#912).** With the PPE option switched on, the climate start sent three fixed values (comfort mode and two settings switched on) and left the temperature out. On both reported cars (an A6 e-tron and a Q6 e-tron) that request was accepted and the climate did not start, while according to both reports the start from the Audi app works. The Audi app sends something else: the settings the car currently reports, target temperature included. With the option on, the integration now reads those settings first and sends what the car reports, with the choices from your service call laid over them; only a missing mode is filled in as comfort. If the settings cannot be read, the earlier request goes out. Without the option nothing changes. Built from the app's request format and not tested on a car, so whether these cars now start is open. Thanks @Mirjam9 and @loeildubush for the reports.
+
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
 ### Hinzugefügt / Added
