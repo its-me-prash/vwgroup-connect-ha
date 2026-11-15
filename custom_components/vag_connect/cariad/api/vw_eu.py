@@ -894,8 +894,10 @@ class VWEUClient(CariadBaseClient):
         url = f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics"
         try:
             with self._parser_job("trip_statistics"):
+                short_answered = False
                 try:
                     trip_short = await self._get(url, params={"type": "shortTerm"})
+                    short_answered = True
                     trip_long = await self._get(url, params={"type": "longTerm"})
                 except APIError as err:
                     # #1805 — the CARIAD-BFF tripstatistics endpoint is simply
@@ -908,19 +910,87 @@ class VWEUClient(CariadBaseClient):
                     # hourly cache below already stops the endpoint being re-hit.
                     if err.status != 404:
                         raise
-                # v2.10.0 — "cyclic" = since-refuel / since-recharge aggregator
-                # (an Energy-Dashboard building block). Newer-firmware capability;
-                # some pre-2024 vehicles 404 it, so treat a miss as a soft-fail.
-                try:
-                    trip_refuel = await self._get(url, params={"type": "cyclic"})
-                except Exception:  # noqa: BLE001
-                    pass
+                if not short_answered:
+                    # #1805: the short-term request itself answered 404. The
+                    # Audi app does not use that address at all; it reads the
+                    # trips from ``/trips/<vin>/<type>/last``. Ask there before
+                    # concluding that the car has no trips. Once the old address
+                    # has answered the short-term request, nothing changes.
+                    trip_short, trip_long, trip_refuel = (
+                        await self._fetch_trips_app_route(vin, base)
+                    )
+                else:
+                    # v2.10.0 — "cyclic" = since-refuel / since-recharge aggregator
+                    # (an Energy-Dashboard building block). Newer-firmware capability;
+                    # some pre-2024 vehicles 404 it, so treat a miss as a soft-fail.
+                    try:
+                        trip_refuel = await self._get(url, params={"type": "cyclic"})
+                    except Exception:  # noqa: BLE001
+                        pass
         except Exception:  # noqa: BLE001
             pass
         # Cache whatever we got — including empties on a dead endpoint, so a 404
         # host is not re-hit every poll for the next hour.
         self._trip_stats_raw_cache[vin] = (now, trip_short, trip_long, trip_refuel)
         return trip_short, trip_long, trip_refuel
+
+    @staticmethod
+    def _trip_envelope(answer: Any) -> dict[str, Any]:
+        """Bring an answer of the app's trip address into ``{"tripData": [...]}``.
+
+        The app reads the trip (or a list of trips) under ``data``. The trip
+        itself has the field names ``_parse_trip_statistics`` already reads
+        (``tripEndTimestamp``, ``mileage_km``, ``travelTime`` ...). Anything
+        that is not a trip gives an empty dict, so the reader leaves its fields
+        alone.
+        """
+        data = answer.get("data", answer) if isinstance(answer, dict) else answer
+        if isinstance(data, dict):
+            data = [data]
+        if not isinstance(data, list):
+            return {}
+        trips = [
+            t for t in data
+            if isinstance(t, dict) and ("tripEndTimestamp" in t or "mileage_km" in t)
+        ]
+        return {"tripData": trips} if trips else {}
+
+    async def _fetch_trips_app_route(
+        self, vin: str, base: str
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """#1805: trip statistics over the addresses the Audi app uses.
+
+        ``GET <base>/vehicle/v1/trips/<vin>/<type>/last`` with the type in lower
+        case: ``shortterm``, ``longterm``, ``cyclic`` (myAudi 5.9.0, androguard:
+        the request builders append ``/trips/``, the VIN, ``/``, the lower-cased
+        trip type and ``/last``). The short-term request decides: a 404 there
+        means the car has no trips on this address either and nothing more is
+        asked. The other two types are optional, as ``cyclic`` always was.
+
+        Not confirmed on a car.
+        """
+        # The three addresses are written out in full, one literal each, so
+        # the Bruno drift check can pair every one with its example request.
+        try:
+            short = self._trip_envelope(
+                await self._get(f"{base}/vehicle/v1/trips/{vin}/shortterm/last")
+            )
+        except APIError as err:
+            if err.status != 404:
+                raise
+            return {}, {}, {}
+        if not short:
+            return {}, {}, {}
+        rest: list[dict[str, Any]] = []
+        for url in (
+            f"{base}/vehicle/v1/trips/{vin}/longterm/last",
+            f"{base}/vehicle/v1/trips/{vin}/cyclic/last",
+        ):
+            try:
+                rest.append(self._trip_envelope(await self._get(url)))
+            except Exception:  # noqa: BLE001 - optional, a miss is not a failure
+                rest.append({})
+        return short, rest[0], rest[1]
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full vehicle status via selectivestatus."""
@@ -3760,6 +3830,9 @@ class VWEUClient(CariadBaseClient):
                         float(avg_fuel) / 10.0
                     )
                 avg_elec = last.get("averageElectricEngineConsumption")
+                if avg_elec is None:
+                    # #1805: the name the Audi app's trip carries.
+                    avg_elec = last.get("averageElectricConsumption")
                 if isinstance(avg_elec, (int, float)):
                     d.last_trip_avg_electric_consumption_kwh_100km = (
                         float(avg_elec) / 10.0
@@ -3845,6 +3918,8 @@ class VWEUClient(CariadBaseClient):
                         float(lt_fuel) / 10.0
                     )
                 lt_elec = first.get("averageElectricEngineConsumption")
+                if lt_elec is None:
+                    lt_elec = first.get("averageElectricConsumption")
                 if isinstance(lt_elec, (int, float)):
                     d.lifetime_avg_electric_consumption_kwh_100km = (
                         float(lt_elec) / 10.0
@@ -3902,6 +3977,8 @@ class VWEUClient(CariadBaseClient):
         if isinstance(avg_fuel, (int, float)):
             d.refuel_trip_avg_fuel_consumption_l_100km = float(avg_fuel) / 10.0
         avg_elec = first.get("averageElectricEngineConsumption")
+        if avg_elec is None:
+            avg_elec = first.get("averageElectricConsumption")
         if isinstance(avg_elec, (int, float)):
             d.refuel_trip_avg_electric_consumption_kwh_100km = (
                 float(avg_elec) / 10.0
