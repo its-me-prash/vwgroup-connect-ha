@@ -3335,12 +3335,19 @@ class VWEUClient(CariadBaseClient):
         multi-word modes follow the same camelCase the read side already aliases
         (e.g. preferredChargingTimes) — even though the READ enum is UPPER_SNAKE.
         (The exotic modes beyond manual/timer are best-effort until live-confirmed.)
+
+        The values are the eight of the apps' ``ChargeModes.Mode`` (read from
+        myAudi 5.8.1; the same literals are in We Connect 4.3.2). Seven are the
+        plain lower-camelCase of the constant name; ``IMMEDIATE_CHARGING_OBD``
+        is ``immediateChargingOBD`` with ``OBD`` in capitals.
         """
         _parts = [p for p in str(mode).strip().lower().split("_") if p]
         _mode = (
             _parts[0] + "".join(p.capitalize() for p in _parts[1:])
             if _parts else ""
         )
+        if _mode == "immediateChargingObd":
+            _mode = "immediateChargingOBD"
         await self._settings_put_with_fallback(
             vin, "charging/mode",
             put_body={"preferredChargeMode": _mode},
