@@ -382,8 +382,10 @@ def test_every_other_brand_keeps_the_version_older_releases_read() -> None:
         payload_version_for_brand,
     )
 
+    # ``audi_acpp`` is not in this list: its client had no way to take a
+    # stored set either, see tests/test_plugandplay_tokens_survive_a_restart.py.
     for brand in ("volkswagen", "volkswagen_commercial", "audi", "skoda", "seat",
-                  "cupra", "audi_na", "porsche", "bentley", "audi_acpp"):
+                  "cupra", "audi_na", "porsche", "bentley"):
         assert payload_version_for_brand(brand) == 1, brand
 
 

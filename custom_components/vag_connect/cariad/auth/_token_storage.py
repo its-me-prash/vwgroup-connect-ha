@@ -36,7 +36,8 @@ Per config-entry, single key ``vag_connect_tokens``, version 1:
 Later additions to ``tokens``, all optional on load: ``strategy`` and
 ``auth_cookies`` (v2.8.0), ``code_verifier`` (#118, the sign-in's PKCE
 verifier, non-empty for Volkswagen US and Canada only). That brand's file
-carries ``"version": 2`` for the reason given at ``_READABLE_PAYLOAD_VERSIONS``.
+and the Audi connect plug&play brand's carry ``"version": 2`` for the reason
+given at ``_READABLE_PAYLOAD_VERSIONS``.
 
 ### Privacy
 
@@ -95,11 +96,14 @@ _STORAGE_VERSION = 1
 # (the check in ``load`` has been there since v1.19.2), which is exactly the
 # behaviour they had before this brand stored anything.
 #
-# Only that one brand writes version 2. Every other brand keeps writing
-# version 1, so a downgrade costs none of them their stored tokens; for an
-# entry without a password that would be the end of the entry.
+# Only the brands whose client had no ``set_persisted_tokens`` in those
+# releases write version 2: Volkswagen US and Canada, and Audi connect
+# plug&play, which met the same unguarded call with the same result. Every
+# other brand keeps writing version 1, so a downgrade costs none of them their
+# stored tokens; for an entry without a password that would be the end of the
+# entry.
 _READABLE_PAYLOAD_VERSIONS = (1, 2)
-_PAYLOAD_VERSION_BY_BRAND = {"volkswagen_na": 2}
+_PAYLOAD_VERSION_BY_BRAND = {"volkswagen_na": 2, "audi_acpp": 2}
 
 
 def payload_version_for_brand(brand: str) -> int:
