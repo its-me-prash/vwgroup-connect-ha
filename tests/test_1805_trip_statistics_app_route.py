@@ -30,8 +30,9 @@ _TRIP = {
     "id": "1", "tripType": "shortTerm", "vehicleType": "electric",
     "tripEndTimestamp": "2026-01-02T10:00:00Z", "mileage_km": 12.5, "travelTime": 20,
     "averageSpeed_kmph": 37, "overallMileage_km": 50123, "startMileage_km": 50110,
-    "averageElectricConsumption": 185,
+    "averageElectricConsumption": 18.5,  # the app answers in final units (#2136)
 }
+_MARK = {"units": "final"}
 
 
 def _client(routes: dict[str, Any]) -> tuple[VWEUClient, list[str]]:
@@ -71,9 +72,9 @@ def test_the_apps_address_is_asked_when_the_old_one_is_absent() -> None:
         f"{_APP}/longterm/last",
         f"{_APP}/cyclic/last",
     ]
-    assert short == {"tripData": [_TRIP]}
-    assert long_ == {"tripData": [long_trip]}
-    assert cyclic == {"tripData": [cyclic_trip]}
+    assert short == {"tripData": [_TRIP], **_MARK}
+    assert long_ == {"tripData": [long_trip], **_MARK}
+    assert cyclic == {"tripData": [cyclic_trip], **_MARK}
     assert c.parser_stats.get("trip_statistics", {}).get("fail", 0) == 0
 
 
@@ -104,7 +105,7 @@ def test_an_old_address_that_answered_the_first_request_is_not_left() -> None:
 def test_the_other_two_types_may_be_missing() -> None:
     c, asked = _client({f"{_APP}/shortterm/last": {"data": _TRIP}})
     short, long_, cyclic = _fetch(c)
-    assert short == {"tripData": [_TRIP]}
+    assert short == {"tripData": [_TRIP], **_MARK}
     assert (long_, cyclic) == ({}, {})
     assert c.parser_stats.get("trip_statistics", {}).get("fail", 0) == 0
 
@@ -118,9 +119,9 @@ def test_a_server_error_on_the_apps_address_still_counts_as_a_failure() -> None:
 @pytest.mark.parametrize(
     ("answer", "expected"),
     [
-        ({"data": _TRIP}, {"tripData": [_TRIP]}),                       # one trip under data
-        ({"data": [_TRIP, _TRIP]}, {"tripData": [_TRIP, _TRIP]}),       # a list under data
-        (_TRIP, {"tripData": [_TRIP]}),                                 # the trip itself
+        ({"data": _TRIP}, {"tripData": [_TRIP], **_MARK}),                       # one trip under data
+        ({"data": [_TRIP, _TRIP]}, {"tripData": [_TRIP, _TRIP], **_MARK}),       # a list under data
+        (_TRIP, {"tripData": [_TRIP], **_MARK}),                            # the trip itself
         ({"data": None}, {}),
         ({"data": {}}, {}),
         ({"data": [1, "x"]}, {}),
@@ -162,10 +163,22 @@ def test_the_reader_fills_the_last_trip_from_the_apps_answer() -> None:
 
 def test_the_apps_name_for_the_electric_average_is_read() -> None:
     # The app's trip carries ``averageElectricConsumption``; the reader knew
-    # only ``averageElectricEngineConsumption``. Same tenth-of-a-unit scale.
+    # only ``averageElectricEngineConsumption``. On the app route the value is
+    # already in final units (#2136), so it is not divided.
     c, _ = _client({})
     d = VehicleData(vin="V")
-    c._parse_trip_statistics(d, {"tripData": [_TRIP]}, {"tripData": [_TRIP]})
+    app = {"tripData": [_TRIP], **_MARK}
+    c._parse_trip_statistics(d, app, app)
+    assert d.last_trip_avg_electric_consumption_kwh_100km == 18.5
+    assert d.lifetime_avg_electric_consumption_kwh_100km == 18.5
+
+
+def test_the_legacy_route_keeps_the_tenth_of_a_unit_scale() -> None:
+    # Only an explicit legacy-route answer (no marker) is divided by ten.
+    c, _ = _client({})
+    d = VehicleData(vin="V")
+    legacy = {"tripData": [{**_TRIP, "averageElectricConsumption": 185}]}
+    c._parse_trip_statistics(d, legacy, legacy)
     assert d.last_trip_avg_electric_consumption_kwh_100km == 18.5
     assert d.lifetime_avg_electric_consumption_kwh_100km == 18.5
 
@@ -174,5 +187,5 @@ def test_the_older_name_still_wins_when_both_are_there() -> None:
     c, _ = _client({})
     d = VehicleData(vin="V")
     trip = {**_TRIP, "averageElectricEngineConsumption": 200}
-    c._parse_trip_statistics(d, {"tripData": [trip]}, {})
+    c._parse_trip_statistics(d, {"tripData": [trip]}, {})  # legacy answer: tenths
     assert d.last_trip_avg_electric_consumption_kwh_100km == 20.0
