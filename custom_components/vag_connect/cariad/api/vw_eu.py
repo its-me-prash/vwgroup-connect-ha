@@ -974,6 +974,12 @@ class VWEUClient(CariadBaseClient):
         (``tripEndTimestamp``, ``mileage_km``, ``travelTime`` ...). Anything
         that is not a trip gives an empty dict, so the reader leaves its fields
         alone.
+
+        #2136: the app's address answers in final units (21.8 kWh/100 km as a
+        float), unlike the older ``tripstatistics`` address whose averages are
+        tenths. The answer is marked ``"units": "final"`` so the reader knows
+        not to divide. A list is sorted newest first, so ``tripData[0]`` is the
+        newest; a trip without a timestamp sorts last.
         """
         data = answer.get("data", answer) if isinstance(answer, dict) else answer
         if isinstance(data, dict):
@@ -984,7 +990,10 @@ class VWEUClient(CariadBaseClient):
             t for t in data
             if isinstance(t, dict) and ("tripEndTimestamp" in t or "mileage_km" in t)
         ]
-        return {"tripData": trips} if trips else {}
+        if not trips:
+            return {}
+        trips.sort(key=lambda t: str(t.get("tripEndTimestamp") or ""), reverse=True)
+        return {"tripData": trips, "units": "final"}
 
     async def _fetch_trips_app_route(
         self, vin: str, base: str
@@ -3829,6 +3838,44 @@ class VWEUClient(CariadBaseClient):
 
     # ── data parsing ───────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _trip_average(
+        trip: dict[str, Any], key: str, final: bool, unit_key: str | None = None,
+    ) -> float | None:
+        """#2136: one consumption average on the right scale.
+
+        A unit the trip declares (``<key>Unit``) decides: the per-100 unit the
+        website dialect uses is taken as it stands, any other unit (mpg ...)
+        gives no value rather than a wrong one. Without a unit the answer
+        decides: the app route is in final units, the older ``tripstatistics``
+        address ships tenths. ``unit_key`` names the ``_TRIP_UNITS`` entry when
+        ``key`` is an older spelling of it. A negative value (net recuperation)
+        is kept.
+        """
+        from ..auth._website_authproxy import _TRIP_UNITS  # noqa: PLC0415
+
+        raw = trip.get(key)
+        if not isinstance(raw, (int, float)):
+            return None
+        unit = trip.get(f"{key}Unit")
+        if unit is not None:
+            return float(raw) if str(unit) == _TRIP_UNITS.get(unit_key or key) else None
+        return float(raw) if final else float(raw) / 10.0
+
+    @classmethod
+    def _trip_electric_average(cls, trip: dict[str, Any], final: bool) -> float | None:
+        """The electric average under the older name, else the app's name (#1805).
+
+        The older name wins when it is present; the scale and the unit follow
+        the key that was read (#2136).
+        """
+        key = "averageElectricEngineConsumption"
+        if trip.get(key) is None:
+            key = "averageElectricConsumption"
+        return cls._trip_average(
+            trip, key, final, unit_key="averageElectricConsumption",
+        )
+
     def _parse_trip_statistics(
         self,
         d: VehicleData,
@@ -3873,20 +3920,14 @@ class VWEUClient(CariadBaseClient):
                 avg_speed = last.get("averageSpeed_kmph")
                 if isinstance(avg_speed, (int, float)):
                     d.last_trip_avg_speed_kmh = float(avg_speed)
-                avg_fuel = last.get("averageFuelConsumption")
-                if isinstance(avg_fuel, (int, float)):
-                    # Stored as int x10
-                    d.last_trip_avg_fuel_consumption_l_100km = (
-                        float(avg_fuel) / 10.0
-                    )
-                avg_elec = last.get("averageElectricEngineConsumption")
-                if avg_elec is None:
-                    # #1805: the name the Audi app's trip carries.
-                    avg_elec = last.get("averageElectricConsumption")
-                if isinstance(avg_elec, (int, float)):
-                    d.last_trip_avg_electric_consumption_kwh_100km = (
-                        float(avg_elec) / 10.0
-                    )
+                # #2136: tenths on the older address, final units on the app's.
+                final = isinstance(short_term, dict) and short_term.get("units") == "final"
+                avg_fuel = self._trip_average(last, "averageFuelConsumption", final)
+                if avg_fuel is not None:
+                    d.last_trip_avg_fuel_consumption_l_100km = avg_fuel
+                avg_elec = self._trip_electric_average(last, final)
+                if avg_elec is not None:
+                    d.last_trip_avg_electric_consumption_kwh_100km = avg_elec
                 # v2.10.0 Group A - per-trip totals. CARIAD BFF firmware
                 # ships these directly under several key names; we try
                 # the canonical name first and derive from
@@ -3956,24 +3997,42 @@ class VWEUClient(CariadBaseClient):
         if isinstance(long_trips, list) and long_trips:
             first = long_trips[0]
             if isinstance(first, dict):
+                lt_final = (
+                    isinstance(long_term, dict) and long_term.get("units") == "final"
+                )
+                # Unchanged from before #2136 on purpose: a 0 odometer is no
+                # reading, and lifetime_distance_km feeds a TOTAL_INCREASING
+                # sensor that would read a 0 as a reset.
                 lifetime_km = (
                     first.get("overallMileage_km")
                     or first.get("mileage_km")
                 )
                 if isinstance(lifetime_km, (int, float)):
                     d.lifetime_distance_km = float(lifetime_km)
-                lt_fuel = first.get("averageFuelConsumption")
-                if isinstance(lt_fuel, (int, float)):
-                    d.lifetime_avg_fuel_consumption_l_100km = (
-                        float(lt_fuel) / 10.0
-                    )
-                lt_elec = first.get("averageElectricEngineConsumption")
-                if lt_elec is None:
-                    lt_elec = first.get("averageElectricConsumption")
-                if isinstance(lt_elec, (int, float)):
-                    d.lifetime_avg_electric_consumption_kwh_100km = (
-                        float(lt_elec) / 10.0
-                    )
+                lt_fuel = self._trip_average(first, "averageFuelConsumption", lt_final)
+                if lt_fuel is not None:
+                    d.lifetime_avg_fuel_consumption_l_100km = lt_fuel
+                lt_elec = self._trip_electric_average(first, lt_final)
+                if lt_elec is not None:
+                    d.lifetime_avg_electric_consumption_kwh_100km = lt_elec
+                if lt_final:
+                    # #2136: on the app's address the long-term trip is the
+                    # window since the last reset, the same reading the website
+                    # dialect maps to these fields. Explicit None tests: 0 is a
+                    # valid reading. lifetime_distance_km above keeps its
+                    # meaning (the odometer) on purpose.
+                    win_km = first.get("mileage_km")
+                    if isinstance(win_km, (int, float)):
+                        d.lifetime_trip_distance_km = int(round(win_km))
+                    win_start = first.get("startMileage_km")
+                    if isinstance(win_start, (int, float)):
+                        d.lifetime_trip_start_odometer_km = int(round(win_start))
+                    win_time = first.get("travelTime")
+                    if isinstance(win_time, (int, float)):
+                        d.lifetime_travel_time_min = int(win_time)
+                    win_speed = first.get("averageSpeed_kmph")
+                    if isinstance(win_speed, (int, float)):
+                        d.lifetime_avg_speed_kmh = float(win_speed)
 
     def _parse_refuel_trip(
         self,
@@ -4023,16 +4082,13 @@ class VWEUClient(CariadBaseClient):
         avg_speed = first.get("averageSpeed_kmph")
         if isinstance(avg_speed, (int, float)):
             d.refuel_trip_avg_speed_kmh = float(avg_speed)
-        avg_fuel = first.get("averageFuelConsumption")
-        if isinstance(avg_fuel, (int, float)):
-            d.refuel_trip_avg_fuel_consumption_l_100km = float(avg_fuel) / 10.0
-        avg_elec = first.get("averageElectricEngineConsumption")
-        if avg_elec is None:
-            avg_elec = first.get("averageElectricConsumption")
-        if isinstance(avg_elec, (int, float)):
-            d.refuel_trip_avg_electric_consumption_kwh_100km = (
-                float(avg_elec) / 10.0
-            )
+        final = cyclic.get("units") == "final"  # #2136
+        avg_fuel = self._trip_average(first, "averageFuelConsumption", final)
+        if avg_fuel is not None:
+            d.refuel_trip_avg_fuel_consumption_l_100km = avg_fuel
+        avg_elec = self._trip_electric_average(first, final)
+        if avg_elec is not None:
+            d.refuel_trip_avg_electric_consumption_kwh_100km = avg_elec
         # Totals - some firmware ships these directly; others require
         # derivation from avg * distance. Try direct first, fall through
         # to the derived form when avg + distance are both present.
@@ -4060,8 +4116,11 @@ class VWEUClient(CariadBaseClient):
             )
         recup = first.get("averageRecuperation")
         if isinstance(recup, (int, float)):
-            # Stored as int x10 in the same encoding as fuel/elec
-            d.refuel_trip_recuperation_kwh = float(recup) / 10.0
+            # Int x10 on the older address. On the app's address the answer is
+            # in final units; the unit of this one field is not confirmed.
+            d.refuel_trip_recuperation_kwh = (
+                float(recup) if final else float(recup) / 10.0
+            )
         ts = first.get("tripEndTimestamp")
         if isinstance(ts, str):
             d.refuel_trip_timestamp = ts
