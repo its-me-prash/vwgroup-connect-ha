@@ -563,6 +563,15 @@ _RAW_REDACT_KEYS = frozenset({
     # profile/enum ids and costs grounding value, while VIN/JWT/UUID regexes
     # already mask real identifiers in the VALUES below.
     "vin", "carid", "vehicleid", "userid", "accountid", "customerid",
+    # The authproxy relations read (vwde:app/authproxy/vw-de/proxy/v2/users/me/
+    # relations) names the signed-in account three more ways, none of which
+    # matched the exact ``userid`` above: ``user.mbbUserId``, ``user.idKitUserId``
+    # and the per-vehicle ``relations[*].relationId``. All opaque, so no value
+    # regex catches them. Plain redaction, like ``userid`` in this set: the raw
+    # branch checks this set before ``_HASH_KEYS``, the raw section is read for
+    # its structure, and the existing raw rule for ``userid`` already redacts
+    # fully, so these keys follow it.
+    "mbbuserid", "idkituserid", "relationid",
     "gpscoordinates", "carcapturedgpscoordinates", "coordinates",
     "latitude", "longitude", "lat", "lng", "lon",
     "licenceplate", "licenseplate", "numberplate", "registrationnumber",
