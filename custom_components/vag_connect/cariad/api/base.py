@@ -2162,7 +2162,9 @@ class CariadBaseClient:
                         self._session, client_id, scope=scope,
                         strategy="device_grant_portal",
                     )
-                    self._tokens = await grant.refresh(self._tokens.refresh_token)
+                    self._tokens = (
+                        await grant.refresh(self._tokens.refresh_token)
+                    ).keep_id_token_from(self._tokens)
                     if getattr(self, "_eu_portal", None) is not None:
                         self._eu_portal.set_bearer(self._tokens.access_token)
                     await self._notify_tokens_changed()
@@ -2233,9 +2235,12 @@ class CariadBaseClient:
                     #
                     # Only the cookies are carried, and only until a full
                     # sign-in captures newer ones. What else a refreshed set
-                    # should keep is a separate question (#1813).
+                    # should keep is a separate question (#1813); the id token
+                    # is kept when the answer has none (keep_id_token_from).
                     _sign_in_cookies = list(self._tokens.auth_cookies)
-                    self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                    self._tokens = (
+                        await self._auth.refresh(self._tokens.refresh_token)
+                    ).keep_id_token_from(self._tokens)
                     if _sign_in_cookies and not self._tokens.auth_cookies:
                         self._tokens.auth_cookies = _sign_in_cookies
                     # v1.19.2 (#118) — persist refreshed tokens so the
