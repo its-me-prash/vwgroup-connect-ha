@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **A car the backend reports as no longer enrolled is now backed off at the first answer, not the third (#2145, #922).** @Jochencgm's Audi got `404` from the status read with the structured code `2104` ("Car is not enrolled anymore."). That was counted like any other unserved 404: the first two answers went to the Error Reporter and only the third started the six-hour backoff, and since the count lives in memory, every restart filed it again. This one code now starts the same six-hour backoff on the first answer, logs a single warning saying the backend sees the car as no longer enrolled for this account and that it can be removed from the account or disabled, and records no error. Every other 404 keeps the three-strike path unchanged, and the match is on the structured code only, so a body that is not JSON or carries another code behaves as before. The car is not removed by this change: that still happens when it leaves the account listing. Covered by unit tests with the reported body; not tested on a car.
+
 ## [5.4.1] - 2026-11-16 — "The portal moved / Das Portal ist umgezogen"
 
 ### Behoben / Fixed
