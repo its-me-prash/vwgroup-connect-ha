@@ -1,0 +1,31 @@
+meta {
+  name: GET trips cyclic last (#1805)
+  type: http
+  seq: 28
+}
+
+get {
+  url: {{base_url}}/vehicle/v1/trips/{{vin}}/cyclic/last
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  #1805: the cyclic counterpart (since refuel or recharge) of
+  26_GET_trips_shortterm_last. Asked only after the short-term address
+  returned a trip. Optional: a failure here leaves the cyclic values empty
+  and does not fail the read.
+
+  Read from the app's request format. Not confirmed on a car.
+
+  Implementation: VWEUClient._fetch_trips_app_route() in
+  cariad/api/vw_eu.py. Audi inherits.
+}

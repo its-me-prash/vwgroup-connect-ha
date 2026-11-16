@@ -2137,6 +2137,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from homeassistant.helpers.storage import Store  # noqa: PLC0415
         from .cariad.auth._token_storage import (  # noqa: PLC0415
             TokenStorage,
+            payload_version_for_brand,
             storage_key_for_entry,
             _STORAGE_VERSION,
         )
@@ -2145,7 +2146,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _STORAGE_VERSION,
             storage_key_for_entry(self.entry.entry_id),
         )
-        self._token_storage = TokenStorage(store)
+        # #118. The version this entry's file is WRITTEN under follows the
+        # brand: Volkswagen US and Canada writes one that releases from before
+        # it stored tokens discard instead of tripping over. Loading reads
+        # either. See ``_READABLE_PAYLOAD_VERSIONS``.
+        self._token_storage = TokenStorage(
+            store, payload_version=payload_version_for_brand(brand),
+        )
         persisted = await self._token_storage.load()
 
         # b13 — Portal-safety: restore the last-known-good vehicle snapshot so
@@ -2531,7 +2538,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             try:
                 vins = await self._cariad_client.get_vehicles()
                 _enum_ok = True
-            except (AuthenticationError, TokenRefreshRetryError):
+            except (AuthenticationError, TokenRefreshRetryError) as _first_err:
                 # v2.21.1 (#875) — persisted IDK/legacy tokens can no longer be
                 # refreshed (VW's device-attestation wall 403s the refresh). We
                 # skipped the fresh login above because they weren't a portal
@@ -2582,6 +2589,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     # submit the same credentials twice per restart — the exact
                     # retry pressure that has locked Porsche accounts. Re-raise.
                     if brand == "porsche":
+                        raise
+                    # #1964: a stored browser (Auth0) session is never answered
+                    # with the fresh sign-in below. On an entry that kept its
+                    # password that sign-in is the password chain. Where its
+                    # password variants are refused, the read-only portal
+                    # sign-in at its end is what succeeds, and authenticate()
+                    # hands that result to the token store: one failed request
+                    # at start put a portal session where the browser session
+                    # was, every later start loaded that, and nothing tried
+                    # the browser session again or said it was gone. The
+                    # password cannot bring that session back in any case.
+                    # Whatever is raised here goes to the separate portal
+                    # channel first (the except just below), as for Porsche;
+                    # only when that serves no vehicle does it leave setup.
+                    # Only the plain refusal (for one, a refresh token the
+                    # sign-in service calls dead) is turned into "sign in
+                    # again"; an entry without a password got that reason
+                    # before as well, from authenticate() itself, but also
+                    # for a mere blip. Everything else is raised as it came:
+                    # the transient sibling ends in "not ready" and a retry
+                    # with the same stored session, and a subclass that names
+                    # its own cause (terms, consent, ...) keeps its own
+                    # notice. A refusal that the refresh counts as transient
+                    # but that never passes is retried without a prompt; the
+                    # place to name such an answer is _HARD_REFRESH_ERRORS.
+                    if persisted.strategy == "auth0":
+                        if type(_first_err) is AuthenticationError:
+                            raise DeviceLoginExpiredError(
+                                "strategy=auth0"
+                            ) from _first_err
                         raise
                     _LOGGER.info(
                         "VW Group Connect: persisted tokens for %s no longer "
@@ -2909,6 +2946,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _parts = [p for p in (err.name, getattr(err, "name_from", None)) if p]
                 if _parts:
                     _detail = " [failed import: " + " -> ".join(_parts) + "]"
+            # #1964: the class name alone is just as useless for an
+            # UpstreamUnavailableError. Since 5.2.2 that class is raised for a
+            # 404 or 410 on the EU Data Act portal's vehicle list as well as
+            # for 5xx answers, and "setup failed: UpstreamUnavailableError"
+            # does not say which. The reporter's log showed exactly that line,
+            # and nobody could tell from it whether the portal was down or had
+            # refused the list. A status code is not a secret; it is appended
+            # on its own, as the sign-in strategy line in cariad/api/base.py
+            # does (#1915), and NOT by un-redacting the message. Only an int
+            # is taken: a foreign exception may call anything "status".
+            _status = getattr(err, "status", None)
+            if isinstance(_status, int):
+                _detail += f" (HTTP {_status})"
             _LOGGER.error(
                 "VW Group Connect setup failed: %s%s "
                 "(message redacted, see DEBUG for details)",

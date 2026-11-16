@@ -65,7 +65,7 @@ def test_non_imported_volatile_state_is_not_carried() -> None:
 
 
 def test_an_imported_carry_forward_field_keeps_its_import_provenance() -> None:
-    # agy/Gemini finding: battery_soc is in CARRY_FORWARD_FIELDS, so its VALUE
+    # Review finding: battery_soc is in CARRY_FORWARD_FIELDS, so its VALUE
     # carries anyway — but the live-detector must be the fresh poll, not `merged`
     # (already set by the carry-forward loop), or the import's capture time/source
     # is dropped and the #1195 SoC guard reads it without provenance.
@@ -82,7 +82,7 @@ def test_an_imported_carry_forward_field_keeps_its_import_provenance() -> None:
 
 
 def test_reconcile_does_not_mutate_the_fresh_polls_nested_dicts() -> None:
-    # agy/Gemini finding: merged = dict(fresh) is a SHALLOW copy, so the carry
+    # Review finding: merged = dict(fresh) is a SHALLOW copy, so the carry
     # must not mutate fresh's nested provenance maps in place.
     fresh_fs: dict = {}
     fresh = {"vin": "X", "doors_open": None, "trunk_locked": None,

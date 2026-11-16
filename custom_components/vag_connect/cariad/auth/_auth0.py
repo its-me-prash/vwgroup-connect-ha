@@ -157,12 +157,13 @@ AUTH0_BRANDS: Final[Mapping[str, BrandConfig]] = {
 #:   independent owners reporting a working sign-in on a competing
 #:   implementation, one of them on a fresh setup rather than a re-auth.
 #:
-#: The app binaries argue for caution rather than against it. A string dump of
-#: the current We Connect, MyCupra and MySEAT builds (2026-11-09, with a
-#: counter-probe that hit ~24k-29k times, so the zeroes mean something) found
-#: **no** login provider for this route: the ``auth0`` strings in MyCupra and
-#: MySEAT are the ``com.auth0.android.jwt`` decoding library, and We Connect
-#: has none at all. Only the myAudi build ever carried the provider.
+#: The app binaries argue for caution rather than against it. MyCupra and MySEAT
+#: carry only the ``com.auth0.android.jwt`` decoding library, not a login
+#: provider for this route. We Connect 4.8.1 *does* carry a full Auth0 provider
+#: (``com.volkswagen.identitykit.auth0.*``, measured 2026-11-15) — but a live
+#: end-to-end test on a real Volkswagen account still fails at the token
+#: exchange (see :data:`AUTH0_DENIED`), so carrying the provider is not the same
+#: as being able to complete the sign-in off-device.
 #:
 #: So three of the four brands stay off until one real sign-in completes. A
 #: brand that offers a login which cannot finish spends somebody's evening and
@@ -192,14 +193,21 @@ AUTH0_TWOWAY: Final[frozenset[str]] = frozenset({"audi"})
 
 #: Reachable in this tenant but **never offered**: the sign-in page loads, yet
 #: the exchange cannot complete, so offering it would spend an owner's evening on
-#: a route that reads as our defect. Measured live on 2026-11-09/10: the
-#: Volkswagen client reaches ``/authorize`` but the ``localhost`` callback is
-#: answered *Callback URL mismatch* (302 to ``/v2/login/ui/error``) and the code
-#: exchange returns ``401 access_denied`` — the We Connect build carries no
-#: Auth0 login provider at all (string dump, ~24k-hit counter-probe). Kept in
-#: :data:`AUTH0_BRANDS` (the module still documents the route) but gated out of
-#: :func:`is_offered` even with ``include_unproven`` — a switch that could turn
-#: on a guaranteed failure would be a defect, not a feature.
+#: a route that reads as our defect. Measured live end-to-end on a real
+#: Volkswagen account on 2026-11-15, with the app's own callback
+#: ``weconnect://authenticated`` and a real, fresh code (not the 2026-11-09/10
+#: ``localhost`` probe, whose *Callback URL mismatch* was the wrong callback, not
+#: the wall): ``/authorize`` reaches ``/u/login`` and a code is issued, but every
+#: token exchange is refused. The direct tenant ``group.identity.vwgroup.io/
+#: oauth/token`` answers ``401 access_denied`` both with and without PKCE; the
+#: BFF ``/auth/v1/auth0/token`` answers ``400`` *client not in configuration*;
+#: and the app's own default (IDK) path demands a Play-Integrity assertion the
+#: BFF verifies upstream (``400 invalid assertion headers`` with none, ``502``
+#: with a placeholder). We Connect 4.8.1 carries the Auth0 provider, but the
+#: token mint is attestation-walled all the same. Kept in :data:`AUTH0_BRANDS`
+#: (the module still documents the route) but gated out of :func:`is_offered`
+#: even with ``include_unproven`` — a switch that could turn on a guaranteed
+#: failure would be a defect, not a feature.
 AUTH0_DENIED: Final[frozenset[str]] = frozenset({"volkswagen"})
 
 
@@ -207,20 +215,18 @@ AUTH0_DENIED: Final[frozenset[str]] = frozenset({"volkswagen"})
 class Route:
     """One way to reach the same browser sign-in, bound as a whole.
 
-    The pieces travel together because a cross-check of the design (two
-    independent model families, 2026-11-09) and RFC 6749 §4.1.3 agree on the
-    same point: the ``redirect_uri`` used at the token exchange must be byte-for
-    byte the one used at ``/authorize``. So the route is a sealed tuple, never
-    assembled from a user's choice or from a pasted URL — a mismatch must be
-    impossible rather than merely discouraged.
+    The pieces travel together because RFC 6749 §4.1.3 requires it: the
+    ``redirect_uri`` used at the token exchange must be byte-for-byte the one
+    used at ``/authorize``. So the route is a sealed tuple, never assembled
+    from a user's choice or from a pasted URL — a mismatch must be impossible
+    rather than merely discouraged.
 
     ``catchable`` records whether a desktop browser actually lands on the
     callback so the user can copy it. A custom app scheme (``weconnect://``,
     ``myaudi:///``) does **not** show in the address bar — the 302 to it leaves
     the browser on the previous page, and on a phone the native app intercepts
     it. Only an ``http://localhost`` style callback is copyable without
-    DevTools. This is the single most load-bearing fact for the step's UX and it
-    was the cross-check's sharpest finding.
+    DevTools. This is the single most load-bearing fact for the step's UX.
     """
 
     key: str  # "direct" | "bff"

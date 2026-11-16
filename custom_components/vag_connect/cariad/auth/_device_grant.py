@@ -550,12 +550,18 @@ DAG_ENABLED_BRANDS = frozenset({"audi", "seat", "cupra", "audi_na"})
 # /oidc/v1/device_authorization (HTTP 200, RFC-8628 response, expires_in=300,
 # interval=1; verification URI identity.na.vwgroup.io/oidc/device/aoa), and
 # (2) client 7c6b4634 (US Android live) IS device-code-capable there (also the
-# US iOS 61755a4f and Watch c07d4b3a clients returned 200). STILL OPEN: (3)
-# whether a device-grant token then READS na.bff — needs a real US account.
+# US iOS 61755a4f and Watch c07d4b3a clients returned 200). (3), whether a
+# device-grant token is then accepted by na.bff, is answered for the US:
+# audi_na.py and the 3.0.0 changelog entry for #13 record that on a US account
+# the token is accepted by the US data BFF once the request goes to the
+# regional host (vehicle discovery, tested live on a car). A live Canadian
+# read is the part that is still unconfirmed.
+# #1813 review finding: this note listed (3) as still open and in need of a
+# real US account, although that test was already in the changelog when the
+# note was written.
 # NOTE: the community "Audi Connect" project reads NA Audi data via the
 # PASSWORD/authorization-code path (no attestation on the reads); this DAG path
-# is the preferred clean-auth alternative — wired here, but its read-capability
-# on NA is the open question the password path does not have.
+# is the preferred clean-auth alternative.
 _NA_IDP_DEVICE_AUTH_URL = "https://identity.na.vwgroup.io/oidc/v1/device_authorization"
 _NA_IDP_TOKEN_URL = "https://identity.na.vwgroup.io/oidc/v1/token"
 

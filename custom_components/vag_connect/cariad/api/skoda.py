@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
+import re
 import time
 import uuid
 from typing import Any, Final
@@ -33,6 +34,49 @@ from ..models import BRAND_SKODA, VehicleData
 from .base import CariadBaseClient
 
 _LOGGER = logging.getLogger(__name__)
+
+# #2077 — charging-statistics ``primaryValue`` arrives as a display string
+# ("~ 16 kWh"). Strict full match: optional "~"/"≈", an integer or a decimal
+# with "." or "," as separator, then kWh. The fraction is capped at two digits
+# on purpose: three digits after a separator ("1,234 kWh", "12.345 kWh") read
+# as a decimal in one locale and as thousands in another, and a value that is
+# off by a factor of 1000 is worse than one that is left out. Nothing here
+# guesses — a string that does not match adds nothing.
+_KWH_STRING_RE: Final = re.compile(
+    r"^\s*[~≈]?\s*(\d+(?:[.,]\d{1,2})?)\s*kwh\s*$", re.IGNORECASE
+)
+
+
+def _charging_kwh(pv: Any) -> float | None:
+    """kWh from a charging-statistics value: {value, unit} object or string."""
+    if isinstance(pv, dict):
+        unit = str(pv.get("unit", "")).lower()
+        val = pv.get("value")
+        if (
+            unit in ("kwh", "kw_h")
+            and isinstance(val, (int, float))
+            and not isinstance(val, bool)
+        ):
+            return float(val)
+        return None
+    if isinstance(pv, str):
+        m = _KWH_STRING_RE.match(pv)
+        if m:
+            return float(m.group(1).replace(",", "."))
+    return None
+
+
+def _charging_details(entry: dict[str, Any]) -> dict[str, Any]:
+    """Session details: ``details`` (live shape), else legacy ``sessionDetails``.
+
+    An empty ``details`` does not count as present, so it cannot hide a
+    populated ``sessionDetails`` next to it.
+    """
+    for key in ("details", "sessionDetails"):
+        det = entry.get(key)
+        if isinstance(det, dict) and det:
+            return det
+    return {}
 _BASE = "https://mysmob.api.connect.skoda-auto.cz"
 
 # Official public-API key management (mysmob BFF, RE'd from MyŠkoda 8.16 —
@@ -977,12 +1021,13 @@ class SkodaClient(CariadBaseClient):
 
         Body shape:
             {
-              "started_after": "YYYY-MM-DD",
-              "started_before": "YYYY-MM-DD",
-              "selected_filter_options": [
-                {"filter_type": "VEHICLE", "vin": "<VIN>"}
+              "startedAfter": "YYYY-MM-DD",
+              "startedBefore": "YYYY-MM-DD",
+              "selectedFilterOptions": [
+                {"filterType": "VEHICLE", "vin": "<VIN>"}
               ],
-              "fetch_filter_options": true
+              "capabilities": [],
+              "fetchFilterOptions": true
             }
 
         Response shape (verified via myskoda PR #586):
@@ -1032,12 +1077,13 @@ class SkodaClient(CariadBaseClient):
             "X-Api-Version": "1",
         }
         body = {
-            "started_after": started_after,
-            "started_before": started_before,
-            "selected_filter_options": [
-                {"filter_type": "VEHICLE", "vin": vin},
+            "startedAfter": started_after,
+            "startedBefore": started_before,
+            "selectedFilterOptions": [
+                {"filterType": "VEHICLE", "vin": vin},
             ],
-            "fetch_filter_options": True,
+            "capabilities": [],
+            "fetchFilterOptions": True,
         }
         try:
             # We use the parent client's _request with explicit JSON
@@ -2464,28 +2510,32 @@ class SkodaClient(CariadBaseClient):
                     for entry in entries:
                         if isinstance(entry, dict):
                             all_entries.append(entry)
-            # Lifetime aggregate: sum primaryValue.value (kWh) across
-            # all entries when the value type is kWh.
-            total_kwh = 0.0
-            for entry in all_entries:
-                pv = entry.get("primaryValue") or {}
-                if isinstance(pv, dict):
-                    unit = str(pv.get("unit", "")).lower()
-                    val = pv.get("value")
-                    if unit in ("kwh", "kw_h") and isinstance(val, (int, float)):
-                        total_kwh += float(val)
-            if total_kwh > 0:
-                d.total_charged_energy_kwh = round(total_kwh, 2)
+            # #2077 — each session's energy is read below, but NO total is
+            # published from this endpoint. The request asks for the trailing
+            # ``days_back`` window (90 days), so a sum over the answer is not a
+            # lifetime counter — and ``total_charged_energy_kwh`` is a
+            # TOTAL_INCREASING energy sensor whose long-term statistics are
+            # built from its increases. MONOTONIC_INCREASING_FIELDS clamps the
+            # value so it cannot drop when a session ages out of the window,
+            # which means a window sum would rise once and then stall near its
+            # peak: with steady habits a new session adds about what an
+            # aged-out one removes, and the Energy dashboard would record
+            # almost no charging. Same reasoning as porsche.py ("WHY no
+            # total_charged_energy_kwh").
+            #
+            # This block used to sum the entries and call the result a
+            # "lifetime aggregate". It never was one, and nobody saw it: the
+            # request did not reach the backend until #2077. A true cumulative
+            # has to be built from the sessions themselves.
+            #
             # Last session = first entry (newest first per myskoda model).
             if all_entries:
                 last = all_entries[0]
-                pv_last = last.get("primaryValue") or {}
                 sv_last = last.get("secondaryValue") or {}
-                details = last.get("sessionDetails") or {}
-                if isinstance(pv_last, dict):
-                    last_kwh = pv_last.get("value")
-                    if isinstance(last_kwh, (int, float)):
-                        d.last_charging_session_kwh = float(last_kwh)
+                details = _charging_details(last)
+                last_kwh = _charging_kwh(last.get("primaryValue"))
+                if last_kwh is not None:
+                    d.last_charging_session_kwh = last_kwh
                 if isinstance(sv_last, dict):
                     last_min = sv_last.get("value")
                     if isinstance(last_min, (int, float)):
@@ -2493,24 +2543,27 @@ class SkodaClient(CariadBaseClient):
                 started_at = details.get("startedAt") if isinstance(details, dict) else None
                 if isinstance(started_at, str) and started_at:
                     d.last_charging_session_start = started_at
-                current_type = details.get("currentType") if isinstance(details, dict) else None
+                # #2077: live shape carries ``details.chargingPowerType``
+                # (myskoda PR #586 ChargingStatisticsSessionDetails).
+                current_type = details.get("currentType") or details.get(
+                    "chargingPowerType"
+                )
                 if isinstance(current_type, str) and current_type:
                     d.last_charging_session_current_type = current_type.upper()
                 # recent_charging_sessions = compact list of last 10
                 recent: list[dict[str, Any]] = []
                 for e in all_entries[:10]:
-                    e_pv = e.get("primaryValue") or {}
                     e_sv = e.get("secondaryValue") or {}
-                    e_det = e.get("sessionDetails") or {}
+                    e_det = _charging_details(e)
                     recent.append({
                         "started_at": (
                             e_det.get("startedAt")
                             if isinstance(e_det, dict) else None
                         ),
-                        "kwh": (
-                            e_pv.get("value")
-                            if isinstance(e_pv, dict) else None
-                        ),
+                        # One reader for both shapes, the same one the
+                        # last-session value uses: a {value, unit} object
+                        # counts only when its unit is kWh.
+                        "kwh": _charging_kwh(e.get("primaryValue")),
                         "duration_min": (
                             e_sv.get("value")
                             if isinstance(e_sv, dict) else None

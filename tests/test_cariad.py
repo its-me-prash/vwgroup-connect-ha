@@ -1168,7 +1168,12 @@ class TestVWEUCommands:
 
         Grounded in the decompiled We Connect EU app:
         - POST .../vehicle/v1/vehicles/{vin}/honkandflash
-        - body {"mode": "FLASH_ONLY", "duration": <int>}
+        - body {"mode": "flash", "duration_s": <int>}
+
+        ``mode`` carries the SERIAL name the apps put on the wire (``flash``,
+        ``honkandflash``), not the name of the enum constant (``FLASH_ONLY``,
+        ``HONK_AND_FLASH``). The enum serializer of myAudi 5.6.0 and of
+        We Connect 4.2.1 is built with exactly those two names.
         """
         client = self._client()
         asyncio.run(client.command_flash("VIN1"))
@@ -1182,7 +1187,7 @@ class TestVWEUCommands:
         assert url.endswith("/vehicle/v1/vehicles/VIN1/honkandflash")
         assert "vehicleLights/flash" not in url
         # Real body schema — mode enum value + integer duration, no "action".
-        assert body["mode"] == "FLASH_ONLY"
+        assert body["mode"] == "flash"
         # #752 — APK-grounded key is duration_s (@SerialName), not "duration".
         assert isinstance(body["duration_s"], int)
         assert "duration" not in body
@@ -1190,39 +1195,22 @@ class TestVWEUCommands:
         # Bare body first → no userPosition unless the backend 400s.
         assert "userPosition" not in body
 
-    def test_command_flash_retries_with_userposition_on_400(self):
-        """v2.15.5 — when the bare body is rejected with 400, retry with a
-        ``userPosition`` built from the caller-supplied coordinates."""
-        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
-        from custom_components.vag_connect.cariad.models import TokenSet
+    def test_command_flash_sends_the_position_with_the_first_request(self):
+        """A known position goes out with the FIRST request, in one send.
 
-        # First response 400 (bare body), second 204 (with userPosition).
-        resp_400 = AsyncMock()
-        resp_400.status = 400
-        resp_400.headers = {"Content-Type": "application/json"}
-        resp_400.json = AsyncMock(return_value={"error": "needs userPosition"})
-        resp_400.text = AsyncMock(return_value='{"error":"needs userPosition"}')
-        resp_400.__aenter__ = AsyncMock(return_value=resp_400)
-        resp_400.__aexit__ = AsyncMock(return_value=False)
-        resp_ok = AsyncMock()
-        resp_ok.status = 204
-        resp_ok.headers = {"Content-Type": "application/json"}
-        resp_ok.__aenter__ = AsyncMock(return_value=resp_ok)
-        resp_ok.__aexit__ = AsyncMock(return_value=False)
-        session = MagicMock()
-        session.request = MagicMock(side_effect=[resp_400, resp_ok])
-        client = VWEUClient(session, "u@t.de", "pw")
-        client._tokens = TokenSet("acc", "ref", "id")
-
+        ``userPosition`` is a required element of the apps' request
+        (``HonkAndFlashParameters`` in myAudi 5.8.1: ``duration_s``, ``mode``,
+        ``userPosition``, none of them optional), so the apps never send a
+        flash without it. An Audi S6 (C8) flashed once the request carried
+        the position."""
+        client, sent = self._flash_client([(204, "")])
         asyncio.run(
             client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
         )
 
-        assert session.request.call_count == 2
-        retry_body = session.request.call_args_list[1].kwargs["json"]
-        assert retry_body["mode"] == "FLASH_ONLY"
-        assert retry_body["userPosition"]["latitude"] == 48.1374
-        assert retry_body["userPosition"]["longitude"] == 11.5754
+        assert len(sent) == 1
+        assert sent[0]["mode"] == "flash"
+        assert sent[0]["userPosition"] == {"latitude": 48.1374, "longitude": 11.5754}
 
     def test_command_flash_400_without_coords_raises(self):
         """v2.15.5 — bare-body 400 + no coordinates → actionable APIError,
@@ -1245,6 +1233,78 @@ class TestVWEUCommands:
 
         with pytest.raises(APIError):
             asyncio.run(client.command_flash("VIN1"))
+
+    @staticmethod
+    def _flash_client(statuses_and_bodies):
+        """A client whose session answers in the given order, plus the bodies
+        it was sent. Each body is copied AT SEND TIME: ``command_flash`` adds
+        ``userPosition`` to the same dict, so the mock's own ``call_args`` would
+        show the position on the earlier sends too."""
+        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
+        from custom_components.vag_connect.cariad.models import TokenSet
+
+        responses = []
+        for status, text in statuses_and_bodies:
+            resp = AsyncMock()
+            resp.status = status
+            resp.headers = {"Content-Type": "application/json"}
+            resp.text = AsyncMock(return_value=text)
+            resp.__aenter__ = AsyncMock(return_value=resp)
+            resp.__aexit__ = AsyncMock(return_value=False)
+            responses.append(resp)
+        sent: list[dict] = []
+
+        def _send(*_args, **kwargs):
+            sent.append(dict(kwargs["json"]))
+            return responses.pop(0)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=_send)
+        client = VWEUClient(session, "u@t.de", "pw")
+        client._tokens = TokenSet("acc", "ref", "id")
+        return client, sent
+
+    # A 502 costs four sends: the first one plus the three 5xx retries of
+    # ``_request``, all with the same body.
+    _REQUEST_INCORRECT = (502, '{"error":{"code":2105}}')
+    _NO_SLEEP = "custom_components.vag_connect.cariad.api.base.asyncio.sleep"
+
+    def test_command_flash_refusal_with_the_position_is_final(self):
+        """A request that carried the position is not sent again in another
+        shape: the backend's own answer reaches the caller, code included."""
+        from custom_components.vag_connect.cariad.exceptions import (
+            APIError,
+            extract_safe_error_code,
+        )
+
+        client, sent = self._flash_client([self._REQUEST_INCORRECT] * 4 + [(204, "")])
+        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
+            with pytest.raises(APIError) as err:
+                asyncio.run(
+                    client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
+                )
+
+        assert err.value.status == 502
+        assert extract_safe_error_code(err.value.body) == "2105"
+        assert len(sent) == 4
+        assert all("userPosition" in body for body in sent)
+
+    def test_command_flash_request_incorrect_without_coords_keeps_the_error(self):
+        """No position known: nothing to add, so the backend's own answer is
+        what the caller gets, code included."""
+        from custom_components.vag_connect.cariad.exceptions import (
+            APIError,
+            extract_safe_error_code,
+        )
+
+        client, sent = self._flash_client([self._REQUEST_INCORRECT] * 4 + [(204, "")])
+        with patch(self._NO_SLEEP, new=AsyncMock(return_value=None)):
+            with pytest.raises(APIError) as err:
+                asyncio.run(client.command_flash("VIN1"))
+
+        assert err.value.status == 502
+        assert extract_safe_error_code(err.value.body) == "2105"
+        assert len(sent) == 4
 
     def test_command_wake(self):
         client = self._client()

@@ -1,0 +1,30 @@
+meta {
+  name: GET trips longterm last (#1805)
+  type: http
+  seq: 27
+}
+
+get {
+  url: {{base_url}}/vehicle/v1/trips/{{vin}}/longterm/last
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  #1805: the long-term counterpart of 26_GET_trips_shortterm_last. Asked
+  only after the short-term address returned a trip. Optional: a failure
+  here leaves the long-term values empty and does not fail the read.
+
+  Read from the app's request format. Not confirmed on a car.
+
+  Implementation: VWEUClient._fetch_trips_app_route() in
+  cariad/api/vw_eu.py. Audi inherits.
+}

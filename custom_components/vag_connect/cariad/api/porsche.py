@@ -33,6 +33,22 @@ _X_CLIENT   = "41843fb4-691d-4970-85c7-2673e8ecef40"
 # reference client uses ONE lib UA for both login and API reads); keep them
 # identical so Porsche sees a single consistent client.
 _USER_AGENT = "vag-connect-ha/4.7.13 (+https://github.com/its-me-prash/vwgroup-connect-ha)"
+# #2097 — say which content codings this client wants instead of inheriting
+# aiohttp's default. That default is not fixed: it is "gzip, deflate", plus
+# "br" when brotli is importable, plus "zstd" on Python 3.14, where the decoder
+# is in the standard library — so Home Assistant 2026.11 began offering codings
+# this client had never offered before, with no change on our side (this file
+# is byte-identical between the release that worked and the one that did not).
+# @Gaut666 measured the effect on a real account: with the offer narrowed back
+# to gzip and deflate the garage read works again; without it setup stops at
+# "No vehicles found". What the backend does with the wider offer is NOT
+# established — an unauthenticated probe answers gzip either way — so this pins
+# the two codings every aiohttp build decodes by itself and claims no more.
+_ACCEPT_ENCODING = "gzip, deflate"
+# The body ``_request`` gives an APIError when a read dies on the transient path
+# (status 0, three retries deep). ``get_status`` reads the class name back out
+# of it for diagnostics (#2099), so both sites share the one spelling.
+_TRANSIENT_PREFIX = "transient: "
 
 # v1.25.0 PR-B: storm-protection constants (mirror of base.py)
 _REFRESH_MAX_PER_HOUR = 3
@@ -486,15 +502,32 @@ class PorscheClient:
             # per VIN at WARNING; later polls stay at DEBUG.
             _kind = type(err).__name__
             _status = getattr(err, "status", None)
+            # #2099 — a read that dies on the transient path carries status 0,
+            # so the outcome used to be a bare "APIError": a payload that could
+            # not be decoded, a timeout and a refused connection were
+            # indistinguishable in a diagnostics file, and the class name only
+            # ever reached a DEBUG line. Read it back out of the body
+            # ``_request`` set. It is our own class name, never response text —
+            # and the identifier check keeps it that way if that ever changes.
+            _body = getattr(err, "body", "") or ""
+            _transient = ""
+            if not _status and _body.startswith(_TRANSIENT_PREFIX):
+                _name = _body[len(_TRANSIENT_PREFIX):]
+                if _name.isidentifier():
+                    _transient = _name
             # Lazy-init: tests (and the raw-response capture below) build the
             # client via __new__ without __init__.
             if not hasattr(self, "probe_outcomes"):
                 self.probe_outcomes = {}
             if not hasattr(self, "_status_warned"):
                 self._status_warned = set()
-            self.probe_outcomes["porsche_status"] = (
-                f"{_kind}:{_status}" if _status else _kind
-            )
+            if _status:
+                _outcome = f"{_kind}:{_status}"
+            elif _transient:
+                _outcome = f"{_kind}:transient:{_transient}"
+            else:
+                _outcome = _kind
+            self.probe_outcomes["porsche_status"] = _outcome
             # An auth failure is NOT "one bad read": ``_request`` has already
             # refreshed + retried (and fallen back to a full login) before it
             # raises this, so the token is dead. Let it reach the coordinator,
@@ -511,7 +544,9 @@ class PorscheClient:
                     "entities stay empty until a read succeeds. If this persists "
                     "check the car's Porsche Connect contract and attach "
                     "diagnostics to an issue.",
-                    vin[-6:], _kind, f" HTTP {_status}" if _status else "",
+                    vin[-6:], _kind,
+                    f" HTTP {_status}" if _status
+                    else (f" transient {_transient}" if _transient else ""),
                 )
             else:
                 _LOGGER.debug("Porsche get_status failed: %s", _kind)
@@ -1412,6 +1447,11 @@ class PorscheClient:
             "X-Client-ID":   _X_CLIENT,
             "User-Agent":    _USER_AGENT,
             "Accept":        "application/json",
+            # #2097 — set last and unconditionally: aiohttp's
+            # interpreter-dependent default never applies, and a caller's
+            # ``Accept-Encoding`` is overwritten. (Exact key only — this is a
+            # plain dict. No caller passes headers today.)
+            "Accept-Encoding": _ACCEPT_ENCODING,
         })
         try:
             async with self._session.request(
@@ -1474,7 +1514,7 @@ class PorscheClient:
                     method, url, retry=retry, _attempt=_attempt + 1, **kwargs,
                 )
             # drop the raw {err} — it would sit in self.body; class name suffices.
-            raise APIError(0, url, f"transient: {type(err).__name__}") from err
+            raise APIError(0, url, f"{_TRANSIENT_PREFIX}{type(err).__name__}") from err
 
     # v1.25.0 PR-B: rate-limit header capture (mirror of base.py:_capture_rate_limit_headers)
     def _capture_rate_limit_headers(self, headers: Any) -> None:

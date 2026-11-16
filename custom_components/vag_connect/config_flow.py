@@ -726,6 +726,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # EXISTING entry via Reconfigure. The QR finish/approve steps then UPDATE
         # this entry in place instead of creating a new one.
         self._mbb_reconfigure_entry_id: str | None = None
+        # The unique id Reconfigure worked out for that entry. The entry is
+        # updated only after the code sign-in, and that update needs it twice:
+        # to see that the account changed, and to store it on the entry.
+        self._mbb_reconfigure_unique_id: str | None = None
         # b15 — device-grant Audi MBB command-fallback opt-in
         # (async_step_audi_mbb_fallback). ``_dag_mbb_fallback`` tags the QR run so
         # browser_login_finish ATTACHES the durable bearer to an existing Audi
@@ -2105,9 +2109,30 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._mbb_reconfigure_entry_id
             )
             if entry is not None:
-                self.hass.config_entries.async_update_entry(
-                    entry, title=title, data=data
-                )
+                update: dict[str, Any] = {"title": title, "data": data}
+                unique_id = self._mbb_reconfigure_unique_id
+                if unique_id is not None:
+                    # #118: this exit of Reconfigure has to end like the plain
+                    # one. The token file is keyed by the entry, not by the
+                    # account, and a start that finds a stored set does not
+                    # sign in. After a switch to another account the entry
+                    # therefore went on reading the previous one. Emptied
+                    # here and not before the code sign-in: a sign-in that is
+                    # left or expires never gets here, and must not cost the
+                    # previous account its stored set. Emptied before the
+                    # update, because the reload that follows starts the
+                    # entry on whatever the file holds. The command tokens
+                    # are not in the file; they are in ``data``.
+                    if unique_id != entry.unique_id:
+                        await self._clear_token_store(entry.entry_id)
+                    # Named only when Reconfigure handed one over: Home
+                    # Assistant reads ``unique_id=None`` as "remove it".
+                    # Without it the entry kept the previous account's id,
+                    # and the next Reconfigure for the same account was taken
+                    # for another switch and rebuilt the data without the
+                    # command channel.
+                    update["unique_id"] = unique_id
+                self.hass.config_entries.async_update_entry(entry, **update)
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reconfigure_successful")
         return self.async_create_entry(title=title, data=data)
@@ -3381,6 +3406,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     and brand in ("volkswagen", "audi")
                 ):
                     self._mbb_reconfigure_entry_id = entry.entry_id
+                    self._mbb_reconfigure_unique_id = new_unique_id
                     self._pending_portal_data = merged
                     self._pending_portal_title = f"{_brand_label(brand)} — {username}"
                     self._dag_mbb = True
@@ -3401,6 +3427,25 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._dag_error = ""
                     return await self.async_step_browser_login_pending()
 
+                # #118. A changed account gets a clean rebuild of the entry's
+                # data above, because carrying the previous account's tokens
+                # forward would be wrong. The token file was not part of that:
+                # it is keyed by the entry, not by the account, so the reload
+                # found it, started no sign-in and went on reading the
+                # previous account until that account's refresh was refused.
+                # A changed brand is the same case with a set minted by
+                # another brand's client.
+                #
+                # Before the entry is updated, not after: the entry has an
+                # update listener, so the change itself can bring a reload.
+                # And before the Porsche save below, which writes the NEW
+                # account's set into the same file.
+                #
+                # Only for a changed account. New credentials for the same
+                # account keep the file; dropping a refreshable set on every
+                # credential update is what #118 was about.
+                if account_changed:
+                    await self._clear_token_store(entry.entry_id)
                 self.hass.config_entries.async_update_entry(
                     entry,
                     title=f"{_brand_label(brand)} — {username}",

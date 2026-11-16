@@ -54,6 +54,21 @@ def test_value_is_lower_camel(mode: str, expected: str) -> None:
     assert body == {"preferredChargeMode": expected}
 
 
+@pytest.mark.parametrize("mode,expected", [
+    ("immediate_discharging", "immediateDischarging"),
+    ("home_storage_charging", "homeStorageCharging"),
+    ("immediate_charging_obd", "immediateChargingOBD"),
+    ("IMMEDIATE_CHARGING_OBD", "immediateChargingOBD"),
+])
+def test_value_is_the_one_the_apps_carry(mode: str, expected: str) -> None:
+    """The eight values of the apps' ``ChargeModes.Mode`` (read from myAudi
+    5.8.1; the same literals are in We Connect 4.3.2). Seven are plain
+    lower-camelCase of the constant name. The eighth keeps ``OBD`` in capitals:
+    ``immediateChargingOBD``. ``immediateChargingObd`` is in neither app."""
+    _, body = _run(mode)
+    assert body == {"preferredChargeMode": expected}
+
+
 def test_key_is_preferred_charge_mode_not_chargemode() -> None:
     _, body = _run("timer")
     assert "chargeMode" not in body
