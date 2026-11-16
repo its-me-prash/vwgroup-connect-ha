@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **Diagnostics no longer show three account identifiers from the volkswagen.de relations read.** `mbbUserId`, `idKitUserId` and the per-vehicle `relationId` appeared in clear text in the raw-response section of the download; they are now replaced with `**REDACTED**`, as `userId` already was (the same read where #1828 masked the vehicle nickname). Diagnostics downloads made before this fix contain these identifiers. Deleting a comment that quotes one does not remove a file that was already uploaded, so if you shared a download earlier, remove the file itself.
+
 ## [5.4.0] - 2026-11-15 — "Staying signed in / Angemeldet bleiben"
 
 ### Hinzugefügt / Added
