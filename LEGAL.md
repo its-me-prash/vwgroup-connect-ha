@@ -28,8 +28,9 @@ As of June 2026 every token-based WeConnect auth route is closed to
 third-party tools (hybrid OIDC blocked, public-client code-exchange
 unsupported, device-grant disabled for the VW client). The integration's VW
 passenger-car path therefore uses the **EU Data Act portal**
-(`eu-data-act.drivesomethinggreater.com`) — the route VW must keep open under
-the Data Act. It is read-only, runs on a ~15-minute cadence, and requires the
+(`eu-data-act.vwgroup-datahub.com`; it moved there from
+`eu-data-act.drivesomethinggreater.com` on 16 November 2026) — the route VW
+must keep open under the Data Act. It is read-only, runs on a ~15-minute cadence, and requires the
 owner to enable a one-time "continuous data request" on the portal.
 
 The portal connector's login mechanics and `/proxy_api` endpoint paths were

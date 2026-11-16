@@ -1864,6 +1864,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             TwoFactorRequiredError,
             TokenRefreshRetryError,
             RateLimitError,
+            UpstreamUnavailableError,
         )
 
         # #1740 - the portal operator asked that requests to their domain carry a
@@ -2639,6 +2640,22 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     vins = await self._enumerate_via_eu_data_act_fallback()
                     if not vins:
                         raise
+            except UpstreamUnavailableError as _list_err:
+                # #2135 — the vehicle list answers 5xx (the portal moved on
+                # 2026-11-16 and its list endpoint returned 503 on the new
+                # host). An entry that already knows its cars starts with them
+                # instead of failing setup; nothing is pruned because
+                # ``_enum_ok`` stays False. A new setup has no cars to start
+                # with, so it still fails and retries.
+                vins = [v for v in self.vehicles if not str(v).startswith("_")]
+                if not vins:
+                    raise
+                _LOGGER.warning(
+                    "VW Group Connect: the vehicle list answered HTTP %s for "
+                    "%s — starting with the %d car(s) from the last successful "
+                    "start",
+                    _list_err.status, brand, len(vins),
+                )
             # #1628 — capture the authoritative account VIN set BEFORE the cache
             # fallback below, and ONLY from a genuine enumeration (get_vehicles);
             # never from the EU-DA fallback (can be partial) or the cache fallback.

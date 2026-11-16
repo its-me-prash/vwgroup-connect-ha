@@ -8,7 +8,7 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
     EUDataActConnector,
 )
 
-_PORTAL = "https://eu-data-act.drivesomethinggreater.com"
+_PORTAL = "https://eu-data-act.vwgroup-datahub.com"
 _CALLBACK = f"{_PORTAL}/services/callbacklogin"
 _AEM_CONTENT = f"{_PORTAL}/content/euda/de/de/user.html"
 

@@ -29,7 +29,7 @@ _VIN = "WVWZZZAUZFW000000"
 # (no 20+ char run, so the token scrubber leaves it be) to blow past the cap.
 _EMAIL = "chris.bamtam@example.com"
 _TOKEN = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
-_QUERY_URL = "https://eu-data-act.drivesomethinggreater.com/x?access_token=SEKRET99"
+_QUERY_URL = "https://eu-data-act.vwgroup-datahub.com/x?access_token=SEKRET99"
 _TAIL = "TAILENDMARKER"
 _BODY = (
     f"Rejected for VIN {_VIN} account {_EMAIL} token {_TOKEN} "

@@ -272,7 +272,7 @@ class _FakeSession:
         self.posts: list[dict[str, Any]] = []
 
     def get(self, url: str, **kw: Any) -> _FakeResp:
-        if url.endswith("/") and "drivesomethinggreater" in url:
+        if url.endswith("/") and "vwgroup-datahub" in url:
             return _FakeResp(url, text="<html>portal</html>")
         if "authorize" in url:
             return _FakeResp(
@@ -299,7 +299,7 @@ class _FakeSession:
         if "/login/authenticate" in url:
             # Successful credential POST lands back on the portal host.
             return _FakeResp(
-                "https://eu-data-act.drivesomethinggreater.com/dashboard",
+                "https://eu-data-act.vwgroup-datahub.com/dashboard",
                 status=200, text="<html>welcome</html>",
             )
         raise AssertionError(f"unmatched POST {url}")
@@ -414,7 +414,7 @@ async def test_login_bad_password_still_raises_auth_error() -> None:
             self.posts: list[dict[str, Any]] = []
 
         def get(self, url: str, **kw: Any) -> _FakeResp:
-            if url.endswith("/") and "drivesomethinggreater" in url:
+            if url.endswith("/") and "vwgroup-datahub" in url:
                 return _FakeResp(url, text="<html>portal</html>")
             if "authorize" in url:
                 return _FakeResp(

@@ -139,7 +139,7 @@ def test_401_dump_masks_uuid_in_cookie_name(caplog) -> None:
     c = _connector(
         [
             _Cookie(f"s_{uid}", "identity.vwgroup.io", "v"),
-            _Cookie("affinity", "eu-data-act.drivesomethinggreater.com", "lb"),
+            _Cookie("affinity", "eu-data-act.vwgroup-datahub.com", "lb"),
         ],
         bearer=None,
     )
@@ -150,7 +150,7 @@ def test_401_dump_masks_uuid_in_cookie_name(caplog) -> None:
     blob = caplog.text
     assert uid not in blob                              # UUID in the NAME masked
     assert "s_<uuid>@identity.vwgroup.io" in blob       # structure preserved
-    assert "affinity@eu-data-act.drivesomethinggreater.com" in blob
+    assert "affinity@eu-data-act.vwgroup-datahub.com" in blob
     assert "mode=cookie" in blob
     # derived fork-answer: only the LB cookie on the portal domain = anonymous
     assert "portal_domain_cookies=['affinity']" in blob

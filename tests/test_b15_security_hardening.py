@@ -60,7 +60,7 @@ def _connector(cookies):
     return c
 
 
-_PORTAL = "eu-data-act.drivesomethinggreater.com"
+_PORTAL = "eu-data-act.vwgroup-datahub.com"
 _IDP = "identity.vwgroup.io"
 
 
@@ -84,19 +84,19 @@ def test_not_anonymous_when_a_real_session_cookie_is_present() -> None:
 
 
 def test_not_anonymous_when_auth_cookie_is_parent_domain_scoped() -> None:
-    # a real session cookie scoped to the PARENT domain (.drivesomethinggreater.com)
+    # a real session cookie scoped to the PARENT domain (.vwgroup-datahub.com)
     # is still sent to the portal host → must count, must NOT false-flag anonymous.
     # (guards the substring-match bug the release-readiness pass caught)
     c = _connector([
         _Cookie("affinity", _PORTAL),
-        _Cookie("ath", ".drivesomethinggreater.com"),
+        _Cookie("ath", ".vwgroup-datahub.com"),
     ])
     assert c._portal_session_is_anonymous() is False
 
 
 def test_anonymous_when_only_lb_cookie_at_parent_domain() -> None:
     # affinity at the parent domain is still infra-only → anonymous
-    c = _connector([_Cookie("affinity", ".drivesomethinggreater.com")])
+    c = _connector([_Cookie("affinity", ".vwgroup-datahub.com")])
     assert c._portal_session_is_anonymous() is True
 
 
