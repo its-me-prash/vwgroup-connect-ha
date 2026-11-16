@@ -5744,6 +5744,14 @@ def map_dataset_to_vehicle_data(
         d.electric_range_km = None
         dist_src.pop("electric_range_km", None)
 
+    # #1970 — name the leaf the electric range came from. ``_record`` only runs
+    # for reads with ``record_as``, and this attribute is assigned from four
+    # chains (primary, secondary, headline, export) through ``dist_src``. The
+    # cache heal in vehicle_cache.py needs the name to tell a real electric
+    # range, carried over a poll that lacked one, from a stored combined figure.
+    if d.electric_range_km is not None and dist_src.get("electric_range_km"):
+        d.field_source_leaf["electric_range_km"] = dist_src["electric_range_km"]
+
     # v4.10.0 (#1661, @dasebi91) — base64 UDS envelopes. This car's portal feed
     # carried 43 values of which only 12 mapped; ten of the rest were whole UDS
     # diagnostic responses, and inside them sat the car's own displayed range, its
