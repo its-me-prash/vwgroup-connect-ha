@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **Škoda cars no longer get charging controls that cannot work (#2122).** The Charging Mode select and the Minimum Charge Level (Hybrid) slider were created on Škoda electric and plug-in cars, and the Battery care target slider on any Škoda that reports a care target, although the Škoda client cannot send any of these three settings. On a Škoda Elroq the select showed "unknown", offered six modes, and every choice failed with `NotImplementedError`. The check that decides whether a control is created counted a command the brand client only inherits as an empty placeholder as one it can send; it no longer does. An entry on the official Škoda API also no longer gets the Battery care switch and slider, because that API has no battery-care command. Controls of this kind that an earlier version already created are removed from Home Assistant when the integration next loads. Škoda's current charge mode is still shown by the Preferred charge mode diagnostic sensor.
+
 ## [5.4.0] - 2026-11-15 — "Staying signed in / Angemeldet bleiben"
 
 ### Hinzugefügt / Added
@@ -107,8 +111,6 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **The parking brake is asked for as its own status job (#2123).** The Audi app asks for a `parkingBrake` job and reads a true or false value from it. Until now the integration neither asked for the job nor read that shape. It does both now. The job goes out with the status request of every brand that reads through this client: Volkswagen, Volkswagen Commercial Vehicles, Audi in Europe and North America, and Bentley. An Audi S6 (C8) on the European host does not answer the job and still answers the other jobs. No other car and no other host was tried, so this is not confirmed on a car.
 
 - **A failed setup now says which HTTP status it was (#1964).** When setup stopped on a backend error, the log line named only the error class, for example `UpstreamUnavailableError`. That class covers a server error or a timeout (which it reports as 504) as well as the EU Data Act portal answering 404 or 410 for the vehicle list, so a pasted log could not tell the two apart. The line now carries the status, for example `UpstreamUnavailableError (HTTP 404)`. The error message itself stays out of the log, as before. Thanks to @Hollywoodchaos, whose log showed the gap.
-
-- **Škoda cars no longer get charging controls that cannot work (#2122).** The Charging Mode select and the Minimum Charge Level (Hybrid) slider were created on Škoda electric and plug-in cars, and the Battery care target slider on any Škoda that reports a care target, although the Škoda client cannot send any of these three settings. On a Škoda Elroq the select showed "unknown", offered six modes, and every choice failed with `NotImplementedError`. The check that decides whether a control is created counted a command the brand client only inherits as an empty placeholder as one it can send; it no longer does. An entry on the official Škoda API also no longer gets the Battery care switch and slider, because that API has no battery-care command. Controls of this kind that an earlier version already created are removed from Home Assistant when the integration next loads. Škoda's current charge mode is still shown by the Preferred charge mode diagnostic sensor.
 
 ## [5.3.0] - 2026-11-11 — "Through the front door / Durch die Vordertür"
 
