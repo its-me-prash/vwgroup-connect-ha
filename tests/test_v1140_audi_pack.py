@@ -318,8 +318,11 @@ class TestCapabilityMapEngineStart:
 
     def test_audi_has_engine_start(self):
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
-        assert cap_id_for("audi", "command_engine_start") == "engineRemoteStart"
-        assert cap_id_for("audi", "command_engine_stop") == "engineRemoteStart"
+        # ``engineControl`` is the id the myAudi app's engine start checks;
+        # the earlier guess ``engineRemoteStart`` stays as a second id.
+        expected = ("engineControl", "engineRemoteStart")
+        assert cap_id_for("audi", "command_engine_start") == expected
+        assert cap_id_for("audi", "command_engine_stop") == expected
 
     def test_volkswagen_does_not_have_engine_start(self):
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
