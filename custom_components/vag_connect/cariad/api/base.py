@@ -1346,6 +1346,22 @@ class CariadBaseClient:
         except Exception:  # noqa: BLE001
             self._image_data = {}
 
+    def supports_command(self, command_name: str) -> bool:
+        """#2122 — does this client really carry out ``command_name``?
+
+        The ``command_*`` methods below are placeholders that raise
+        NotImplementedError. A brand client that does not override one only
+        inherits it, so ``hasattr`` is true for a command it cannot send. The
+        coordinator asks this before it creates a control for a command
+        (``command_method_available``), the same question it asks the
+        companion client. It resolves the name the way the dispatcher does
+        (``getattr`` on the instance), so it judges the method that would run.
+        """
+        runs = getattr(self, command_name, None)
+        if runs is None:
+            return False
+        return getattr(runs, "__func__", runs) is not CariadBaseClient.__dict__.get(command_name)
+
     async def command_lock(self, vin: str) -> None:
         """Remote lock."""
         raise NotImplementedError
@@ -2146,7 +2162,9 @@ class CariadBaseClient:
                         self._session, client_id, scope=scope,
                         strategy="device_grant_portal",
                     )
-                    self._tokens = await grant.refresh(self._tokens.refresh_token)
+                    self._tokens = (
+                        await grant.refresh(self._tokens.refresh_token)
+                    ).keep_id_token_from(self._tokens)
                     if getattr(self, "_eu_portal", None) is not None:
                         self._eu_portal.set_bearer(self._tokens.access_token)
                     await self._notify_tokens_changed()
@@ -2217,9 +2235,12 @@ class CariadBaseClient:
                     #
                     # Only the cookies are carried, and only until a full
                     # sign-in captures newer ones. What else a refreshed set
-                    # should keep is a separate question (#1813).
+                    # should keep is a separate question (#1813); the id token
+                    # is kept when the answer has none (keep_id_token_from).
                     _sign_in_cookies = list(self._tokens.auth_cookies)
-                    self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                    self._tokens = (
+                        await self._auth.refresh(self._tokens.refresh_token)
+                    ).keep_id_token_from(self._tokens)
                     if _sign_in_cookies and not self._tokens.auth_cookies:
                         self._tokens.auth_cookies = _sign_in_cookies
                     # v1.19.2 (#118) — persist refreshed tokens so the

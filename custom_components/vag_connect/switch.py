@@ -12,7 +12,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
-from .entity_base import VagConnectEntity, register_dynamic_spawner
+from .entity_base import (
+    VagConnectEntity,
+    drop_unsendable_controls,
+    register_dynamic_spawner,
+)
 
 
 # b13 — platinum parallel-updates rule: the coordinator's background poll
@@ -49,6 +53,7 @@ async def async_setup_entry(
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
+        drop_unsendable_controls(hass, coordinator, "switch", vin)
         if _supported(vin, "command_lock"):
             entities.append(VagLockSwitch(coordinator, vin))
         if coordinator.is_companion():
@@ -92,12 +97,16 @@ async def async_setup_entry(
             if _supported(vin, "command_set_departure_timer"):
                 for timer_id in (1, 2, 3):
                     entities.append(VagDepartureTimerSwitch(coordinator, vin, timer_id))
-            # v2.18.0 — gate on the READ actually having produced a value, not
-            # on the client having the method: every brand inherits the command
-            # stub from the base client, so hasattr() is true even where it
-            # raises NotImplementedError. A car that reports battery-care state
-            # is a car whose backend has the feature.
-            if vehicle.get("battery_care_enabled") is not None:
+            # v2.18.0 — gate on the READ actually having produced a value: a
+            # car that reports battery-care state is a car whose backend has
+            # the feature. #2122 — and the client must be able to send it (the
+            # official Škoda API reads battery care but has no command for it).
+            # Method only, no capability gate: that would newly hide the switch
+            # on VW/Audi cars whose capability list is late or limited.
+            if (
+                vehicle.get("battery_care_enabled") is not None
+                and coordinator.command_method_available("command_set_battery_care")
+            ):
                 entities.append(VagBatteryCareSwitch(coordinator, vin))
             # v2.31.0 — Škoda auto-unlock the charging plug when charged. Read
             # (auto_unlock_when_charged) gates it; the command maps the boolean

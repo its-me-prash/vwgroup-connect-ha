@@ -3,6 +3,7 @@
 """Base entity class for all VW Group Connect entities."""
 
 from __future__ import annotations
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -20,6 +21,8 @@ from .const import (
     vehicle_unique_id,
 )
 from .coordinator import VagConnectCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 # Added in Home Assistant 2025.x; older cores (hacs.json allows 2024.4) lack it,
 # and there no state can match it.
@@ -535,3 +538,56 @@ def register_dynamic_spawner(
     _spawn()
     # Listener pass — new vehicles or wake-ups spawn on the next poll
     entry.async_on_unload(coordinator.async_add_listener(_spawn))
+
+
+#: #2122 — per platform, the controls earlier versions created for a client that
+#: only inherited the command's base-class placeholder, or had no such method at
+#: all: (entity key, command the control sends).
+UNSENDABLE_CONTROLS: dict[str, tuple[tuple[str, str], ...]] = {
+    "select": (("charge_mode_select", "command_set_charge_mode"),),
+    "number": (
+        ("min_soc", "command_set_min_soc"),
+        ("battery_care_target", "command_set_battery_care_target"),
+    ),
+    "switch": (("battery_care_switch", "command_set_battery_care"),),
+}
+
+
+def drop_unsendable_controls(
+    hass: Any, coordinator: VagConnectCoordinator, platform: str, vin: str,
+) -> None:
+    """#2122 — remove this entry's registry entries for controls it cannot send.
+
+    Spawning no longer creates these controls, but the spawner never removes an
+    entity, so one an earlier version created would stay behind as "no longer
+    provided". Only the client decides here (``command_method_available`` is
+    False), never the capability document, which can arrive late or carry a
+    transient status. Scoped to this config entry: a second entry for the same
+    car (e.g. Škoda next to the official Škoda API) shares the unique ids.
+    """
+    missing = [
+        key for key, command in UNSENDABLE_CONTROLS.get(platform, ())
+        if coordinator.command_method_available(command) is False
+    ]
+    if not missing:
+        return
+    from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+
+    entry = getattr(coordinator, "entry", None)
+    entry_id = getattr(entry, "entry_id", None)
+    companion = is_companion_entry_data(getattr(entry, "data", None))
+    registry = er.async_get(hass)
+    for key in missing:
+        entity_id = registry.async_get_entity_id(
+            platform, DOMAIN, vehicle_unique_id(vin, key, companion=companion)
+        )
+        if entity_id is None:
+            continue
+        reg_entry = registry.async_get(entity_id)
+        if reg_entry is None or reg_entry.config_entry_id != entry_id:
+            continue
+        _LOGGER.info(
+            "VW Group Connect: removing %s, this vehicle's client cannot send "
+            "its command (%s)", entity_id, dict(UNSENDABLE_CONTROLS[platform])[key],
+        )
+        registry.async_remove(entity_id)

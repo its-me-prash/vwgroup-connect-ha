@@ -38,7 +38,11 @@ from .const import (
 )
 from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
-from .entity_base import VagConnectEntity, register_dynamic_spawner
+from .entity_base import (
+    VagConnectEntity,
+    drop_unsendable_controls,
+    register_dynamic_spawner,
+)
 
 if TYPE_CHECKING:
     pass
@@ -224,6 +228,7 @@ async def async_setup_entry(
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
         drop_retired_climate(hass, coordinator, "number", vin)
+        drop_unsendable_controls(hass, coordinator, "number", vin)
         has_battery = vehicle.get("has_battery", False)
         for desc in NUMBER_DESCRIPTIONS:
             if desc.condition == "electric" and not has_battery:
@@ -237,12 +242,15 @@ async def async_setup_entry(
             ):
                 continue
             # v2.18.0 — gate on the READ having produced a value rather than on
-            # the brand: every client inherits the command stub from the base
-            # class, so a capability/hasattr check can't tell us who really has
-            # the feature. A car that reports a care target has it.
-            if (
-                desc.condition == "battery_care"
-                and vehicle.get("battery_care_target_soc_pct") is None
+            # the brand: a car that reports a care target has the feature.
+            # #2122 — and the client must be able to send the setting: Škoda
+            # reports the target but only inherits the placeholder, and the
+            # official Škoda API has no command for it at all.
+            if desc.condition == "battery_care" and (
+                vehicle.get("battery_care_target_soc_pct") is None
+                or not coordinator.command_method_available(
+                    "command_set_battery_care_target"
+                )
             ):
                 continue
             cmd_id = _CMD_ID.get(desc.key)
