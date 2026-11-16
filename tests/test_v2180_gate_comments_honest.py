@@ -158,7 +158,14 @@ def test_the_quota_trio_stays_out_of_the_gate() -> None:
 def test_hide_empty_is_the_gate_that_actually_hides_them() -> None:
     """The mechanism the comment now names must still be there and default on."""
     src = (_ROOT / "sensor.py").read_text(encoding="utf-8")
-    assert "if hide_empty and desc.key not in _REPORTER_KEYS and desc.data_key:" in src
+    # #2135 added an exemption for the electric-only plug_state key
+    # (_SPAWN_WITHOUT_DATA) to the condition; the gate itself is still the one
+    # in front of the None check.
+    assert (
+        "hide_empty\n                and desc.key not in _REPORTER_KEYS\n"
+        "                and desc.data_key\n"
+    ) in src
+    assert "_SPAWN_WITHOUT_DATA" in src
     # Default-on, read options-then-data (entry.options is blanked by the
     # update listener, so an options-only read would silently default).
     assert "entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True)" in src

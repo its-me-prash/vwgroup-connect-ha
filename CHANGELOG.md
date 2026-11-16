@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **Charging Cable Connected and Charging Port are now created as "unknown" on an electric car whose data has no plug state, instead of missing after a restart (#2135, #1739).** On a portal car that ships no plug field, the plug state stays empty unless the car is charging right now. Since 5.3.0 (the #1739 change, which stopped a scheduled charging plan from making an unplugged car look plugged in) that left the value empty, and the default-on option to hide entities without data then skipped both entities when Home Assistant restarted, so dashboards lost them. Both are now created for electric and plug-in hybrid cars even without data and show "unknown" until the car reports a plug state. The value itself is not changed: an empty plug state still stays empty, and the #1739 fix is untouched. Combustion cars still do not get these entities, and with the hide-empty option off nothing changes. This was a side effect of the 5.3.0 change for #1739, not something new in 5.4. Thanks to @pjbarnett for reporting it on #2135, and to @awood-ops for the #1739 report it relates to. Tested with unit tests on mocked vehicle data only; not tried on a real car.
+
 ## [5.4.1] - 2026-11-16 — "The portal moved / Das Portal ist umgezogen"
 
 ### Behoben / Fixed

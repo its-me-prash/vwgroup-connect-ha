@@ -4591,6 +4591,13 @@ _REPORTER_KEYS: frozenset[str] = frozenset({
     "error_reporter_count",
 })
 
+# Keys the default-on hide-empty gate must NOT skip on an electric car, so the
+# entity exists as "unknown" instead of vanishing after a restart. Since 5.3.0
+# (#1739) the mapper no longer infers the plug state from a scheduled charging
+# plan, so a portal car that ships no plug field keeps None here, and the gate
+# then dropped the entity (#2135). The value logic is unchanged: None stays None.
+_SPAWN_WITHOUT_DATA: frozenset[str] = frozenset({"plug_state"})
+
 # v1.10.0 (#94) — keys that require the field to be non-None at setup
 # time before the entity is created. Prevents phantom "unknown" entities
 # on vehicles whose API simply doesn't publish a particular range source.
@@ -5472,7 +5479,14 @@ async def async_setup_entry(
             # b3 — hide empty: skip data sensors with no value yet (reporters,
             # which read coordinator state with data_key="", are exempt). The
             # per-id spawner re-spawns the sensor when its value first arrives.
-            if hide_empty and desc.key not in _REPORTER_KEYS and desc.data_key:
+            # Keys in _SPAWN_WITHOUT_DATA stay (#2135); they are all
+            # condition="electric", so a combustion car never reaches this point.
+            if (
+                hide_empty
+                and desc.key not in _REPORTER_KEYS
+                and desc.data_key
+                and desc.key not in _SPAWN_WITHOUT_DATA
+            ):
                 _v = vehicle.get(desc.data_key)
                 if _v is None or (isinstance(_v, (list, dict)) and not _v):
                     continue

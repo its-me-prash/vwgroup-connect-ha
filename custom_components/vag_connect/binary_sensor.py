@@ -1169,6 +1169,13 @@ _CLOSED_INVERT_KEYS: frozenset[str] = frozenset({
     "roof_cover_closed",
 })
 
+# Keys the default-on hide-empty gate must NOT skip on an electric car, so the
+# entity exists as "unknown" instead of vanishing after a restart. Since 5.3.0
+# (#1739) the mapper no longer infers plug_connected from a scheduled charging
+# plan, so a portal car that ships no plug field keeps None here, and the gate
+# then dropped the entity (#2135). The value logic is unchanged: None stays None.
+_SPAWN_WITHOUT_DATA: frozenset[str] = frozenset({"plug_connected"})
+
 # v1.11.0 — same phantom-entity-prevention pattern as sensor.py.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # Companion (ADB) only: the timer page's Repeat switch. No cloud parser fills it.
@@ -1387,10 +1394,13 @@ async def async_setup_entry(
             ):
                 continue
             # b3 — broad hide-empty (None only, so a real False still shows).
+            # Keys in _SPAWN_WITHOUT_DATA are exempt (#2135); they are all
+            # condition="electric", so a combustion car never reaches this point.
             if (
                 hide_empty
                 and desc.data_key
                 and vehicle.get(desc.data_key) is None
+                and desc.key not in _SPAWN_WITHOUT_DATA
             ):
                 continue
             entities.append(VagConnectBinarySensor(coordinator, vin, desc))
