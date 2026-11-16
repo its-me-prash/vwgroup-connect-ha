@@ -568,8 +568,9 @@ _RAW_REDACT_KEYS = frozenset({
     # matched the exact ``userid`` above: ``user.mbbUserId``, ``user.idKitUserId``
     # and the per-vehicle ``relations[*].relationId``. All opaque, so no value
     # regex catches them. Plain redaction, like ``userid`` in this set: the raw
-    # branch checks this set before ``_HASH_KEYS``, and a pseudonym buys nothing
-    # in a section that is never cross-referenced between reports.
+    # branch checks this set before ``_HASH_KEYS``, the raw section is read for
+    # its structure, and the existing raw rule for ``userid`` already redacts
+    # fully, so these keys follow it.
     "mbbuserid", "idkituserid", "relationid",
     "gpscoordinates", "carcapturedgpscoordinates", "coordinates",
     "latitude", "longitude", "lat", "lng", "lon",
