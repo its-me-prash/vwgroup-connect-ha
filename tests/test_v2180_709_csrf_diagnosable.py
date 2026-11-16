@@ -143,7 +143,7 @@ class _HeaderResp(_Resp):
                  headers: dict[str, str] | None = None) -> None:
         super().__init__(status, payload)
         self.headers = headers or {}
-        self.url = "https://eu-data-act.drivesomethinggreater.com/de/en/user.html"
+        self.url = "https://eu-data-act.vwgroup-datahub.com/de/en/user.html"
 
 
 class _SeqSession:
@@ -224,7 +224,7 @@ async def test_authenticated_but_empty_does_not_retry(
     s = _seq_scraper(_HeaderResp(200, {}, {"x-sky-isauth": "1"}))
     assert await s._fetch_csrf_token() is None
     assert s._session.calls == [  # type: ignore[attr-defined]
-        "https://eu-data-act.drivesomethinggreater.com/libs/granite/csrf/token.json"
+        "https://eu-data-act.vwgroup-datahub.com/libs/granite/csrf/token.json"
     ]
     assert "authenticated at the AEM layer" in caplog.text
 
@@ -256,7 +256,7 @@ async def test_cookie_names_are_logged_but_never_values(
         _HeaderResp(200, {}, {"x-sky-isauth": "0"}),
     )
     s._session.cookie_jar = [  # type: ignore[attr-defined]
-        _Cookie("login-token", "eu-data-act.drivesomethinggreater.com"),
+        _Cookie("login-token", "eu-data-act.vwgroup-datahub.com"),
     ]
     await s._fetch_csrf_token()
     assert "login-token" in caplog.text

@@ -4,7 +4,7 @@
 
 This module is the in-house automated download layer that sits on top
 of ``_data_act_portal.py``. ``_data_act_portal.py`` performs the OAuth
-login against the portal at ``eu-data-act.drivesomethinggreater.com``
+login against the portal at ``eu-data-act.vwgroup-datahub.com``
 and yields a session cookie / TokenSet. This module then uses that
 authenticated session to fetch the actual vehicle-data payload that
 end users would otherwise download manually by clicking the "Get
@@ -98,7 +98,7 @@ _LOGGER = logging.getLogger(__name__)
 # canonical source for the host string; we duplicate it here rather
 # than import to keep the modules decoupled (the scraper is usable
 # in tests without spinning up the auth strategy).
-_PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
+_PORTAL_BASE = "https://eu-data-act.vwgroup-datahub.com"
 
 # v2.10.5 — verified live-trace endpoints captured 2026-06-03.
 # Custom Data Request lives under /proxy_api/euda-apim/ on the portal
@@ -864,6 +864,7 @@ class DataActScraper:
             return sorted({
                 c.key for c in self._session.cookie_jar
                 if "drivesomethinggreater" in (c["domain"] or "")
+                or "vwgroup-datahub" in (c["domain"] or "")
                 or "vwgroup" in (c["domain"] or "")
             })[:12]
         except Exception:  # noqa: BLE001

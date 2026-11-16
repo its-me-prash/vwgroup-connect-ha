@@ -124,7 +124,7 @@ class _LoginSession:
         self._landing_html = landing_html
 
     def get(self, url: str, **kw: Any) -> _FakeResp:
-        if url.endswith("/") and "drivesomethinggreater" in url:
+        if url.endswith("/") and "vwgroup-datahub" in url:
             return _FakeResp(url, text="<html>portal</html>")
         if "authorize" in url:
             return _FakeResp(

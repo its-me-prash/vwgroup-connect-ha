@@ -7,7 +7,8 @@ portal authentication flow. It is the third-tier fallback strategy in
 the multi-strategy auth resolver: it activates only when both the
 hybrid OIDC flow and the classic auth-code flow have failed.
 
-The portal lives at ``eu-data-act.drivesomethinggreater.com`` and is
+The portal lives at ``eu-data-act.vwgroup-datahub.com`` (moved from
+``eu-data-act.drivesomethinggreater.com`` on 2026-11-16) and is
 the Volkswagen Group's EU-Data-Act-compliance interface for end users
 who want to access their own vehicle data. Authentication is regular
 OAuth-style with the user's Brand ID account; no Play Integrity
@@ -108,7 +109,28 @@ def _safe_url(url: str) -> str:
 # the public Brand ID OAuth client registered for the consumer portal
 # at identity.vwgroup.io; it is visible in any browser's network
 # inspector when a user visits the portal's login page.
-_PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
+_PORTAL_BASE = "https://eu-data-act.vwgroup-datahub.com"
+# The portal's previous host; it answers 301 to the one above since 2026-11-16.
+_LEGACY_PORTAL_HOST = "eu-data-act.drivesomethinggreater.com"
+_PORTAL_HOSTS: frozenset[str] = frozenset({
+    (urlparse(_PORTAL_BASE).hostname or "").lower(),
+    _LEGACY_PORTAL_HOST,
+})
+
+
+def _is_portal_url(url: str) -> bool:
+    """True when the parsed, lower-cased host of *url* IS a portal host.
+
+    Exact equality against the known hosts only: a substring or suffix test
+    would accept the host name in a query string or a lookalike domain.
+    """
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    return host in _PORTAL_HOSTS
+
+
 _PORTAL_OIDC_CLIENT_ID = "9b58543e-1c15-4193-91d5-8a14145bebb0@apps_vw-dilab_com"
 _PORTAL_OIDC_SCOPE = "openid cars profile"
 _PORTAL_OIDC_REDIRECT_URI = f"{_PORTAL_BASE}/login"
@@ -118,7 +140,7 @@ _PORTAL_LOGIN_CALLBACK_PATH = "/services/callbacklogin"
 
 # Per-brand state-string suffix expected by the portal so it routes
 # users to the brand-specific landing area after login. Matches the
-# portal-side router shipped at eu-data-act.drivesomethinggreater.com.
+# portal-side router shipped at eu-data-act.vwgroup-datahub.com.
 # Country/language are passed in via the runtime call.
 _BRAND_STATE_FRAGMENTS = {
     "volkswagen": "VOLKSWAGEN_PASSENGER_CARS",
@@ -987,7 +1009,7 @@ class DataActPortalAuth:
                 # host instead of the portal callback.
                 needs_json = (
                     not callback_url
-                    or "drivesomethinggreater.com" not in callback_url
+                    or not _is_portal_url(callback_url)
                 )
                 if needs_json:
                     try:
@@ -1008,9 +1030,7 @@ class DataActPortalAuth:
                             "Data Act portal SPA POST (json) failed: %s (%s)",
                             type(exc).__name__, _safe_url(spa_post_url),
                         )
-                if not callback_url or (
-                    "drivesomethinggreater.com" not in callback_url
-                ):
+                if not callback_url or not _is_portal_url(callback_url):
                     raise AuthenticationError(
                         "Data Act portal: SPA password POST did not "
                         "complete (last status="
@@ -1111,7 +1131,7 @@ class DataActPortalAuth:
         from aiohttp import ClientTimeout  # noqa: PLC0415
 
         parsed = urlparse(callback_url)
-        host_ok = parsed.netloc.endswith("drivesomethinggreater.com")
+        host_ok = _is_portal_url(callback_url)
         if (
             not host_ok
             or "signin-service" in callback_url

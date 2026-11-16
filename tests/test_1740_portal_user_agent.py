@@ -106,7 +106,7 @@ def test_a_portal_json_request_identifies_itself():
     set_integration_version("4.11.1")
     try:
         conn, session = _connector()
-        _run(conn._get_json("https://eu-data-act.drivesomethinggreater.com/x"))
+        _run(conn._get_json("https://eu-data-act.vwgroup-datahub.com/x"))
     finally:
         set_integration_version("")
 
@@ -117,7 +117,7 @@ def test_a_portal_json_request_identifies_itself():
 def test_a_caller_supplied_agent_is_not_overridden():
     """setdefault, not assignment — a caller that needs its own agent keeps it."""
     conn, session = _connector()
-    _run(conn._get_json("https://eu-data-act.drivesomethinggreater.com/x",
+    _run(conn._get_json("https://eu-data-act.vwgroup-datahub.com/x",
                         headers={"User-Agent": "something/1.0"}))
 
     assert session.calls[0]["headers"]["User-Agent"] == "something/1.0"
@@ -126,7 +126,7 @@ def test_a_caller_supplied_agent_is_not_overridden():
 def test_the_bearer_header_survives_the_addition():
     conn, session = _connector()
     conn._bearer = "token-value"
-    _run(conn._get_json("https://eu-data-act.drivesomethinggreater.com/x"))
+    _run(conn._get_json("https://eu-data-act.vwgroup-datahub.com/x"))
 
     h = session.calls[0]["headers"]
     assert h["Authorization"] == "Bearer token-value"

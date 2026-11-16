@@ -48,11 +48,13 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
 )
 from custom_components.vag_connect.cariad.exceptions import AuthenticationError
 
-_PORTAL = "https://eu-data-act.drivesomethinggreater.com"
+_PORTAL = "https://eu-data-act.vwgroup-datahub.com"
 _IDENTITY = "https://identity.vwgroup.io"
 _CALLBACK = f"{_PORTAL}/services/callbacklogin"
 _USER_PAGE = f"{_PORTAL}/content/euda/de/de/user.html"
-_PORTAL_HOST = "eu-data-act.drivesomethinggreater.com"
+_PORTAL_HOST = "eu-data-act.vwgroup-datahub.com"
+# The portal's previous host: 301s to the new one since 2026-11-16.
+_LEGACY_HOST = "eu-data-act.drivesomethinggreater.com"
 
 
 # ── his TestIsUserPage table, verbatim ───────────────────────────────────────
@@ -73,6 +75,18 @@ _PORTAL_HOST = "eu-data-act.drivesomethinggreater.com"
         ("lookalike host", f"{_PORTAL}.example.org/content/euda/de/de/user.html", False),
         ("HTTP", f"http://{_PORTAL_HOST}/content/euda/de/de/user.html", False),
         ("relative", "/content/euda/de/de/user.html", False),
+        # since 2026-11-16 the page lives without the /content/euda prefix
+        ("new shape, German", f"{_PORTAL}/de/de/user.html", True),
+        ("new shape, English", f"{_PORTAL}/gb/en/user.html?next=/x#top", True),
+        ("new shape, missing country", f"{_PORTAL}/de/user.html", False),
+        ("new shape, extra segment", f"{_PORTAL}/de/de/de/user.html", False),
+        ("new shape, trailing slash", f"{_PORTAL}/de/de/user.html/", False),
+        ("new shape, lookalike filename", f"{_PORTAL}/de/de/notuser.html", False),
+        ("old shape, other page", f"{_PORTAL}/content/euda/de/de/login.html", False),
+        ("new shape, upper-case", f"{_PORTAL}/DE/de/user.html", False),
+        ("new shape, double slash", f"{_PORTAL}//de/de/user.html", False),
+        ("legacy host, new shape", f"https://{_LEGACY_HOST}/de/de/user.html", False),
+        ("legacy host, old shape", f"https://{_LEGACY_HOST}/content/euda/de/de/user.html", False),
     ],
 )
 def test_is_user_page(name: str, uri: str, want: bool) -> None:
@@ -103,10 +117,11 @@ class TestTheHostAllowlist:
 
     @pytest.mark.parametrize(
         "netloc",
-        ["identity.vwgroup.io", "eu-data-act.drivesomethinggreater.com",
-         "IDENTITY.VWGROUP.IO", "EU-Data-Act.DriveSomethingGreater.com"],
+        ["identity.vwgroup.io", "eu-data-act.vwgroup-datahub.com",
+         "IDENTITY.VWGROUP.IO", "EU-Data-Act.vwgroup-datahub.com",
+         _LEGACY_HOST, "EU-Data-Act.DriveSomethingGreater.com"],
     )
-    def test_the_two_real_hosts_in_any_case(self, netloc: str) -> None:
+    def test_the_real_hosts_in_any_case(self, netloc: str) -> None:
         assert _is_login_host(netloc) is True
 
     @pytest.mark.parametrize(
@@ -117,7 +132,12 @@ class TestTheHostAllowlist:
             ("prefix lookalike", "evil-identity.vwgroup.io.evil"),
             ("subdomain of the idp", "login.identity.vwgroup.io"),
             ("sibling vwgroup host", "other.vwgroup.io"),
-            ("portal lookalike", "eu-data-act.drivesomethinggreater.com.evil.tld"),
+            ("portal lookalike", "eu-data-act.vwgroup-datahub.com.evil.tld"),
+            ("sibling of the portal", "other.vwgroup-datahub.com"),
+            ("registrable domain only", "vwgroup-datahub.com"),
+            ("portal with explicit port", "eu-data-act.vwgroup-datahub.com:443"),
+            ("legacy lookalike", "eu-data-act.drivesomethinggreater.com.evil.tld"),
+            ("legacy sibling", "other.drivesomethinggreater.com"),
             ("explicit port", "identity.vwgroup.io:443"),
             ("empty", ""),
         ],
@@ -225,6 +245,7 @@ async def test_the_credentials_never_leave_in_the_refused_direction() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target", [
     f"{_PORTAL}/login",
+    f"https://{_LEGACY_HOST}/login",
     f"{_IDENTITY}/oidc/v1/oauth/client/callback",
 ])
 async def test_a_hop_inside_the_allowlist_is_still_followed(target: str) -> None:

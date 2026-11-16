@@ -67,7 +67,10 @@ from ._data_act_scraper import pick_active_15min_identifier
 
 _LOGGER = logging.getLogger(__name__)
 
-_PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
+_PORTAL_BASE = "https://eu-data-act.vwgroup-datahub.com"
+# The portal's previous host. It answers 301 to ``_PORTAL_BASE`` since
+# 2026-11-16; kept only as an exact allowlist entry (see ``_LOGIN_HOSTS``).
+_LEGACY_PORTAL_HOST = "eu-data-act.drivesomethinggreater.com"
 _IDENTITY_BASE = "https://identity.vwgroup.io"
 _AUTHORIZE_URL = f"{_IDENTITY_BASE}/oidc/v1/authorize"
 _PORTAL_REDIRECT_URI = f"{_PORTAL_BASE}/login"
@@ -95,8 +98,8 @@ _PORTAL_INFRA_COOKIES: frozenset[str] = frozenset({"affinity"})
 def _domain_covers_host(cookie_domain: str, host: str) -> bool:
     """True if a cookie scoped to *cookie_domain* would be sent to *host* — the
     cookie's domain is the host itself OR a parent of it. A bare substring test
-    misses a PARENT-domain cookie (e.g. ``.drivesomethinggreater.com`` for host
-    ``eu-data-act.drivesomethinggreater.com``) and would then false-flag a real
+    misses a PARENT-domain cookie (e.g. ``.vwgroup-datahub.com`` for host
+    ``eu-data-act.vwgroup-datahub.com``) and would then false-flag a real
     authenticated session as anonymous. (#1340 login-success hardening)
     """
     d = (cookie_domain or "").lstrip(".")
@@ -230,14 +233,20 @@ _MAX_LOGIN_REDIRECTS = 10
 _LOGIN_HOSTS: frozenset[str] = frozenset({
     (urlparse(_IDENTITY_BASE).netloc or "").lower(),
     (urlparse(_PORTAL_BASE).netloc or "").lower(),
+    # The old portal host 301s to the new one since 2026-11-16. Kept as an
+    # exact entry (no wildcard, no suffix match) for the transition: a hop to
+    # it receives nothing it did not receive before.
+    _LEGACY_PORTAL_HOST,
 })
 
 # The portal's authenticated landing page. The reference pins this shape in a
 # table (``TestIsUserPage``) and the lookalikes it rejects are the point:
 # ``/content/euda-other/…`` is not this prefix, ``notuser.html`` is not this
 # filename, and ``…/user.html/`` with a trailing slash is not this page either.
-_USER_PAGE_PREFIX = "/content/euda/"
-_USER_PAGE_SUFFIX = "/user.html"
+#
+# Since 2026-11-16 the page lives at ``/<lang>/<country>/user.html``; the
+# earlier ``/content/euda/<lang>/<country>/user.html`` shape is still accepted.
+_USER_PAGE_PATH_RE = r"(?:/content/euda)?/[a-z]{2}/[a-z]{2}/user\.html"
 
 # The two callbacks that complete the optional marketing-consent step without
 # granting anything. The reference validates scheme, host AND the exact path,
@@ -274,7 +283,7 @@ def _is_user_page(url: str) -> bool:
     if (parts.netloc or "").lower() != (urlparse(_PORTAL_BASE).netloc or "").lower():
         return False
     path = parts.path or ""
-    return path.startswith(_USER_PAGE_PREFIX) and path.endswith(_USER_PAGE_SUFFIX)
+    return re.fullmatch(_USER_PAGE_PATH_RE, path) is not None
 
 
 def _valid_marketing_callback(url: str) -> bool:

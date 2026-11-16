@@ -59,7 +59,7 @@ _CONSENT_URL = (
     "?hmac=QUERY_HMAC_NOT_A_BODY_FIELD&relayState=rs1"
     "&callback=https%3A%2F%2Fcb&scopes=profile%20cars"
 )
-_PORTAL_OK_LANDING = "https://eu-data-act.drivesomethinggreater.com/dashboard"
+_PORTAL_OK_LANDING = "https://eu-data-act.vwgroup-datahub.com/dashboard"
 
 
 # ── pure-parser unit tests ──────────────────────────────────────────────────
