@@ -214,6 +214,32 @@ _SELECTIVESTATUS_UNSERVED_STRIKES = 3
 _SELECTIVESTATUS_UNSERVED_TTL = timedelta(hours=6)
 
 
+_NOT_ENROLLED_CODE = 2104
+
+
+def _is_not_enrolled_404(err: APIError) -> bool:
+    """True only for HTTP 404 whose JSON body carries ``error.code == 2104``.
+
+    #2145 / #922: the BFF answers ``{"error":{"info":"Car is not enrolled
+    anymore.","code":2104,...}}`` for a car that left the account. The
+    structured code decides, never the message text; a non-JSON or differently
+    shaped body is simply not this case.
+    """
+    if err.status != 404:
+        return False
+    try:
+        payload = json.loads(str(getattr(err, "body", "") or ""))
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return False
+    code = error.get("code")
+    return isinstance(code, int) and not isinstance(code, bool) and code == _NOT_ENROLLED_CODE
+
+
 def _owner_nickname(value: Any, vin: str) -> str | None:
     """Return the owner-set nickname, or ``None`` if absent / equal to the VIN.
 
@@ -1122,6 +1148,25 @@ class VWEUClient(CariadBaseClient):
                 # wrapper-404 (retry:true / upstream) are NOT "car not served".
                 if "404 page not found" in _ss_body or is_cariad_wrapper_404(_ss_body):
                     raise
+                # #2145 / #922: code 2104 "Car is not enrolled anymore" is
+                # definitive, so back off on the FIRST hit (same 6 h as below),
+                # warn once and record nothing for the Error Reporter.
+                if _is_not_enrolled_404(err):
+                    _ss_first = vin not in self.selectivestatus_unserved_vins
+                    self._selectivestatus_unserved_until[vin] = (
+                        _ss_now + _SELECTIVESTATUS_UNSERVED_TTL
+                    )
+                    self.selectivestatus_unserved_vins.add(vin)
+                    _LOGGER.log(
+                        logging.WARNING if _ss_first else logging.DEBUG,
+                        "selectivestatus for %s: the backend reports this car "
+                        "as no longer enrolled for this account; backing off "
+                        "%dh. The car can be removed from the account or "
+                        "disabled in Home Assistant",
+                        vin[-6:],
+                        int(_SELECTIVESTATUS_UNSERVED_TTL.total_seconds() // 3600),
+                    )
+                    return VehicleData(vin=vin, no_data=True)
                 # A clean structured 404. Below the threshold, behave exactly as
                 # before (raise) so a one-off still surfaces and the hard-failure
                 # revive still runs; only a persistent run backs off.
