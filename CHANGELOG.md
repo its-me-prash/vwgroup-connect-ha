@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.4.1] - 2026-11-16 — "The portal moved / Das Portal ist umgezogen"
+
 ### Behoben / Fixed
 
 - **Diagnostics no longer show three account identifiers from the volkswagen.de relations read.** `mbbUserId`, `idKitUserId` and the per-vehicle `relationId` appeared in clear text in the raw-response section of the download; they are now replaced with `**REDACTED**`, as `userId` already was (the same read where #1828 masked the vehicle nickname). Diagnostics downloads made before this fix still contain these identifiers. GitHub offers no way for users to delete an uploaded attachment themselves; removal goes through GitHub Support at the request of the person who uploaded it.
