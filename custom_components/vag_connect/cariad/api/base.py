@@ -497,6 +497,22 @@ class CariadBaseClient:
         transparently. The 5-strategy storm-guard in _refresh_tokens
         prevents runaway loops.
         """
+        # #1964: while the client holds a browser (Auth0/PKCE) session, none of
+        # the strategies below may run, with or without a stored password.
+        # Attaching that sign-in to an entry keeps the entry's password on
+        # purpose (the portal channel signs in with it), so "has a password"
+        # says nothing about how the session in hand was made. Every strategy
+        # below would put a different session in its place and hand it to the
+        # token store, and none of them can renew a browser session. That
+        # session renews in ``_refresh_tokens`` and is replaced only by a new
+        # browser sign-in in the config flow. A fresh client, as the config
+        # flow builds for a credential sign-in, holds no session and is not
+        # affected. Kept apart from the passwordless guard further down: that
+        # one asks about the entry, this one about the session.
+        if getattr(self._tokens, "strategy", "") == "auth0":
+            from ..exceptions import DeviceLoginExpiredError  # noqa: PLC0415
+
+            raise DeviceLoginExpiredError("strategy=auth0")
         # Strategy descriptor: (kind, kwargs) where kind is "idk" for the
         # standard IDKAuth.authenticate path and "data_act_portal" for the
         # last-resort read-only fallback.
@@ -510,20 +526,29 @@ class CariadBaseClient:
         # portal-interaction problem, so a UK owner whose car cannot use the EU
         # Data Act portal at all was told to go and act in it, once an hour.
         #
-        # Gated on BOTH halves on purpose: no password AND a token set that came
-        # from a device login. A first-ever login has no tokens yet and must
-        # still be allowed through, and an entry that does have a password can
-        # legitimately retry, so neither is touched here.
-        if not self._password and getattr(self._tokens, "strategy", "") in (
-            "device_grant",
-            "device_grant_portal",
-            "mbb",
-            "auth0",  # #1712 — browser (Auth0/PKCE) sign-in, no password held
-        ):
+        # The gate is the missing password and nothing else. It used to ask the
+        # token set as well: ``strategy`` had to name a device login. That half
+        # is the one that failed. The ordinary refresh builds its new token set
+        # from the token response alone, so the tag is gone after the first
+        # renewal and is saved that way. From then on this guard saw an untagged
+        # set, stayed quiet, and the doomed logins ran after all. Asking the
+        # token set also said nothing where there is no token set to ask: a
+        # stored set that does not load, and the Volkswagen rollback in the
+        # coordinator, which discards one on purpose.
+        #
+        # Nothing that could succeed is stopped here. An entry with a password
+        # is not touched. The website sign-in is exempt, because its first step
+        # resumes the stored cookie session and needs no password. Every other
+        # entry that reaches this method without a password was created by a
+        # code or browser sign-in. Those renew their tokens in
+        # ``_refresh_tokens`` and get new ones only from the config flow, never
+        # from a strategy below, and the credential forms all require a password.
+        if not self._password and not self._use_website_proxy:
             from ..exceptions import DeviceLoginExpiredError  # noqa: PLC0415
 
+            _tag = getattr(self._tokens, "strategy", "") or "untagged"
             raise DeviceLoginExpiredError(
-                f"strategy={getattr(self._tokens, 'strategy', '')}"
+                "no token set" if self._tokens is None else f"strategy={_tag}"
             )
         # v2.14.0 — when authenticate() is re-driven with an OTP code (e.g. a
         # coordinator reauth for the website-authproxy channel), feed it to the
@@ -2195,7 +2220,24 @@ class CariadBaseClient:
 
             if self._tokens and self._tokens.refresh_token:
                 try:
+                    # The sign-in cookies ride on the token set: authenticate()
+                    # puts them there so they are saved with the tokens and
+                    # loaded back into the session on the next start. The
+                    # refresh answers with a token set built from the token
+                    # response alone, so taking it as it comes saved an empty
+                    # cookie list at the first refresh after every sign-in. A
+                    # running entry showed nothing, because the live session
+                    # still had the cookies; a restart after that refresh came
+                    # up without them. Review finding, measured in
+                    # tests/test_sign_in_cookies_survive_a_token_refresh.py.
+                    #
+                    # Only the cookies are carried, and only until a full
+                    # sign-in captures newer ones. What else a refreshed set
+                    # should keep is a separate question (#1813).
+                    _sign_in_cookies = list(self._tokens.auth_cookies)
                     self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                    if _sign_in_cookies and not self._tokens.auth_cookies:
+                        self._tokens.auth_cookies = _sign_in_cookies
                     # v1.19.2 (#118) — persist refreshed tokens so the
                     # next HACS update / HA restart picks up the
                     # already-valid session instead of re-running the

@@ -373,6 +373,27 @@ def test_a_passwordless_auth0_entry_is_told_to_sign_in_again() -> None:
         asyncio.run(c.authenticate())
 
 
+def test_an_auth0_entry_that_kept_its_password_is_told_to_sign_in_again_too() -> None:
+    """#1964: the browser sign-in attached to an entry keeps the stored
+    password (it is the portal channel's). ``_NoNet`` is the proof that the
+    password chain is not even started."""
+    c = _auth0_client(password="pw")
+    with pytest.raises(DeviceLoginExpiredError, match="auth0"):
+        asyncio.run(c.authenticate())
+    assert c._tokens.strategy == "auth0"
+
+
+def test_an_auth0_session_without_a_refresh_token_does_not_fall_to_the_password_login() -> None:
+    """#1964: the Auth0 refresh branch needs a refresh token. Without one the
+    method runs on to its last line, a fresh ``authenticate()``, which on an
+    entry with a password used to be the password chain."""
+    c = _auth0_client(password="pw")
+    c._tokens.refresh_token = ""
+    with pytest.raises(DeviceLoginExpiredError, match="auth0"):
+        asyncio.run(c._refresh_tokens(stale_access_token="STALE"))
+    assert c._tokens.strategy == "auth0"
+
+
 def test_the_auth0_branch_sits_before_the_generic_idk_refresh() -> None:
     """The generic branch — the LAST ``self._auth.refresh(`` in the method — is
     the IDK refresh that answers ``invalid assertion headers``; the Auth0
@@ -740,7 +761,7 @@ def test_the_strings_cover_every_new_key() -> None:
         assert "http" not in json.dumps(cfg["step"]["auth0"]), "no literal URLs in strings (hassfest)"
 
 
-# ── hardening after an adversarial cross-review (two model families) ──────────
+# ── hardening after review ────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize("err", ["unauthorized_client", "invalid_client", "INVALID_GRANT"])

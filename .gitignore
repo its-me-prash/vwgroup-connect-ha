@@ -27,7 +27,7 @@ tests/bruno/**/environments/*.local.bru
 scratch_*.js
 scripts/probe_*.py
 
-# pb-datenschutz — sensitive local artifacts, never commit
+# Sensitive local artifacts, never commit
 # Contains: real credentials, APK binaries, smali decompilation, forensic
 # captures, canary logs. Everything under _private/ stays on disk only.
 _private/

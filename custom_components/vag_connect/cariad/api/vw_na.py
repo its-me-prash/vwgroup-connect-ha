@@ -331,6 +331,13 @@ class VWNAClient:
         self._country  = country.lower()
         self._base     = _COUNTRY_BASES.get(self._country, _COUNTRY_BASES["us"])
         self._tokens: TokenSet | None = None
+        # #118. Token persistence hook, the same contract as the base client
+        # and the Porsche client: the coordinator assigns its storage's save
+        # here and calls ``set_persisted_tokens`` at setup. This client had
+        # neither half, so the assigned callback was never called and every
+        # setup run was a full sign-in against the rate-limited login.
+        # Signature: ``async def on_tokens_changed(tokens: TokenSet) -> None``.
+        self.on_tokens_changed: Any | None = None
         # v3.0.0 — raw NA responses for the diagnostics export, so a US/CA
         # reporter's "Download diagnostics" carries exactly what grounds a US
         # read-path issue (#1082 / #659). Redacted at export time.
@@ -485,6 +492,66 @@ class VWNAClient:
         # on every command.
         await self._capture_user_id()
         _LOGGER.debug("VW NA auth complete (%s)", self._country.upper())
+        await self._notify_tokens_changed()
+
+    def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
+        """Take the token set the coordinator loaded from storage (#118).
+
+        Called at setup, before the coordinator decides whether to sign in.
+        Only a set with a refresh token is taken: the access token of a stored
+        set has usually run out, and a set that cannot renew itself would leave
+        the client holding nothing usable while the coordinator skips the
+        sign-in. Nothing is sent here. The first read uses the stored access
+        token, a 401 on it goes through ``_refresh`` as it does in a running
+        session, and a refresh the server refuses ends in the same sign-in a
+        start without a stored set does.
+
+        The user id is filled from the stored id token. A restart has no
+        sign-in redirect to read it from, and without it the privileges read
+        and the S-PIN read session are skipped.
+        """
+        if tokens is None or not tokens.refresh_token:
+            return
+        self._tokens = tokens
+        if not self._user_id:
+            self._user_id = self._user_id_from_id_token()
+
+    async def _notify_tokens_changed(self) -> None:
+        """Hand the current token set to the storage hook, if one is set.
+
+        Called after a sign-in and after a successful refresh. A failing write
+        must never fail the sign-in it follows: the tokens in memory are good,
+        and the cost of a lost write is one sign-in at the next start.
+        ``getattr`` because tests build this client without ``__init__``.
+        """
+        hook = getattr(self, "on_tokens_changed", None)
+        if hook is None or self._tokens is None:
+            return
+        try:
+            await hook(self._tokens)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VW NA: token storage write failed (%s); the tokens in memory "
+                "stay valid and the next start signs in again",
+                type(err).__name__,
+            )
+
+    def _user_id_from_id_token(self) -> str | None:
+        """The ``sub`` claim of the current id token, decoded locally."""
+        if not self._tokens or not self._tokens.id_token:
+            return None
+        try:
+            import base64  # noqa: PLC0415
+            import json as _json  # noqa: PLC0415
+            payload_b64 = self._tokens.id_token.split(".")[1]
+            payload_b64 += "=" * (4 - len(payload_b64) % 4)
+            payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+            sub = payload.get("sub")
+            if isinstance(sub, str) and sub:
+                return sub
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("VW NA: could not decode id_token sub claim")
+        return None
 
     async def _capture_user_id(self) -> None:
         """v2.10.0 (Group C). Populate ``self._user_id``.
@@ -507,18 +574,11 @@ class VWNAClient:
         if self._auth.user_id:
             self._user_id = self._auth.user_id
             return
-        if self._tokens and self._tokens.id_token:
-            try:
-                import base64  # noqa: PLC0415
-                import json as _json  # noqa: PLC0415
-                payload_b64 = self._tokens.id_token.split(".")[1]
-                payload_b64 += "=" * (4 - len(payload_b64) % 4)
-                payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
-                sub = payload.get("sub")
-                if isinstance(sub, str) and sub:
-                    self._user_id = sub
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug("VW NA: could not decode id_token sub claim")
+        # Step 2 is shared with ``set_persisted_tokens`` so that a start from
+        # stored tokens addresses the same user a fresh sign-in does.
+        sub = self._user_id_from_id_token()
+        if sub:
+            self._user_id = sub
 
     @staticmethod
     def _jwt_exp(token: str) -> float | None:
@@ -2025,6 +2085,9 @@ class VWNAClient:
                     self._tokens.refresh_token,
                     code_verifier=self._tokens.code_verifier,
                 )
+                # #118. The refreshed set replaces the stored one, so a restart
+                # does not come back with a refresh token already spent.
+                await self._notify_tokens_changed()
                 return
             except TokenExpiredError:
                 pass

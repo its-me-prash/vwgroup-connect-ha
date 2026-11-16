@@ -48,7 +48,7 @@ wie deine HA-Integration. Du gibst Email + Password ein, kriegst `id_token`
 direkt im Terminal — fertig, kein HA-Detour nötig.
 
 ```bash
-cd "C:\Users\The Balan's Empire\vag-connect-ha"
+cd <pfad-zu-deinem-klon>
 python scripts/get_idk_token.py --brand vw --bruno
 ```
 

@@ -353,6 +353,20 @@ def _energy_ratio(fresh: dict[str, Any]) -> float | None:
     return None
 
 
+def _energy_reading_moved(fresh: dict[str, Any], previous: dict[str, Any]) -> bool:
+    """Whether the pack-energy figures differ from the previous poll's (#2096).
+
+    A flat portal delivery carries no usable capture time for the two energy
+    values, so the one sign that they are live is that they change from one poll
+    to the next. It is a weak sign: a change says the figure is new to us, not
+    when the car measured it. No figures in the previous poll means there is
+    nothing to compare with, and that is not evidence of movement.
+    """
+    then = _energy_ratio(previous)
+    now = _energy_ratio(fresh)
+    return then is not None and now is not None and now != then
+
+
 def _resolve_contested_soc(
     numeric: list[float],
     old_val: float,
@@ -825,9 +839,11 @@ def reconcile(
                 # #1195 — when this poll's SoC came from the single-occurrence,
                 # VALID battery_level_HV pair, it is already authoritative: do NOT
                 # let the contested LEAF candidates (which ship the live AND the
-                # frozen value under one capture time) override it. Leave
-                # soc_was_contested False so the energy-sanity guard below still
-                # catches a stale-high HV value (Fishermanjb .5, soc 94 vs 67%).
+                # frozen value under one capture time) override it.
+                # soc_was_contested stays False, so the energy-sanity guard below
+                # is still reached; it has its own gate for a VALID HV reading
+                # (#2096). The car that guard was built on (soc 94 vs 67 %) has
+                # no HV pair in its payload (#1195, diagnostic of 2026-08-20).
                 # #1231 — likewise skip when the SoC is owned by a LIVE channel
                 # (vw.de / MBB / …). contested_fields is written ONLY by the EU-DA
                 # batch feed, so on a multi-channel car these candidates are that
@@ -881,8 +897,47 @@ def reconcile(
     #     the batch energy can itself be a frozen stop-charging block, so comparing
     #     the two is apples-to-oranges. A live SoC is a fresh on-demand read and is
     #     never second-guessed here; the single-channel EU-DA case (soc AND energy
-    #     from the same feed, ``_fresh_soc_is_live`` False) still fires as before.
-    if not soc_was_contested and not _fresh_soc_is_live:
+    #     from the same feed, ``_fresh_soc_is_live`` False) still fires as before; and
+    #   * skipped when the SoC IS a VALID ``battery_level_HV`` reading (#2096,
+    #     jneuveglise). His CUPRA Born delivered HV 81 VALID after a night's
+    #     charge to a target of 80, next to energy contents of 39.1 / 78.5 kWh
+    #     (49.8 %); this guard turned the 81 into 50 on every poll after the
+    #     first. Nothing in that flat delivery dates the two energy values, so
+    #     nothing says the energy is the newer reading, and the VALID pair is the
+    #     one the rest of this function already treats as reliable.
+    #       - this poll's own VALID pair: never replaced. The price: a pair that
+    #         is itself wrong is no longer corrected on the poll that carries it;
+    #       - the recorded VALID reading, shown again because the poll has only
+    #         the leaf (held above) or no SoC at all (carried): replaced only
+    #         when the energy figures differ from the previous poll's. That is
+    #         what this guard did before on every such poll; it is kept for this
+    #         one case because nothing else releases a held reading downwards. A
+    #         change is the one sign of a live figure a delivery offers, and a
+    #         weak one, since it does not date the figure. With unchanged figures
+    #         the sensor would flip between the HV value and the ratio with every
+    #         delivery that happens to lack the pair.
+    #     Both tests read the VALUE, not only the flag. The flag can be True while
+    #     the charge level in hand is neither of the two: a level of unknown
+    #     provenance next to a True record, or a held value taken back out of the
+    #     poll. Those go through the guard as before, and so does every car that
+    #     never sent the pair (the car this guard was built on has none in its
+    #     payload: Fishermanjb's ID.4, #1195, diagnostic of 2026-08-20). A
+    #     dongle-held value is never this poll's pair, whatever the flag says,
+    #     and keeps its own handling below.
+    _soc_is_fresh_hv = (
+        _fresh_from_hv is True
+        and fresh.get("battery_soc") is not None
+        and not _fresh_soc_is_held
+    )
+    _soc_is_recorded_hv = (
+        _prev_from_hv is True
+        and not _soc_is_fresh_hv
+        and merged.get("battery_soc") == previous.get("battery_soc")
+    )
+    _hv_reading_stands = _soc_is_fresh_hv or (
+        _soc_is_recorded_hv and not _energy_reading_moved(fresh, previous)
+    )
+    if not soc_was_contested and not _fresh_soc_is_live and not _hv_reading_stands:
         _soc = merged.get("battery_soc")
         _sr = _energy_ratio(fresh)
         _cs = str(fresh.get("charging_state") or "").strip().upper()
