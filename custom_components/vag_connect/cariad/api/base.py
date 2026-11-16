@@ -1346,6 +1346,22 @@ class CariadBaseClient:
         except Exception:  # noqa: BLE001
             self._image_data = {}
 
+    def supports_command(self, command_name: str) -> bool:
+        """#2122 — does this client really carry out ``command_name``?
+
+        The ``command_*`` methods below are placeholders that raise
+        NotImplementedError. A brand client that does not override one only
+        inherits it, so ``hasattr`` is true for a command it cannot send. The
+        coordinator asks this before it creates a control for a command
+        (``command_method_available``), the same question it asks the
+        companion client. It resolves the name the way the dispatcher does
+        (``getattr`` on the instance), so it judges the method that would run.
+        """
+        runs = getattr(self, command_name, None)
+        if runs is None:
+            return False
+        return getattr(runs, "__func__", runs) is not CariadBaseClient.__dict__.get(command_name)
+
     async def command_lock(self, vin: str) -> None:
         """Remote lock."""
         raise NotImplementedError

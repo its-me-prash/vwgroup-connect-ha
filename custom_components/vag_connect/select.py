@@ -14,7 +14,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .companion.entity_twins import drop_retired_climate
 from .coordinator import VagConnectCoordinator
-from .entity_base import VagConnectEntity, register_dynamic_spawner
+from .entity_base import (
+    VagConnectEntity,
+    drop_unsendable_controls,
+    register_dynamic_spawner,
+)
 
 if TYPE_CHECKING:
     pass
@@ -161,6 +165,7 @@ async def async_setup_entry(
         entities: list = []
         # Companion: the climate entity's presets hold the Start mode.
         drop_retired_climate(hass, coordinator, "select", vin)
+        drop_unsendable_controls(hass, coordinator, "select", vin)
         if vehicle.get("has_battery"):
             # v3.0.0a1 — only if the client implements the command, else the
             # select raises AttributeError on change (companion/ADB has no
