@@ -353,6 +353,81 @@ def _energy_ratio(fresh: dict[str, Any]) -> float | None:
     return None
 
 
+# #2134 — release conditions for the #1195 partial-dataset hold. Without them a
+# car whose HV pair stopped arriving was held on the recorded value for good.
+#   * MARGIN — how much nearer to the fresh energy ratio one SoC must be than the
+#     other before the energy decides (a two-point difference is noise).
+#   * MAX_AGE — with no conclusive energy figures, a held value this much older
+#     than the leaf, while the car reported an odometer captured after the held
+#     value, is released. Only the stamp is compared, not the odometer value.
+_SOC_HOLD_RELEASE_MARGIN = 5.0
+_SOC_HOLD_MAX_AGE_S = 24 * 3600
+
+
+def _soc_hold_released(
+    fresh: dict[str, Any],
+    previous: dict[str, Any],
+    leaf: float,
+    held: float,
+) -> str | None:
+    """Evidence that the leaf-only SoC should replace the held HV value (#2134).
+
+    Returns a short human-readable reason, or ``None`` to keep holding.
+    An energy ratio nearer the held value vetoes every release (the frozen-leaf
+    case the hold exists for). Unparseable stamps are no evidence.
+    """
+    ratio = _energy_ratio(fresh)
+    if ratio is not None:
+        leaf_far = abs(leaf - ratio)
+        held_far = abs(held - ratio)
+        if leaf_far - held_far >= _SOC_HOLD_RELEASE_MARGIN:
+            return None  # veto: the energy agrees with the held value
+        if held_far - leaf_far >= _SOC_HOLD_RELEASE_MARGIN:
+            return (
+                f"energy content {ratio:.1f} % sits nearer the leaf {leaf:g} "
+                f"than the held {held:g}"
+            )
+    prev_ts = previous.get("field_captured_ts")
+    fresh_ts = fresh.get("field_captured_ts")
+    if not isinstance(prev_ts, dict) or not isinstance(fresh_ts, dict):
+        return None
+    held_ts = _as_aware_dt(prev_ts.get("battery_soc"))
+    leaf_ts = _as_aware_dt(fresh_ts.get("battery_soc"))
+    odo_ts = _as_aware_dt(fresh_ts.get("odometer_km"))
+    if held_ts is None or leaf_ts is None or odo_ts is None:
+        return None
+    age = (leaf_ts - held_ts).total_seconds()
+    if age >= _SOC_HOLD_MAX_AGE_S and odo_ts > held_ts:
+        return (
+            f"held value is {age / 3600:.0f} h older than the leaf and the "
+            "odometer was captured after it"
+        )
+    return None
+
+
+def _restore_soc_provenance(
+    merged: dict[str, Any], previous: dict[str, Any]
+) -> None:
+    """Give a held / carried ``battery_soc`` its own capture time and leaf (#2134).
+
+    ``merged`` starts as a shallow copy of ``fresh``, so its nested maps are
+    copied before writing. A recorded value without a stamp must not wear the
+    fresh leaf's stamp, so that one is dropped.
+    """
+    for key in ("field_captured_ts", "field_source_leaf"):
+        mine = merged.get(key)
+        if not isinstance(mine, dict):
+            mine = {}
+        mine = dict(mine)
+        theirs = previous.get(key)
+        if isinstance(theirs, dict) and "battery_soc" in theirs:
+            mine["battery_soc"] = theirs["battery_soc"]
+        else:
+            mine.pop("battery_soc", None)
+        if mine or key in merged:
+            merged[key] = mine
+
+
 def _energy_reading_moved(fresh: dict[str, Any], previous: dict[str, Any]) -> bool:
     """Whether the pack-energy figures differ from the previous poll's (#2096).
 
@@ -905,23 +980,59 @@ def reconcile(
     )
     _fresh_from_hv = merged.get("battery_soc_from_hv")
     _prev_from_hv = previous.get("battery_soc_from_hv")
+    _released = False
     if (
         _prev_from_hv is True
         and _fresh_from_hv is False
         and previous.get("battery_soc") is not None
         and not _fresh_soc_is_live
     ):
-        if merged.get("battery_soc") != previous.get("battery_soc"):
-            notes.append(
-                f"battery_soc {merged.get('battery_soc')} came from the leaf only "
-                f"(no HV pair this poll); held recorded {previous['battery_soc']} "
-                "(partial dataset, #1195)"
+        # #2134 — the hold used to be permanent: a car whose HV pair stopped
+        # arriving kept the recorded value for days, re-stamped with the
+        # leaf's capture time. Release on evidence the leaf is the newer truth.
+        _leaf_v = merged.get("battery_soc")
+        _held_v = previous.get("battery_soc")
+        _release_why: str | None = None
+        if (
+            isinstance(_leaf_v, (int, float)) and not isinstance(_leaf_v, bool)
+            and isinstance(_held_v, (int, float)) and not isinstance(_held_v, bool)
+        ):
+            _release_why = _soc_hold_released(
+                fresh, previous, float(_leaf_v), float(_held_v)
             )
-        merged["battery_soc"] = previous["battery_soc"]
+        if _release_why is not None:
+            _released = True
+            notes.append(
+                f"battery_soc {_leaf_v} from the leaf replaces the held "
+                f"{_held_v}: {_release_why} (hold released, #2134)"
+            )
+        else:
+            if merged.get("battery_soc") != previous.get("battery_soc"):
+                notes.append(
+                    f"battery_soc {merged.get('battery_soc')} came from the leaf "
+                    f"only (no HV pair this poll); held recorded "
+                    f"{previous['battery_soc']} (partial dataset, #1195)"
+                )
+            merged["battery_soc"] = previous["battery_soc"]
+            # the held value keeps its own capture time, leaf and ambiguity
+            _restore_soc_provenance(merged, previous)
+            _amb = merged.get("ambiguous_fields")
+            if isinstance(_amb, dict) and "battery_soc" in _amb:
+                _amb = dict(_amb)
+                _amb.pop("battery_soc", None)
+                merged["ambiguous_fields"] = _amb
+    elif (
+        fresh.get("battery_soc") is None
+        and previous.get("battery_soc") is not None
+        and merged.get("battery_soc") == previous.get("battery_soc")
+    ):
+        # carried forward: same rule, the value keeps the time it was captured
+        _restore_soc_provenance(merged, previous)
     # Provenance is sticky-True: a car that ever shipped a VALID HV pair reports
     # it normally, so remember that across partial polls (and across the carry-
-    # forward above, where the fresh poll had no SoC at all).
-    if _prev_from_hv is True or _fresh_from_hv is True:
+    # forward above, where the fresh poll had no SoC at all). A released car
+    # (#2134) follows the leaf from here on.
+    if (_prev_from_hv is True and not _released) or _fresh_from_hv is True:
         merged["battery_soc_from_hv"] = True
     # Position — carried as ONE group and only when the fresh poll has no
     # coordinates at all. Topping a fresh position up with the previous

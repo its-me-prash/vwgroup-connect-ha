@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **The HV state-of-charge hold from #1195 can now release, and the held value keeps its own capture time (#2134).** On a portal-only car whose `battery_level_HV` pair had stopped arriving, the last recorded HV value (55 %) was held for days while the leaf and the pack energy (358.5 of 523.0 kWh, 68.5 %) said 74 %, and the held value was shown with the leaf's fresh capture time, so it looked current. Reported by @sxiza84. The hold now lets go on either of two signals: the fresh energy content is at least 5 points nearer the leaf than the held value, or, when the energy figures do not clearly favour either value (or are absent), the held value is at least 24 hours older than the leaf and the odometer was captured after it. An energy ratio at least 5 points nearer the held value than the leaf still vetoes a release, so the frozen-leaf case #1195 was built for stays held. A released car follows the leaf from then on, and a held or carried value keeps its own capture time and source leaf. Tested with unit tests and the recorded #1195 datasets only; not tested on a car.
+
 ## [5.4.1] - 2026-11-16 — "The portal moved / Das Portal ist umgezogen"
 
 ### Behoben / Fixed
