@@ -48,11 +48,11 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
 )
 from custom_components.vag_connect.cariad.exceptions import AuthenticationError
 
-_PORTAL = "https://eu-data-act.drivesomethinggreater.com"
+_PORTAL = "https://eu-data-act.vwgroup-datahub.com"
 _IDENTITY = "https://identity.vwgroup.io"
 _CALLBACK = f"{_PORTAL}/services/callbacklogin"
 _USER_PAGE = f"{_PORTAL}/content/euda/de/de/user.html"
-_PORTAL_HOST = "eu-data-act.drivesomethinggreater.com"
+_PORTAL_HOST = "eu-data-act.vwgroup-datahub.com"
 
 
 # ── his TestIsUserPage table, verbatim ───────────────────────────────────────
@@ -103,11 +103,24 @@ class TestTheHostAllowlist:
 
     @pytest.mark.parametrize(
         "netloc",
-        ["identity.vwgroup.io", "eu-data-act.drivesomethinggreater.com",
-         "IDENTITY.VWGROUP.IO", "EU-Data-Act.DriveSomethingGreater.com"],
+        ["identity.vwgroup.io", "eu-data-act.vwgroup-datahub.com",
+         "IDENTITY.VWGROUP.IO", "EU-Data-Act.VWGroup-DataHub.com",
+         # #2135 — the pre-2026-11-16 host now 301s to the new one; a chain
+         # that still hops through it must be followed, not refused.
+         "eu-data-act.drivesomethinggreater.com",
+         "EU-Data-Act.DriveSomethingGreater.com"],
     )
-    def test_the_two_real_hosts_in_any_case(self, netloc: str) -> None:
+    def test_the_real_hosts_in_any_case(self, netloc: str) -> None:
         assert _is_login_host(netloc) is True
+
+    def test_the_portal_base_is_the_moved_host(self) -> None:
+        """#2135 — the login and data URLs are built on the new host."""
+        from custom_components.vag_connect.cariad.auth import _eu_data_act
+
+        assert _eu_data_act._PORTAL_BASE == "https://eu-data-act.vwgroup-datahub.com"
+        assert _eu_data_act._PORTAL_REDIRECT_URI.startswith(
+            "https://eu-data-act.vwgroup-datahub.com/"
+        )
 
     @pytest.mark.parametrize(
         ("name", "netloc"),
@@ -117,7 +130,7 @@ class TestTheHostAllowlist:
             ("prefix lookalike", "evil-identity.vwgroup.io.evil"),
             ("subdomain of the idp", "login.identity.vwgroup.io"),
             ("sibling vwgroup host", "other.vwgroup.io"),
-            ("portal lookalike", "eu-data-act.drivesomethinggreater.com.evil.tld"),
+            ("portal lookalike", "eu-data-act.vwgroup-datahub.com.evil.tld"),
             ("explicit port", "identity.vwgroup.io:443"),
             ("empty", ""),
         ],

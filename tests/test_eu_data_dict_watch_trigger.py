@@ -36,11 +36,11 @@ _classify = check_eu_data_dict._classify
 
 _V40_URLS = {
     "continuous": (
-        "https://eu-data-act.drivesomethinggreater.com/content/dam/datahub/pdf/"
+        "https://eu-data-act.vwgroup-datahub.com/content/dam/datahub/pdf/"
         "data-dictionary/251022_01_SVK_DataDictionary_V4.0_Continous_Data.pdf"
     ),
     "historical": (
-        "https://eu-data-act.drivesomethinggreater.com/content/dam/datahub/pdf/"
+        "https://eu-data-act.vwgroup-datahub.com/content/dam/datahub/pdf/"
         "data-dictionary/251022_01_SVK_DataDictionary_V4.0_Historical%20Data.pdf"
     ),
     "version": "4.0",

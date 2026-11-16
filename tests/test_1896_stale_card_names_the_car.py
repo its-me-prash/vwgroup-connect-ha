@@ -182,7 +182,7 @@ def test_no_opener_asserts_the_eu_data_act_as_the_cause(name: str, card: dict) -
 def test_every_language_points_at_the_portal_for_the_portal_case(
     name: str, card: dict
 ) -> None:
-    assert "drivesomethinggreater" in card["description"], name
+    assert "vwgroup-datahub" in card["description"], name
 
 
 @pytest.mark.parametrize("name,card", _cards())

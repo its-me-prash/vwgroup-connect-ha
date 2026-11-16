@@ -96,7 +96,7 @@ _SIGNIN_LANDING = (
     "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/authenticate"
     "?relayState=rs1"
 )
-_PORTAL_OK_LANDING = "https://eu-data-act.drivesomethinggreater.com/dashboard"
+_PORTAL_OK_LANDING = "https://eu-data-act.vwgroup-datahub.com/dashboard"
 _PORTAL_OK_HTML = "<html>logged in</html>"
 
 
@@ -137,7 +137,7 @@ class _LoginSession:
         self._accept = accept_landing
 
     def get(self, url: str, **kw: Any) -> _FakeResp:
-        if url.endswith("/") and "drivesomethinggreater" in url:
+        if url.endswith("/") and "vwgroup-datahub" in url:
             return _FakeResp(url, text="<html>portal</html>")
         if "authorize" in url:
             return _FakeResp(

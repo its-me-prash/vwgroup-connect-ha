@@ -98,7 +98,7 @@ _LOGGER = logging.getLogger(__name__)
 # canonical source for the host string; we duplicate it here rather
 # than import to keep the modules decoupled (the scraper is usable
 # in tests without spinning up the auth strategy).
-_PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
+_PORTAL_BASE = "https://eu-data-act.vwgroup-datahub.com"  # moved 2026-11-16 (#2135)
 
 # v2.10.5 — verified live-trace endpoints captured 2026-06-03.
 # Custom Data Request lives under /proxy_api/euda-apim/ on the portal

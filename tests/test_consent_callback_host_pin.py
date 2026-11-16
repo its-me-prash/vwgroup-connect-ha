@@ -40,7 +40,7 @@ from custom_components.vag_connect.cariad._util import (
 from custom_components.vag_connect.cariad.auth._eu_data_act import EUDataActConnector
 from custom_components.vag_connect.cariad.exceptions import MarketingConsentError
 
-_PORTAL_LANDING = "https://eu-data-act.drivesomethinggreater.com/dashboard"
+_PORTAL_LANDING = "https://eu-data-act.vwgroup-datahub.com/dashboard"
 _SIGNIN_HTML = (
     '<form action="/signin-service/v1/CLIENT/login/identifier">'
     '<input type="hidden" name="hmac" value="email_hmac">'
@@ -147,7 +147,7 @@ class _Session:
         self.unexpected: list[str] = []
 
     def get(self, url: str, **_kw: Any) -> _Resp:
-        if url.endswith("/") and "drivesomethinggreater" in url:
+        if url.endswith("/") and "vwgroup-datahub" in url:
             return _Resp(url, text="<html>portal</html>")
         if "authorize" in url:
             return _Resp(
@@ -210,7 +210,7 @@ class TestTheLegitimateShapesStillWork:
     @pytest.mark.asyncio
     async def test_a_callback_back_to_the_portal_itself(self) -> None:
         sess = await _login(
-            f"{_CONSENT}?callback=https://eu-data-act.drivesomethinggreater.com/cb",
+            f"{_CONSENT}?callback=https://eu-data-act.vwgroup-datahub.com/cb",
             _PORTAL_LANDING,
         )
         assert sess.unexpected == []

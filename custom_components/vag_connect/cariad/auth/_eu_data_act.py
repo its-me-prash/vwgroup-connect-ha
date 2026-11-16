@@ -67,7 +67,14 @@ from ._data_act_scraper import pick_active_15min_identifier
 
 _LOGGER = logging.getLogger(__name__)
 
-_PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
+# #2135 — the portal moved on 2026-11-16: the old host now answers every path
+# with a permanent redirect to ``eu-data-act.vwgroup-datahub.com``, and the
+# login chain lands there. The old host is kept as ``_LEGACY_PORTAL_BASE`` so a
+# chain that still hops through it (an identity provider holding the old
+# redirect URI, a bookmarked URL) is followed rather than refused; it is
+# VW-operated and only ever redirects to the new host.
+_PORTAL_BASE = "https://eu-data-act.vwgroup-datahub.com"
+_LEGACY_PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
 _IDENTITY_BASE = "https://identity.vwgroup.io"
 _AUTHORIZE_URL = f"{_IDENTITY_BASE}/oidc/v1/authorize"
 _PORTAL_REDIRECT_URI = f"{_PORTAL_BASE}/login"
@@ -230,6 +237,7 @@ _MAX_LOGIN_REDIRECTS = 10
 _LOGIN_HOSTS: frozenset[str] = frozenset({
     (urlparse(_IDENTITY_BASE).netloc or "").lower(),
     (urlparse(_PORTAL_BASE).netloc or "").lower(),
+    (urlparse(_LEGACY_PORTAL_BASE).netloc or "").lower(),
 })
 
 # The portal's authenticated landing page. The reference pins this shape in a

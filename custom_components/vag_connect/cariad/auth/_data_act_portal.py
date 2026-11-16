@@ -108,7 +108,25 @@ def _safe_url(url: str) -> str:
 # the public Brand ID OAuth client registered for the consumer portal
 # at identity.vwgroup.io; it is visible in any browser's network
 # inspector when a user visits the portal's login page.
-_PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
+# #2135 — moved from eu-data-act.drivesomethinggreater.com on 2026-11-16; the
+# old host permanently redirects here. Callback checks accept either domain.
+_PORTAL_BASE = "https://eu-data-act.vwgroup-datahub.com"
+# Leading dot: a host must be a subdomain of one of these, so a registrable
+# lookalike such as ``evilvwgroup-datahub.com`` does not pass.
+_PORTAL_DOMAINS = (".vwgroup-datahub.com", ".drivesomethinggreater.com")
+
+
+def _is_portal_url(url: str | None) -> bool:
+    """True when *url*'s host belongs to the portal (current or legacy domain).
+
+    Matches on the parsed host rather than a substring of the whole URL, so an
+    identity-provider URL that merely carries the portal in a query parameter
+    (``redirect_uri=…``) is not mistaken for the callback.
+    """
+    if not url:
+        return False
+    return (urlparse(url).netloc or "").lower().endswith(_PORTAL_DOMAINS)
+
 _PORTAL_OIDC_CLIENT_ID = "9b58543e-1c15-4193-91d5-8a14145bebb0@apps_vw-dilab_com"
 _PORTAL_OIDC_SCOPE = "openid cars profile"
 _PORTAL_OIDC_REDIRECT_URI = f"{_PORTAL_BASE}/login"
@@ -985,10 +1003,7 @@ class DataActPortalAuth:
                 # (matches the idk.py order). Triggered when the form
                 # attempt produced 4xx OR landed back on the identity
                 # host instead of the portal callback.
-                needs_json = (
-                    not callback_url
-                    or "drivesomethinggreater.com" not in callback_url
-                )
+                needs_json = not _is_portal_url(callback_url)
                 if needs_json:
                     try:
                         async with self._session.post(
@@ -1008,9 +1023,7 @@ class DataActPortalAuth:
                             "Data Act portal SPA POST (json) failed: %s (%s)",
                             type(exc).__name__, _safe_url(spa_post_url),
                         )
-                if not callback_url or (
-                    "drivesomethinggreater.com" not in callback_url
-                ):
+                if not _is_portal_url(callback_url):
                     raise AuthenticationError(
                         "Data Act portal: SPA password POST did not "
                         "complete (last status="
@@ -1111,7 +1124,7 @@ class DataActPortalAuth:
         from aiohttp import ClientTimeout  # noqa: PLC0415
 
         parsed = urlparse(callback_url)
-        host_ok = parsed.netloc.endswith("drivesomethinggreater.com")
+        host_ok = _is_portal_url(callback_url)
         if (
             not host_ok
             or "signin-service" in callback_url

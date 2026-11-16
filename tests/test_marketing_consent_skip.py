@@ -48,7 +48,7 @@ _TC_HTML = (
     '{"template":"terms-and-conditions",'
     '"error":{"errorCode":"terms.not.accepted"}}};</script>'
 )
-_PORTAL_OK_LANDING = "https://eu-data-act.drivesomethinggreater.com/dashboard"
+_PORTAL_OK_LANDING = "https://eu-data-act.vwgroup-datahub.com/dashboard"
 
 # A marketing-consent landing whose URL carries the OIDC callback (the skippable
 # case) vs one without it (the fallback case).
@@ -96,7 +96,7 @@ class _Session:
         self._cb = callback_landing
 
     def get(self, url: str, **kw: Any) -> _FakeResp:
-        if url.endswith("/") and "drivesomethinggreater" in url:
+        if url.endswith("/") and "vwgroup-datahub" in url:
             return _FakeResp(url, text="<html>portal</html>")
         if "authorize" in url:
             return _FakeResp(
