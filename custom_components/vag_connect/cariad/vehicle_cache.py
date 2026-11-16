@@ -488,9 +488,11 @@ def _heal_cached_combined_range(
 
     Then the leaf decides. Since this version the mapper names the leaf of the
     electric range and :func:`reconcile` carries the name along with a carried
-    value, and the mapper never delivers the combined figure on a car with
-    fuel, so a named value is kept. A value without a name was stored by
-    5.4.0 or earlier:
+    value. A value named after a real electric leaf is kept. A value named
+    after the combined leaf itself is dropped: a delivery without a fuel level
+    lets the mapper write the combined figure there, because its fuel guard
+    reads that one delivery only, and the name then records the phantom's
+    source. A value without a name was stored by 5.4.0 or earlier:
 
     * kept when it also sits on an engine's own range field: at fuel reserve
       the combustion range can read 0, a real electric range then equals the
@@ -499,8 +501,8 @@ def _heal_cached_combined_range(
     * if the portal delivered it in the last poll, dropped only when it equals
       that poll's ``range_km`` and that came from the combined leaf: the
       phantom was read from the same leaf in the same poll. 5.4.0 never
-      delivered the combined figure on a car with fuel, and a match with a
-      LATER poll's combined range is a coincidence, not proof. A snapshot
+      delivered the combined figure in a poll that reported fuel, and a match
+      with a LATER poll's combined range is a coincidence, not proof. A snapshot
       from before 5.1.0 names no leaf at all, so its phantom survives one
       poll and goes with the next under the rule below;
     * dropped when no channel owns it, because it was carried. Up to 5.4.0 the
@@ -539,7 +541,15 @@ def _heal_cached_combined_range(
     prev_leaves = previous.get("field_source_leaf")
     if not isinstance(prev_leaves, dict):
         prev_leaves = {}
-    if prev_leaves.get("electric_range_km") is not None:
+    named = prev_leaves.get("electric_range_km")
+    if named == _COMBINED_RANGE_LEAF:
+        # A delivery without a fuel level stores the combined figure under the
+        # combined leaf's own name (the mapper's fuel guard cannot fire there).
+        # That name is the phantom's source, not proof of an electric range.
+        previous = dict(previous)
+        previous.pop("electric_range_km", None)
+        return previous
+    if named is not None:
         return previous
     if cached in (previous.get("secondary_engine_range_km"),
                   previous.get("combustion_range_km")):

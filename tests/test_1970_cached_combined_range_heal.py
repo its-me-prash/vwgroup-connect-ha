@@ -219,6 +219,46 @@ def test_once_dropped_it_stays_gone() -> None:
     assert second["electric_range_km"] is None
 
 
+def _fuelless_q3(combined: int) -> dict[str, str]:
+    """A partial portal delivery of the same car without the fuel level: the
+    mapper's fuel guard cannot fire, so it writes the combined figure on
+    electric_range_km and names the combined leaf for it."""
+    return {_COMBINED: str(combined), "battery_level_HV.value": "50"}
+
+
+def test_a_figure_named_after_the_combined_leaf_is_not_proof() -> None:
+    """A delivery without fuel stores the combined figure under the combined
+    leaf's own name. A name is only proof when it is a real electric leaf;
+    the next poll that shows fuel drops it, and it stays gone.
+    FAILED before the fix: 150 kept for good, named 153e8c40."""
+    first = _stored(_poll(_fuelless_q3(150)))
+    assert first["electric_range_km"] == 150
+    assert first["field_source_leaf"]["electric_range_km"] == _COMBINED
+    second, _ = reconcile(first, _poll(_q3(150)))
+    assert second["electric_range_km"] is None
+    third, _ = reconcile(_stored(second), _poll(_q3(140)))
+    assert third["electric_range_km"] is None
+
+
+def test_a_carried_figure_named_after_the_combined_leaf_is_dropped() -> None:
+    """The same value after carry-forward took its owner: the name travelled,
+    the owner did not. FAILED before the fix: 150 kept."""
+    first = _stored(_poll(_fuelless_q3(150)))
+    owners = {k: v for k, v in first["field_sources"].items()
+              if k != "electric_range_km"}
+    carried = {**first, "field_sources": owners}
+    merged, _ = reconcile(carried, _poll(_q3(140)))
+    assert merged["electric_range_km"] is None
+
+
+def test_a_combined_leaf_figure_without_fuel_in_the_new_poll_is_carried() -> None:
+    """Without a fuel level in the fresh poll the heal does not run, so a car
+    that never reports fuel (a BEV, combined == electric) keeps its value."""
+    first = _stored(_poll(_fuelless_q3(300)))
+    merged, _ = reconcile(first, _poll(_fuelless_q3(300)))
+    assert merged["electric_range_km"] == 300
+
+
 # ── what must survive ───────────────────────────────────────────────────────
 
 
