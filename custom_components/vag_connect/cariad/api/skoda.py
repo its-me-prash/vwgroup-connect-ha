@@ -1714,8 +1714,14 @@ class SkodaClient(CariadBaseClient):
                 # clearly says unlocked → False, otherwise log + None.
                 up = lock_raw.upper()
                 _locked_values = {"YES", "LOCKED", "TRUE", "RELIABLE_LOCKED"}
+                # OPENED / TRUNK_OPENED (official spec, #131): YES means all
+                # supported doors AND trunk are locked+closed, so a door,
+                # bonnet or trunk standing open is not fully locked. Same
+                # reading as skoda_official (only YES is True). UNKNOWN
+                # stays unmapped -> None.
                 _unlocked_values = {
                     "NO", "UNLOCKED", "FALSE", "OPEN", "RELIABLE_UNLOCKED",
+                    "OPENED", "TRUNK_OPENED",
                 }
                 if up in _locked_values:
                     d.doors_locked = True
