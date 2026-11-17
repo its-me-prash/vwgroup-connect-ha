@@ -242,7 +242,16 @@ class SkodaOfficialClient:
         #   doors / windows / detail.trunk = OPEN | CLOSED | UNKNOWN.
         _dl = overall.get("doorsLocked") or overall.get("locked")
         if isinstance(_dl, str):
-            d.doors_locked = _dl.strip().upper() == "YES"
+            # #2164 (@matroeh) — only the states that say something. UNKNOWN is
+            # documented as "the system cannot determine the state"; reading it
+            # (or a value we do not know) as False made the live overlay replace
+            # a known "locked" from the primary channel with "unlocked". None is
+            # skipped by that overlay.
+            _dl_up = _dl.strip().upper()
+            if _dl_up == "YES":
+                d.doors_locked = True
+            elif _dl_up in ("NO", "OPENED"):
+                d.doors_locked = False
         _do = _to_bool_open(overall.get("doors"))
         if _do is not None:
             d.doors_open = _do
