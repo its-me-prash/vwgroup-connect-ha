@@ -13,8 +13,10 @@ module only turns an event into a small JSON-safe snapshot and a snapshot into
 a thin ``VehicleData``. It imports nothing from Home Assistant and never raises.
 
 Field names: DrivePulse webhook schema 1 (``schema/drivepulse-schema-1.json``
-at tag ``v0.1.3`` of ``davidedrivepulse/drivepulse-home-assistant``). The names
-were typed fresh from that schema; no code was taken over.
+at tag ``v0.2.0`` of ``davidedrivepulse/drivepulse-home-assistant``; the schema
+file is the same as at ``v0.1.3``). ``obd_at`` is in the trip events from
+DrivePulse 0.2.0 on. The names were typed fresh from that schema; no code was
+taken over.
 """
 
 from __future__ import annotations
@@ -66,11 +68,13 @@ def _parse_ts(value: Any) -> datetime | None:
         text = text[:-1] + "+00:00"
     try:
         dt = datetime.fromisoformat(text)
-    except ValueError:
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        # A time at the edge of the calendar overflows when moved to UTC; then
+        # only this time is unusable, not the whole event.
+        return dt.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
         return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
 
 
 def _clean_values(raw: Any, keys: dict[str, tuple[float, float, bool]]) -> dict[str, Any]:
@@ -112,10 +116,16 @@ def parse_event(data: Any, received_at: datetime) -> dict[str, Any] | None:
         if received_at.tzinfo is None:
             received_at = received_at.replace(tzinfo=timezone.utc)
         received = received_at.astimezone(timezone.utc)
-        # The dongle has no clock; sent_at is a phone's clock. A time in the
-        # future must not make a reading look fresher than it is.
-        sent = _parse_ts(data.get("sent_at"))
-        ts = min(sent, received) if sent is not None else received
+        # The dongle has no clock; obd_at and sent_at are the phone's clock.
+        # obd_at (DrivePulse 0.2.0 and later) is when the app last heard from
+        # the car, so it dates the reading; sent_at is when the app built the
+        # message. Older DrivePulse versions send no obd_at, and null means
+        # the car never answered: then sent_at dates it. The earliest usable
+        # time wins, which also caps a time in the future at the moment the
+        # event arrived and lets the earlier one decide if the two disagree
+        # (a reading made after the message was built cannot be true).
+        stamps = (_parse_ts(data.get("obd_at")), _parse_ts(data.get("sent_at")))
+        ts = min([received, *(t for t in stamps if t is not None)])
         return {"device_id": device_id, "ts": ts.isoformat(), "values": values}
     except Exception:  # noqa: BLE001 - foreign input must never break the bus handler
         return None
