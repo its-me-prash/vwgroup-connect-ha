@@ -140,7 +140,13 @@ class VagClimate(VagConnectEntity, ClimateEntity):
         # #2068 — the CABIN temperature, never the outside one. When the feed
         # carries no interior temperature this stays None and HA omits the
         # attribute, instead of implying the cabin is as cold as the street.
-        return self._vehicle.get("cabin_temp_c")
+        # ``cabin_temp`` (Celsius) is what the EU-portal mapper fills today;
+        # ``cabin_temp_c`` is the dedicated field a future channel may write
+        # and wins when set. ``is not None``: 0.0 is a real reading.
+        cabin = self._vehicle.get("cabin_temp_c")
+        if cabin is None:
+            cabin = self._vehicle.get("cabin_temp")
+        return cabin
 
     @property  # type: ignore[misc]  # #1965 — see the note on the class body
     def target_temperature(self) -> float | None:

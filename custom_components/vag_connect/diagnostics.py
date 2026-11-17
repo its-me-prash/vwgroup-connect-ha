@@ -107,6 +107,15 @@ _REDACT_KEYS = frozenset({
     "parking_map_url_light",
     "user_id",
     "account_id",
+    # The preferred service workshop: name, street address and phone identify
+    # a business near the owner's home, the same class as parking_address
+    # above. The three flat sensor fields and the composite dict they are
+    # split from (cariad/models.py) reached the download in cleartext. Only
+    # diagnostics reads this set, so the sensors keep their values.
+    "preferred_workshop",
+    "preferred_workshop_name",
+    "preferred_workshop_address",
+    "preferred_workshop_phone",
     # D#1231 — the volkswagen.de profile block is personal: the number plate
     # identifies the car, the owner-chosen nickname is personal, and the render
     # image URLs encode the exact model/colour/config. A tester rightly had to
@@ -616,6 +625,10 @@ _RAW_REDACT_KEYS = frozenset({
     # The dealer id. Not his data, but his reasoning is right and it is the same
     # class as parking_city above: "often in the area of the user".
     "dealerid",
+    # The wire containers the workshop is read from (skoda.py, seat_cupra.py,
+    # vw_eu.py): the block carries the workshop name in cleartext next to
+    # already-masked address and phone. Whole container, like the dealer id.
+    "preferredservicepartner", "servicepartner", "preferredworkshop",
     # #1832 — the wire spellings of render/map URL fields we already mask under
     # our own names. Unlike ``vehiclenick`` above, these three ARE live: the
     # Skoda widget body is a recorded raw channel (cariad/api/skoda.py:1480,

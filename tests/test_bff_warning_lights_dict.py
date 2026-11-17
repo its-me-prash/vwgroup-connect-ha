@@ -83,3 +83,78 @@ class TestChargingScenarioOnBff:
         raw = {"charging": {"chargingStatus": {"value": {"chargingScenario": "off"}}}}
         d = _parse(raw)
         assert d.charging_scenario == "OFF"
+
+
+class TestTyreWarningFromText:
+    """warning_tyre must not depend on the class word alone.
+
+    Real Audi shape: the class is the generic ``stoWarning`` and only the text says
+    it is a tyre pressure warning ("Loss of pressure (front left)! Please check all
+    tyres ..."). No language-independent code is known, so the text is matched with
+    narrow tyre/tire/Reifen terms (EN/DE); other account languages stay unrecognised.
+    """
+
+    @staticmethod
+    def _one(text: str, **cls: str):
+        return _parse(_raw({"warningLights": [{"text": text, **cls}], "campaigns": []}))
+
+    def test_audi_stowarning_tyre_text_sets_flag(self) -> None:
+        d = self._one(
+            "Loss of pressure (front left)! Please check all tyres and store "
+            "pressures in MMI",
+            type="stoWarning",
+        )
+        assert d.warning_active is True
+        assert d.warning_tyre is True
+
+    def test_us_spelling_and_german_text(self) -> None:
+        assert self._one("Check tire pressure", type="stoWarning").warning_tyre is True
+        assert self._one(
+            "Reifendruck prüfen!", category="stoWarning"
+        ).warning_tyre is True
+        assert self._one("Reifenpanne", type="stoWarning").warning_tyre is True
+
+    def test_other_stowarning_cases_are_not_tyre(self) -> None:
+        for text in (
+            "Check towing bracket",
+            "Oil pressure too low. Stop vehicle",
+            "Please check the entire system",
+            "Vehicle lights: fault. Please contact workshop",
+        ):
+            d = self._one(text, type="stoWarning")
+            assert d.warning_active is True
+            assert d.warning_tyre is False, text
+
+    def test_german_words_that_merely_contain_reifen_are_not_tyre(self) -> None:
+        # Lane-keeping and hands-on texts must not raise the tyre warning.
+        for text in (
+            "Fahrstreifen verlassen",
+            "Spurhalteassistent: Seitenstreifen erkannt",
+            "Bitte Hand ans Lenkrad greifen",
+            "Assistent ergreift keine Massnahme",
+        ):
+            assert self._one(text, type="stoWarning").warning_tyre is False, text
+
+    def test_text_under_message_key_is_read_too(self) -> None:
+        d = _parse(_raw({"warningLights": [{"message": "Check tyre pressure", "type": "stoWarning"}],
+                         "campaigns": []}))
+        assert d.warning_tyre is True
+
+    def test_only_the_tyre_entry_of_several_counts(self) -> None:
+        d = _parse(_raw({"warningLights": [
+            {"text": "Check towing bracket", "type": "stoWarning"},
+            {"text": "Reifendruck zu niedrig", "type": "stoWarning"},
+        ], "campaigns": []}))
+        assert d.warning_tyre is True
+        d = _parse(_raw({"warningLights": [
+            {"text": "Check towing bracket", "type": "stoWarning"},
+            {"type": "stoWarning"},
+        ], "campaigns": []}))
+        assert d.warning_tyre is False
+
+    def test_class_word_still_works_without_text(self) -> None:
+        assert self._one("", warningType="TIRE_PRESSURE").warning_tyre is True
+
+    def test_healthy_car_stays_false(self) -> None:
+        d = _parse(_raw({"warningLights": [], "campaigns": []}))
+        assert d.warning_tyre is False
