@@ -525,3 +525,54 @@ async def test_drivetrain_fit_passed_through():
     assert ev.fuel_level is None and ev.battery_soc == 70
     ice = hold.vehicle_data(VIN, has_battery=False, has_combustion=True)
     assert ice.fuel_level == 55 and ice.battery_soc is None
+
+
+async def test_a_reading_is_held_under_its_obd_at():
+    hass = _hass()
+    hold, _ = _hold(hass)
+    hold.async_start()
+    obd = T0 - timedelta(minutes=30)
+    hass.bus.fire(EVENT_TRIP_END, _payload(obd_at=obd.isoformat()))
+    vd = hold.vehicle_data(VIN, has_battery=False, has_combustion=True)
+    assert vd.field_captured_ts["fuel_level"] == obd.isoformat()
+
+
+async def test_hold_time_counts_from_obd_at():
+    hass = _hass()
+    hold, box = _hold(hass)
+    hold.async_start()
+    # Reading made 59 min before the event arrived; the hold is 60 min.
+    obd = T0 - timedelta(minutes=59)
+    hass.bus.fire(EVENT_TRIP_END, _payload(obd_at=obd.isoformat()))
+    box[0] = T0 + timedelta(seconds=30)
+    assert hold.has_fresh(VIN)
+    box[0] = T0 + timedelta(minutes=2)
+    assert not hold.has_fresh(VIN)
+
+
+async def test_hold_time_without_obd_at_counts_from_the_event():
+    hass = _hass()
+    hold, box = _hold(hass)
+    hold.async_start()
+    hass.bus.fire(EVENT_TRIP_END, _payload())
+    box[0] = T0 + timedelta(minutes=2)
+    assert hold.has_fresh(VIN)
+
+
+async def test_older_obd_at_does_not_replace_a_newer_reading():
+    hass = _hass()
+    hold, _ = _hold(hass)
+    hold.async_start()
+    newer = T0 - timedelta(minutes=10)
+    older = T0 - timedelta(minutes=40)
+    hass.bus.fire(
+        EVENT_TRIP_START, _payload(fuel_level_pct=40, obd_at=newer.isoformat()), when=T0
+    )
+    hass.bus.fire(
+        EVENT_TRIP_END,
+        _payload(fuel_level_pct=90, obd_at=older.isoformat()),
+        when=T0 + timedelta(minutes=1),
+    )
+    vd = hold.vehicle_data(VIN, has_battery=False, has_combustion=True)
+    assert vd.fuel_level == 40
+    assert vd.field_captured_ts["fuel_level"] == newer.isoformat()

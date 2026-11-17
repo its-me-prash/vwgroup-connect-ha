@@ -10,7 +10,8 @@ the lowest-trust source and so it survives a restart.
 Only the bus events are listened to. The sensors of the foreign integration
 are deliberately not read: after a restart their state timestamp is the time
 Home Assistant came up, which would make a weeks-old value look fresh. The
-event carries (or is stamped with) the time the reading was actually made.
+event carries (or is stamped with) the time the reading was actually made
+(``obd_at`` from DrivePulse 0.2.0, otherwise ``sent_at``).
 
 Readings are held per FIELD, each with its own time. One event rarely carries
 every field (a value the dongle could not read arrives as nothing), so taking

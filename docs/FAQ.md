@@ -379,7 +379,10 @@ A few things to know:
   one-time export.
 - DrivePulse knows no VIN, so you pick the car yourself. Pick the wrong one and
   it shows another car's values.
-- A reading is used for up to seven days. Removing the link removes its values.
+- A reading is dated by when DrivePulse last heard from the car (`obd_at`, from
+  DrivePulse 0.2.0), otherwise by when its app sent the message.
+- A reading is used for up to seven days, counted from that time. Removing the
+  link removes its values.
 - If none of your own channels answers, no new DrivePulse reading is taken
   over. One that is already shown stays visible for a while, like your other
   last known values. DrivePulse's own sensors keep working in that case.

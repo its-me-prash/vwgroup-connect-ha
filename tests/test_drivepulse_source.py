@@ -299,3 +299,65 @@ def test_all_fields_expired_gives_none():
     old = (NOW - timedelta(seconds=7300)).isoformat()
     snap = {"values": {"range_km": 300}, "stamps": {"range_km": old}}
     assert _build(snap) is None
+
+
+# --- obd_at: when the app last heard from the car (DrivePulse 0.2.0) ---------
+
+
+def test_obd_at_dates_the_reading():
+    out = parse_event(_event(obd_at="2026-10-10T07:40:00.000Z"), RECV)
+    assert out["ts"] == "2026-10-10T07:40:00+00:00"
+
+
+def test_obd_at_later_than_sent_at_falls_back_to_sent_at():
+    # A reading cannot be made after the message was built; the earlier wins.
+    out = parse_event(_event(obd_at="2026-10-10T08:03:00Z"), RECV)
+    assert out["ts"] == "2026-10-10T08:00:00+00:00"
+
+
+def test_future_obd_at_capped_to_receipt():
+    out = parse_event(_event(obd_at="2030-01-01T00:00:00Z", sent_at=None), RECV)
+    assert out["ts"] == RECV.isoformat()
+    out = parse_event(_event(obd_at="2030-01-01T00:00:00Z"), RECV)
+    assert out["ts"] == "2026-10-10T08:00:00+00:00"
+
+
+def test_obd_at_offset_and_naive():
+    out = parse_event(_event(obd_at="2026-10-10T09:00:00+02:00"), RECV)
+    assert out["ts"] == "2026-10-10T07:00:00+00:00"
+    out = parse_event(_event(obd_at="2026-10-10T07:30:00"), RECV)
+    assert out["ts"] == "2026-10-10T07:30:00+00:00"
+
+
+@pytest.mark.parametrize("bad", [None, "", "nonsense", 1760000000, 5, [], "x"])
+def test_unusable_obd_at_uses_sent_at(bad):
+    out = parse_event(_event(obd_at=bad), RECV)
+    assert out["ts"] == "2026-10-10T08:00:00+00:00"
+
+
+@pytest.mark.parametrize("extreme", ["0001-01-01T00:00:00+05:00", "9999-12-31T23:59:59-05:00"])
+def test_obd_at_out_of_range_keeps_the_event(extreme):
+    # Converting such a time to UTC overflows. Only the time is unusable, so
+    # the message time dates the reading and the values are kept.
+    out = parse_event(_event(obd_at=extreme), RECV)
+    assert out is not None
+    assert out["ts"] == "2026-10-10T08:00:00+00:00"
+    assert out["values"]["fuel_level"] == 55
+
+
+def test_obd_at_without_sent_at_uses_obd_at():
+    out = parse_event(_event(sent_at=None, obd_at="2026-10-10T07:50:00Z"), RECV)
+    assert out["ts"] == "2026-10-10T07:50:00+00:00"
+
+
+def test_event_without_obd_at_key_is_unchanged():
+    # DrivePulse before 0.2.0 sends no obd_at key at all.
+    data = _event()
+    assert "obd_at" not in data
+    assert parse_event(data, RECV)["ts"] == "2026-10-10T08:00:00+00:00"
+
+
+def test_snapshot_has_no_obd_at_key():
+    out = parse_event(_event(obd_at="2026-10-10T07:40:00Z"), RECV)
+    assert set(out) == {"device_id", "ts", "values"}
+    assert "obd_at" not in json.dumps(out)
