@@ -196,8 +196,9 @@ CONF_KEEP_RAW_DATASETS        = "keep_raw_datasets"
 CONF_READ_ONLY                = "read_only_mode"
 # v1.14.0 (#29 + #51 Facelift) — PPE/PPC Climate body conditional.
 # Audi-only option (default False). When True, ``command_start_climate``
-# uses the PPE body shape — ``climatisationMode: "comfort"`` mandatory,
-# ``targetTemperature*`` MUST BE OMITTED (upstream PR #644 + #677).
+# starts without a request body, so the car applies its own settings
+# (#912/#1403, confirmed by Q6 e-tron owners); ``command_start_climate_control``
+# does the same when the call names no setting.
 # Auto-detection from VIN/model/year is unreliable (no public PPE list);
 # user-overridable until we have a proper detection mechanism.
 CONF_FORCE_PPE_CLIMATE        = "force_ppe_climate"

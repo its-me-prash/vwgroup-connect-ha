@@ -32,11 +32,10 @@ docs {
    "climatisationWithoutExternalPower": true, "windowHeatingEnabled": true}.
 
   v1.14.0 (#29 PPE/PPC Klima) — Audi Q6/A6 e-tron + RS e-tron GT
-  Facelift + A3 2024+ PHEV require new body shape:
-    {"climatisationMode": "comfort",
-     "climatisationWithoutExternalPower": true,
-     "windowHeatingEnabled": true}
-  (NO targetTemperature). User opts in via CONF_FORCE_PPE_CLIMATE.
+  Facelift + A3 2024+ PHEV: user opts in via CONF_FORCE_PPE_CLIMATE.
+  #912/#1403 — in that mode the request is sent with NO body at all and the
+  car applies its own settings (confirmed by Q6 e-tron owners; every body
+  variant was accepted by the backend and failed in the car).
 
   Implementation: VWEUClient.command_start_climate(vin, ppe_mode=False)
   in cariad/api/vw_eu.py:258. Audi inherits.

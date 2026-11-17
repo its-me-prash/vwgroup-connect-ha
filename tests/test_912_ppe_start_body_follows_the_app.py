@@ -1,6 +1,13 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""#912: the PPE climate start sends the car's own settings, as the Audi app does.
+"""#912: the PPE climate start with settings builds on the car's own settings.
+
+#912/#1403: a PPE start that carries NO settings now goes out without a request
+body (see test_912_ppe_start_without_body.py); the tests below cover the body
+that is still built, for the start that carries settings (the rich start), and
+the builder itself.
+
+Earlier text of this file, still true for that builder:
 
 The Audi app starts climatisation with the same body it uses to save the
 climatisation settings: the car's CURRENT settings, target temperature and its
@@ -37,11 +44,6 @@ _FULL = {
     "heaterSource": "electric",
     "carCapturedTimestamp": "2026-01-01T00:00:00Z",
 }
-_OLD_PPE_BODY = {
-    "climatisationMode": "comfort",
-    "climatisationWithoutExternalPower": True,
-    "windowHeatingEnabled": True,
-}
 
 
 def _status(settings: Any) -> dict[str, Any]:
@@ -59,9 +61,10 @@ def _client(status: Any = None, *, get_error: Exception | None = None) -> VWEUCl
     return client
 
 
-def _basic_body(client: VWEUClient) -> dict[str, Any]:
-    asyncio.run(client.command_start_climate("VINX", ppe_mode=True))
-    return client._post_command_with_fallback_paths.await_args.kwargs["primary_payload"]
+def _basic_body(client: VWEUClient) -> dict[str, Any] | None:
+    # #912/#1403: the basic PPE start no longer builds a body. What is tested
+    # here is the builder the rich start still lays the caller's choices over.
+    return asyncio.run(client._climate_start_body_from_settings("VINX"))
 
 
 def _rich_body(client: VWEUClient, **kwargs: Any) -> dict[str, Any]:
@@ -152,8 +155,9 @@ def test_the_settings_are_read_from_the_climatisation_job() -> None:
     ],
     ids=["read fails", "empty answer", "no value", "empty settings", "error block", "no document"],
 )
-def test_without_readable_settings_the_earlier_body_goes_out(client: VWEUClient) -> None:
-    assert _basic_body(client) == _OLD_PPE_BODY
+def test_without_readable_settings_the_builder_returns_none(client: VWEUClient) -> None:
+    # The caller (the rich start) then falls back to its earlier PPE rule.
+    assert _basic_body(client) is None
 
 
 def test_without_the_option_nothing_is_read_and_the_body_is_unchanged() -> None:
@@ -172,7 +176,8 @@ def test_without_the_option_nothing_is_read_and_the_body_is_unchanged() -> None:
 
 
 def test_rich_start_begins_with_the_cars_settings() -> None:
-    body = _rich_body(_client(_status(_FULL)))
+    # One setting is given: with none at all a PPE start goes out without a body.
+    body = _rich_body(_client(_status(_FULL)), glass_heating=False)
     assert body.get("climatisationMode") == "economy"
     assert body.get("zoneFrontLeftEnabled") is True
     assert body.get("targetTemperature") == 22.5 and body.get("targetTemperatureUnit") == "celsius"
