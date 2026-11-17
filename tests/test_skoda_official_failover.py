@@ -87,19 +87,20 @@ async def test_official_live_read_delegates_and_failsoft():
     assert await c.official_live_read("V") is None
     # armed → delegates
     c._supplementary_official = MagicMock()
-    c._supplementary_official.over_rate_limit = False
+    # #2165 — the read path asks the budget of this VIN's key.
+    c._supplementary_official.over_rate_limit_for.return_value = False
     c._supplementary_official.get_status = AsyncMock(
         return_value=VehicleData(vin="V", battery_soc=61)
     )
     d = await c.official_live_read("V")
     assert d is not None and d.battery_soc == 61
     # over budget → skip the read entirely (do not breach the 20/h/key quota)
-    c._supplementary_official.over_rate_limit = True
+    c._supplementary_official.over_rate_limit_for.return_value = True
     c._supplementary_official.get_status.reset_mock()
     assert await c.official_live_read("V") is None
     c._supplementary_official.get_status.assert_not_called()
     # any error → None (must never sink the poll)
-    c._supplementary_official.over_rate_limit = False
+    c._supplementary_official.over_rate_limit_for.return_value = False
     c._supplementary_official.get_status = AsyncMock(side_effect=RuntimeError("boom"))
     assert await c.official_live_read("V") is None
 

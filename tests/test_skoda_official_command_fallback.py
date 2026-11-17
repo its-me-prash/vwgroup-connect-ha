@@ -277,8 +277,11 @@ def _skoda_client(**official_attrs: Any):
 
     c = SkodaClient.__new__(SkodaClient)
     off = MagicMock()
-    off.over_rate_limit = official_attrs.get("over_rate_limit", False)
-    off.rate_limit_remaining = official_attrs.get("rate_limit_remaining", None)
+    # #2165 — the command path asks the budget of this VIN's key.
+    off.over_rate_limit_for = MagicMock(
+        return_value=official_attrs.get("over_rate_limit", False))
+    off.rate_limit_remaining_for = MagicMock(
+        return_value=official_attrs.get("rate_limit_remaining", None))
     off.has_key_for = MagicMock(
         return_value=official_attrs.get("has_key", True))
     c._supplementary_official = off
@@ -324,23 +327,23 @@ def test_a_stale_retry_after_no_longer_blocks_the_read_channel() -> None:
         SkodaOfficialClient,
     )
 
-    c = SkodaOfficialClient.__new__(SkodaOfficialClient)
-    c.rate_limit_remaining = None
-    c.rate_limit_reset_s = None
-    c.retry_after_s = None
-    c._blocked_until = 0.0
+    c = SkodaOfficialClient(MagicMock(), VIN, "key")
 
     throttled = MagicMock()
     throttled.status = 429
     throttled.headers = {"Retry-After": "600"}
-    c._note_rate_limit(throttled)
+    c._note_rate_limit(throttled, "key")
     assert c.over_rate_limit is True, "a real 429 must still block"
+    assert c.over_rate_limit_for(VIN) is True
 
+    # The 429's window has run out (simulated), then a routine 403 arrives.
     c._blocked_until = 0.0
+    c._blocked_until_by_key.clear()
     refusal = MagicMock()
     refusal.status = 403
     refusal.headers = {}  # no Retry-After of its own
-    c._note_rate_limit(refusal)
+    c._note_rate_limit(refusal, "key")
 
     assert c.over_rate_limit is False
+    assert c.over_rate_limit_for(VIN) is False
     assert c.retry_after_s == 600, "the last-seen value stays for diagnostics"

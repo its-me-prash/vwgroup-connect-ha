@@ -46,6 +46,10 @@ class _Official:
         self.reads = 0
         self.over_rate_limit = False
 
+    def over_rate_limit_for(self, vin: str) -> bool:
+        # #2165 — the read path asks per VIN now; this fake has one key.
+        return self.over_rate_limit
+
     async def get_status(self, vin: str) -> Any:
         self.reads += 1
         if self.fail:
