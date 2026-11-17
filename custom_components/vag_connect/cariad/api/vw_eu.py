@@ -1500,8 +1500,11 @@ class VWEUClient(CariadBaseClient):
 
         A key the car does not report is not sent and nothing is forced. Only
         the mode falls back to ``comfort``, which the PPE body always carried.
-        Returns ``None`` when the settings cannot be read, so the caller keeps
-        its earlier body: a failed read must never fail the start.
+        Returns ``None`` when the car reports no settings AND when the read
+        fails: a failed read must never fail the start. With the PPE option on,
+        ``None`` means the start goes out without a body, so a failed read on a
+        car that does report settings sends no body either (not observed on a
+        car yet).
 
         Not confirmed on a car: built from the app's request classes.
         """
