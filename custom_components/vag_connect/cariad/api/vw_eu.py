@@ -9,6 +9,7 @@ import base64
 from datetime import datetime, timedelta, timezone
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -34,6 +35,12 @@ from ..models import BRAND_VW_EU, VehicleData
 from .base import CariadBaseClient
 
 _LOGGER = logging.getLogger(__name__)
+
+# Tyre wording inside a warning text (EN tyre/tire, DE Reifen*); word edges keep
+# "entire"/"retire" out, and "Reifen" must start a word so "Fahrstreifen",
+# "Seitenstreifen" and "greifen" stay out (a compound such as "Winterreifen" is
+# then not matched either). Case-insensitive.
+_TYRE_TEXT_RE = re.compile(r"\b(?:tyres?|tires?)\b|(?<![a-zäöüß])reifen", re.IGNORECASE)
 
 _BASE = "https://emea.bff.cariad.digital"
 
@@ -5650,7 +5657,14 @@ class VWEUClient(CariadBaseClient):
             }
             d.warning_oil     = "OIL" in warning_types or "OIL_LEVEL" in warning_types
             d.warning_engine  = "ENGINE" in warning_types or "CHECK_ENGINE" in warning_types
-            d.warning_tyre    = any("TYR" in t or "TIRE" in t for t in warning_types)
+            # Audi ships tyre-pressure faults under the generic class "stoWarning";
+            # only the text says tyre ("Loss of pressure ... check all tyres").
+            # No language-independent code is known, so match narrow EN/DE terms in
+            # the text as well (other account languages stay unrecognised).
+            d.warning_tyre    = any("TYR" in t or "TIRE" in t for t in warning_types) or any(
+                _TYRE_TEXT_RE.search(str(w.get("text") or w.get("message") or ""))
+                for w in warn_list if isinstance(w, dict)
+            )
             d.warning_brakes  = any("BRAKE" in t for t in warning_types)
             d.warning_count   = len(warn_list)
             d.warning_active  = len(warn_list) > 0
