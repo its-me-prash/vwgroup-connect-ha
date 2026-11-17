@@ -105,6 +105,14 @@ class SkodaOfficialClient:
         # so the failover never breaches the 20/hour/key quota. Mirrors the openHAB
         # MySkoda binding's client-side rate limiter.
         self._blocked_until: float = 0.0
+        # #2165 (@matroeh) — the budget is per KEY (20/hour/key), and one client
+        # carries the keys of several VINs. The attributes above stay as the
+        # last-seen values (and "some key is blocked") for diagnostics; the
+        # read and command paths ask per VIN through the maps below, so one
+        # exhausted key no longer silences the others.
+        self._blocked_until_by_key: dict[str, float] = {}
+        self._remaining_by_key: dict[str, int] = {}
+        self._reset_by_key: dict[str, int] = {}
 
     def _key_for(self, vin: str) -> str:
         """The X-API-Key to use for one VIN: its own minted key, else the single
@@ -134,14 +142,19 @@ class SkodaOfficialClient:
             "User-Agent": _USER_AGENT,
         }
 
-    def _note_rate_limit(self, resp: Any) -> None:
+    def _note_rate_limit(self, resp: Any, api_key: str | None = None) -> None:
+        key = api_key or self._api_key
+        remaining_by_key = self._remaining_by_key
+        reset_by_key = self._reset_by_key
         rem = resp.headers.get("RateLimit-Remaining")
         rst = resp.headers.get("RateLimit-Reset")
         ra = resp.headers.get("Retry-After")  # sent on 429 / 503
         if rem is not None and str(rem).lstrip("-").isdigit():
             self.rate_limit_remaining = int(rem)
+            remaining_by_key[key] = int(rem)
         if rst is not None and str(rst).lstrip("-").isdigit():
             self.rate_limit_reset_s = int(rst)
+            reset_by_key[key] = int(rst)
         if ra is not None and str(ra).isdigit():
             self.retry_after_s = int(ra)
         # Self-block when the server says we're out of budget. Prefer the explicit
@@ -156,10 +169,13 @@ class SkodaOfficialClient:
         _ra_now = int(ra) if (ra is not None and str(ra).isdigit()) else 0
         if _ra_now and str(resp.status).startswith(("4", "5")):
             wait = _ra_now
-        elif self.rate_limit_remaining == 0 and self.rate_limit_reset_s:
-            wait = self.rate_limit_reset_s
+        elif remaining_by_key.get(key) == 0 and reset_by_key.get(key):
+            # #2165 — THIS key's budget, not the last one any key reported.
+            wait = reset_by_key[key]
         if wait > 0:
-            self._blocked_until = time.monotonic() + wait
+            until = time.monotonic() + wait
+            self._blocked_until_by_key[key] = until
+            self._blocked_until = max(self._blocked_until, until)
 
     def has_key_for(self, vin: str) -> bool:
         """True when this VIN resolves to a non-empty API key.
@@ -175,10 +191,20 @@ class SkodaOfficialClient:
 
     @property
     def over_rate_limit(self) -> bool:
-        """True while the local self-block window (from RateLimit-Remaining 0 or a
-        Retry-After) is still open — the failover read skips instead of breaching
-        the 20/hour/key quota."""
+        """True while the self-block window of SOME key is open (from
+        RateLimit-Remaining 0 or a Retry-After). For diagnostics; the read and
+        command paths ask :meth:`over_rate_limit_for` with their VIN (#2165)."""
         return time.monotonic() < self._blocked_until
+
+    def over_rate_limit_for(self, vin: str) -> bool:
+        """True while the self-block window of the key this VIN uses is open, so
+        the read skips instead of breaching that key's 20/hour quota (#2165)."""
+        return time.monotonic() < self._blocked_until_by_key.get(self._key_for(vin), 0.0)
+
+    def rate_limit_remaining_for(self, vin: str) -> int | None:
+        """The last RateLimit-Remaining the server reported for this VIN's key,
+        or None while it has reported nothing for that key (#2165)."""
+        return self._remaining_by_key.get(self._key_for(vin))
 
     async def _request(
         self, method: str, path: str, json_body: Any = None, api_key: str | None = None,
@@ -187,7 +213,7 @@ class SkodaOfficialClient:
             method, f"{_BASE}/{path}", headers=self._headers(api_key),
             json=json_body, timeout=_TIMEOUT,
         ) as resp:
-            self._note_rate_limit(resp)
+            self._note_rate_limit(resp, api_key)
             try:
                 body = await resp.json(content_type=None)
             except Exception:  # noqa: BLE001 — problem+json / text on errors
@@ -242,7 +268,16 @@ class SkodaOfficialClient:
         #   doors / windows / detail.trunk = OPEN | CLOSED | UNKNOWN.
         _dl = overall.get("doorsLocked") or overall.get("locked")
         if isinstance(_dl, str):
-            d.doors_locked = _dl.strip().upper() == "YES"
+            # #2164 (@matroeh) — only the states that say something. UNKNOWN is
+            # documented as "the system cannot determine the state"; reading it
+            # (or a value we do not know) as False made the live overlay replace
+            # a known "locked" from the primary channel with "unlocked". None is
+            # skipped by that overlay.
+            _dl_up = _dl.strip().upper()
+            if _dl_up == "YES":
+                d.doors_locked = True
+            elif _dl_up in ("NO", "OPENED"):
+                d.doors_locked = False
         _do = _to_bool_open(overall.get("doors"))
         if _do is not None:
             d.doors_open = _do

@@ -1777,7 +1777,15 @@ class CariadBaseClient:
                 _LOGGER.debug(
                     "proactive device_grant re-mint failed: %s", type(_e).__name__
                 )
-        headers = kwargs.pop("headers", {})
+        # #2159 (@matroeh) — the caller's headers are kept apart from the dict
+        # each attempt sends, and every retry below passes them on again. Before,
+        # the retries forwarded ``**kwargs`` only, after ``headers`` and
+        # ``timeout`` had been popped out of it: the retry after a 401 went out
+        # without Škoda's X-Brand / X-Device-Timezone / X-Api-Version and with
+        # the 60 s default, and answered 404. A copy, so the caller's dict is not
+        # written into; Authorization is still rebuilt from the current token.
+        _caller_headers = dict(kwargs.pop("headers", None) or {})
+        headers = dict(_caller_headers)
         token_used = self._access_token
         headers["Authorization"] = f"Bearer {token_used}"
         headers["Accept"] = "application/json"
@@ -1805,7 +1813,10 @@ class CariadBaseClient:
             ) as resp:
                 if resp.status == 401 and retry:
                     await self._refresh_tokens(stale_access_token=token_used)
-                    return await self._request(method, url, retry=False, **kwargs)
+                    return await self._request(
+                        method, url, retry=False,
+                        headers=_caller_headers, timeout=_timeout, **kwargs,
+                    )
                 if resp.status in (429, 430):
                     # #1850 — these two are the responses whose headers are ABOUT
                     # the rate limit, so this is exactly when the quota is worth
@@ -1852,7 +1863,8 @@ class CariadBaseClient:
                         _LOGGER.debug("Rate limited (429) — retrying in %ds", wait)
                         await asyncio.sleep(wait)
                         return await self._request(
-                            method, url, retry=retry, _attempt=_attempt + 1, **kwargs
+                            method, url, retry=retry, _attempt=_attempt + 1,
+                            headers=_caller_headers, timeout=_timeout, **kwargs,
                         )
                     else:
                         # retries exhausted — back off the whole account (B4)
@@ -1882,7 +1894,10 @@ class CariadBaseClient:
                         wait = (2 ** _attempt) * 3
                         _LOGGER.debug("Server error %d — retrying in %ds", resp.status, wait)
                         await asyncio.sleep(wait)
-                        return await self._request(method, url, retry=retry, _attempt=_attempt + 1, **kwargs)
+                        return await self._request(
+                            method, url, retry=retry, _attempt=_attempt + 1,
+                            headers=_caller_headers, timeout=_timeout, **kwargs,
+                        )
                 elif resp.status in (200, 201, 202, 204, 207):
                     # #1973 — a real answer withdraws the mark, so a transient
                     # outage costs the suppression only until the next good poll.
@@ -1910,7 +1925,8 @@ class CariadBaseClient:
                 )
                 await asyncio.sleep(wait)
                 return await self._request(
-                    method, url, retry=retry, _attempt=_attempt + 1, **kwargs
+                    method, url, retry=retry, _attempt=_attempt + 1,
+                    headers=_caller_headers, timeout=_timeout, **kwargs,
                 )
             # drop the raw {err} — it would sit in self.body; class name suffices.
             raise APIError(0, url, f"transient: {type(err).__name__}") from err

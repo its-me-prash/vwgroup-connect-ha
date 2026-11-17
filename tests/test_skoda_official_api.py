@@ -156,7 +156,8 @@ def test_grounded_enum_values_from_spec():
     descriptions (the fields are plain strings with no enum type). Getting these
     wrong silently mis-reports state — e.g. doorsLocked is YES/NO/OPENED, never
     'LOCKED'; AC 'ON' does not exist."""
-    for val, expect in (("YES", True), ("NO", False), ("OPENED", False), ("UNKNOWN", False)):
+    # #2164 — UNKNOWN is "cannot determine", not "unlocked".
+    for val, expect in (("YES", True), ("NO", False), ("OPENED", False), ("UNKNOWN", None)):
         d = SkodaOfficialClient._parse_vehicle("V", {"status": {"overall": {"doorsLocked": val}}})
         assert d.doors_locked is expect, f"doorsLocked={val}"
     for val, expect in (
