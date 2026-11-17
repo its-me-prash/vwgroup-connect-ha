@@ -1534,32 +1534,28 @@ class VWEUClient(CariadBaseClient):
         the previous separate-endpoint payload — kept so behaviour does
         not regress when the combined endpoint isn't available.
 
-        v1.14.0 (#29, audi #644 + #677) — when ``ppe_mode=True`` the
-        fallback body uses the PPE/PPC shape:
-        - ``climatisationMode: "comfort"`` (mandatory, NOT null)
-        - ``targetTemperature`` + ``targetTemperatureUnit`` OMITTED
-        Required for Q6 e-tron, A6 e-tron, RS e-tron GT Facelift, A3 2024+
-        PHEV — all of which return ``400 Bad Request`` for the legacy
-        body shape. Coordinator gates this via ``CONF_FORCE_PPE_CLIMATE``
-        option (Audi-only, user-overridable since auto-detection is
-        unreliable). ️ [Inference] — body shape verified from upstream
-        PRs but Audi never published a definitive PPE compatibility list.
+        v1.14.0 (#29) — ``ppe_mode=True`` is for PPE/PPC cars (Q6 e-tron,
+        A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV). The coordinator
+        gates it via the ``CONF_FORCE_PPE_CLIMATE`` option (Audi-only,
+        user-overridable since auto-detection is unreliable).
+
+        #912/#1403 — in that mode the start is sent WITHOUT a request body
+        and the car applies its own stored settings. Confirmed by Q6 e-tron
+        owners; not tested on a car with this code. The 404 fallback to the
+        combined endpoint still carries ``{"action": "start"}``.
         """
         _tgt = self._mbb_command_target()
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "climate_start")
             return
+        start_body: dict[str, Any] | None
         if ppe_mode:
-            # #912: the Audi app starts with the car's own current settings
-            # (see _climate_start_body_from_settings). Only when those cannot
-            # be read does the earlier three-key body go out.
-            start_body = await self._climate_start_body_from_settings(vin) or {
-                "climatisationMode": "comfort",
-                "climatisationWithoutExternalPower": True,
-                "windowHeatingEnabled": True,
-                # NOTE: targetTemperature* OMITTED for PPE — body validator
-                # rejects it on Q6/A6 e-tron / PPC vehicles.
-            }
+            # #912/#1403: confirmed by Q6 e-tron owners: a start without a
+            # request body works, the car applies its own settings. Every
+            # variant WITH a body (full, without temperature, mode only) was
+            # accepted by the backend and then failed in the car (E:CV.PA.29,
+            # status stuck in_progress). So no body, and no settings read.
+            start_body = None
         else:
             start_body = {
                 "targetTemperature": 21.0,
@@ -1606,11 +1602,26 @@ class VWEUClient(CariadBaseClient):
         a coherent zone configuration to the backend.
 
         #912 (2026-07, Audi A6 e-tron PPE) — ``ppe_mode`` mirrors the gate
-        ``command_start_climate`` already has: PPE/PPC vehicles reject a body
-        that carries ``targetTemperature*`` and require ``climatisationMode``,
-        so on those cars the temperature is dropped and the mode defaults to
-        ``comfort`` when the caller didn't name one.
+        ``command_start_climate`` already has.
+
+        #912/#1403 — in ``ppe_mode`` with NO setting given (temperature, glass
+        heating, seats, at-unlock, mode all ``None``) the start goes out
+        without a request body, as in ``command_start_climate``: the car
+        applies its own settings. With any setting given, the car's reported
+        settings are the base and the caller's choices go on top, as before.
         """
+        base = self._base_for_vin(vin)
+        url = f"{base}/vehicle/v1/vehicles/{vin}/climatisation/start"
+        if ppe_mode and all(
+            v is None
+            for v in (
+                temp_c, glass_heating, seat_fl, seat_fr, seat_rl, seat_rr,
+                climatisation_at_unlock, climatisation_mode,
+            )
+        ):
+            resp = await self._post(url)
+            await self._await_bff_command(vin, base, resp)
+            return
         body: dict[str, Any] = {}
         if ppe_mode:
             # #912: start from the car's own settings, as the Audi app does,
@@ -1659,8 +1670,6 @@ class VWEUClient(CariadBaseClient):
             body["climatizationAtUnlock"] = bool(climatisation_at_unlock)
         if climatisation_mode is not None:
             body["climatisationMode"] = str(climatisation_mode)
-        base = self._base_for_vin(vin)
-        url = f"{base}/vehicle/v1/vehicles/{vin}/climatisation/start"
         resp = await self._post(url, json=body)
         # #912 (@Mirjam9, Audi A6 PPE) — the *basic* climate command confirms via
         # the pendingrequests poll, but this rich path used a raw _post and skipped
@@ -3388,7 +3397,7 @@ class VWEUClient(CariadBaseClient):
         self,
         vin: str,
         primary_suffix: str,
-        primary_payload: dict[str, Any],
+        primary_payload: dict[str, Any] | None,
         fallback_suffix: str,
         fallback_payload: dict[str, Any],
     ) -> Any:
@@ -3415,10 +3424,17 @@ class VWEUClient(CariadBaseClient):
         the fallback trigger to HTTP 404 only — every other error
         propagates so the coordinator's
         ``classify_command_failure`` can see it.
+
+        #912/#1403 — ``primary_payload=None`` sends the primary request with no
+        request body at all (no ``json`` argument; not an empty ``{}``). The
+        fallback request always carries ``fallback_payload``.
         """
+        primary_kwargs: dict[str, Any] = (
+            {} if primary_payload is None else {"json": primary_payload}
+        )
         try:
             return await self._post_command(
-                vin, primary_suffix, json=primary_payload,
+                vin, primary_suffix, **primary_kwargs,
             )
         except APIError as err:
             if getattr(err, "status", 0) != 404:

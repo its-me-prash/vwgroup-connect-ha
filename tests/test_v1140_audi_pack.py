@@ -279,21 +279,20 @@ class TestPpcClimateBody:
         assert "targetTemperatureUnit" in body
         assert "climatisationMode" not in body
 
-    def test_ppe_body_omits_target_temperature_and_sets_mode(self):
+    def test_ppe_start_sends_no_body(self):
+        # #912/#1403: changed on purpose. This test used to pin the three-key
+        # PPE body (no temperature, mode comfort, window heating on). Q6 e-tron
+        # owners confirmed that only a start WITHOUT a request body works, so
+        # the primary payload is now None (see test_912_ppe_start_without_body).
         client = self._client()
         asyncio.run(
             client.command_start_climate("VINX", ppe_mode=True)
         )
         kwargs = client._post_command_with_fallback_paths.await_args.kwargs
-        # v2.20.0 (E5): rich body is now the PRIMARY payload.
-        body = kwargs["primary_payload"]
-        # PPE: targetTemperature MUST be omitted
-        assert "targetTemperature" not in body
-        assert "targetTemperatureUnit" not in body
-        # PPE: climatisationMode MANDATORY
-        assert body["climatisationMode"] == "comfort"
-        # Other fields preserved
-        assert body["windowHeatingEnabled"] is True
+        assert kwargs["primary_payload"] is None
+        # the 404 fallback to the combined endpoint is unchanged
+        assert kwargs["fallback_suffix"] == "climatisation/start-stop"
+        assert kwargs["fallback_payload"] == {"action": "start"}
 
     def test_default_is_legacy_body(self):
         """Backwards-compat: existing callers without ppe_mode get legacy."""

@@ -9258,12 +9258,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         await self._cariad_cmd(vin, "command_unlock_trunk", spin=spin)
 
     def _ppe_climate_kwargs(self) -> dict[str, Any]:
-        """v1.14.0 (#29) — PPE/PPC body-shape gate for climate commands.
+        """v1.14.0 (#29) — PPE/PPC gate for climate commands.
 
-        User option ``force_ppe_climate`` forces the new body shape (no
-        targetTemperature*, climatisationMode mandatory) for Audi vehicles on
-        PPC/PPE platforms (Q6 e-tron, A6 e-tron, RS e-tron GT Facelift, A3
-        2024+ PHEV). VW EU and other brands ignore the option — only Audi's
+        User option ``force_ppe_climate`` switches the climate start for Audi
+        vehicles on PPC/PPE platforms (Q6 e-tron, A6 e-tron, RS e-tron GT
+        Facelift, A3 2024+ PHEV): since #912/#1403 a start that carries no
+        setting goes out without a request body and the car applies its own
+        settings. VW EU and other brands ignore the option — only Audi's
         CARIAD backend differentiates.
 
         #912 (2026-07, Audi A6 e-tron PPE — Mirjam9) — this used to live inline
