@@ -160,7 +160,9 @@ class SeatCupraClient(CariadBaseClient):
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK auth + capture user_id from redirect chain."""
-        await super().authenticate()
+        # #2166 (@matroeh) — pass the code on; without it the code entered in
+        # the config flow reached the IDK login as None.
+        await super().authenticate(mfa_code=mfa_code)
         if self._auth.user_id:
             self._user_id = self._auth.user_id
             _LOGGER.debug("SEAT/CUPRA user_id from auth redirect: %s", self._user_id[:8])
