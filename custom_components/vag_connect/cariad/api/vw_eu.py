@@ -1500,8 +1500,11 @@ class VWEUClient(CariadBaseClient):
 
         A key the car does not report is not sent and nothing is forced. Only
         the mode falls back to ``comfort``, which the PPE body always carried.
-        Returns ``None`` when the settings cannot be read, so the caller keeps
-        its earlier body: a failed read must never fail the start.
+        Returns ``None`` when the car reports no settings AND when the read
+        fails: a failed read must never fail the start. With the PPE option on,
+        ``None`` means the start goes out without a body, so a failed read on a
+        car that does report settings sends no body either (not observed on a
+        car yet).
 
         Not confirmed on a car: built from the app's request classes.
         """
@@ -1546,10 +1549,10 @@ class VWEUClient(CariadBaseClient):
         gates it via the ``CONF_FORCE_PPE_CLIMATE`` option (Audi-only,
         user-overridable since auto-detection is unreliable).
 
-        #912/#1403 — in that mode the start is sent WITHOUT a request body
-        and the car applies its own stored settings. Confirmed by Q6 e-tron
-        owners; not tested on a car with this code. The 404 fallback to the
-        combined endpoint still carries ``{"action": "start"}``.
+        #912/#1403 — in that mode the body is the car's own climatisation
+        settings when it reports them, and there is no body at all when it
+        reports none. The 404 fallback to the combined endpoint still carries
+        ``{"action": "start"}``.
         """
         _tgt = self._mbb_command_target()
         if _tgt is not None:
@@ -1557,12 +1560,14 @@ class VWEUClient(CariadBaseClient):
             return
         start_body: dict[str, Any] | None
         if ppe_mode:
-            # #912/#1403: confirmed by Q6 e-tron owners: a start without a
-            # request body works, the car applies its own settings. Every
-            # variant WITH a body (full, without temperature, mode only) was
-            # accepted by the backend and then failed in the car (E:CV.PA.29,
-            # status stuck in_progress). So no body, and no settings read.
-            start_body = None
+            # #912/#1403, two A6 e-tron on 17.11.2026: the car that reports its
+            # settings started with them sent back as the body (status
+            # successful, confirmed in the app); the car that reports none
+            # stayed in_progress with {climatisationMode: comfort}, as it did
+            # before with the three-key body. Q6 e-tron owners report that a
+            # start without a body works. So: the car's own settings, else no
+            # body. None from the builder means "no body".
+            start_body = await self._climate_start_body_from_settings(vin)
         else:
             start_body = {
                 "targetTemperature": 21.0,
@@ -1611,29 +1616,34 @@ class VWEUClient(CariadBaseClient):
         #912 (2026-07, Audi A6 e-tron PPE) — ``ppe_mode`` mirrors the gate
         ``command_start_climate`` already has.
 
-        #912/#1403 — in ``ppe_mode`` with NO setting given (temperature, glass
-        heating, seats, at-unlock, mode all ``None``) the start goes out
-        without a request body, as in ``command_start_climate``: the car
-        applies its own settings. With any setting given, the car's reported
-        settings are the base and the caller's choices go on top, as before.
+        #912/#1403 — in ``ppe_mode`` the car's reported settings are the base
+        and the caller's choices go on top. With NO setting given
+        (temperature, glass heating, seats, at-unlock, mode all ``None``) and
+        a car that reports no settings, the start goes out without a request
+        body, as in ``command_start_climate``.
         """
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/climatisation/start"
-        if ppe_mode and all(
+        nichts_gewaehlt = all(
             v is None
             for v in (
                 temp_c, glass_heating, seat_fl, seat_fr, seat_rl, seat_rr,
                 climatisation_at_unlock, climatisation_mode,
             )
-        ):
-            resp = await self._post(url)
-            await self._await_bff_command(vin, base, resp)
-            return
+        )
         body: dict[str, Any] = {}
         if ppe_mode:
             # #912: start from the car's own settings, as the Audi app does,
-            # and lay the caller's choices over them below.
+            # and lay the caller's choices over them below. On an A6 e-tron
+            # this body started the climatisation (17.11.2026, #1403).
             reported = await self._climate_start_body_from_settings(vin)
+            if reported is None and nichts_gewaehlt:
+                # #912/#1403: a car that reports no settings and a call that
+                # names none: no body at all. {climatisationMode: comfort}
+                # stayed in_progress and failed on an A6 e-tron.
+                resp = await self._post(url)
+                await self._await_bff_command(vin, base, resp)
+                return
             if reported is None:
                 # Settings not readable: the earlier PPE rule. The temperature
                 # is dropped rather than failing the whole command.

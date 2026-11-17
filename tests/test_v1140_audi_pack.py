@@ -279,20 +279,37 @@ class TestPpcClimateBody:
         assert "targetTemperatureUnit" in body
         assert "climatisationMode" not in body
 
-    def test_ppe_start_sends_no_body(self):
+    def test_ppe_start_without_reported_settings_sends_no_body(self):
         # #912/#1403: changed on purpose. This test used to pin the three-key
-        # PPE body (no temperature, mode comfort, window heating on). Q6 e-tron
-        # owners confirmed that only a start WITHOUT a request body works, so
-        # the primary payload is now None (see test_912_ppe_start_without_body).
+        # PPE body (no temperature, mode comfort, window heating on), which
+        # failed in the car. A car that reports no climatisation settings now
+        # gets no body (see test_912_ppe_start_without_body).
         client = self._client()
+        client._get = AsyncMock(return_value={"climatisation": {}})
         asyncio.run(
             client.command_start_climate("VINX", ppe_mode=True)
         )
+        client._get.assert_awaited_once()
         kwargs = client._post_command_with_fallback_paths.await_args.kwargs
         assert kwargs["primary_payload"] is None
         # the 404 fallback to the combined endpoint is unchanged
         assert kwargs["fallback_suffix"] == "climatisation/start-stop"
         assert kwargs["fallback_payload"] == {"action": "start"}
+
+    def test_ppe_start_with_reported_settings_sends_them(self):
+        # #912/#1403: an A6 e-tron started with its own settings as the body.
+        client = self._client()
+        client._get = AsyncMock(return_value={"climatisation": {"climatisationSettings": {
+            "value": {"targetTemperature_C": 21.0, "climatisationMode": "comfort"}}}})
+        asyncio.run(
+            client.command_start_climate("VINX", ppe_mode=True)
+        )
+        kwargs = client._post_command_with_fallback_paths.await_args.kwargs
+        assert kwargs["primary_payload"] == {
+            "targetTemperature": 21.0,
+            "targetTemperatureUnit": "celsius",
+            "climatisationMode": "comfort",
+        }
 
     def test_default_is_legacy_body(self):
         """Backwards-compat: existing callers without ppe_mode get legacy."""

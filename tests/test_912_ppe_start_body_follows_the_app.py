@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """#912: the PPE climate start with settings builds on the car's own settings.
 
-#912/#1403: a PPE start that carries NO settings now goes out without a request
-body (see test_912_ppe_start_without_body.py); the tests below cover the body
-that is still built, for the start that carries settings (the rich start), and
-the builder itself.
+#912/#1403: with the PPE option on, every start uses this builder. When it
+returns None (the car reports no settings) and the call names no setting, the
+start goes out without a request body (see test_912_ppe_start_without_body.py);
+the tests below cover the builder and the rich start that names settings.
 
 Earlier text of this file, still true for that builder:
 
@@ -62,8 +62,7 @@ def _client(status: Any = None, *, get_error: Exception | None = None) -> VWEUCl
 
 
 def _basic_body(client: VWEUClient) -> dict[str, Any] | None:
-    # #912/#1403: the basic PPE start no longer builds a body. What is tested
-    # here is the builder the rich start still lays the caller's choices over.
+    # The builder both PPE starts use (#912/#1403).
     return asyncio.run(client._climate_start_body_from_settings("VINX"))
 
 
@@ -156,7 +155,7 @@ def test_the_settings_are_read_from_the_climatisation_job() -> None:
     ids=["read fails", "empty answer", "no value", "empty settings", "error block", "no document"],
 )
 def test_without_readable_settings_the_builder_returns_none(client: VWEUClient) -> None:
-    # The caller (the rich start) then falls back to its earlier PPE rule.
+    # The caller then sends no body (no setting named) or uses its earlier PPE rule.
     assert _basic_body(client) is None
 
 
@@ -176,7 +175,6 @@ def test_without_the_option_nothing_is_read_and_the_body_is_unchanged() -> None:
 
 
 def test_rich_start_begins_with_the_cars_settings() -> None:
-    # One setting is given: with none at all a PPE start goes out without a body.
     body = _rich_body(_client(_status(_FULL)), glass_heating=False)
     assert body.get("climatisationMode") == "economy"
     assert body.get("zoneFrontLeftEnabled") is True
