@@ -87,9 +87,11 @@ class TestConfigFlowMapping:
         accidentally regressed when we added upstream_unavailable."""
         from custom_components.vag_connect.config_flow import _map_error
         # All these should pass through unchanged
+        # #2158 — "missing_library" left the allow-list: nothing raises it and
+        # no dialog has a text for it.
         for key in (
             "terms_and_conditions", "marketing_consent", "two_factor_required",
-            "too_many_requests", "invalid_credentials", "missing_library",
+            "too_many_requests", "invalid_credentials",
             "upstream_unavailable",
         ):
             assert _map_error(key) == key

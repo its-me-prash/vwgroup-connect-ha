@@ -1042,7 +1042,10 @@ class _SupplementaryReauthRepairFlow(VwDeReauthMixin, RepairsFlow):
             else:
                 if ok:
                     return await self._async_resolve()
-                errors["base"] = "invalid_credentials"
+                # #2158 — the same verdict #1843 removed from the options dialog:
+                # a False here means the login did not complete after the code
+                # step; the password was checked before the code was ever sent.
+                errors["base"] = "invalid_otp"
 
         return self.async_show_form(
             step_id="otp",

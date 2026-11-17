@@ -446,9 +446,18 @@ def _map_error(err_code: str) -> str:
     # v4.7.8 — a ":detail" suffix (porsche_login_wall:<screen>|<marker>) rides
     # along for the report link; the error KEY is the part before it.
     err_code = err_code.split(":", 1)[0]
-    return err_code if err_code in {
+    return err_code if err_code in _MAPPED_ERROR_KEYS else "cannot_connect"
+
+
+# #2158 — a module constant so a test can require a text for every key in BOTH
+# dialogs that map errors through ``_map_error``: the setup dialog
+# (``config.error``) and the options dialog (``options.error``). A key without
+# a text in the dialog it lands in shows no explanation there.
+_MAPPED_ERROR_KEYS: frozenset[str] = frozenset({
         "terms_and_conditions", "marketing_consent", "two_factor_required",
-        "too_many_requests", "invalid_credentials", "missing_library",
+        # "missing_library" stood here: nothing raises it and no dialog has a
+        # text for it, so it was removed with #2158.
+        "too_many_requests", "invalid_credentials",
         "upstream_unavailable",  # v2.5.7 — 5xx from VW backend
         "brand_not_dag_eligible",  # v2.7.0 — user picked non-DAG brand for browser login
         "portal_interaction_required",  # v2.15.4 (#527) — non-credential portal stop
@@ -465,7 +474,7 @@ def _map_error(err_code: str) -> str:
         # replaced by "cannot_connect", which is how a careful new message
         # becomes "Failed to connect" in front of the user.
         "authproxy_refused",
-    } else "cannot_connect"
+})
 
 
 def _is_grant_retired(err: object) -> bool:
