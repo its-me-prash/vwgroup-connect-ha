@@ -23,7 +23,7 @@ from typing import Any
 from aiohttp import ClientSession, ClientTimeout
 
 from ..exceptions import SpinError
-from ..models import BRAND_AUDI
+from ..models import BRAND_AUDI, MYAUDI_APP_VERSION, MYAUDI_USER_AGENT
 from .graphql import VehicleImageData, VehicleImageFetcher
 from .vw_eu import VWEUClient
 
@@ -31,12 +31,11 @@ _LOGGER = logging.getLogger(__name__)
 
 _AZS_TOKEN_URL  = "https://emea.bff.cariad.digital/login/v1/audi/token"
 _GRAPHQL_URL    = "https://app-api.live-my.audi.com/vgql/v1/graphql"
-# v2.20.0 (APK audit) — current live build: versionName 5.6.0 +
-# versionCode 800344256 (Google-Play APK, AXML manifest 2026-07-19). The
-# CARIAD BFF doesn't hard-gate the app version today, but tracking the real
-# build hardens the command path against a future fidelity check.
-_APP_VERSION    = "5.6.0"
-_USER_AGENT     = "Android/5.6.0 (Build 800344256.root project 'myaudi_android'.ext.buildTime) Android/13"
+# The CARIAD BFF doesn't hard-gate the app version today, but naming the real
+# build hardens the command path against a future fidelity check. Both values
+# come from the one myAudi identity in ``models.py``.
+_APP_VERSION    = MYAUDI_APP_VERSION
+_USER_AGENT     = MYAUDI_USER_AGENT
 
 # v1.14.0 (#28) — Audi ICE Remote Engine Start (CARIAD BFF, two-step S-PIN flow).
 # Source: arjenvrh/upstream PR #717 (`audi_services.py`). The path is
