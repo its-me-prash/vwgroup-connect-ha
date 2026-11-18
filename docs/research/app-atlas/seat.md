@@ -1,7 +1,7 @@
 # App Atlas — SEAT
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-11-10
+> Last refreshed: 2026-11-17
 
 ## Identity
 
@@ -21,10 +21,10 @@
 
 | | |
 |---|---|
-| Latest version-name | `2.23.1` |
+| Latest version-name | `3.0.2` |
 | Source that responded | `google_play` |
 | Previously cached version | `2.23.1` |
-| Changed since last run? | No |
+| Changed since last run? | **YES** |
 
 
 ## Discovered via APK extraction (Phase A.2)
