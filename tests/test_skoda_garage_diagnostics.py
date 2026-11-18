@@ -232,6 +232,53 @@ def test_enrich_refreshes_the_garage_document_lazily_for_skoda_only() -> None:
     au.refresh_capabilities.assert_not_awaited()
 
 
+# ── coordinator.refresh_capabilities: an empty answer keeps the last document ─
+
+
+def _refresh(previous: dict[str, Any] | None, answer: Any) -> VagConnectCoordinator:
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    coord.entry = MagicMock()
+    coord.entry.data = {"brand": "skoda"}
+    coord._cariad_client = MagicMock()
+    coord._cariad_client._tokens = SimpleNamespace(strategy="")
+    if isinstance(answer, Exception):
+        coord._cariad_client.get_capabilities = AsyncMock(side_effect=answer)
+    else:
+        coord._cariad_client.get_capabilities = AsyncMock(return_value=answer)
+    coord.vehicle_capabilities = {VIN: previous} if previous is not None else {}
+    coord._capabilities_fetched_at = {}
+    asyncio.run(coord.refresh_capabilities(VIN, force=True))
+    return coord
+
+
+def test_empty_answer_keeps_the_document_already_held() -> None:
+    good = _caps(_doc(workshopModeEnabled=True))
+    coord = _refresh(good, {})
+    assert coord.vehicle_capabilities[VIN] is good
+    # The next try waits for the TTL instead of running on every poll.
+    assert VIN in coord._capabilities_fetched_at
+
+
+def test_empty_answer_is_stored_when_nothing_was_held() -> None:
+    assert _refresh(None, {}).vehicle_capabilities[VIN] == {}
+
+
+def test_a_failed_fetch_keeps_the_document_and_waits_for_the_ttl() -> None:
+    good = _caps(_doc(workshopModeEnabled=True))
+    coord = _refresh(good, RuntimeError("HTTP 503"))
+    assert coord.vehicle_capabilities[VIN] is good
+    assert coord.is_capabilities_cache_fresh(VIN) is True
+    # A second, non-forced refresh inside the TTL must not call the backend again.
+    asyncio.run(coord.refresh_capabilities(VIN))
+    assert coord._cariad_client.get_capabilities.await_count == 1
+
+
+def test_a_real_answer_replaces_the_old_document() -> None:
+    new = _caps(_doc(workshopModeEnabled=False))
+    coord = _refresh(_caps(_doc(workshopModeEnabled=True)), new)
+    assert coord.vehicle_capabilities[VIN]["workshopModeEnabled"] is False
+
+
 # ── entities ─────────────────────────────────────────────────────────────────
 
 

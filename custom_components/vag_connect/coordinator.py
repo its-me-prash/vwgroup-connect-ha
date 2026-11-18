@@ -7598,6 +7598,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 mask_vin(vin),
                 type(err).__name__,
             )
+            # Škoda retries this from the poll: without a timestamp a failing
+            # fetch would run on EVERY poll. The cache keeps what it had; the next
+            # try waits for the TTL like a successful one.
+            if not hasattr(self, "_capabilities_fetched_at"):
+                self._capabilities_fetched_at = {}
+            self._capabilities_fetched_at[vin] = datetime.now(tz=timezone.utc)
             return
         if not isinstance(data, dict):
             return
@@ -7605,7 +7611,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             self.vehicle_capabilities = {}
         if not hasattr(self, "_capabilities_fetched_at"):
             self._capabilities_fetched_at = {}
-        self.vehicle_capabilities[vin] = data
+        # An empty answer (204, or a body that was not JSON) must not replace a
+        # document we already hold: Škoda refreshes this daily from the poll, and
+        # one such answer would blank workshop mode and the service rows for a
+        # whole TTL. Keep the old one; the timestamp still moves, so the next try
+        # waits for the TTL instead of running on every poll.
+        if data or not self.vehicle_capabilities.get(vin):
+            self.vehicle_capabilities[vin] = data
         self._capabilities_fetched_at[vin] = datetime.now(tz=timezone.utc)
         _LOGGER.debug(
             "Capabilities cached for %s (%d entries)",
