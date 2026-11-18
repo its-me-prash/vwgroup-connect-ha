@@ -5189,12 +5189,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # never stands in for a read that failed: the poll stays the empty
             # one it was. This also covers a car seen for the first time, where
             # the caller has no last snapshot to fall back to and would take
-            # the merged result as a success.
+            # the merged result as a success. A gap-fill-only source (Tibber)
+            # is not a contact with the car either: it hands over its last
+            # known values, which can be days old on a parked car.
             _toks = [
                 t for t in str(getattr(merged, "source_channel", "") or "").split("+")
                 if t
             ]
-            if _toks and all(t in _HELD_PUSH_SOURCES for t in _toks):
+            if _toks and all(never_counts_as_live(t) for t in _toks):
                 merged = annotate_provenance(self._primary_channel_name(), primary)
         if only_held and merged is not primary:
             # The held source was the only other channel. A car without a
@@ -5264,8 +5266,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # counter and the last-good time on every poll, and a dead read path
         # would look healthy for as long as the hold time lasts. When a real
         # supplementary channel revived the poll, the held values ride along.
+        # The same holds for a gap-fill-only source (Tibber): it always answers
+        # with its last known values, so a dead read path would look healthy
+        # for as long as Tibber is reachable.
         if all(
-            tok in _HELD_PUSH_SOURCES
+            never_counts_as_live(tok)
             for tok in str(merged.source_channel).split("+") if tok
         ):
             return None

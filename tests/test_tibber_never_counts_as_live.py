@@ -19,6 +19,11 @@ apply to it.
 """
 from __future__ import annotations
 
+import asyncio
+import threading
+from typing import Any
+from unittest.mock import MagicMock
+
 from custom_components.vag_connect.cariad._channel_merge import (
     is_held_source,
     merge_channels,
@@ -26,6 +31,7 @@ from custom_components.vag_connect.cariad._channel_merge import (
 from custom_components.vag_connect.cariad.models import VehicleData
 from custom_components.vag_connect.cariad.vehicle_cache import reconcile
 from custom_components.vag_connect.coordinator import (
+    VagConnectCoordinator,
     _has_live_contributor,
     _values_moved,
 )
@@ -130,3 +136,75 @@ class TestStaleVerdictIgnoresTibber:
         before = {"battery_soc": 80, "field_sources": {"battery_soc": "eu_data_act"}}
         after = {"battery_soc": 78, "field_sources": {"battery_soc": "eu_data_act"}}
         assert _values_moved(before, after) == "battery_soc"
+
+
+def _portal_client(readers: Any) -> Any:
+    """A client whose primary channel is the EU Data Act portal (a batch)."""
+    client = MagicMock()
+    client._eu_portal = object()
+    client.supplementary_readers = readers
+    return client
+
+
+def _coord_stub(client: Any) -> Any:
+    """Minimal coordinator with the merge and revive methods bound to it.
+
+    Built here rather than imported from the DrivePulse wiring test, so this
+    file does not depend on another test module's helpers.
+    """
+    stub = type("S", (), {})()
+    stub._cariad_client = client
+    stub.entry = MagicMock()
+    stub.entry.data = {}
+    stub.entry.options = {}
+    stub.vehicles = {}
+    stub._vehicles_lock = threading.Lock()
+    stub.hass = MagicMock()
+    stub._drivepulse_hold = None
+    for name in (
+        "_primary_channel_name",
+        "_read_priority_channel",
+        "_held_supplier",
+        "_without_stale_held",
+        "_merge_supplementary",
+        "_revive_from_supplementary",
+    ):
+        setattr(stub, name, getattr(VagConnectCoordinator, name).__get__(stub))
+    return stub
+
+
+def _readers(*channels: tuple[str, VehicleData]) -> Any:
+    def _make(vin: str) -> list[tuple[str, Any]]:
+        async def _read(vd: VehicleData) -> VehicleData:
+            return vd
+
+        return [(name, _read(vd)) for name, vd in channels]
+
+    return MagicMock(side_effect=_make)
+
+
+class TestTibberAloneNeverRevivesAFailedPoll:
+    def test_only_tibber_contributed_is_no_revive(self) -> None:
+        stub = _coord_stub(_portal_client(_readers(("tibber", _v(battery_soc=50)))))
+        empty = VehicleData(vin=_VIN, no_data=True)
+        assert asyncio.run(stub._revive_from_supplementary(_VIN, empty)) is None
+
+    def test_the_merge_does_not_let_tibber_stand_in_for_the_primary(self) -> None:
+        stub = _coord_stub(_portal_client(_readers(("tibber", _v(battery_soc=50)))))
+        empty = VehicleData(vin=_VIN, no_data=True)
+        out = asyncio.run(stub._merge_supplementary(_VIN, empty))
+        assert out.battery_soc is None
+        assert "tibber" not in str(out.source_channel or "")
+
+    def test_control_a_real_channel_revives_and_tibber_rides_along(self) -> None:
+        stub = _coord_stub(_portal_client(_readers(
+            ("website_authproxy", _v(odometer_km=42)),
+            ("tibber", _v(battery_soc=50)),
+        )))
+        empty = VehicleData(vin=_VIN, no_data=True)
+        out = asyncio.run(stub._revive_from_supplementary(_VIN, empty))
+        assert out is not None
+        assert out.no_data is False
+        assert out.odometer_km == 42
+        assert out.battery_soc == 50
+        assert out.field_sources["battery_soc"] == "tibber"
