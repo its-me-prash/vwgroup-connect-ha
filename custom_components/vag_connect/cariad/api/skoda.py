@@ -538,13 +538,15 @@ class SkodaClient(CariadBaseClient):
         off = self._supplementary_official
         if off is None:
             return None
-        if getattr(off, "over_rate_limit", False) is True:
+        # #2165 — the budget of THIS VIN's key; another key's exhausted budget
+        # says nothing about this one.
+        if off.over_rate_limit_for(vin) is True:
             return None
         if not callable(getattr(off, "has_key_for", None)) or not off.has_key_for(vin):
             return None
         # Leave headroom for the reads. ``None`` means the server has not told us
         # anything yet, which is not a reason to refuse.
-        remaining = getattr(off, "rate_limit_remaining", None)
+        remaining = off.rate_limit_remaining_for(vin)
         if isinstance(remaining, int) and remaining < _OFFICIAL_COMMAND_RESERVE:
             return None
         return off
@@ -563,7 +565,9 @@ class SkodaClient(CariadBaseClient):
         off = self._supplementary_official
         if off is None:
             return None
-        if getattr(off, "over_rate_limit", False) is True:
+        # #2165 (@matroeh) — ask for this VIN's key. The shared flag blocked every
+        # VIN as soon as one key's budget ran out.
+        if off.over_rate_limit_for(vin) is True:
             return None
         # #1850 — a read that keeps failing is skipped for a while. Checked
         # BEFORE the call, because the cost being avoided is the call itself.
@@ -574,7 +578,11 @@ class SkodaClient(CariadBaseClient):
         try:
             got = await off.get_status(vin)
         except Exception:  # noqa: BLE001
-            self._note_official_failure()
+            # #2165 — a rate-limit answer already blocks THIS VIN's key for the
+            # window the server gave; counting it toward the channel-wide failure
+            # streak as well would pause the other keys' reads with it.
+            if off.over_rate_limit_for(vin) is not True:
+                self._note_official_failure()
             return None
         if got is None:
             # A None here is "no data", not an exception, and the channel still
@@ -1706,8 +1714,14 @@ class SkodaClient(CariadBaseClient):
                 # clearly says unlocked → False, otherwise log + None.
                 up = lock_raw.upper()
                 _locked_values = {"YES", "LOCKED", "TRUE", "RELIABLE_LOCKED"}
+                # OPENED / TRUNK_OPENED (official spec, #131): YES means all
+                # supported doors AND trunk are locked+closed, so a door,
+                # bonnet or trunk standing open is not fully locked. Same
+                # reading as skoda_official (only YES is True). UNKNOWN
+                # stays unmapped -> None.
                 _unlocked_values = {
                     "NO", "UNLOCKED", "FALSE", "OPEN", "RELIABLE_UNLOCKED",
+                    "OPENED", "TRUNK_OPENED",
                 }
                 if up in _locked_values:
                     d.doors_locked = True

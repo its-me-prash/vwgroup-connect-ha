@@ -1895,6 +1895,29 @@ def _epoch_or_iso(raw: str | None) -> str | None:
         return None
 
 
+def _plausible_iso_ts(raw: object) -> str | None:
+    """Return a stripped ISO-8601 string, or None for a placeholder/invalid time.
+
+    The EU portal reports "no value" as the Unix epoch (``1970-01-01T00:00:00Z``)
+    or year 1; both are rejected, as is anything that is not ISO-parseable (a
+    TIMESTAMP sensor raises on it). A real time passes through unchanged.
+    """
+    if not isinstance(raw, str):
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+    from datetime import datetime
+
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.year < 2000:
+        return None
+    return s
+
+
 def _is_miles(unit_raw: str | None) -> bool:
     """True if a portal distance-unit companion field denotes miles.
 
@@ -3661,9 +3684,13 @@ def map_dataset_to_vehicle_data(
 
     # `battery_state_report.charge_target_time` — ISO-8601 ts the pack
     # reaches its charge target (charging analog of climatisation_ready_at).
-    ctt = first("battery_state_report.charge_target_time", "charge_target_time")
-    if isinstance(ctt, str) and ctt.strip():
-        d.charge_target_time = ctt.strip()
+    # The portal ships 1970-01-01T00:00:00Z for "no target"; keep only a real,
+    # parseable ISO time, and let the second key win when the first is a dummy.
+    for _ctt_key in ("battery_state_report.charge_target_time", "charge_target_time"):
+        _ctt = _plausible_iso_ts(first(_ctt_key))
+        if _ctt is not None:
+            d.charge_target_time = _ctt
+            break
 
     # `max_number_users` — vehicle-profile seat/account capacity (diagnostic).
     mnu = _to_int(first("max_number_users"))

@@ -46,3 +46,31 @@ def test_cabin_temp_c_is_a_real_vehicle_data_field() -> None:
     vd = VehicleData(vin=VIN)
     assert hasattr(vd, "cabin_temp_c")
     assert "cabin_temp_c" in vd.to_dict()
+
+
+def test_current_temperature_reads_the_portal_filled_cabin_temp() -> None:
+    # The EU-Data-Act mapper fills ``cabin_temp`` (Celsius); nothing writes
+    # ``cabin_temp_c``. The entity must read the field that is actually filled.
+    e = VagClimate(_coord({"outside_temp": 7.0, "cabin_temp": 19.5}), VIN)
+    assert e.current_temperature == 19.5
+
+
+def test_cabin_temp_c_wins_over_cabin_temp_when_a_channel_sets_it() -> None:
+    e = VagClimate(
+        _coord({"outside_temp": 7.0, "cabin_temp": 19.5, "cabin_temp_c": 21.5}), VIN
+    )
+    assert e.current_temperature == 21.5
+
+
+def test_cabin_temp_zero_is_a_real_reading_not_missing() -> None:
+    e = VagClimate(_coord({"cabin_temp": 0.0}), VIN)
+    assert e.current_temperature == 0.0
+    e2 = VagClimate(_coord({"cabin_temp": 0.0, "cabin_temp_c": None}), VIN)
+    assert e2.current_temperature == 0.0
+
+
+def test_climate_unit_is_celsius_like_the_cabin_fields() -> None:
+    from homeassistant.const import UnitOfTemperature
+
+    e = VagClimate(_coord({}), VIN)
+    assert e.temperature_unit == UnitOfTemperature.CELSIUS

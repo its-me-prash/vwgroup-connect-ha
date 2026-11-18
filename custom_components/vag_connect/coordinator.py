@@ -9263,9 +9263,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         User option ``force_ppe_climate`` switches the climate start for Audi
         vehicles on PPC/PPE platforms (Q6 e-tron, A6 e-tron, RS e-tron GT
         Facelift, A3 2024+ PHEV): since #912/#1403 a start that carries no
-        setting goes out without a request body and the car applies its own
-        settings. VW EU and other brands ignore the option — only Audi's
-        CARIAD backend differentiates.
+        setting sends the car's own reported settings, or no body at all when
+        the car reports none. VW EU and other brands ignore the option — only
+        Audi's CARIAD backend differentiates.
 
         #912 (2026-07, Audi A6 e-tron PPE — Mirjam9) — this used to live inline
         in ``async_start_climatisation`` only, so the ``start_climate_control``

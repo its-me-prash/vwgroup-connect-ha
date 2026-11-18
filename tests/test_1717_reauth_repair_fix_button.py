@@ -190,7 +190,9 @@ def test_a_wrong_code_keeps_the_issue_open() -> None:
 
     res = _run(flow.async_step_otp({"mfa_code": "000000"}))
     assert res["type"] == "form" and res["step_id"] == "otp"
-    assert res["errors"]["base"] == "invalid_credentials"
+    # #2158 — the code step, not the password (#1843 removed the password
+    # verdict from the options dialog; the repair now says the same).
+    assert res["errors"]["base"] == "invalid_otp"
     hass.config_entries.async_update_entry.assert_not_called()
 
 

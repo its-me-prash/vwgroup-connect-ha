@@ -160,7 +160,9 @@ class SeatCupraClient(CariadBaseClient):
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK auth + capture user_id from redirect chain."""
-        await super().authenticate()
+        # #2166 (@matroeh) — pass the code on; without it the code entered in
+        # the config flow reached the IDK login as None.
+        await super().authenticate(mfa_code=mfa_code)
         if self._auth.user_id:
             self._user_id = self._auth.user_id
             _LOGGER.debug("SEAT/CUPRA user_id from auth redirect: %s", self._user_id[:8])
@@ -169,7 +171,8 @@ class SeatCupraClient(CariadBaseClient):
 
     # ── v2.4.1 OLA defense-in-depth ────────────────────────────────────────
     async def _request(
-        self, method: str, url: str, retry: bool = True, _attempt: int = 0, **kwargs: Any
+        self, method: str, url: str, retry: bool = True, _attempt: int = 0,
+        _ola_fallback: int = -1, **kwargs: Any,
     ) -> Any:
         """Override to inject OLA app-identifying headers + 403 fallback chain.
 
@@ -189,19 +192,29 @@ class SeatCupraClient(CariadBaseClient):
                  ``ola_headers_repair_needed`` flag so the coordinator
                  raises an HA Repair issue.
         """
-        # Build OLA headers for this brand + apply user overrides.
-        headers = kwargs.pop("headers", None) or {}
-        # Fallback index is encoded in _attempt: 0 = primary, 1+ = fallback chain.
-        fb_idx = -1 if _attempt == 0 else _attempt - 1
+        # #2167 (@matroeh) — the caller's own headers (the lock/unlock SecToken,
+        # Accept-Language) are kept apart from the app set and handed to the 403
+        # fallback below; before, the fallback recursed without them. The
+        # fallback index is its own argument now: it used to be read from
+        # ``_attempt``, which the shared ``_request`` also raises on every 5xx /
+        # 429 / network retry, so such a retry walked the fallback chain too.
+        # A retry from the shared path brings the headers of the attempt it
+        # repeats, and keeps them (setdefault); a fallback attempt overrides the
+        # app keys with its own set, since sending that set is its whole point.
+        caller_headers = dict(kwargs.pop("headers", None) or {})
         ola_headers = get_ola_headers(
             self._brand.name,
-            fallback_index=fb_idx,
+            fallback_index=_ola_fallback,
             app_version_override=self._ola_app_version_override,
             user_agent_override=self._ola_user_agent_override,
         )
-        # Caller-supplied headers win (allows per-request override for SecToken etc).
+        headers = dict(caller_headers)
         for k, v in ola_headers.items():
-            headers.setdefault(k, v)
+            if _ola_fallback >= 0:
+                headers[k] = v
+            else:
+                # Caller-supplied headers win on the first attempt.
+                headers.setdefault(k, v)
 
         try:
             response = await super()._request(method, url, retry=retry, _attempt=_attempt, headers=headers, **kwargs)
@@ -222,7 +235,8 @@ class SeatCupraClient(CariadBaseClient):
                 raise
             # Layer 3: try the next fallback header-set if available.
             fb_count = get_fallback_count(self._brand.name)
-            if _attempt < fb_count:
+            nxt = _ola_fallback + 1
+            if nxt < fb_count:
                 # v2.24.2 (#779) — DEBUG, not WARNING. One poll fans out over
                 # ~19 OLA endpoints, so on an attestation-walled account this
                 # fired ~22 identical warnings inside a third of a second, every
@@ -233,9 +247,12 @@ class SeatCupraClient(CariadBaseClient):
                 _LOGGER.debug(
                     "OLA 403 on %s — retrying with fallback header-set "
                     "#%d/%d (defense-in-depth Layer 3)",
-                    url[-60:], _attempt + 1, fb_count,
+                    url[-60:], nxt + 1, fb_count,
                 )
-                return await self._request(method, url, retry=False, _attempt=_attempt + 1, **kwargs)
+                return await self._request(
+                    method, url, retry=False, _attempt=_attempt + 1,
+                    _ola_fallback=nxt, headers=caller_headers, **kwargs,
+                )
             # Layer 4: all fallbacks exhausted — count toward threshold.
             self._ola_consecutive_403 += 1
             if self._ola_consecutive_403 >= _OLA_REPAIR_THRESHOLD:

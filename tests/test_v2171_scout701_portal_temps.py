@@ -99,6 +99,49 @@ def test_charge_target_time_iso_passthrough() -> None:
     assert d.charge_target_time == "2026-07-10T18:30:00Z"
 
 
+def test_charge_target_time_epoch_placeholder_dropped() -> None:
+    # The portal ships 1970-01-01T00:00:00Z for "no target"; surfacing it would
+    # stamp a 1970 date on the TIMESTAMP sensor and a calendar event.
+    for raw in (
+        "1970-01-01T00:00:00Z",
+        "1970-01-01T00:00:00+00:00",
+        "1970-01-01",
+        "0",
+        "0001-01-01T00:00:00Z",
+        "not-a-time",
+        "",
+        "   ",
+    ):
+        d = _map({"battery_state_report.charge_target_time": raw})
+        assert d.charge_target_time is None, raw
+
+
+def test_charge_target_time_epoch_does_not_mask_fallback_key() -> None:
+    d = _map(
+        {
+            "battery_state_report.charge_target_time": "1970-01-01T00:00:00Z",
+            "charge_target_time": "2026-07-10T18:30:00Z",
+        }
+    )
+    assert d.charge_target_time == "2026-07-10T18:30:00Z"
+
+
+def test_charge_target_time_first_key_wins_when_both_are_real() -> None:
+    # The prefixed battery_state_report key has always had precedence.
+    d = _map(
+        {
+            "battery_state_report.charge_target_time": "2026-07-10T18:30:00Z",
+            "charge_target_time": "2026-07-11T08:00:00Z",
+        }
+    )
+    assert d.charge_target_time == "2026-07-10T18:30:00Z"
+
+
+def test_charge_target_time_valid_offset_kept() -> None:
+    d = _map({"charge_target_time": " 2026-07-10T20:30:00+02:00 "})
+    assert d.charge_target_time == "2026-07-10T20:30:00+02:00"
+
+
 def test_max_number_users_int() -> None:
     d = _map({"max_number_users": "5"})
     assert d.max_number_users == 5
