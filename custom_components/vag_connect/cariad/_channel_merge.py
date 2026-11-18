@@ -166,6 +166,36 @@ def is_held_source(owner: object) -> bool:
     return isinstance(owner, str) and owner in _HELD_PUSH_SOURCES
 
 
+# Gap-fill-only sources: a FOURTH class next to batch, live and held.
+#
+# A channel in this set fills a field only where every channel before it left
+# the field empty, and never takes one over. Tibber (v2.19.0) promised exactly
+# that, but the live-supersede rule below arrived a month later and decides
+# "live" by exclusion, so Tibber silently became a live channel: it replaced
+# portal values for charge, plug, climate and closures. It carries no per-field
+# capture stamp, so there is no evidence it could win on age either.
+#
+# Unlike a held source it reaches the car by VIN, so the held rules that stand
+# in for a hand-set link (field whitelist, no drivetrain proof, stripping after
+# the hold time) do not apply. Only the "never live" part is shared, through
+# ``never_counts_as_live`` below.
+_GAP_FILL_ONLY_SOURCES = frozenset({"tibber"})
+
+
+def never_counts_as_live(owner: object) -> bool:
+    """True when *owner* names a source that must never count as live.
+
+    Held push and gap-fill-only sources. Use it wherever a rule asks "is this a
+    live read?" or "does this value prove the car's own feed is alive?". Do not
+    read it as "not batch": a batch value is not live either, but its changes
+    still prove that the feed moved. Tolerates damaged cache entries like
+    ``is_held_source``.
+    """
+    return isinstance(owner, str) and (
+        owner in _HELD_PUSH_SOURCES or owner in _GAP_FILL_ONLY_SOURCES
+    )
+
+
 def _captured_ts(vd: "VehicleData | None", f_name: str) -> Any:
     """The raw per-field capture stamp *vd* carries for *f_name*, if any."""
     stamps = getattr(vd, "field_captured_ts", None)
@@ -262,15 +292,16 @@ def merge_channels(
     # order) and provenance-correct.
     # A held push source is not live (its value can be days old), so it neither
     # arms this block nor takes part in it; its own, age-gated rule follows.
+    # A gap-fill-only source (Tibber) is not live either and has no rule here.
     if any(
-        nm not in _BATCH_SOURCES and nm not in _HELD_PUSH_SOURCES
+        nm not in _BATCH_SOURCES and not never_counts_as_live(nm)
         for nm, _ in sources
     ):
         for f_name in _LIVE_SUPERSEDE:
             if field_sources.get(f_name) not in _BATCH_SOURCES:
                 continue  # a live channel already owns it, or nobody set it
             for nm, vd in sources:
-                if nm in _BATCH_SOURCES or nm in _HELD_PUSH_SOURCES:
+                if nm in _BATCH_SOURCES or never_counts_as_live(nm):
                     continue
                 live_val = getattr(vd, f_name, None)
                 if not _unset(f_name, live_val):

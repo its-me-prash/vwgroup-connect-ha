@@ -52,7 +52,11 @@ from .const import (
     advised_scan_interval_from_budget,
 )
 from homeassistant.helpers import device_registry as dr
-from .cariad._channel_merge import _HELD_PUSH_SOURCES, is_held_source
+from .cariad._channel_merge import (
+    _HELD_PUSH_SOURCES,
+    is_held_source,
+    never_counts_as_live,
+)
 from .cariad._error_reporter import ErrorRingBuffer, record_error
 from .cariad._reporter_pipeline import (
     ensure_error_reporter_issue,
@@ -139,11 +143,13 @@ def _values_moved(
     # every trip while the portal can be frozen for days. Counted here, one
     # such change would clear the stale-data Repair this rule exists to keep
     # honest, and the owner flipping back to the batch would do it again.
+    # A gap-fill-only source (Tibber) is skipped for the same reason; a batch
+    # value still counts, so the test is ``never_counts_as_live``, not "not batch".
     prev_owners = previous.get("field_sources")
     cur_owners = current.get("field_sources")
 
     def _held(owners: Any, key: str) -> bool:
-        return isinstance(owners, dict) and is_held_source(owners.get(key))
+        return isinstance(owners, dict) and never_counts_as_live(owners.get(key))
 
     for key in _LIVENESS_FIELDS:
         if key not in previous or key not in current:
@@ -365,14 +371,15 @@ def _has_live_contributor(data: dict[str, Any]) -> bool:
     A held push source is not a live contributor either. It relays a reading
     that can be days old and never sets ``last_seen_at``, so counting it would
     let that anchor outvote the batch stamps on a car whose only read path is
-    the batch, which is the very case the anchor must not decide.
+    the batch, which is the very case the anchor must not decide. A
+    gap-fill-only source (Tibber) neither: no capture stamp, no ``last_seen_at``.
     """
     raw = data.get("source_channel")
     if not isinstance(raw, str) or not raw.strip():
         return False
     return any(
         tok
-        and tok not in _HELD_PUSH_SOURCES
+        and not never_counts_as_live(tok)
         and not any(marker in tok for marker in _BATCH_CHANNEL_MARKERS)
         for tok in (part.strip().lower() for part in raw.split("+"))
     )

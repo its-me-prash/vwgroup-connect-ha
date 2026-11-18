@@ -201,15 +201,20 @@ class TestTheContributorTest:
         assert not _has_live_contributor({})
 
     def test_every_other_known_token_counts_as_live(self) -> None:
-        """Every labelled token is batch, held or live, and only live counts.
+        """Every labelled token is batch, held, gap-fill-only or live, and only
+        live counts.
 
         The held push class joined later: it relays a reading that can be days
         old and never sets ``last_seen_at``, so it is deliberately not a live
-        contributor. Walking the label table keeps this a completeness gate: a
-        token added to the labels without a decision here fails right away.
+        contributor. The gap-fill-only class (Tibber) joined after it: no
+        capture stamp, no ``last_seen_at``, and a promise never to overwrite
+        the car's own values. Walking the label table keeps this a completeness
+        gate: a token added to the labels without a decision here fails right
+        away.
         """
         from custom_components.vag_connect._channel_labels import _CHANNEL_LABELS
         from custom_components.vag_connect.cariad._channel_merge import (
+            _GAP_FILL_ONLY_SOURCES,
             _HELD_PUSH_SOURCES,
         )
 
@@ -222,8 +227,18 @@ class TestTheContributorTest:
         assert held <= set(_CHANNEL_LABELS), (
             "control: the held class must be present in the label table"
         )
+        # Same rule for the gap-fill-only class.
+        gap_fill_only = {"tibber"}
+        assert _GAP_FILL_ONLY_SOURCES == gap_fill_only
+        assert gap_fill_only <= set(_CHANNEL_LABELS), (
+            "control: the gap-fill-only class must be present in the label table"
+        )
         for token in _CHANNEL_LABELS:
-            expected = token not in batch and token not in held
+            expected = (
+                token not in batch
+                and token not in held
+                and token not in gap_fill_only
+            )
             assert _has_live_contributor({"source_channel": token}) is expected, (
                 f"{token} classified wrongly"
             )
