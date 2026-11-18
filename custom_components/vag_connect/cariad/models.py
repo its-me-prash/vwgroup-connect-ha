@@ -52,22 +52,25 @@ BRAND_VW_EU = BrandConfig(
     name="volkswagen",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/4.2.1-android/14",
+    user_agent="Volkswagen/4.8.1-android/14",
     api_base="https://emea.bff.cariad.digital",
     # scope from volkswagencarnet (upstream/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
-    # v2.5.11 — matches atlas profile vw_group_auth_profile.json#brands.vw.package_name.
-    # Source: VW WeConnect 3.61.0 APK xapk archive name + ioBroker commit 884269b1.
-    # v2.15.3 — user_agent bumped 3.61.0 → 3.63.2 to match the live We Connect
-    # build (DEX-verified; _mbb_app_identity() in vw_eu.py already ships 3.63.2).
-    # Unreleased (App Atlas refresh 2026-07) — bumped 3.63.2 → 4.2.1 from the
-    # fresh com.volkswagen.weconnect DEX. This literal had drifted two whole
-    # generations behind the app while _mbb_app_identity() had already moved on,
-    # so the two channels were announcing different builds of the same app.
-    # Nothing else changed between 4.1.1 and 4.2.1 (no new clients/endpoints).
-    # Pre-v2.5.11 this was silently impersonating the Audi package via the
-    # hardcoded ``de.myaudi.mobile.assistant`` default in idk.py.
-    android_package_name="de.volkswagen.weconnect",
+    # user_agent tracks the live We Connect build (fs-car endpoints reject stale
+    # versions): 3.61.0 → 3.63.2 (v2.15.3) → 4.2.1 (App Atlas 2026-07) → 4.8.1
+    # (2026-11-18 dismantle). The live app UA literal is
+    # ``Volkswagen/<version>-android/<os>`` (DEX-verified); _mbb_app_identity()
+    # in vw_eu.py ships the same X-App-Version so the two channels agree.
+    # 0 new client-ids / endpoints 4.2.1 → 4.8.1.
+    # android_package_name is the real manifest package com.volkswagen.weconnect
+    # (4.8.1 androguard + the app's X-Android-Package-Name on the attestation
+    # path). It was ``de.volkswagen.weconnect`` — a confusion with the
+    # de.volkswagen.* legacy family (vwconnect / carnet); the main We Connect app
+    # has always shipped under com. (corrected 2026-11-18). It only feeds the
+    # idk.py attestation header, which VW's read-only path does not use, so this
+    # is a latent correctness fix. Pre-v2.5.11 the field defaulted to the Audi
+    # package via idk.py's hardcoded ``de.myaudi.mobile.assistant``.
+    android_package_name="com.volkswagen.weconnect",
 )
 
 # #1316 — VW Commercial Vehicles (Nutzfahrzeuge) is a SEPARATE EU Data Act
@@ -82,10 +85,10 @@ BRAND_VW_COMMERCIAL = BrandConfig(
     name="volkswagen_commercial",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/4.2.1-android/14",
+    user_agent="Volkswagen/4.8.1-android/14",
     api_base="https://emea.bff.cariad.digital",
     scope="openid profile badge cars dealers vin",
-    android_package_name="de.volkswagen.weconnect",
+    android_package_name="com.volkswagen.weconnect",
 )
 
 # ── DataPlug / plug&play cloud (OBD-dongle cars WITHOUT built-in connectivity) ──

@@ -20,11 +20,12 @@ _GRAPHQL = _ROOT / "cariad/api/graphql.py"
 
 def test_weconnect_app_version_is_current() -> None:
     """Verified against the dismantled com.volkswagen.weconnect APK
-    (versionName 4.2.1, App Atlas refresh 2026-07). Do NOT lower this without a
-    fresh dismantle — a fidelity check on the fs-car endpoints rejects stale
-    versions, which is exactly how an unverified value regresses a channel."""
+    (versionName 4.8.1 / versionCode 408010, 2026-11-18 dismantle). Do NOT lower
+    this without a fresh dismantle — a fidelity check on the fs-car endpoints
+    rejects stale versions, which is exactly how an unverified value regresses a
+    channel."""
     src = _VW_EU.read_text(encoding="utf-8")
-    assert '"Volkswagen", "4.2.1"' in src
+    assert '"Volkswagen", "4.8.1"' in src
     assert "3.51.1" not in src  # the stale value must not creep back
 
 
@@ -32,9 +33,13 @@ def test_weconnect_user_agent_matches_mbb_app_identity() -> None:
     """The BrandConfig User-Agent and the MBB X-App-Version must name the SAME
     build — they drifted two generations apart (3.63.2 vs 4.1.1) until the
     2026-07 Atlas refresh, so the two channels announced different apps."""
-    assert 'user_agent="Volkswagen/4.2.1-android/14"' in _MODELS.read_text(
-        encoding="utf-8"
-    )
+    models = _MODELS.read_text(encoding="utf-8")
+    assert 'user_agent="Volkswagen/4.8.1-android/14"' in models
+    # The real manifest package is com.volkswagen.weconnect (4.8.1 androguard +
+    # the app's X-Android-Package-Name); it must not revert to the de.* legacy
+    # family it was confused with before 2026-11-18.
+    assert 'android_package_name="com.volkswagen.weconnect"' in models
+    assert '"de.volkswagen.weconnect"' not in models
 
 
 def test_myaudi_app_version_is_current() -> None:
