@@ -76,6 +76,7 @@ def _client(spin: str = "1234"):
     client._vin_to_uuid = {_VIN: _UUID}
     client._vin_to_model = {}
     client._vin_to_nickname = {}
+    client._vin_to_tsp = {}
     client._user_id = _USER_ID
     client._spin = spin
     client._tokens = _FakeTokens()
@@ -386,3 +387,95 @@ class TestBare403Persistence:
         await client.get_status(_VIN)
         assert client._bare_403_streak == 0
         assert client.vw_na_data_forbidden is False
+
+
+# ---------------------------------------------------------------------------
+# 6) tsp routed per-vehicle from the garage ``tspProvider`` (not blanket WCT)
+# ---------------------------------------------------------------------------
+
+
+class TestPerVehicleTsp:
+    """APK 2026.9.29-9674: the myVW ``VehicleSessionRequest.tsp`` enum carries
+    the garage vehicle's own ``tspProvider`` ("WCT" WirelessCar / "ATC" Aeris).
+    VW NA runs both telematics backends and routes the S-PIN session by it, so a
+    car on the Aeris/ATC backend REJECTS a session that claims WCT. We send the
+    per-vehicle value and keep WCT only as the default."""
+
+    async def _run_session(self, client):
+        """Drive one get_status poll, returning the session POST body."""
+        future_exp = (datetime.now(tz=timezone.utc) + timedelta(hours=1)).timestamp()
+        carnet_jwt = _make_jwt(future_exp)
+        post_bodies: list[dict] = []
+
+        async def fake_request(method, url, retry=True, _carnet_auth=False, **kwargs):
+            if method == "GET" and url.endswith("/challenge"):
+                return {"data": {"challenge": "chal", "remainingTries": 5}}
+            if method == "POST" and url.endswith(f"/vehicle/{_UUID}/session"):
+                post_bodies.append(kwargs["json"])
+                return {"data": {"carnetVehicleToken": carnet_jwt}}
+            if "/rvs/" in url:
+                return {"powerStatus": {}}
+            return {}
+
+        client._request = fake_request  # type: ignore[method-assign]
+        client.get_subscription_privileges = AsyncMock(return_value={})  # type: ignore[method-assign]
+        await client.get_status(_VIN)
+        assert len(post_bodies) == 1
+        return post_bodies[0]
+
+    @pytest.mark.asyncio
+    async def test_atc_vehicle_sends_atc(self):
+        client = _client(spin="1234")
+        client._vin_to_tsp = {_VIN: "ATC"}  # Aeris-backed car
+        body = await self._run_session(client)
+        assert body["tsp"] == "ATC"
+
+    @pytest.mark.asyncio
+    async def test_wct_vehicle_sends_wct(self):
+        client = _client(spin="1234")
+        client._vin_to_tsp = {_VIN: "WCT"}
+        body = await self._run_session(client)
+        assert body["tsp"] == "WCT"
+
+    @pytest.mark.asyncio
+    async def test_missing_tsp_defaults_to_wct(self):
+        # Garage omitted tspProvider (or an unknown value was screened out):
+        # the historical WCT default must still apply.
+        client = _client(spin="1234")
+        client._vin_to_tsp = {}
+        body = await self._run_session(client)
+        assert body["tsp"] == "WCT"
+
+
+# ---------------------------------------------------------------------------
+# 7) garage parser captures tspProvider into _vin_to_tsp (WCT/ATC only)
+# ---------------------------------------------------------------------------
+
+
+class TestGarageTspCapture:
+    @pytest.mark.asyncio
+    async def test_garage_captures_known_tsp_and_screens_unknown(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+
+        client = _client(spin="1234")
+        client._vin_to_uuid = {}
+        client._vin_to_tsp = {}
+        other_vin = "WVWZZZ1KZAW000999"
+        garage = {
+            "data": {
+                "vehicles": [
+                    {"vin": _VIN, "vehicleId": _UUID, "tspProvider": "ATC"},
+                    # Unknown/garbage provider must NOT be stored (falls back to
+                    # the WCT default at session time).
+                    {"vin": other_vin, "vehicleId": "uuid-2",
+                     "tspProvider": "SOMETHING_ELSE"},
+                ]
+            }
+        }
+        client._get = _AsyncMock(return_value=garage)  # type: ignore[method-assign]
+
+        vins = await client.get_vehicles()
+
+        assert set(vins) == {_VIN, other_vin}
+        assert client._vin_to_tsp.get(_VIN) == "ATC"
+        assert other_vin not in client._vin_to_tsp  # screened out
