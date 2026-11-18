@@ -354,6 +354,16 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:email-check-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # MyŠkoda 8.18.0 — garage document ``workshopModeEnabled``. ON = the car is
+    # in workshop mode (the app then holds back remote services). Škoda only,
+    # data-present gated.
+    VagBinarySensorDescription(
+        key="workshop_mode",
+        translation_key="workshop_mode",
+        data_key="workshop_mode",
+        icon="mdi:car-wrench",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     VagBinarySensorDescription(
         key="parking_light",
         translation_key="parking_light",
@@ -1221,6 +1231,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "seat_heating",
     "mandatory_consent_given",       # Skoda-only (consents) — v2.31.0
     "marketing_consent_given",       # Skoda-only (consents) — v2.31.0
+    "workshop_mode",                 # Skoda-only (garage document) — 8.18.0
     "parking_light",
     "external_power",
     "battery_care",

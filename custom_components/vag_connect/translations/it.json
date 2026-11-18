@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "Stato aggiornamento software"
       },
+      "connectivity_sunset_impact": {
+        "name": "Impatto dello spegnimento 2G/3G"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Consumo elettrico medio a breve termine"
       },
@@ -2184,6 +2187,9 @@
       },
       "marketing_consent_given": {
         "name": "Consenso marketing dato"
+      },
+      "workshop_mode": {
+        "name": "Modalità officina"
       },
       "data_source": {
         "name": "Fonte: {source}"

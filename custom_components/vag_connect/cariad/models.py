@@ -1528,6 +1528,14 @@ class VehicleData:
     # the existing capabilities_count diagnostic sensor (state unchanged).
     connected_services: list[dict[str, Any]] = field(default_factory=list)
 
+    # MyŠkoda 8.18.0 — from the garage document (``VehicleDto``), filled by the
+    # coordinator for Škoda. ``workshop_mode`` = ``workshopModeEnabled``;
+    # ``connectivity_sunset_impact`` = ``sunset2g3gImpact`` verbatim (the app knows
+    # OCU_3G_NOT_UPGRADABLE, OCU_3G_UPGRADABLE_VIA_OTA and five more). None = not
+    # reported → no entity.
+    workshop_mode: bool | None = None
+    connectivity_sunset_impact: str | None = None
+
     # Departure timers
     departure_timer_1_enabled: bool = False
     departure_timer_1_time: str | None = None

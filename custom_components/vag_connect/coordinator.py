@@ -1373,6 +1373,57 @@ _REMINDER_KEYS = {
 }
 
 
+# Same cap as the VW/SEAT/CUPRA parsers (``_CONNECTED_SERVICES_CAP``) so the
+# attribute payload stays comparable; Škoda lists ~100 capabilities.
+_SKODA_CONNECTED_SERVICES_CAP = 40
+
+
+def _skoda_garage_extras(caps: Any) -> dict[str, Any]:
+    """MyŠkoda 8.18.0 — display fields from the cached garage document.
+
+    *caps* is what ``SkodaClient.get_capabilities`` cached in
+    ``vehicle_capabilities[vin]``. Returns vehicle-data keys:
+
+    - ``workshop_mode`` — ``workshopModeEnabled`` (False is real data, kept);
+    - ``connectivity_sunset_impact`` — ``sunset2g3gImpact`` verbatim;
+    - ``capabilities_count`` and ``connected_services`` — one
+      ``{id, expires_at, status}`` row per capability, the same shape the VW and
+      SEAT/CUPRA parsers fill, except that ``status`` is Škoda's ``statuses``
+      LIST (``None`` when empty). Restricted rows come first so the cap never
+      cuts the rows a user is looking for.
+
+    Display only — nothing here feeds the capability gate. Pure and total.
+    """
+    if not isinstance(caps, dict):
+        return {}
+    out: dict[str, Any] = {}
+    workshop = caps.get("workshopModeEnabled")
+    if isinstance(workshop, bool):
+        out["workshop_mode"] = workshop
+    sunset = caps.get("sunset2g3gImpact")
+    if isinstance(sunset, str) and sunset:
+        out["connectivity_sunset_impact"] = sunset
+    items = caps.get("capabilities")
+    if isinstance(items, list):
+        rows: list[dict[str, Any]] = []
+        for entry in items:
+            if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+                continue
+            raw = entry.get("statuses")
+            statuses = [s for s in raw if isinstance(s, str)] if isinstance(raw, list) else []
+            expiry = entry.get("serviceExpiration")
+            rows.append({
+                "id": entry["id"],
+                "expires_at": expiry if isinstance(expiry, str) and expiry else None,
+                "status": statuses or None,
+            })
+        if rows:
+            out["capabilities_count"] = len(rows)
+            rows.sort(key=lambda r: r["status"] is None)  # stable: restricted first
+            out["connected_services"] = rows[:_SKODA_CONNECTED_SERVICES_CAP]
+    return out
+
+
 # v4.7.12 (8.16.0 APK) — the same PredictiveMaintenanceDto grew a second
 # top-level array ``predictions`` beside ``reminders``. PredictionTypeDto has
 # exactly ONE value today (BRAKE_PADS); an unknown future type is dropped rather
@@ -8487,11 +8538,31 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             for view, url in flat.items():
                                 merged.setdefault(view, url)
                             data["image_urls"] = merged
+            # MyŠkoda 8.18.0 — workshop mode, 2G/3G-sunset impact and the
+            # per-capability statuses/expiry from the cached garage document.
+            # Škoda only: SEAT/CUPRA cache a capability list too, but their own
+            # parser owns these keys. A value a client already set wins.
+            _is_skoda = str(self.entry.data.get(CONF_BRAND, "")).lower() == "skoda"
+            if _is_skoda:
+                _garage = _skoda_garage_extras(
+                    getattr(self, "vehicle_capabilities", {}).get(vin)
+                )
+                for _gk, _gv in _garage.items():
+                    if data.get(_gk) in (None, []):
+                        data[_gk] = _gv
             # Trigger lazy 24h cache refresh — if fresh, no-op
             try:
                 await self.refresh_static_info(vin)
             except Exception:  # noqa: BLE001
                 pass  # Best-effort, never blocks _enrich
+            # The garage document was fetched once at startup only; workshop mode
+            # changes while HA runs. Same 24h TTL (_CAPABILITIES_TTL), Škoda only
+            # so no other brand gains a request.
+            if _is_skoda:
+                try:
+                    await self.refresh_capabilities(vin)
+                except Exception:  # noqa: BLE001
+                    pass  # Best-effort, never blocks _enrich
 
         # v1.19.1 — Pycupra-style API quota visibility. Copy the brand-
         # client's last-observed X-RateLimit-Remaining header onto each
