@@ -145,31 +145,16 @@ _MYSMOB_PROBES: tuple[V3Probe, ...] = (
         path="/api/v1/vehicle-information/{vin}/renders",
         notes="Composite-render layers (multi-angle vehicle imagery)",
     ),
-    V3Probe(
-        name="mysmob_v2_predictive_maintenance",
-        path="/api/v2/maintenance/{vin}/predictive",
-        notes="Predictive-maintenance opt-in + preferred channel",
-    ),
-    V3Probe(
-        name="mysmob_v2_software_version",
-        path="/api/v2/software-version/{vin}/update-status",
-        notes="OTA-update availability — Skoda-only feature foreshadowing",
-    ),
-    V3Probe(
-        name="mysmob_v1_bookings",
-        path="/api/v1/maintenance/{vin}/bookings",
-        notes="Next service appointment list (Booking dataclass)",
-    ),
-    V3Probe(
-        name="mysmob_v1_service_partner",
-        path="/api/v1/maintenance/{vin}/service-partner",
-        notes="Preferred workshop — already exposed; probe for field-shape changes",
-    ),
-    V3Probe(
-        name="mysmob_v1_warning_lights",
-        path="/api/v1/vehicle-health-warnings/{vin}",
-        notes="Skoda-flavoured warning-light enum that v3.0 unifies cross-brand",
-    ),
+    # MyŠkoda 8.18.0 (vc 261012003) — five former probes removed: the app has no
+    # route under /api/v2/maintenance/{vin}/predictive, /api/v2/software-version/
+    # {vin}/update-status, /api/v1/maintenance/{vin}/bookings, /api/v1/maintenance/
+    # {vin}/service-partner or /api/v1/vehicle-health-warnings/{vin}, so they most
+    # likely returned nothing (inferred, not checked live; the runner drops non-2xx
+    # answers other than 401 silently; they ran at most hourly per car). The app's
+    # real routes for that data (predictive-maintenance/
+    # vehicles/{vin} in its 6h refresh; vehicle-information/{vin}/software-version/
+    # update-status, vehicle-health-report/warning-lights/{vin} and
+    # vehicle-maintenance/vehicles/{vin} in the poll) are already read.
 )
 
 
@@ -339,10 +324,11 @@ def base_url_for_brand(brand_name: str) -> str | None:
 
 # Approx total probe surface (sum of unique endpoints across brand families):
 #   OLA (SEAT+CUPRA): 10
-#   mysmob (Skoda):    8
-#   CARIAD-BFF (VW+Audi): 10
+#   mysmob (Skoda):    3 (five dead paths removed against MyŠkoda 8.18.0)
+#   CARIAD-BFF (VW+Audi): 11
 #   VW NA:             0 (removed in v2.29.x — see the VW NA block above)
 #   Porsche:           3
-# = 31 distinct endpoints. Per-VIN per-pass at 1×/h = 31 calls/h max across
+# = 27 distinct endpoints (counted from PROBES_BY_BRAND, 18.11.2026). Per-VIN
+# per-pass at 1×/h = 27 calls/h max across
 # a multi-brand HA install. Per-user typical scope: 8-10 calls/h. Well under
 # any documented rate-limit for the targeted backends.
