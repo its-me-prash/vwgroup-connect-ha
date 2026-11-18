@@ -1797,6 +1797,11 @@ class VehicleData:
     # non-reporting cars get no phantom entity. PROBLEM class: True = red.
     brake_fluid_warning: bool | None = None
 
+    # Porsche HIBERNATION_MODE.isEnabled (My Porsche 21.26.46). True while the
+    # car is in its hibernation mode. None on cars that do not report it, and
+    # gated in _DATA_PRESENT_REQUIRED so they get no phantom entity.
+    hibernation_mode: bool | None = None
+
     # v2.0.0 (Big-Bang) — Vehicle alarm (issue #33).
     # Cariad-BFF ``access.accessStatus.value`` may carry vehicleAlarm /
     # siren fields when the car's anti-theft system has triggered. Surfaced

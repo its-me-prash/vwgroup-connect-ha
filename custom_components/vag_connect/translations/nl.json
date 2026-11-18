@@ -1999,6 +1999,9 @@
       "brake_fluid_warning": {
         "name": "Remvloeistof"
       },
+      "hibernation_mode": {
+        "name": "Slaapstand"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Verbruiksteller omgelopen"
       },

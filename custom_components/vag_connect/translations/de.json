@@ -1933,6 +1933,9 @@
       "brake_fluid_warning": {
         "name": "Bremsflüssigkeit"
       },
+      "hibernation_mode": {
+        "name": "Ruhemodus"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Verbrauchszähler übergelaufen"
       },

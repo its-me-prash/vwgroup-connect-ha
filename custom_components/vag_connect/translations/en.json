@@ -1933,6 +1933,9 @@
       "brake_fluid_warning": {
         "name": "Brake Fluid"
       },
+      "hibernation_mode": {
+        "name": "Hibernation Mode"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Energy-used counter wrapped"
       },

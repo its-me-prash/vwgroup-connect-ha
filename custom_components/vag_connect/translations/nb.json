@@ -1933,6 +1933,9 @@
       "brake_fluid_warning": {
         "name": "Bremsevæske"
       },
+      "hibernation_mode": {
+        "name": "Dvalemodus"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Forbrukstelleren har rullet over"
       },

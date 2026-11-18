@@ -140,6 +140,16 @@ class TestOtherBrandsIgnoreRich:
 
         client = PorscheClient.__new__(PorscheClient)
         client._command = AsyncMock()  # type: ignore[method-assign]
+        # My Porsche 21.26.46: DEPARTURES_EDIT sends the whole DEPARTURES list
+        # back with one entry changed (see test_porsche_paket_b.py).
+        entry = {"id": 1, "isEnabled": False,
+                 "triggerDateTimeWithOffset": "2026-09-20T07:00:00+02:00",
+                 "chargingOption": {"type": "ENABLED"},
+                 "isClimatizationEnabled": False}
+        client._get = AsyncMock(return_value={"measurements": [  # type: ignore[method-assign]
+            {"key": "DEPARTURES", "status": {"isEnabled": True},
+             "value": {"list": [entry]}},
+        ]})
 
         asyncio.run(client.command_set_departure_timer(
             "PORS0000000000001", 1, True, "08:00",
@@ -148,10 +158,14 @@ class TestOtherBrandsIgnoreRich:
         assert client._command.await_count == 1
         # _command(vin, key, payload)
         payload = client._command.await_args.args[2]
-        assert payload == {"timerId": 1, "enabled": True,
-                           "departureTime": "08:00"}
+        assert payload == {"spin": None, "list": [{
+            "id": 1, "isEnabled": True,
+            "triggerDateTimeWithOffset": "2026-09-20T08:00:00+02:00",
+            "chargingOption": {"type": "ENABLED"},
+            "isClimatizationEnabled": False,
+        }]}
         for k in ("charging", "climatisation", "targetBatteryStateOfChargeInPercent"):
-            assert k not in payload
+            assert k not in payload["list"][0]
 
 
 # ---------------------------------------------------------------------------

@@ -253,6 +253,15 @@ async def async_setup_entry(
                 )
             ):
                 continue
+            # Porsche: only a car that reports
+            # CHARGING_SETTINGS.acChargingCurrentLimitA has the AC limit; any
+            # other electric Porsche would get a slider the backend refuses.
+            if (
+                desc.key == "max_charge_current"
+                and brand == "porsche"
+                and vehicle.get("max_charge_current") is None
+            ):
+                continue
             cmd_id = _CMD_ID.get(desc.key)
             if cmd_id and coordinator.command_capability_supported(vin, cmd_id) is False:
                 continue

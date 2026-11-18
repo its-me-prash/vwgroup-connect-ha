@@ -1999,6 +1999,9 @@
       "brake_fluid_warning": {
         "name": "Płyn hamulcowy"
       },
+      "hibernation_mode": {
+        "name": "Tryb hibernacji"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Licznik zużycia przepełniony"
       },
