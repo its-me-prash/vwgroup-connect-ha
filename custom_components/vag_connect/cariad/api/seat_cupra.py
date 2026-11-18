@@ -31,7 +31,7 @@ from .._util import (
 from .._ola_headers import get_fallback_count, get_ola_headers
 from ..exceptions import APIError, AuthenticationError, SpinError
 from ..models import BRAND_CUPRA, BRAND_SEAT, BrandConfig, VehicleData
-from .base import CariadBaseClient
+from .base import _COOKIE_SESSION_STRATEGIES, CariadBaseClient
 
 _LOGGER = logging.getLogger(__name__)
 _BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"
@@ -166,6 +166,19 @@ class SeatCupraClient(CariadBaseClient):
         if self._auth.user_id:
             self._user_id = self._auth.user_id
             _LOGGER.debug("SEAT/CUPRA user_id from auth redirect: %s", self._user_id[:8])
+        elif (_strategy := getattr(self._tokens, "strategy", None)) in _COOKIE_SESSION_STRATEGIES:
+            # #1867 (@georghaberkorn68-ctrl) — after the fallback to the EU Data
+            # Act portal (or the volkswagen.de website session) the entry holds
+            # the cookie-session placeholder, not a token. Looking the user ID up
+            # here sent that placeholder as a Bearer to the OLA host, got a 404
+            # and logged "Could not fetch SEAT/CUPRA user ID" on every setup and
+            # reload. The portal path reads the vehicle list and status without
+            # it; the OLA paths that need it (garage list, capabilities, S-PIN
+            # verify) still fetch it on demand.
+            _LOGGER.debug(
+                "SEAT/CUPRA: signed in via %s; no user ID lookup on the app API",
+                _strategy,
+            )
         else:
             await self._fetch_user_id()
 
