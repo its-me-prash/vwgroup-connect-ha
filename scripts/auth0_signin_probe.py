@@ -124,7 +124,7 @@ def _install_doh_resolver() -> None:
         ip = _doh_a(host)
         if not ip:
             try:
-                ip = _real_getaddrinfo(host, 443, socket.AF_INET)[0][4][0]
+                ip = str(_real_getaddrinfo(host, 443, socket.AF_INET)[0][4][0])
             except Exception:  # noqa: BLE001
                 ip = None
         if ip:
@@ -284,18 +284,18 @@ def _probe_mbbuser(access_token: str, token_sub: str | None) -> str | None:
         if "scope" in body.lower():
             print("    → the message names a scope: the token's scope set is "
                   "too narrow for this endpoint")
-        return
+        return None
     except Exception as exc:  # noqa: BLE001
         print(f"    error {type(exc).__name__}")
-        return
+        return None
     print(f"    HTTP {status}")
     if status != 200:
-        return
+        return None
     try:
         mbb_id = (json.loads(raw).get("data") or {}).get("mbbUserId")
     except Exception:  # noqa: BLE001
         print(f"    (response not JSON, {len(raw)} B)")
-        return
+        return None
     print(f"    mbbUserId returned: {bool(mbb_id)}"
           + (f"  ({_mask(str(mbb_id))})" if mbb_id else ""))
     if mbb_id and token_sub:
