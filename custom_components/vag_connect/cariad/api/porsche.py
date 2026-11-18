@@ -14,7 +14,7 @@ import hashlib
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -600,6 +600,29 @@ class PorscheClient:
                 bool(v(_cc_raw, "status", "isEnabled", default=True))
                 if _cc_raw is not None else None
             )
+            # My Porsche 21.26.46: CONNECT_CONTRACT.value is
+            # ``{lastModified?, isEnabled, until?}``. On an enabled
+            # measurement the value's own flag decides, and ``until`` (a
+            # timestamp) feeds the cross-brand subscription-end fields. A
+            # disabled measurement keeps meaning "inactive", as above.
+            _cc_val = _cc_raw.get("value") if isinstance(_cc_raw, dict) else None
+            if d.connect_contract_active and isinstance(_cc_val, dict):
+                _cc_flag = _cc_val.get("isEnabled")
+                if isinstance(_cc_flag, bool):
+                    d.connect_contract_active = _cc_flag
+                _cc_until = _cc_val.get("until")
+                if isinstance(_cc_until, str) and _cc_until:
+                    try:
+                        _cc_end = datetime.fromisoformat(_cc_until.replace("Z", "+00:00"))
+                    except ValueError:
+                        _cc_end = None
+                    if _cc_end is not None:
+                        if _cc_end.tzinfo is None:
+                            _cc_end = _cc_end.replace(tzinfo=timezone.utc)
+                        d.subscription_expiry_at = _cc_until
+                        d.subscription_days_remaining = (
+                            _cc_end - datetime.now(tz=timezone.utc)
+                        ).days
 
             d.battery_soc   = v(m, "BATTERY_LEVEL", "percent")
             # v2.2.1 Phase 8 PR #3 — split electric / combustion range
@@ -871,11 +894,21 @@ class PorscheClient:
             # so CURRENT may be an absolute value on a 0..MAX scale rather than a
             # bare percent — normalise against MAX when available and it isn't
             # itself a 0..100 percent. Only ever yields 0..100 or None.
+            #
+            # My Porsche 21.26.46 models OIL_LEVEL_CURRENT as
+            # ``{lastModified?, percent}`` (and OIL_LEVEL_MAX as ``{liters}``).
+            # A ``percent`` member is taken as it stands; the ratio and
+            # 0..max readings below stay only for a value without one, so a
+            # real 1 % no longer reads as 100 %.
             _oil_keys = ("percent", "percentage", "currentValue", "value",
                          "level", "current")
-            oil_cur = _mf_number(m.get("OIL_LEVEL_CURRENT"), _oil_keys)
+            _oil_raw = m.get("OIL_LEVEL_CURRENT")
+            oil_percent = (
+                _mf_number(_oil_raw, ("percent",)) if isinstance(_oil_raw, dict) else None
+            )
+            oil_cur = None if oil_percent is not None else _mf_number(_oil_raw, _oil_keys)
             oil_max = _mf_number(m.get("OIL_LEVEL_MAX"), _oil_keys + ("max", "maximum"))
-            oil_pct: float | None = None
+            oil_pct: float | None = oil_percent
             if oil_cur is not None:
                 if 0.0 < oil_cur <= 1.0:                       # ratio 0..1
                     oil_pct = oil_cur * 100.0
@@ -1054,11 +1087,44 @@ class PorscheClient:
         is genuinely unknown, not just untested."""
         await self._command(vin, "CHARGING_START", {"spin": None})
 
-    async def command_start_ota_update(self, vin: str) -> None:
-        """b20 (2026-09-08) — ``OTA_UPDATE_REMOTE_START``, real command
-        (software-update-available flow). No payload fields evidenced.
-        NOT LIVE-VERIFIED."""
-        await self._command(vin, "OTA_UPDATE_REMOTE_START")
+    async def _read_measurement_value(self, vin: str, key: str) -> dict | None:
+        """Plain read of one measurement; its ``value`` when enabled, else None."""
+        overview = await self._get(
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}", params=[("mf", key)],
+        )
+        items = overview.get("measurements") if isinstance(overview, dict) else None
+        for item in items if isinstance(items, list) else []:
+            if (
+                isinstance(item, dict)
+                and item.get("key") == key
+                and self._val(item, "status", "isEnabled", default=True)
+            ):
+                value = item.get("value")
+                return value if isinstance(value, dict) else None
+        return None
+
+    async def command_start_ota_update(self, vin: str, update_id: str | None = None) -> None:
+        """Start a pending software update (``OTA_UPDATE_REMOTE_START``).
+
+        My Porsche 21.26.46 models the payload as ``{spin?, updateId,
+        campaignCode?}``; ``updateId`` is required, so the earlier empty
+        payload could not be accepted. Without an explicit ``update_id`` the
+        id is taken from ``OTA_UPDATE_DETAILS.updateId``. That source is an
+        inference: the app's own call site was not found, only the payload
+        model and the update-details model carrying an ``updateId``. Not
+        wired to an entity. NOT LIVE-VERIFIED.
+        """
+        if not update_id:
+            details = await self._read_measurement_value(vin, "OTA_UPDATE_DETAILS")
+            found = details.get("updateId") if details else None
+            update_id = found if isinstance(found, str) else None
+        if not update_id:
+            raise VehicleCommandError(
+                "OTA_UPDATE_REMOTE_START", "no pending software update reported",
+            )
+        await self._command(
+            vin, "OTA_UPDATE_REMOTE_START", {"spin": None, "updateId": update_id},
+        )
 
     async def command_give_ota_consent(self, vin: str) -> None:
         """b20 (2026-09-08) — ``OTA_CONSENT_GIVE``. NOT LIVE-VERIFIED."""
@@ -1068,11 +1134,30 @@ class PorscheClient:
         """b20 (2026-09-08) — ``OTA_CONSENT_REVOKE``. NOT LIVE-VERIFIED."""
         await self._command(vin, "OTA_CONSENT_REVOKE")
 
-    async def command_reset_service_predictions(self, vin: str) -> None:
-        """b20 (2026-09-08) — ``SERVICE_PREDICTIONS_RESET``, presumably
-        clears/recalculates the service-due predictions after maintenance.
-        No payload fields evidenced. NOT LIVE-VERIFIED."""
-        await self._command(vin, "SERVICE_PREDICTIONS_RESET")
+    async def command_reset_service_predictions(
+        self, vin: str, component_id: str, expiration_date: date | None = None,
+    ) -> None:
+        """Reset one service-prediction component (``SERVICE_PREDICTIONS_RESET``).
+
+        My Porsche 21.26.46 sends ``{spin?, id, expirationDate,
+        odometerLastReset}`` per component
+        (``de.porsche.mobile.paf.service.vehicle.core.servicepredictions``):
+        ``id`` is the component, ``expirationDate`` the start of an optional
+        date as an instant, or the text "null" when no date is given (Kotlin
+        ``toString()`` on a null), and ``odometerLastReset`` the current
+        mileage. The app takes the start of day in the phone's time zone;
+        this takes it in UTC. Not wired to an entity. NOT LIVE-VERIFIED.
+        """
+        mileage = await self._read_measurement_value(vin, "MILEAGE")
+        km = _mf_number(mileage, ("kilometers",)) if mileage else None
+        await self._command(vin, "SERVICE_PREDICTIONS_RESET", {
+            "spin": None,
+            "id": component_id,
+            "expirationDate": (
+                f"{expiration_date.isoformat()}T00:00:00Z" if expiration_date else "null"
+            ),
+            "odometerLastReset": int(km) if km is not None else None,
+        })
 
     async def command_disable_valet_alarm(self, vin: str) -> None:
         """b21 (2026-09-08) — ``VALET_ALARM_DISABLE``. NOT LIVE-VERIFIED."""
