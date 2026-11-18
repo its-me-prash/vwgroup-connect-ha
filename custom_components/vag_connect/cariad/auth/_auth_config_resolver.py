@@ -109,14 +109,16 @@ _ALTERNATE_CLIENT_IDS: dict[str, tuple[str, ...]] = {
         "4fffed6b-815a-4b6f-af4a-b0ccccb4ff6d@apps_vw-dilab_com",
     ),
     "seat": (
-        # Shared SEAT<->CUPRA OLA client pair — present in BOTH
-        # com.seat.myseat.ola AND com.cupra.mycupra classes (rotated OLA
-        # client set). Either may be accepted if 99a5b77d/3c756d46 rotate.
+        # v3.0.2 (APK audit 2026-11-18) — these two are the **pre-production**
+        # client_ids present in both com.seat.myseat.ola and com.cupra.mycupra
+        # (3.0.2). They are NOT a "shared prod OLA pair"; the prod clients are
+        # 99a5b77d (SEAT) / 3c756d46 (CUPRA). Kept here only as last-resort
+        # OAuth-client alternates if the prod ids are ever rejected.
         "3f16b970-38ab-49c6-a1bf-af38460fd388@apps_vw-dilab_com",
         "f1cd60b6-e40f-4bf2-822d-0201eabc09b5@apps_vw-dilab_com",
     ),
     "cupra": (
-        # Same shared OLA client pair as SEAT (above).
+        # Same pre-production client_ids as SEAT (above).
         "3f16b970-38ab-49c6-a1bf-af38460fd388@apps_vw-dilab_com",
         "f1cd60b6-e40f-4bf2-822d-0201eabc09b5@apps_vw-dilab_com",
     ),

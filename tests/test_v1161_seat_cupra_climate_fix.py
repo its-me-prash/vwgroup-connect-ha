@@ -46,12 +46,18 @@ class TestClimateEndpointFix:
         assert kwargs["json"] == {}
 
     def test_stop_uses_path_suffix_first(self):
+        # v3.0.2 (APK audit 2026-11-18): stop moved to the climate/actions route
+        # with the verified {"capability":"climatisation"} body; the old
+        # v2/climatisation/stop is now the 404 fallback.
         client = self._client()
         asyncio.run(
             client.command_stop_climate("VINX")
         )
         url = client._post.await_args.args[0]
-        assert url.endswith("/v2/vehicles/VINX/climatisation/stop"), url
+        assert url.endswith("/v1/vehicles/VINX/climate/actions/stop"), url
+        assert client._post.await_args.kwargs["json"] == {
+            "capability": "climatisation"
+        }
 
     def test_falls_back_to_legacy_on_404(self):
         from custom_components.vag_connect.cariad.exceptions import APIError

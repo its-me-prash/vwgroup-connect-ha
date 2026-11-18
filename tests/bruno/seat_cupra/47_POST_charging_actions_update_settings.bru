@@ -1,5 +1,5 @@
 meta {
-  name: POST charging actions update-settings (v2.10.0)
+  name: POST charging actions update-settings (v3.0.2)
   type: http
   seq: 47
 }
@@ -21,25 +21,26 @@ headers {
 
 body:json {
   {
-    "targetSoc_pct": 80,
-    "maxChargeCurrentAC": "MAXIMUM",
-    "autoUnlockPlugWhenCharged": "PERMANENT"
+    "targetSocPercentage": 80,
+    "maxChargeCurrentAc": true,
+    "autoUnlockPlugWhenCharged": true
   }
 }
 
 docs {
-  v2.10.0 - update charge plan settings via the dedicated action
-  endpoint instead of the legacy /charging/settings PUT route. Exposed
-  in HA as the `vag_connect.update_charging_settings` service.
+  v3.0.2 (APK audit 2026-11-18) — update charge-plan settings. Verified
+  Gson wire keys of ChargeSettingsBody (com.seat.myseat.ola a60/g.java,
+  @SerializedName):
+    - targetSocPercentage          (int)
+    - maxChargeCurrentAc           (bool, ON/OFF toggle) OR
+    - maxChargeCurrentAcInAmperes  (int, explicit amperage) — send ONE, not both
+    - autoUnlockPlugWhenCharged    (bool)
+  null/omitted fields keep their current value (the app diffs against
+  current state; b60/e0.java performRemoteUpdate). This replaces the old
+  guessed shape (targetSoc_pct / maxChargeCurrentAC="MAXIMUM" /
+  autoUnlockPlugWhenCharged="PERMANENT").
 
-  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection.
-
-  All body fields are optional. Backend keeps existing values for
-  fields the caller omits. Known shape variants observed across
-  firmware: targetSoc_pct vs targetSocPct vs
-  targetStateOfChargeInPercent; maxChargeCurrentAC vs maxAcAmpere.
-
-  Response: 204 No Content on success, or 400 with a per-field error
-  list when validation fails (e.g. targetSoc below the brand's
-  minimum, currently 50%).
+  Implementation: cariad/api/seat_cupra.py:command_update_charging_settings
+  and command_set_target_soc (targetSocPercentage only).
+  HA service: vag_connect.update_charging_settings.
 }

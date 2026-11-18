@@ -64,17 +64,27 @@ from __future__ import annotations
 # version (app-atlas-verified: docs/research/app-atlas/{cupra,seat}.md). The OLA
 # backend keeps rejecting the older header values with 403 regardless of token
 # validity, so the previous versions were moved into the fallback chain below.
+#
+# v3.0.2 bump (2026-11-18, APK audit of mySEAT/myCUPRA 3.0.2): both brands
+# raised to the current Play-Store major **3.0.2**. The live app does NOT
+# hardcode this — its OLA interceptor (``ph0/a.java``) reads the installed
+# ``versionName`` from PackageInfo (``a91/b.java``), so the app-version header
+# always equals the running app version. We mirror that with the current
+# value and move 2.19.1 into the fallback chain. ``origin`` is kept: the app
+# sends it as a per-endpoint ``@Header`` (value ``app``/``widget``) on the
+# charging-, climate- and measurements- routes, so a global ``origin: app``
+# matches those and is harmless on the rest.
 _OLA_HEADERS_BY_BRAND: dict[str, dict[str, str]] = {
     "seat": {
         "app-market": "android",
         "app-brand": "seat",
-        "app-version": "2.19.1",
+        "app-version": "3.0.2",
         "origin": "app",
     },
     "cupra": {
         "app-market": "android",
         "app-brand": "cupra",
-        "app-version": "2.19.1",
+        "app-version": "3.0.2",
         "origin": "app",
     },
 }
@@ -90,7 +100,14 @@ _OLA_HEADERS_BY_BRAND: dict[str, dict[str, str]] = {
 # Keep last 2-3 fallbacks; older than that is dead weight.
 _OLA_HEADERS_BY_BRAND_FALLBACK: dict[str, list[dict[str, str]]] = {
     "seat": [
-        # Previous primary (pre-2026-07-19), kept for the retry layer.
+        # v3.0.2 — previous primary, first fallback.
+        {
+            "app-market": "android",
+            "app-brand": "seat",
+            "app-version": "2.19.1",
+            "origin": "app",
+        },
+        # Older primary (pre-2026-07-19), kept for the retry layer.
         {
             "app-market": "android",
             "app-brand": "seat",
@@ -99,6 +116,12 @@ _OLA_HEADERS_BY_BRAND_FALLBACK: dict[str, list[dict[str, str]]] = {
         },
     ],
     "cupra": [
+        {
+            "app-market": "android",
+            "app-brand": "cupra",
+            "app-version": "2.19.1",
+            "origin": "app",
+        },
         {
             "app-market": "android",
             "app-brand": "cupra",
@@ -112,9 +135,13 @@ _OLA_HEADERS_BY_BRAND_FALLBACK: dict[str, list[dict[str, str]]] = {
 # also sets brand-specific User-Agent strings. The base client
 # defaults to BrandConfig.user_agent; OLA-specific override below
 # wins for ola.prod.code.seat.cloud.vwgroup.com requests.
+# v3.0.2 (APK audit 2026-11-18) — the Android app's OLA interceptor
+# (``ph0/a.java``) builds ``OLASeat/<versionName> (Android <rel>; <model>;
+# <mfr>) Mobile`` (CUPRA: ``OLACupra/…``). The old iOS-style strings here were
+# a guess; these match the real app's format and current version.
 _OLA_USER_AGENT_BY_BRAND: dict[str, str] = {
-    "seat":  "SEATApp/2.5.0 (com.seat.myseat.ola; build:202410171614; iOS 15.8.3) Alamofire/5.7.0 Mobile",
-    "cupra": "CUPRAApp%20-%20Store/20220503 CFNetwork/1333.0.4 Darwin/21.5.0",
+    "seat":  "OLASeat/3.0.2 (Android 14; Pixel 7; Google) Mobile",
+    "cupra": "OLACupra/3.0.2 (Android 14; Pixel 7; Google) Mobile",
 }
 
 

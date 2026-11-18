@@ -1848,8 +1848,10 @@ class IDKAuth:
 
         Each brand uses a different token exchange mechanism:
         - VW EU / Audi: CARIAD BFF (standard OAuth)
-        - CUPRA: IDK /oidc/v1/token (standard OAuth + client_secret)
-        - SEAT: OLA /authorization/api/v1/token (standard OAuth, no secret)
+        - SEAT / CUPRA: OLA /authorization/api/v1/token (standard OAuth;
+          CUPRA additionally carries its static client_secret). v3.0.2 APK
+          audit (2026-11-18): both brands use the OLA endpoint — the earlier
+          CUPRA→IDK /oidc/v1/token route caused 401 invalid_client (#1867).
         - Škoda: proprietary JSON API on mysmob (not OAuth)
         """
         if self._brand.name == "skoda":
@@ -2240,9 +2242,16 @@ class IDKAuth:
         """
         if self._token_url_override:
             return self._token_url_override
-        if self._brand.name == "cupra":
-            return f"{_IDK_BASE}/oidc/v1/token"
-        if self._brand.name == "seat":
+        # v3.0.2 (APK audit 2026-11-18) — CUPRA uses the SAME OLA token
+        # endpoint as SEAT, not the IDK ``/oidc/v1/token``. The myCUPRA 3.0.2
+        # ``AuthApi`` (``y40/a.java``) POSTs code-exchange AND refresh to
+        # ``ola.prod…/authorization/api/v1/token`` for both brands; the IDK
+        # host only serves the WebView authorize/logout. Routing the CUPRA
+        # *code exchange* at IDK is what produced ``401 invalid_client`` (#1867)
+        # while the CUPRA *refresh* already (correctly) used OLA — this aligns
+        # the two. The client_secret handling is unchanged (pycupra's working
+        # reference also sends it to the OLA endpoint).
+        if self._brand.name in ("seat", "cupra"):
             return "https://ola.prod.code.seat.cloud.vwgroup.com/authorization/api/v1/token"
         # VW EU, Audi, and others: CARIAD BFF — v2.5.4 migrated URL.
         return _CARIAD_TOKEN_URL

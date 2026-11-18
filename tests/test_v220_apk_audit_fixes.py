@@ -68,10 +68,13 @@ def _sc() -> SeatCupraClient:
 
 
 def test_seatcupra_battery_care_enabled_field() -> None:
+    # v3.0.2 (APK audit 2026-11-18): the write path is the dedicated action
+    # route /charging/actions/update-battery-care (the plain /charging/battery-care
+    # route is GET-only in 3.0.2 and is now only the 404 fallback).
     c = _sc()
     asyncio.run(c.command_set_battery_care("VIN1", True))
     url, body = _url_body(c)
-    assert url.endswith("/charging/battery-care")
+    assert url.endswith("/charging/actions/update-battery-care")
     assert body == {"enabled": True}  # not batteryCareMode
 
 

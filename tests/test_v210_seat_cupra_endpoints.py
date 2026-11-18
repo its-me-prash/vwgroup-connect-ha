@@ -505,10 +505,24 @@ class TestSeatCupraClientNewMethods:
         client._post.assert_awaited_once()
         url, kwargs = client._post.await_args.args, client._post.await_args.kwargs
         body = kwargs["json"]
-        assert body["targetSOC_pct"] == 80
-        assert body["maxChargeCurrentAC"] == "reduced"
-        assert body["autoUnlockPlugWhenCharged"] == "on"
+        # v3.0.2 (APK audit 2026-11-18) — verified Gson wire keys of
+        # ChargeSettingsBody: targetSocPercentage (int), maxChargeCurrentAc
+        # (bool; "reduced" → OFF), autoUnlockPlugWhenCharged (bool).
+        assert body["targetSocPercentage"] == 80
+        assert body["maxChargeCurrentAc"] is False
+        assert body["autoUnlockPlugWhenCharged"] is True
         assert "actions/update-settings" in url[0]
+
+    @pytest.mark.asyncio
+    async def test_command_update_charging_settings_amperage(self):
+        # a numeric current string → the explicit amperage field
+        client = _client()
+        client._post = AsyncMock()
+        await client.command_update_charging_settings(
+            "VINxxxx", max_charge_current="16"
+        )
+        body = client._post.await_args.kwargs["json"]
+        assert body == {"maxChargeCurrentAcInAmperes": 16}
 
     @pytest.mark.asyncio
     async def test_command_update_charging_settings_partial(self):
@@ -518,7 +532,7 @@ class TestSeatCupraClientNewMethods:
             "VINxxxx", target_soc=70
         )
         body = client._post.await_args.kwargs["json"]
-        assert body == {"targetSOC_pct": 70}
+        assert body == {"targetSocPercentage": 70}
 
     @pytest.mark.asyncio
     async def test_command_update_charging_settings_rejects_empty(self):

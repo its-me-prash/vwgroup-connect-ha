@@ -49,13 +49,24 @@ _CHARGING_HOST = "https://prod.emea.mobile.charging.cariad.digital"
 # OLA path too, which 403s on stale tokens).
 _OLA_REPAIR_THRESHOLD = 5
 
-# v2.20.0 (#S6 license-bug parity) — OLA ``serviceStatus`` values that mean
+# v2.20.0 (#S6 license-bug parity) — OLA service ``status`` values that mean
 # the vehicle is NOT entitled to the service. A service in one of these
 # states keeps its old expiry timestamp in the past; it must be excluded
 # from the earliest-expiry aggregate so it can't show negative days while
-# a live subscription runs. Enum harvested from the current myCUPRA/mySEAT
-# 2.19.1 APK (ServiceStatus). Entitled states (ACTIVE/AVAILABLE/ENABLED/
+# a live subscription runs. Entitled states (ACTIVE/AVAILABLE/ENABLED/
 # LICENSED) are intentionally absent → they count normally.
+#
+# v3.0.2-APK audit (2026-11-18): there is NO ``ServiceStatus`` enum in the
+# mySEAT/myCUPRA 3.0.2 app. The ``SUBSCRIPTION_*`` values previously listed
+# here were traced to UNRELATED enums (Tribe-event UI, the Car-Key SDK,
+# Park&Pay errors) — they are not service-entitlement values — so they are
+# removed. The remaining license/expiry states are kept as a defensive
+# match for the ``mycar.services.{}.status`` free-string field (whose exact
+# wire values are not verified; matched case-insensitively at the call site).
+# The authoritative 3.0.2 entitlement signals live on
+# ``/v1/user/{userId}/vehicle/{vin}/capabilities`` (CapabilityDataModel.status
+# / license-issue / expired) and the kebab-case CapabilityDisabledReason set
+# (missing-license / license-expired / license-inactive).
 _NON_ENTITLED_SERVICE_STATUS: frozenset[str] = frozenset(
     {
         "EXPIRED",
@@ -66,11 +77,6 @@ _NON_ENTITLED_SERVICE_STATUS: frozenset[str] = frozenset(
         "LICENSE_INACTIVE",
         "DISABLED",
         "UNAVAILABLE",
-        "SUBSCRIPTION_REQUIRED",
-        "SUBSCRIPTION_NO",
-        "SUBSCRIPTION_POSSIBLE",
-        "SUBSCRIPTION_PENDING",
-        "SUBSCRIPTION_WAITLIST",
     }
 )
 
@@ -287,7 +293,17 @@ class SeatCupraClient(CariadBaseClient):
             raise
 
     async def _fetch_user_id(self) -> None:
-        """Fallback: extract user_id from JWT or API call."""
+        """Resolve the OLA user_id from the id_token JWT (``sub``).
+
+        v3.0.2 (APK audit 2026-11-18) — the SEAT/CUPRA app has **no**
+        ``GET /v1/users`` endpoint; it derives the user id solely from the
+        id_token's ``sub`` claim and sends it as the ``User-ID`` header. The
+        former ``GET /v1/users`` fallback hit a path that does not exist on
+        OLA and returned HTTP 404 (the source of the "Could not fetch
+        SEAT/CUPRA user ID: APIError (HTTP 404)" line in #1867). It is removed;
+        a missing ``sub`` is now reported as such instead of masking it behind
+        a 404 on a non-existent route.
+        """
         if self._tokens and self._tokens.id_token:
             try:
                 import base64  # noqa: PLC0415
@@ -300,30 +316,17 @@ class SeatCupraClient(CariadBaseClient):
                     self._user_id = sub
                     _LOGGER.debug("SEAT/CUPRA user_id from JWT: %s", sub[:8])
                     return
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "Could not parse SEAT/CUPRA user ID from id_token: %s",
+                    type(err).__name__,
+                )
+                return
 
-        try:
-            data = await self._get(f"{_BASE}/v1/users")
-            self._user_id = data.get("userId") or data.get("sub")
-        except Exception as err:  # noqa: BLE001
-            # #1866 — this used to be a bare message with nothing in it, so a
-            # 401, a 403, a timeout and a malformed body all came out as the
-            # same sentence. @georghaberkorn68-ctrl attached a twelve-minute
-            # debug log in which this line is the only trace of the failure, and
-            # the question put to him — was it 401 or 403? — could not be
-            # answered from any log this code is able to produce.
-            #
-            # The class name and the status, and deliberately nothing else: an
-            # APIError's message can carry the request URL and a response body,
-            # which is the same reason the token-exchange failure next door logs
-            # a byte count instead of its body.
-            _status = getattr(err, "status", None)
-            _LOGGER.warning(
-                "Could not fetch SEAT/CUPRA user ID: %s%s",
-                type(err).__name__,
-                f" (HTTP {_status})" if _status else "",
-            )
+        _LOGGER.warning(
+            "Could not determine SEAT/CUPRA user ID: no id_token with a 'sub' "
+            "claim (OLA has no /v1/users endpoint to fall back on)."
+        )
 
     async def _get_from_charging_host(self, path: str) -> dict[str, Any]:
         """v2.10.0 (charging_statistics) - GET on the CARIAD charging-stats host.
@@ -2802,8 +2805,22 @@ class SeatCupraClient(CariadBaseClient):
         await self._post_climatisation_action(vin, "start")
 
     async def command_stop_climate(self, vin: str) -> None:
-        """v1.16.1 (#53) — same fix as start."""
-        await self._post_climatisation_action(vin, "stop")
+        """Stop climatisation.
+
+        v3.0.2 (APK audit 2026-11-18): the app moved climate to
+        ``/v1/vehicles/{vin}/climate/actions/*``; stop takes the verified body
+        ``{"capability": "climatisation"}`` (``z70/k`` StopClimateControlRequest,
+        ``v70/a.java``). The legacy ``v2/climatisation/stop`` is kept as the 404
+        fallback for any cohort the old route still serves.
+        """
+        await self._post_with_ab_fallback(
+            primary_url=f"{_BASE}/v1/vehicles/{vin}/climate/actions/stop",
+            primary_json={"capability": "climatisation"},
+            fallback_url=f"{_BASE}/v2/vehicles/{vin}/climatisation/stop",
+            fallback_json={},
+            label="climate stop",
+            vin=vin,
+        )
 
     async def _post_climatisation_action(self, vin: str, action: str) -> None:
         """v1.16.1 (#53) — climatisation start/stop with v1/v2 fallback.
@@ -2988,17 +3005,22 @@ class SeatCupraClient(CariadBaseClient):
         )
 
     async def command_set_battery_care(self, vin: str, enabled: bool) -> None:
-        """v2.10.0 - toggle the battery-care preservation mode on or off.
+        """Toggle the battery-care preservation mode on or off.
 
-        OLA endpoint POST /v1/vehicles/{vin}/charging/battery-care.
-        Defaults to a 50% target if the user has not set one yet
-        (backend rejects the toggle without a target on first call).
+        v3.0.2 (APK audit 2026-11-18): the write path is
+        ``POST /v1/vehicles/{vin}/charging/actions/update-battery-care`` with
+        body ``{"enabled": bool}`` (verified ChargeSettingsApi ``w50/b.java``,
+        ``a60/a`` BatteryCareBody). The plain ``/charging/battery-care`` route
+        is GET-only in 3.0.2 — posting to it is what older builds did and is
+        kept only as a 404 fallback for any cohort the old route still serves.
         """
-        # v2.20.0 (APK audit) — the OLA BatteryCareBody write field is ``enabled``;
-        # ``batteryCareMode`` does not exist anywhere in the SEAT/CUPRA app.
-        await self._post(
-            f"{_BASE}/v1/vehicles/{vin}/charging/battery-care",
-            json={"enabled": enabled},
+        await self._post_with_ab_fallback(
+            primary_url=f"{_BASE}/v1/vehicles/{vin}/charging/actions/update-battery-care",
+            primary_json={"enabled": enabled},
+            fallback_url=f"{_BASE}/v1/vehicles/{vin}/charging/battery-care",
+            fallback_json={"enabled": enabled},
+            label="battery-care toggle",
+            vin=vin,
         )
 
     async def command_set_battery_care_target(self, vin: str, target_pct: int) -> None:
@@ -3036,22 +3058,27 @@ class SeatCupraClient(CariadBaseClient):
         We don't know which Cariad-firmware-cohort uses which — try the
         Bruno-verified path first, fall back to legacy on 404.
         """
+        # v3.0.2 (APK audit 2026-11-18): the app path is
+        # /v1/vehicles/{vin}/climate/actions/window-heating/start (no body,
+        # v70/a.java). The pre-3.0.2 windowheating/requests/start route is kept
+        # as the 404 fallback.
         await self._post_with_ab_fallback(
-            primary_url=f"{_BASE}/vehicles/{vin}/windowheating/requests/start",
+            primary_url=f"{_BASE}/v1/vehicles/{vin}/climate/actions/window-heating/start",
             primary_json=None,
-            fallback_url=f"{_BASE}/v2/vehicles/{vin}/climatisation",
-            fallback_json={"action": "startWindowHeating"},
+            fallback_url=f"{_BASE}/vehicles/{vin}/windowheating/requests/start",
+            fallback_json=None,
             label="window heating start",
             vin=vin,
         )
 
     async def command_stop_window_heating(self, vin: str) -> None:
         """v1.17.1 — A/B fallback. See command_start_window_heating doc."""
+        # v3.0.2 — /v1/vehicles/{vin}/climate/actions/window-heating/stop (no body).
         await self._post_with_ab_fallback(
-            primary_url=f"{_BASE}/vehicles/{vin}/windowheating/requests/stop",
+            primary_url=f"{_BASE}/v1/vehicles/{vin}/climate/actions/window-heating/stop",
             primary_json=None,
-            fallback_url=f"{_BASE}/v2/vehicles/{vin}/climatisation",
-            fallback_json={"action": "stopWindowHeating"},
+            fallback_url=f"{_BASE}/vehicles/{vin}/windowheating/requests/stop",
+            fallback_json=None,
             label="window heating stop",
             vin=vin,
         )
@@ -3230,17 +3257,34 @@ class SeatCupraClient(CariadBaseClient):
 
         Backend rejects empty bodies with a 400, so we raise a clear
         ValueError here when every field is None.
+
+        v3.0.2 (APK audit 2026-11-18) — wire keys corrected to the verified
+        Gson field names of ``ChargeSettingsBody`` (``a60/g.java``,
+        ``@SerializedName``):
+          * ``targetSocPercentage`` (int)  — was ``targetSOC_pct``
+          * ``maxChargeCurrentAc`` (bool)  — ON/OFF toggle, OR
+          * ``maxChargeCurrentAcInAmperes`` (int) — an explicit amperage; the
+            app sends the boolean OR the amperage, never both.
+          * ``autoUnlockPlugWhenCharged`` (bool) — was the string "on"/"off".
+        Only non-None fields are sent (the app diffs against current state).
         """
         body: dict[str, Any] = {}
         if target_soc is not None:
-            body["targetSOC_pct"] = int(target_soc)
+            body["targetSocPercentage"] = int(target_soc)
         if max_charge_current is not None:
-            body["maxChargeCurrentAC"] = str(max_charge_current)
+            # The HA service passes a string. A numeric string is an explicit
+            # amperage (``maxChargeCurrentAcInAmperes``); anything else is the
+            # ON/OFF toggle (``maxChargeCurrentAc``). "maximum"/"on"/"true" →
+            # True; "reduced"/"minimum"/"off"/"false" → False.
+            mcc = str(max_charge_current).strip()
+            if mcc.isdigit():
+                body["maxChargeCurrentAcInAmperes"] = int(mcc)
+            else:
+                body["maxChargeCurrentAc"] = mcc.lower() not in (
+                    "off", "false", "reduced", "minimum", "min", "0",
+                )
         if auto_unlock_charge is not None:
-            # OLA accepts the explicit "on" / "off" enum on this endpoint.
-            body["autoUnlockPlugWhenCharged"] = (
-                "on" if auto_unlock_charge else "off"
-            )
+            body["autoUnlockPlugWhenCharged"] = bool(auto_unlock_charge)
         if not body:
             raise ValueError(
                 "update_charging_settings: at least one of target_soc, "

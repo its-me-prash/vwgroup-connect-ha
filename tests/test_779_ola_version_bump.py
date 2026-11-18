@@ -18,21 +18,25 @@ from custom_components.vag_connect.cariad._ola_headers import (
 
 
 def test_cupra_primary_is_current_version() -> None:
-    assert get_ola_headers("cupra")["app-version"] == "2.19.1"
+    # v3.0.2 (APK audit 2026-11-18) — bumped to the current Play-Store major.
+    assert get_ola_headers("cupra")["app-version"] == "3.0.2"
 
 
 def test_seat_primary_is_current_version() -> None:
-    assert get_ola_headers("seat")["app-version"] == "2.19.1"
+    assert get_ola_headers("seat")["app-version"] == "3.0.2"
 
 
 def test_cupra_fallback_retains_previous_version() -> None:
-    assert get_fallback_count("cupra") == 1
-    assert get_ola_headers("cupra", fallback_index=0)["app-version"] == "2.15.0"
+    # 2.19.1 moved into the fallback chain ahead of the older 2.15.0.
+    assert get_fallback_count("cupra") == 2
+    assert get_ola_headers("cupra", fallback_index=0)["app-version"] == "2.19.1"
+    assert get_ola_headers("cupra", fallback_index=1)["app-version"] == "2.15.0"
 
 
 def test_seat_fallback_retains_previous_version() -> None:
-    assert get_fallback_count("seat") == 1
-    assert get_ola_headers("seat", fallback_index=0)["app-version"] == "2.17.0"
+    assert get_fallback_count("seat") == 2
+    assert get_ola_headers("seat", fallback_index=0)["app-version"] == "2.19.1"
+    assert get_ola_headers("seat", fallback_index=1)["app-version"] == "2.17.0"
 
 
 def test_brand_app_consistency_preserved() -> None:

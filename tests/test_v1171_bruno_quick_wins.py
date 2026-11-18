@@ -97,12 +97,15 @@ class TestPostWithAbFallback:
 
 class TestWindowHeatingAB:
     def test_start_uses_bruno_path_first(self):
+        # v3.0.2 (APK audit 2026-11-18): window-heating moved to the
+        # climate/actions route (no body); the old windowheating/requests path
+        # is the 404 fallback.
         client = _client()
         asyncio.run(
             client.command_start_window_heating("VINX")
         )
         url = client._post.await_args.args[0]
-        assert "/vehicles/VINX/windowheating/requests/start" in url
+        assert url.endswith("/v1/vehicles/VINX/climate/actions/window-heating/start")
 
     def test_stop_uses_bruno_path_first(self):
         client = _client()
@@ -110,7 +113,7 @@ class TestWindowHeatingAB:
             client.command_stop_window_heating("VINX")
         )
         url = client._post.await_args.args[0]
-        assert "/vehicles/VINX/windowheating/requests/stop" in url
+        assert url.endswith("/v1/vehicles/VINX/climate/actions/window-heating/stop")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

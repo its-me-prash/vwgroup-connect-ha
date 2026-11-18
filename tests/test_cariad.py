@@ -343,14 +343,20 @@ class TestIDKAuth:
         assert "token" in result
 
     def test_idk_auth_get_token_endpoint_cupra(self):
-        """CUPRA uses IDK endpoint."""
+        """CUPRA uses the OLA endpoint (same as SEAT).
+
+        v3.0.2 (APK audit 2026-11-18): the myCUPRA 3.0.2 AuthApi POSTs the
+        code exchange + refresh to ola.prod…/authorization/api/v1/token, not
+        the IDK /oidc/v1/token (which only serves the WebView authorize/logout
+        and returned 401 invalid_client on the exchange — #1867).
+        """
         from custom_components.vag_connect.cariad.auth.idk import IDKAuth
         from custom_components.vag_connect.cariad.models import BRAND_CUPRA
 
         auth = IDKAuth(MagicMock(), BRAND_CUPRA)
         result = auth._get_token_endpoint()
-        assert "identity.vwgroup.io" in result
-        assert "oidc/v1/token" in result
+        assert "ola.prod.code.seat" in result
+        assert "authorization/api/v1/token" in result
 
     def test_idk_auth_get_token_endpoint_seat(self):
         """SEAT uses OLA endpoint."""
@@ -2243,25 +2249,26 @@ class TestSeatCupraGetStatus:
         assert result.trunk_locked is True
         assert result.hood_open is False
 
-    def test_fetch_user_id(self):
+    def test_fetch_user_id_no_v1_users_fallback(self):
+        # v3.0.2 (APK audit 2026-11-18): the OLA API has NO ``GET /v1/users``
+        # endpoint — the app derives the user id solely from the id_token
+        # ``sub``. The former fallback hit a non-existent route and 404'd
+        # ("Could not fetch SEAT/CUPRA user ID: APIError (HTTP 404)", #1867), so
+        # it was removed. With a token that carries no decodable ``sub``, the
+        # user id stays None and NO HTTP request is made.
         from custom_components.vag_connect.cariad.api.seat_cupra import SeatCupraClient
         from custom_components.vag_connect.cariad.models import TokenSet
 
-        resp = AsyncMock()
-        resp.status = 200
-        resp.headers = {"Content-Type": "application/json"}
-        resp.json = AsyncMock(return_value={"userId": "seat_user_456"})
-        resp.__aenter__ = AsyncMock(return_value=resp)
-        resp.__aexit__ = AsyncMock(return_value=False)
         session = MagicMock()
-        session.request = MagicMock(return_value=resp)
+        session.request = MagicMock()
 
         client = SeatCupraClient(session, "seat", "u@t.de", "pw")
-        client._tokens = TokenSet("acc", "ref", "id")
+        client._tokens = TokenSet("acc", "ref", "id")  # "id" is not a valid JWT
         client._user_id = None
 
         asyncio.run(client._fetch_user_id())
-        assert client._user_id == "seat_user_456"
+        assert client._user_id is None
+        session.request.assert_not_called()
 
     def test_status_with_kelvin_temperature(self):
         """Celsius conversion from Kelvin target temperature."""
