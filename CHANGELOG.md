@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **Škoda: workshop mode, the 2G/3G shutdown impact and the status of each connected service are now shown (#2182).** Two new diagnostic entities appear when the car reports the value, and for Škoda cars the `capabilities_count` sensor now appears and lists each service's status and expiry date. For display only: nothing is switched off because of a status.
+
 ### Geändert / Changed
 
 - **DrivePulse readings are now dated by when the car was last heard, not when the app sent the message (#2105).** DrivePulse 0.2.0 adds `obd_at` to its trip events: the time of the OBD reading the values come from. A linked device's readings now take that time when it is there and readable, and the time of the message as before when it is missing, empty or unreadable. A time in the future is capped to the moment the event arrived, and if `obd_at` is later than the message time (which cannot be true) the earlier of the two is used. A trip that ends after the engine is off therefore no longer looks a few minutes fresher than its reading, and the fuel level replaces a portal value only when the reading itself is at least 15 minutes newer. A reading also counts toward the seven-day limit from when it was taken, so one that is already older than seven days when it arrives is not used. Older DrivePulse versions send no `obd_at`, so nothing changes for them. Covered by unit tests; not tried with a phone and a car.
