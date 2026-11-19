@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "Stav aktualizace softwaru"
       },
+      "connectivity_sunset_impact": {
+        "name": "Dopad vypnutí sítí 2G/3G"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Krátkodobá průměrná spotřeba elektřiny"
       },
@@ -2184,6 +2187,9 @@
       },
       "marketing_consent_given": {
         "name": "Marketingový souhlas udělen"
+      },
+      "workshop_mode": {
+        "name": "Servisní režim"
       },
       "data_source": {
         "name": "Zdroj: {source}"

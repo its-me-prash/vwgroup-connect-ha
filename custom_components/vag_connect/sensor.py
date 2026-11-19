@@ -1947,6 +1947,19 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:cellphone-arrow-down",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # MyŠkoda 8.18.0 — garage document ``sunset2g3gImpact``: how the 2G/3G
+    # network shutdown affects the car's online unit. The app knows seven values
+    # (OCU_3G_NOT_UPGRADABLE, OCU_3G_UPGRADABLE_VIA_OTA, …_VIA_SERVICE,
+    # OCU_3G_NOT_UPGRADABLE_ALTERNATIVE_POSSIBLE, OCU_4G_E_CALL_FIXABLE_VIA_OTA,
+    # …_VIA_SERVICE, OCU_UNKNOWN). Plain STRING like the readiness sensor above,
+    # so a value added later still shows. Škoda only, data-present gated.
+    VagSensorDescription(
+        key="connectivity_sunset_impact",
+        translation_key="connectivity_sunset_impact",
+        data_key="connectivity_sunset_impact",
+        icon="mdi:signal-off",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v1.15.0 (#35) — Skoda Charging History → HA Energy Dashboard.
     # ``total_charged_energy_kwh`` with TOTAL_INCREASING is THE long-
     # term-statistics signal users want for kWh-tracking dashboards.
@@ -4605,6 +4618,8 @@ _SPAWN_WITHOUT_DATA: frozenset[str] = frozenset({"plug_state"})
 # legitimately start as None and populate later, so they should NOT be
 # gated this way.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
+    # Škoda only (garage document, MyŠkoda 8.18.0); most cars never report it.
+    "connectivity_sunset_impact",
     # Companion only: no entities before the app's long-haul card was read.
     "companion_long_trip_distance_km",
     "companion_long_trip_duration_min",

@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "Software-Update-Status"
       },
+      "connectivity_sunset_impact": {
+        "name": "Auswirkung der 2G/3G-Abschaltung"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Kurzzeit-Durchschnittsverbrauch (elektrisch)"
       },
@@ -2184,6 +2187,9 @@
       },
       "marketing_consent_given": {
         "name": "Marketing-Zustimmung erteilt"
+      },
+      "workshop_mode": {
+        "name": "Werkstattmodus"
       },
       "data_source": {
         "name": "Quelle: {source}"

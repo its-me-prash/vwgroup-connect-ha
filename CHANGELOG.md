@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **Škoda: workshop mode, the 2G/3G shutdown impact and the status of each connected service are now shown (#2182).** Two new diagnostic entities appear when the car reports the value, and for Škoda cars the `capabilities_count` sensor now appears and lists each service's status and expiry date. For display only: nothing is switched off because of a status.
+
 ### Geändert / Changed
 
 - **Doc-only: the Audi/VW live-push module now records that the channel is not reachable off-device (#602).** Grounding from We Connect 4.8.1 / myAudi 5.10.1 and live probes confirmed the real subscription service is `eu.mobilepush.cariad.digital` — the MQTT-based "eventing core", not FCM — and that it rejects every bearer the integration can hold off-device (VW and the Audi ACPP bearer → HTTP 403 "invalid audience" on the REST leg; the Audi MQTT CONNECT → `0x88` for every client-id form tried). The opt-in BETA push manager (`cariad/push/audi_vw_fcm.py`) therefore stays gated and inert. Comment and docstring only — constants, request body and warning latch are unchanged, with no user-visible effect.

@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "Status software-update"
       },
+      "connectivity_sunset_impact": {
+        "name": "Gevolg van de 2G/3G-uitschakeling"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Kortetermijn gemiddeld elektriciteitsverbruik"
       },
@@ -2184,6 +2187,9 @@
       },
       "marketing_consent_given": {
         "name": "Marketingtoestemming gegeven"
+      },
+      "workshop_mode": {
+        "name": "Werkplaatsmodus"
       },
       "data_source": {
         "name": "Bron: {source}"
