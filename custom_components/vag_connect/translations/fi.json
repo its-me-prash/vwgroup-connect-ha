@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Pysäköintikartan URL (vaalea)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Lataustehon rajoituksen syy"
+      },
       "plug_led_color": {
         "name": "Pistokkeen LED-väri"
       },
@@ -1950,6 +1953,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Kulutuslaskuri ylivuoti"
+      },
+      "safelock_active": {
+        "name": "Safelock aktiivinen"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Talteenottolaskuri ylivuoti"

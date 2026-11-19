@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "URL del mapa de aparcamiento (claro)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Motivo de la limitación de la potencia de carga"
+      },
       "plug_led_color": {
         "name": "Color del LED del enchufe"
       },
@@ -2016,6 +2019,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Contador de consumo desbordado"
+      },
+      "safelock_active": {
+        "name": "Safelock activo"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Contador de recuperación desbordado"

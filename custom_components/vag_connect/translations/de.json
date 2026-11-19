@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Parkkarten-URL (hell)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Grund der Ladeleistungsbegrenzung"
+      },
       "plug_led_color": {
         "name": "Ladestecker-LED-Farbe"
       },
@@ -1950,6 +1953,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Verbrauchszähler übergelaufen"
+      },
+      "safelock_active": {
+        "name": "Safelock aktiv"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Rekuperationszähler übergelaufen"

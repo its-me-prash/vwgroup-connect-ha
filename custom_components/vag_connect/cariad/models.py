@@ -706,6 +706,10 @@ class VehicleData:
     # From ``charging.chargingStatus.value.remainingChargingTimeNavigation_min``.
     remaining_charge_time_nav_min: int | None = None
     plug_led_color: str | None = None  # none / red / green / blue
+    # We Connect app 4.8.1 — ``charging.batteryStatus.value.chargePowerLimitationReason``
+    # (raw token, vocabulary unknown) and ``access.accessStatus.value.safelockActive``.
+    charge_power_limitation_reason: str | None = None
+    safelock_active: bool | None = None
     # v2.10.0 - real-time charge rate in kW (instant), distinct from
     # the averaged charging_rate_kmh. Only populated by CARIAD BFF on
     # firmware that exposes a separate instant rate.

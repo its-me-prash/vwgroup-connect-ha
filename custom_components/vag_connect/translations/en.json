@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Parking Map URL (light)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Charge Power Limit Reason"
+      },
       "plug_led_color": {
         "name": "Plug LED Color"
       },
@@ -1950,6 +1953,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Energy-used counter wrapped"
+      },
+      "safelock_active": {
+        "name": "Safelock active"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Recuperation counter wrapped"

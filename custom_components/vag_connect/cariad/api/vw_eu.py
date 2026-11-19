@@ -4435,6 +4435,13 @@ class VWEUClient(CariadBaseClient):
         if isinstance(nav_eta, (int, float)):
             d.remaining_charge_time_nav_min = int(nav_eta)
 
+        # We Connect app 4.8.1 (BatteryStatus.chargePowerLimitationReason, an
+        # optional string-wrapper enum). The vocabulary is not known from the
+        # app, so the raw token is passed through and never mapped or dropped.
+        power_limit = v(raw, "charging", "batteryStatus", "value", "chargePowerLimitationReason")
+        if isinstance(power_limit, str) and power_limit.strip():
+            d.charge_power_limitation_reason = power_limit.strip()
+
         # v2.11.0: ``ledColor`` extraction consolidated into the
         # defensive chain at the top of this section so a second
         # unconditional write doesn't clobber a valid PPE plugLedColor.
@@ -5136,6 +5143,13 @@ class VWEUClient(CariadBaseClient):
         lock_raw = v(raw, "access", "accessStatus", "value", "doorLockStatus")
         if isinstance(lock_raw, str):
             d.doors_locked = lock_raw.upper() == "LOCKED"
+
+        # We Connect app 4.8.1 (AccessStatus.safelockActive, a required
+        # Boolean next to doorLockStatus). Only a real JSON boolean counts;
+        # anything else stays None so the entity does not appear.
+        safelock_raw = v(raw, "access", "accessStatus", "value", "safelockActive")
+        if isinstance(safelock_raw, bool):
+            d.safelock_active = safelock_raw
 
         # v2.7.0b10 — Audi parity fix. The old code only built the
         # per-door / per-window breakdown when overallStatus was

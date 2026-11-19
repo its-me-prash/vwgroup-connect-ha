@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "URL mapy parkování (světlá)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Důvod omezení nabíjecího výkonu"
+      },
       "plug_led_color": {
         "name": "Barva LED konektoru"
       },
@@ -2016,6 +2019,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Čítač spotřeby přetekl"
+      },
+      "safelock_active": {
+        "name": "Safelock aktivní"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Čítač rekuperace přetekl"
