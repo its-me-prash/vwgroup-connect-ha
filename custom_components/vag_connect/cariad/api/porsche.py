@@ -344,6 +344,28 @@ def _parse_charging_session_history(
     return sessions, charge_type
 
 
+# S-PIN hash, as My Porsche 21.26.46 builds it
+# (de.porsche.mobile.paf.service.vehicle.core, static method on the command
+# executor). Without a userChallenge: SHA-512 over the hex-decoded PIN and
+# challenge. With one: PBKDF2-HMAC-SHA512 over the PIN characters, salt = the
+# hex-decoded userChallenge, 100 000 rounds, 64 bytes, then SHA-512 over that
+# key followed by the hex-decoded challenge. Upper-case hex either way. The
+# userChallenge field has been in the answer model since at least 20.26.31.
+_SPIN_PBKDF2_ROUNDS = 100_000
+_SPIN_PBKDF2_BYTES = 64
+
+
+def _spin_hash(pin: str, challenge: str, user_challenge: str | None) -> str:
+    """Return the ``spin.hash`` value for a SPIN_CHALLENGE answer."""
+    if user_challenge:
+        key = hashlib.pbkdf2_hmac(
+            "sha512", pin.encode("utf-8"), bytes.fromhex(user_challenge),
+            _SPIN_PBKDF2_ROUNDS, _SPIN_PBKDF2_BYTES,
+        )
+        return hashlib.sha512(key + bytes.fromhex(challenge)).hexdigest().upper()
+    return hashlib.sha512(bytes.fromhex(pin + challenge)).hexdigest().upper()
+
+
 class PorscheClient:
     """Porsche Connect API client.
 
@@ -776,39 +798,54 @@ class PorscheClient:
             # parsing below assumed a single aggregate dict keyed by corner
             # name, which was requesting a measurement key that doesn't
             # exist — very likely why TPMS has been silently empty.
-            # NOT LIVE-VERIFIED: the per-corner KEYS are androguard-confirmed
-            # real; the exact field names inside each one's value
-            # (``currentPressure``/``warning``) are carried over unchanged
-            # from the old aggregate shape as the best available guess — a
-            # live capture is what confirms whether that inner shape moved
-            # too when the key was split.
+            # Inner shape, as My Porsche 21.26.46 models it
+            # (``TirePressureMeasurementValue{lastModified?, differenceBar,
+            # actualPressureBar?}``, both in bar). The earlier guess
+            # ``currentPressure`` is no member of that model, so the sensors
+            # stayed empty; it is kept below only as a fallback read.
             def _corner_bar(key: str) -> float | None:
-                raw = v(m, key, "currentPressure")
+                raw = v(m, key, "actualPressureBar")
                 if raw is None:
+                    raw = v(m, key, "currentPressure")
+                if raw is None or isinstance(raw, bool):
                     return None
                 try:
                     n = float(raw)
                 except (TypeError, ValueError):
                     return None
-                # kPa heuristic: anything > 10 is kPa, divide by 100
+                # kPa heuristic, applied to both members: anything > 10 is
+                # kPa. A bar reading never gets that high.
                 return round(n / 100.0, 2) if n > 10 else round(n, 2)
-            d.tire_pressure_front_left_bar  = _corner_bar("TIRE_PRESSURE_FRONT_LEFT")
-            d.tire_pressure_front_right_bar = _corner_bar("TIRE_PRESSURE_FRONT_RIGHT")
-            d.tire_pressure_rear_left_bar   = _corner_bar("TIRE_PRESSURE_REAR_LEFT")
-            d.tire_pressure_rear_right_bar  = _corner_bar("TIRE_PRESSURE_REAR_RIGHT")
-            if any(
-                b is not None for b in (
-                    d.tire_pressure_front_left_bar, d.tire_pressure_front_right_bar,
-                    d.tire_pressure_rear_left_bar, d.tire_pressure_rear_right_bar,
-                )
-            ):
+            _tyre_keys = (
+                "TIRE_PRESSURE_FRONT_LEFT", "TIRE_PRESSURE_FRONT_RIGHT",
+                "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
+            )
+            d.tire_pressure_front_left_bar  = _corner_bar(_tyre_keys[0])
+            d.tire_pressure_front_right_bar = _corner_bar(_tyre_keys[1])
+            d.tire_pressure_rear_left_bar   = _corner_bar(_tyre_keys[2])
+            d.tire_pressure_rear_right_bar  = _corner_bar(_tyre_keys[3])
+            # The per-corner value has no warning flag. The car's own tyre
+            # warning is an INSTRUMENT_CLUSTER_ALERTS entry: lists ``infos`` /
+            # ``warnings`` / ``criticals`` of alert names, among them
+            # TIRE_PRESSURE_WARNING and TIRE_PRESSURE_CRITICAL. Without that
+            # measurement the warning stays unknown rather than "no warning";
+            # a per-corner ``warning`` bool is read only as a fallback.
+            _alerts = m.get("INSTRUMENT_CLUSTER_ALERTS")
+            _alert_lists = (
+                [_alerts.get(k) for k in ("infos", "warnings", "criticals")]
+                if isinstance(_alerts, dict) else []
+            )
+            if any(isinstance(lst, list) for lst in _alert_lists):
                 d.tire_pressure_warning = any(
-                    bool(v(m, key, "warning"))
-                    for key in (
-                        "TIRE_PRESSURE_FRONT_LEFT", "TIRE_PRESSURE_FRONT_RIGHT",
-                        "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
-                    )
+                    name in ("TIRE_PRESSURE_WARNING", "TIRE_PRESSURE_CRITICAL")
+                    for lst in _alert_lists[1:] if isinstance(lst, list)
+                    for name in lst
                 )
+            else:
+                _legacy = [v(m, key, "warning") for key in _tyre_keys]
+                _legacy_flags = [w for w in _legacy if isinstance(w, bool)]
+                if _legacy_flags:
+                    d.tire_pressure_warning = any(_legacy_flags)
 
             # ── b23 (competitor-triage ADOPT #1) — already-fetched mf fields ──
             # These keys were requested all along (see ``_MEASUREMENTS``) but
@@ -1000,26 +1037,41 @@ class PorscheClient:
         """Shared SPIN-challenge/response protocol for unlock-class commands."""
         if not spin:
             raise SpinError(f"Porsche {key} requires an S-PIN")
-        challenge = await self._spin_challenge(vin)
+        challenge, user_challenge = await self._spin_challenge(vin)
         if not challenge:
             raise VehicleCommandError(key, "no SPIN challenge returned")
-        pinhash = hashlib.sha512(bytes.fromhex(spin + challenge)).hexdigest().upper()
+        if user_challenge:
+            # 100 000 PBKDF2 rounds take tens of milliseconds; keep them off
+            # the event loop.
+            pinhash = await asyncio.to_thread(
+                _spin_hash, spin, challenge, user_challenge,
+            )
+        else:
+            pinhash = _spin_hash(spin, challenge, None)
         await self._command(
             vin, key, {"spin": {"challenge": challenge, "hash": pinhash}},
         )
 
-    async def _spin_challenge(self, vin: str) -> str | None:
-        """Request a SPIN_CHALLENGE and return the challenge string, or
-        ``None`` if the response didn't carry one."""
+    async def _spin_challenge(self, vin: str) -> tuple[str | None, str | None]:
+        """Request a SPIN_CHALLENGE; return ``(challenge, user_challenge)``.
+
+        ``user_challenge`` is the optional second value of the answer
+        (``SpinCommandResultDataDto{challenge, userChallenge?}`` in My Porsche
+        21.26.46). Either is ``None`` when the response does not carry it.
+        """
         response = await self._post(
             f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands",
             json={"key": "SPIN_CHALLENGE", "payload": {"spin": None}},
         )
-        if isinstance(response, dict):
-            challenge = response.get("data", {}).get("challenge")
-            if isinstance(challenge, str):
-                return challenge
-        return None
+        data = response.get("data") if isinstance(response, dict) else None
+        if not isinstance(data, dict):
+            return None, None
+        challenge = data.get("challenge")
+        user_challenge = data.get("userChallenge")
+        return (
+            challenge if isinstance(challenge, str) and challenge else None,
+            user_challenge if isinstance(user_challenge, str) and user_challenge else None,
+        )
 
     async def command_open_windows(self, vin: str) -> None:
         """b20 (2026-09-08, androguard enum dump) — WINDOWS_SUNROOF_OPEN is a
@@ -1252,8 +1304,20 @@ class PorscheClient:
         await self._command(vin, "HONK_FLASH", {"mode": mode, "spin": None})
 
     async def command_wake(self, vin: str) -> None:
-        # Porsche doesn't have a dedicated wake — flash serves as ping
-        await self._command(vin, "HONK_FLASH")
+        """Ask the car for a fresh status, the way My Porsche does it.
+
+        The app has no wake command. Its refresh service reads
+        ``GET /v1/vehicles/{vin}`` with a fresh ``wakeUpJob`` UUID (21.26.46,
+        ``de.porsche.app.domain.connect.vehicledata.refresh``), while its plain
+        reads leave ``wakeUpJob`` out. This used to send ``HONK_FLASH`` without
+        the ``mode`` the payload requires, which the backend cannot accept and
+        which would flash the lights if it did. The read asks for one cheap
+        measurement; the next poll collects the rest.
+        """
+        await self._get(
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}",
+            params=[("mf", "GLOBAL_TIMESTAMP"), ("wakeUpJob", str(uuid.uuid4()))],
+        )
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
         """Set the charging target SoC.
@@ -1293,8 +1357,19 @@ class PorscheClient:
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
+        """Start climatisation at a target temperature.
+
+        ``REMOTE_CLIMATIZER_START`` takes ``targetTemperature`` in Kelvin
+        (My Porsche 21.26.46: ``StartClimatizerCommandPayload{spin?,
+        targetTemperature: Kelvin, climateZonesEnabled?}``; the app converts
+        with +273.15). The read side, ``CLIMATIZER_STATE.targetTemperature``,
+        is already parsed as Kelvin in ``get_status``. The earlier
+        ``{"temperature": <°C>}`` named a field the payload does not have.
+        The value is rounded to two decimals.
+        """
         await self._command(
-            vin, "REMOTE_CLIMATIZER_START", {"temperature": temp_c},
+            vin, "REMOTE_CLIMATIZER_START",
+            {"spin": None, "targetTemperature": round(float(temp_c) + 273.15, 2)},
         )
 
     async def command_start_window_heating(self, vin: str) -> None:
