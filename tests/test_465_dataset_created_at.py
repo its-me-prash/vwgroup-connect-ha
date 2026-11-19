@@ -122,3 +122,45 @@ def test_a_file_without_created_on_reads_unknown_not_the_previous_time():
 
 def test_the_sensor_spawns_only_when_the_value_arrives():
     assert "last_dataset_created_at" in _DATA_PRESENT_REQUIRED
+
+
+def _enrich_with_portal(portal: Any) -> dict[str, Any]:
+    import threading
+    from types import SimpleNamespace
+
+    from custom_components.vag_connect.coordinator import VagConnectCoordinator
+
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    coord.hass = MagicMock()
+    coord.hass.async_add_executor_job = AsyncMock(return_value=None)
+    coord.entry = MagicMock()
+    coord.entry.data = {"brand": "volkswagen", "username": "t@t.com",
+                        "password": "x", "spin": "", "update_interval": 300}
+    coord._vehicles_lock = threading.Lock()
+    coord._cariad_client = SimpleNamespace(
+        _image_data={}, _eu_portal=portal, _supplementary_eu_portal=None
+    )
+    coord.vehicle_static_info = {}
+    coord._was_available = True
+    coord.data = None
+    data = {"vin": _VIN, "latitude": None, "longitude": None}
+    return asyncio.run(coord._enrich(data))
+
+
+def test_the_coordinator_hands_the_creation_time_to_the_sensor_data():
+    from types import SimpleNamespace
+
+    portal = SimpleNamespace(
+        last_dataset_created_at="2026-11-19T10:00:00+00:00",
+        last_snapshot_at="2026-11-19T10:15:00+00:00",
+    )
+    out = _enrich_with_portal(portal)
+    assert out["last_dataset_created_at"] == "2026-11-19T10:00:00+00:00"
+    assert out["last_snapshot_at"] == "2026-11-19T10:15:00+00:00"
+
+
+def test_the_sensor_description_reads_that_data_key():
+    from custom_components.vag_connect.sensor import SENSOR_DESCRIPTIONS
+
+    d = next(x for x in SENSOR_DESCRIPTIONS if x.key == "last_dataset_created_at")
+    assert d.data_key == "last_dataset_created_at"
