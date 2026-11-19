@@ -52,7 +52,11 @@ from .const import (
     advised_scan_interval_from_budget,
 )
 from homeassistant.helpers import device_registry as dr
-from .cariad._channel_merge import _HELD_PUSH_SOURCES, is_held_source
+from .cariad._channel_merge import (
+    _HELD_PUSH_SOURCES,
+    is_held_source,
+    never_counts_as_live,
+)
 from .cariad._error_reporter import ErrorRingBuffer, record_error
 from .cariad._reporter_pipeline import (
     ensure_error_reporter_issue,
@@ -139,11 +143,13 @@ def _values_moved(
     # every trip while the portal can be frozen for days. Counted here, one
     # such change would clear the stale-data Repair this rule exists to keep
     # honest, and the owner flipping back to the batch would do it again.
+    # A gap-fill-only source (Tibber) is skipped for the same reason; a batch
+    # value still counts, so the test is ``never_counts_as_live``, not "not batch".
     prev_owners = previous.get("field_sources")
     cur_owners = current.get("field_sources")
 
     def _held(owners: Any, key: str) -> bool:
-        return isinstance(owners, dict) and is_held_source(owners.get(key))
+        return isinstance(owners, dict) and never_counts_as_live(owners.get(key))
 
     for key in _LIVENESS_FIELDS:
         if key not in previous or key not in current:
@@ -365,14 +371,15 @@ def _has_live_contributor(data: dict[str, Any]) -> bool:
     A held push source is not a live contributor either. It relays a reading
     that can be days old and never sets ``last_seen_at``, so counting it would
     let that anchor outvote the batch stamps on a car whose only read path is
-    the batch, which is the very case the anchor must not decide.
+    the batch, which is the very case the anchor must not decide. A
+    gap-fill-only source (Tibber) neither: no capture stamp, no ``last_seen_at``.
     """
     raw = data.get("source_channel")
     if not isinstance(raw, str) or not raw.strip():
         return False
     return any(
         tok
-        and tok not in _HELD_PUSH_SOURCES
+        and not never_counts_as_live(tok)
         and not any(marker in tok for marker in _BATCH_CHANNEL_MARKERS)
         for tok in (part.strip().lower() for part in raw.split("+"))
     )
@@ -5182,12 +5189,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # never stands in for a read that failed: the poll stays the empty
             # one it was. This also covers a car seen for the first time, where
             # the caller has no last snapshot to fall back to and would take
-            # the merged result as a success.
+            # the merged result as a success. A gap-fill-only source (Tibber)
+            # is not a contact with the car either: it hands over its last
+            # known values, which can be days old on a parked car.
             _toks = [
                 t for t in str(getattr(merged, "source_channel", "") or "").split("+")
                 if t
             ]
-            if _toks and all(t in _HELD_PUSH_SOURCES for t in _toks):
+            if _toks and all(never_counts_as_live(t) for t in _toks):
                 merged = annotate_provenance(self._primary_channel_name(), primary)
         if only_held and merged is not primary:
             # The held source was the only other channel. A car without a
@@ -5257,8 +5266,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # counter and the last-good time on every poll, and a dead read path
         # would look healthy for as long as the hold time lasts. When a real
         # supplementary channel revived the poll, the held values ride along.
+        # The same holds for a gap-fill-only source (Tibber): it always answers
+        # with its last known values, so a dead read path would look healthy
+        # for as long as Tibber is reachable.
         if all(
-            tok in _HELD_PUSH_SOURCES
+            never_counts_as_live(tok)
             for tok in str(merged.source_channel).split("+") if tok
         ):
             return None
