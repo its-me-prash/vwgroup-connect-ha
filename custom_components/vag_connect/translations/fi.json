@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Pitkän aikavälin matkan alun matkamittari"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Pitkän aikavälin matkan sähkönkulutus yhteensä"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Pitkän aikavälin matkan polttoaineenkulutus yhteensä"
+      },
       "last_trip_start_odometer_km": {
         "name": "Viimeisen matkan alun matkamittari"
       },

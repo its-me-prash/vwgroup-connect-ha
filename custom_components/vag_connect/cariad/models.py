@@ -2226,6 +2226,10 @@ class VehicleData:
     lifetime_trip_distance_km: int | None = None
     # Odometer when the long-term window began — LOW. sensor, diagnostic.
     lifetime_trip_start_odometer_km: int | None = None
+    # #2136: energy / fuel used over the same long-term window (the app's
+    # address only; the window can be reset, so these are no lifetime counters).
+    lifetime_trip_total_electric_consumption_kwh: float | None = None
+    lifetime_trip_total_fuel_consumption_l: float | None = None
     # Odometer when the current/last trip began — LOW. sensor, diagnostic.
     last_trip_start_odometer_km: int | None = None
     # D. Fuel / fluids / SCR.

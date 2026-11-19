@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Langtidstur, startkilometerstand"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Langtidstur, totalt strømforbruk"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Langtidstur, totalt drivstofforbruk"
+      },
       "last_trip_start_odometer_km": {
         "name": "Siste tur, startkilometerstand"
       },

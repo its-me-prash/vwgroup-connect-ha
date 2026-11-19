@@ -3972,6 +3972,7 @@ class VWEUClient(CariadBaseClient):
                 # tried defensively.
                 total_fuel = (
                     last.get("totalFuelConsumption_l")
+                    or last.get("totalFuelConsumption_L")
                     or last.get("totalFuelConsumption")
                     or last.get("fuelConsumption_l")
                 )
@@ -4068,6 +4069,17 @@ class VWEUClient(CariadBaseClient):
                     win_speed = first.get("averageSpeed_kmph")
                     if isinstance(win_speed, (int, float)):
                         d.lifetime_avg_speed_kmh = float(win_speed)
+                    # The app's totals over the same window; the fuel key
+                    # comes with a capital L there. isinstance, not "or": 0 is
+                    # a valid reading.
+                    win_elec = first.get("totalElectricConsumption_kwh")
+                    if isinstance(win_elec, (int, float)):
+                        d.lifetime_trip_total_electric_consumption_kwh = float(win_elec)
+                    win_fuel = first.get("totalFuelConsumption_L")
+                    if not isinstance(win_fuel, (int, float)):
+                        win_fuel = first.get("totalFuelConsumption_l")
+                    if isinstance(win_fuel, (int, float)):
+                        d.lifetime_trip_total_fuel_consumption_l = float(win_fuel)
 
     def _parse_refuel_trip(
         self,

@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Kilometerstand bij start (langetermijn)"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Langetermijn-rit, totaal elektriciteitsverbruik"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Langetermijn-rit, totaal brandstofverbruik"
+      },
       "last_trip_start_odometer_km": {
         "name": "Kilometerstand bij start laatste rit"
       },

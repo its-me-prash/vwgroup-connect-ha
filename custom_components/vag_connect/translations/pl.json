@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Przebieg na początku (długoterm.)"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Podróż długoterminowa, łączne zużycie energii"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Podróż długoterminowa, łączne zużycie paliwa"
+      },
       "last_trip_start_odometer_km": {
         "name": "Przebieg na początku ostatniej podróży"
       },

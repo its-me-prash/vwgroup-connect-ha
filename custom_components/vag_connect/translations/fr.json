@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Compteur au début (longue durée)"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Consommation électrique totale, trajet longue durée"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Consommation de carburant totale, trajet longue durée"
+      },
       "last_trip_start_odometer_km": {
         "name": "Compteur au début du dernier trajet"
       },
