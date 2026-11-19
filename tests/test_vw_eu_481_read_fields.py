@@ -67,6 +67,11 @@ def test_reason_is_passed_through_raw(token: str) -> None:
     assert _parse(_payload(reason=token)).charge_power_limitation_reason == token
 
 
+def test_reason_is_trimmed() -> None:
+    d = _parse(_payload(reason="  chargePurposeReached "))
+    assert d.charge_power_limitation_reason == "chargePurposeReached"
+
+
 @pytest.mark.parametrize("sent", [None, "", "  ", 3, {"rawValue": "x"}])
 def test_reason_junk_stays_none(sent) -> None:
     assert _parse(_payload(reason=sent)).charge_power_limitation_reason is None
@@ -80,6 +85,29 @@ def test_existing_neighbours_unchanged() -> None:
     d = _parse(_payload(safelock=True, reason="x"))
     assert d.doors_locked is True
     assert d.battery_soc == 80
+
+
+def test_scout_knows_both_paths() -> None:
+    from custom_components.vag_connect.cariad._unexpected_keys import detect_unexpected
+
+    payload = _payload(safelock=True, reason="x")
+    for brand in ("volkswagen", "audi"):
+        found = {u.path for u in detect_unexpected(brand, "selectivestatus", payload)}
+        assert not any("safelockActive" in p or "chargePowerLimitationReason" in p for p in found)
+
+
+def test_entities_read_real_vehicle_fields_and_phantom_gate_hides_none() -> None:
+    from dataclasses import fields
+
+    from custom_components.vag_connect.cariad.models import VehicleData
+
+    names = {f.name for f in fields(VehicleData)}
+    assert {"safelock_active", "charge_power_limitation_reason"} <= names
+    empty = VehicleData(vin="VIN1")
+    # the spawn gate is ``key in _DATA_PRESENT_REQUIRED and value is None``
+    assert empty.safelock_active is None and empty.charge_power_limitation_reason is None
+    got = _parse(_payload(safelock=False, reason="x"))
+    assert got.safelock_active is False and got.charge_power_limitation_reason == "x"
 
 
 def test_entities_are_wired_and_phantom_gated() -> None:

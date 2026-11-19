@@ -657,6 +657,9 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "access.accessStatus.value.carCapturedTimestamp",
             "access.accessStatus.value.doors", "access.accessStatus.value.windows",
             "access.accessStatus.value.doorLockStatus",
+            # We Connect app 4.8.1: ``safelockActive`` is read since the
+            # entity "Safelock active"; register it so the Scout stays quiet.
+            "access.accessStatus.value.safelockActive",
             "charging", "charging.batteryStatus", "charging.batteryStatus.value",
             "charging.batteryStatus.value.currentSOC_pct",
             "charging.batteryStatus.value.cruisingRangeElectric_km",
@@ -680,6 +683,9 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # Both wired in vw_eu.py → d.nav_target_soc_pct +
             # d.remaining_charge_time_nav_min → new sensors.
             "charging.batteryStatus.value.navigationTargetSOC_pct",
+            # We Connect app 4.8.1: ``chargePowerLimitationReason`` is read
+            # (raw token) since "Charge power limit reason".
+            "charging.batteryStatus.value.chargePowerLimitationReason",
             "charging.chargingStatus.value.remainingChargingTimeNavigation_min",
             "charging.chargingStatus.value.chargingSettings",
             "charging.chargingStatus.value.chargingScenario",
