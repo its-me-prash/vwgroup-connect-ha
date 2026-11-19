@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **SEAT/CUPRA: the climate state falls back to the path the 3.0.2 app uses when the old one is not served (#779).** The integration reads the climate state from `climatisation/status`. The 3.0.2 apps (SEAT and CUPRA) no longer have that path and read `climate/status` instead; whether the server still answers the old path is unmeasured. The old path stays first and nothing changes where it answers. Only when it returns 404, the integration now reads `climate/status` once and passes the answer through the same reader, and only when that answer carries a climatisation state the reader knows; any other answer, an error or a second 404 leaves the state as it is today, with no extra warning. The response form of `climate/status` is not documented in the app audit, so no new fields are read from it. The climate settings path is not read. Read-only: SEAT/CUPRA commands stay switched off. Covered by unit tests with mocked answers; not tried on a car.
+
 ## [5.5.0] - 2026-11-19 — "Like the apps / Wie die Apps"
 
 ### Hinzugefügt / Added
