@@ -247,6 +247,14 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
+        key="last_dataset_created_at",
+        translation_key="last_dataset_created_at",
+        data_key="last_dataset_created_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:file-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
         key="last_no_data_at",
         translation_key="last_no_data_at",
         data_key="last_no_data_at",
@@ -4679,6 +4687,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # mode so it appears immediately; the timestamps appear on their first event.
     "data_request_created_at",
     "last_snapshot_at",
+    "last_dataset_created_at",
     "last_no_data_at",
     "no_data_count",
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal-only interior temp,

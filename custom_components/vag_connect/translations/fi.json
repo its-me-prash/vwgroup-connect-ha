@@ -1658,6 +1658,9 @@
       "last_snapshot_at": {
         "name": "Viimeisin tilannevedos vastaanotettu"
       },
+      "last_dataset_created_at": {
+        "name": "Portaalin tiedosto luotu"
+      },
       "last_no_data_at": {
         "name": "Viimeisin kysely ilman dataa"
       },

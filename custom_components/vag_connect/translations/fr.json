@@ -1658,6 +1658,9 @@
       "last_snapshot_at": {
         "name": "Dernier instantané reçu"
       },
+      "last_dataset_created_at": {
+        "name": "Fichier du portail créé"
+      },
       "last_no_data_at": {
         "name": "Dernière interrogation sans données"
       },
