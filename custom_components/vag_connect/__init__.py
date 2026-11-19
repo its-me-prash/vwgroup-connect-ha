@@ -1264,20 +1264,20 @@ async def async_remove_config_entry_device(
     """#1429 — let the user delete a device Home Assistant shows as "Delete".
 
     Without this hook HA hides the "Delete" button for every device of the
-    integration. A device may go when it cannot come back on the next poll:
+    integration. A device may go only when it cannot come back on the next
+    poll: its VIN is neither in this entry's pushed data nor in its vehicle
+    cache.
 
-    * it is switched off (``disabled_by`` set), or
-    * its VIN is neither in this entry's pushed data nor in its vehicle cache.
-
-    A car that still delivers data, the account-level settings device and any
-    device without an identifier of this domain are kept (``False``), as is
-    everything while the entry is not loaded and so cannot be judged.
+    A car that still delivers data is kept (``False``) even when switched off:
+    a car without a device is polled again at once (``_active_vins``), so
+    deleting it would bring it back with all entities and lose the
+    deactivation. The account-level settings device, any device without an
+    identifier of this domain and everything while the entry is not loaded
+    (and so cannot be judged) are kept as well.
     """
     own = {str(i) for d, i in device_entry.identifiers if d == DOMAIN}
     if not own or f"{entry.entry_id}_settings" in own:
         return False
-    if device_entry.disabled_by is not None:
-        return True
     coordinator: VagConnectCoordinator | None = getattr(entry, "runtime_data", None)
     if coordinator is None:
         return False
