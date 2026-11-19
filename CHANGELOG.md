@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.5.0] - 2026-11-19 — "Like the apps / Wie die Apps"
+
 ### Hinzugefügt / Added
 
 - **Škoda: workshop mode, the 2G/3G shutdown impact and the status of each connected service are now shown (#2182).** Two new diagnostic entities appear when the car's garage data carries the value; the workshop flag is part of every garage record of the current API, so in practice every Škoda gets that sensor. The garage data is re-read once a day, so the workshop state can be up to a day old. For Škoda cars the `capabilities_count` sensor now appears and lists each service's status and expiry date. For display only: nothing is switched off because of a status. Covered by unit tests; not tried on a car.
