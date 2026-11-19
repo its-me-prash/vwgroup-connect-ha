@@ -1664,6 +1664,9 @@
       "last_snapshot_at": {
         "name": "Senaste ögonblicksbild mottagen"
       },
+      "last_dataset_created_at": {
+        "name": "Portalfil skapad"
+      },
       "last_no_data_at": {
         "name": "Senaste förfrågan utan data"
       },

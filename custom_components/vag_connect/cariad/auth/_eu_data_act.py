@@ -6171,6 +6171,13 @@ class EUDataActConnector:
         self.last_no_data_at: str | None = None
         self.no_data_count: int = 0
         self.last_snapshot_at: str | None = None
+        # #465 — the portal's own ``createdOn`` of the dataset file we last read
+        # (ISO-8601 UTC), NOT the time of our poll. ``last_snapshot_at`` moves on
+        # every successful poll, even when the portal handed us the very same
+        # file again; this one only moves when the portal produced a new file, so
+        # a user can tell a fresh delivery from a re-read. None when the chosen
+        # file's listing entry carried no readable creation time.
+        self.last_dataset_created_at: str | None = None
         # v4.7.11 (#465 BooM80) — last dataset's field-delivery honesty. VW's
         # EU-DA export can ship a data point's NAME + capture timestamp but omit
         # the ``value`` (BooM80's official export: 10 names, only 3 valued), so
@@ -7723,6 +7730,11 @@ class EUDataActConnector:
             self._note_no_data("empty")
             return d
         self._note_data_ok()
+        # #465 — remember WHEN THE PORTAL created the file we just parsed. The
+        # listing's createdOn was only a sort key until now.
+        self.last_dataset_created_at = _epoch_or_iso(
+            next((str(c[1]) for c in cands if c[0] == chosen and c[1] is not None), None)
+        )
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
         # P1-5 — hand the RAW dataset ZIP to the opt-in diagnostic archive, but

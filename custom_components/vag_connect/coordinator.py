@@ -8820,6 +8820,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     _portal, "data_request_started_at", None
                 )
                 data["last_snapshot_at"] = getattr(_portal, "last_snapshot_at", None)
+                # #465 — when the PORTAL created the file we last read; unlike
+                # last_snapshot_at (our poll) it only moves on a new delivery.
+                data["last_dataset_created_at"] = getattr(
+                    _portal, "last_dataset_created_at", None
+                )
                 data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
                 data["no_data_count"] = getattr(_portal, "no_data_count", None)
                 # #465 (BooM80) — field-delivery honesty. VW can ship a field's

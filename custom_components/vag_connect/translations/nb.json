@@ -1664,6 +1664,9 @@
       "last_snapshot_at": {
         "name": "Siste øyeblikksbilde mottatt"
       },
+      "last_dataset_created_at": {
+        "name": "Portalfil opprettet"
+      },
       "last_no_data_at": {
         "name": "Siste spørring uten data"
       },

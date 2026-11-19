@@ -1664,6 +1664,9 @@
       "last_snapshot_at": {
         "name": "Letzter Snapshot empfangen"
       },
+      "last_dataset_created_at": {
+        "name": "Portal-Datei erstellt"
+      },
       "last_no_data_at": {
         "name": "Letzte Abfrage ohne Daten"
       },

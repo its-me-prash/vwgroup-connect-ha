@@ -1664,6 +1664,9 @@
       "last_snapshot_at": {
         "name": "Laatste momentopname ontvangen"
       },
+      "last_dataset_created_at": {
+        "name": "Portaalbestand aangemaakt"
+      },
       "last_no_data_at": {
         "name": "Laatste polling zonder gegevens"
       },

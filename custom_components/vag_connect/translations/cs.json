@@ -1664,6 +1664,9 @@
       "last_snapshot_at": {
         "name": "Poslední snímek přijat"
       },
+      "last_dataset_created_at": {
+        "name": "Soubor portálu vytvořen"
+      },
       "last_no_data_at": {
         "name": "Poslední dotaz bez dat"
       },

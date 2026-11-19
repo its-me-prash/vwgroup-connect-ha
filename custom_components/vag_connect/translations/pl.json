@@ -1664,6 +1664,9 @@
       "last_snapshot_at": {
         "name": "Ostatnia migawka odebrana"
       },
+      "last_dataset_created_at": {
+        "name": "Utworzono plik portalu"
+      },
       "last_no_data_at": {
         "name": "Ostatnie odpytanie bez danych"
       },
