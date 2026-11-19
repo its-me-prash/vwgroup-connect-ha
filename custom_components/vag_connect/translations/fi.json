@@ -1936,6 +1936,9 @@
       "brake_fluid_warning": {
         "name": "Jarruneste"
       },
+      "hibernation_mode": {
+        "name": "Lepotila"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Kulutuslaskuri ylivuoti"
       },

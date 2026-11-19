@@ -262,6 +262,15 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:car-brake-fluid-level",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Porsche HIBERNATION_MODE (My Porsche 21.26.46). On while the car is in
+    # its hibernation mode. Read only; gated by _DATA_PRESENT_REQUIRED.
+    VagBinarySensorDescription(
+        key="hibernation_mode",
+        translation_key="hibernation_mode",
+        data_key="hibernation_mode",
+        icon="mdi:sleep",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v4.10.0 (#1661) — the BMS energy counters' wrap flags ("mindestens 1x
     # übergelaufen", per the official V6.0 catalogue). True means the kWh total
     # beside it has wrapped at least once and is no longer a clean cumulative
@@ -1248,6 +1257,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # #1592 — Audi Q6 PPE portal brake-fluid warning lamp; cars that don't
     # report the FlexRay/ESC signal stay None → no phantom entity.
     "brake_fluid_warning",
+    # Porsche HIBERNATION_MODE; other brands leave it None.
+    "hibernation_mode",
     # v2.5.0 (#306 goncal Mii) — sunroof is option-dependent. Many cars
     # don't have a sunroof; parser leaves field None → no phantom entity.
     "sunroof_open",

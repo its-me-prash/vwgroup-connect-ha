@@ -2002,6 +2002,9 @@
       "brake_fluid_warning": {
         "name": "Brzdová kapalina"
       },
+      "hibernation_mode": {
+        "name": "Režim hibernace"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Čítač spotřeby přetekl"
       },

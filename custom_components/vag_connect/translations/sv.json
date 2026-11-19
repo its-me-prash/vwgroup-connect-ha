@@ -2002,6 +2002,9 @@
       "brake_fluid_warning": {
         "name": "Bromsvätska"
       },
+      "hibernation_mode": {
+        "name": "Viloläge"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Förbrukningsräknaren har slagit runt"
       },

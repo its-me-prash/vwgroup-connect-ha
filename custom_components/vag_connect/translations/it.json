@@ -1936,6 +1936,9 @@
       "brake_fluid_warning": {
         "name": "Liquido freni"
       },
+      "hibernation_mode": {
+        "name": "Modalità ibernazione"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Contatore consumo in overflow"
       },
