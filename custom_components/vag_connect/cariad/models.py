@@ -1564,6 +1564,13 @@ class VehicleData:
     # reported → no entity.
     workshop_mode: bool | None = None
     connectivity_sunset_impact: str | None = None
+    # MyŠkoda 8.18.0 — the car's factory specification (``vehicleSpecification``
+    # of ``vehicle-information``), filled by the coordinator for Škoda. Nameplate
+    # figures, NOT measurements: ``battery_capacity_spec_kwh`` is deliberately
+    # separate from ``battery_cap_kwh`` (the measured usable capacity, which the
+    # SoH estimate and ABRP read). None = not reported → no entity.
+    battery_capacity_spec_kwh: float | None = None
+    max_charging_power_kw: float | None = None
 
     # Departure timers
     departure_timer_1_enabled: bool = False

@@ -1689,6 +1689,12 @@
       "connectivity_sunset_impact": {
         "name": "Påvirkning av 2G/3G-nedleggelsen"
       },
+      "battery_capacity_spec_kwh": {
+        "name": "Batterikapasitet (spesifikasjon)"
+      },
+      "max_charging_power_kw": {
+        "name": "Maksimal ladeeffekt"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Kortsiktig gjennomsnittlig strømforbruk"
       },
