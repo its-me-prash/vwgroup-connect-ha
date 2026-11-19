@@ -155,10 +155,14 @@ class TestFollowUpCommandsWithSafePayloads:
     async def test_no_payload_commands_send_correct_keys(self):
         c = _client()
         c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
-        await c.command_start_ota_update(_VIN)
+        # OTA start and service reset carry required fields since the
+        # 21.26.46 grounding (tests/test_porsche_paket_a.py); the mileage
+        # read for the reset comes back empty here.
+        c._get = AsyncMock(return_value={})
+        await c.command_start_ota_update(_VIN, update_id="U-1")
         await c.command_give_ota_consent(_VIN)
         await c.command_revoke_ota_consent(_VIN)
-        await c.command_reset_service_predictions(_VIN)
+        await c.command_reset_service_predictions(_VIN, "OIL")
         await c.command_disable_valet_alarm(_VIN)
         keys = [call.kwargs["json"]["key"] for call in c._post.call_args_list]
         assert keys == [

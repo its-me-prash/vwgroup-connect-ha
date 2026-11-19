@@ -4768,12 +4768,13 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.2.0 Phase 2 PR #8/20 + PR #10/20 — subscription expiry timestamp.
     # SEAT/CUPRA parses from ``mycar.services.*.expirationDate``; VW EU
     # + Audi (PR #10) parse from CARIAD-BFF ``userCapabilities.
-    # capabilitiesStatus.value[*].expirationDate``. Skoda + Porsche +
-    # VW NA leave field None → no phantom entity.
+    # capabilitiesStatus.value[*].expirationDate``; Porsche from
+    # ``CONNECT_CONTRACT.value.until``. Skoda leaves the field None →
+    # no phantom entity.
     "subscription_expiry_at",
     # v2.2.0 Phase 2 PR #11/20 — derived days-remaining int sensor.
-    # Computed from the same expiry-aggregation as PR #8/#10, so same
-    # brand-coverage matrix (None on Skoda/Porsche/VW NA).
+    # Computed from the same expiry as above, so same brand coverage
+    # (None on Skoda).
     "subscription_days_remaining",
     # v2.2.0 Phase 7 PR #1 — scout-audit quick-wins. Each is brand-
     # restricted at the parser level; other brands stay None.
