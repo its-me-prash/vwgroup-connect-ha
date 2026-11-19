@@ -22,11 +22,17 @@ WHAT IT DOES
   5. it decodes the token and shows ONLY the metadata: audience, scopes,
      validity. The token itself is never printed.
   6. a read-only look at what the token unlocks on the CARIAD API
+  7. GET /user/v1/mbbuser — whether the MBB user id comes back for this token
+     (myAudi 5.10.1 fetches it here for Auth0 too) and whether it equals the sub
+  8. an MQTT CONNECT to the mobile-push broker (eu.mqtt.mobilepush…:8883, user
+     IDK, password = the token) — connect, read the return code, disconnect;
+     no subscribe, no publish
 
 WHAT IT DOES NOT
   - no password field, no sign-in on your behalf
   - no token, VIN or e-mail in clear text (VINs are masked)
-  - nothing written, nothing commanded on the vehicle
+  - nothing written, nothing commanded on the vehicle; the MQTT leg only
+    connects and disconnects
 
 Usage (in YOUR terminal, so the browser callback reaches your localhost):
   python scripts/auth0_signin_probe.py [brand]
@@ -39,11 +45,15 @@ from __future__ import annotations
 import base64
 import http.server
 import json
+import ssl
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import socket
+import uuid
 import webbrowser
 from pathlib import Path
 
@@ -51,6 +61,78 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from custom_components.vag_connect.cariad.auth import _auth0  # noqa: E402
+from custom_components.vag_connect.cariad.models import (  # noqa: E402
+    MYAUDI_APP_VERSION,
+)
+
+
+# Hosts this probe talks to from Python (the authorize step runs in the browser,
+# not here). Some machines run a DNS blocker/VPN that sinkholes the VW/CARIAD
+# names to a private IPv6 (``fd44:…``), which the token exchange then cannot
+# reach — while the browser, on its own resolver, signs in fine. The override
+# below resolves these names over DoH and pins the IPv4, scoped to this
+# process (like ``curl --resolve``); it changes no system setting.
+_RESOLVE_HOSTS = (
+    "group.identity.vwgroup.io",
+    "emea.bff.cariad.digital",
+    # The MQTT broker: its name carries the same sinkhole IPv6, but DoH follows
+    # the Event Grid CNAME chain to a public Azure gateway IP, so pinning it
+    # lets the CONNECT reach the real broker instead of the dead-end address.
+    "eu.mqtt.mobilepush.cariad.digital",
+)
+_real_getaddrinfo = socket.getaddrinfo
+_PINNED: dict[str, str] = {}
+
+
+def _doh_a(host: str) -> str | None:
+    """One A record for *host* from Cloudflare DoH, or None. Two attempts, so a
+    single transient blip does not leave a host unpinned."""
+    url = (f"https://1.1.1.1/dns-query?name={urllib.parse.quote(host)}&type=A")
+    req = urllib.request.Request(url, headers={"accept": "application/dns-json"})
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                data = json.loads(resp.read().decode("utf-8", "replace"))
+        except Exception:  # noqa: BLE001
+            if attempt == 0:
+                time.sleep(1)
+                continue
+            return None
+        for ans in data.get("Answer", []):
+            if ans.get("type") == 1 and isinstance(ans.get("data"), str):
+                return ans["data"]
+        return None
+    return None
+
+
+def _install_doh_resolver() -> None:
+    """Force the VW/CARIAD hosts to IPv4 for this process only.
+
+    These names carry a bogus private IPv6 (``fd44:…``) on a machine with a DNS
+    blocker/VPN; Python prefers that AAAA and the connection is reset, while the
+    host answers fine over IPv4. For each host we take the real IPv4 — from DoH,
+    else the system's own A record — and return only that, so no AAAA is tried.
+    A host with no IPv4 at all (e.g. the Event Grid privatelink broker) is left
+    to normal resolution. Scoped to this process; changes no system setting."""
+    def _gai(host, port, *args, **kwargs):  # type: ignore[no-untyped-def]
+        ip = _PINNED.get(host)
+        if ip:
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port))]
+        return _real_getaddrinfo(host, port, *args, **kwargs)
+
+    for host in _RESOLVE_HOSTS:
+        ip = _doh_a(host)
+        if not ip:
+            try:
+                ip = str(_real_getaddrinfo(host, 443, socket.AF_INET)[0][4][0])
+            except Exception:  # noqa: BLE001
+                ip = None
+        if ip:
+            _PINNED[host] = ip
+            print(f"  DNS: {host} → {ip} (IPv4 forced; the private-IPv6 "
+                  "answer on this machine is a dead end)")
+    if _PINNED:
+        socket.getaddrinfo = _gai  # type: ignore[assignment]
 
 
 def _mask(value: str, keep: int = 4) -> str:
@@ -180,6 +262,107 @@ def _probe_cariad(access_token: str) -> None:
           "(lock/climate) do NOT run over this — they stay on the MBB path.")
 
 
+def _probe_mbbuser(access_token: str, token_sub: str | None) -> str | None:
+    """GET {bff}/user/v1/mbbuser — read-only. myAudi 5.10.1 fetches the MBB user
+    id here (``Authentication.MbbUserInfo``), for Auth0 and IdentityKit alike.
+    Prints only whether an id came back and whether it equals the token ``sub``
+    (both are masked); the id itself is never printed."""
+    url = "https://emea.bff.cariad.digital/user/v1/mbbuser"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+        "User-Agent": "vag-connect-local-probe",
+    }
+    print("\n  ====== /user/v1/mbbuser (read-only) ======")
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            status, raw = resp.status, resp.read(8000)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")[:200]
+        print(f"    HTTP {exc.code}  {body}")
+        if "scope" in body.lower():
+            print("    → the message names a scope: the token's scope set is "
+                  "too narrow for this endpoint")
+        return None
+    except Exception as exc:  # noqa: BLE001
+        print(f"    error {type(exc).__name__}")
+        return None
+    print(f"    HTTP {status}")
+    if status != 200:
+        return None
+    try:
+        mbb_id = (json.loads(raw).get("data") or {}).get("mbbUserId")
+    except Exception:  # noqa: BLE001
+        print(f"    (response not JSON, {len(raw)} B)")
+        return None
+    print(f"    mbbUserId returned: {bool(mbb_id)}"
+          + (f"  ({_mask(str(mbb_id))})" if mbb_id else ""))
+    if mbb_id and token_sub:
+        print(f"    mbbUserId == token sub: {mbb_id == token_sub}  "
+              "(equal ⇒ the two candidate ids are the same value)")
+    return mbb_id if isinstance(mbb_id, str) and mbb_id else None
+
+
+def _mqtt_connect_once(access_token: str, label: str, client_id: str) -> str:
+    """One read-only MQTT v5 CONNECT to the mobile-push broker with the given
+    client id, then DISCONNECT. No SUBSCRIBE, no PUBLISH. Returns the CONNACK
+    reason code as text (or an error tag). Username ``IDK``, password = the
+    access token (``MqttConnectionManagerImpl``). The client id may contain the
+    sub or the mbbUserId; it is never printed, only its ``label``."""
+    import paho.mqtt.client as mqtt  # noqa: PLC0415
+    host, port = "eu.mqtt.mobilepush.cariad.digital", 8883
+    box: dict[str, object] = {}
+    try:
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
+                             client_id=client_id, protocol=mqtt.MQTTv5)
+    except Exception:  # noqa: BLE001 — paho < 2.0
+        client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv5)
+    client.username_pw_set("IDK", access_token)
+    client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
+
+    def _on_connect(client: object, userdata: object, flags: object,
+                    reason_code: object, properties: object = None) -> None:
+        box["rc"] = reason_code
+
+    client.on_connect = _on_connect
+    try:
+        client.connect(host, port, clean_start=True, keepalive=10)
+        client.loop_start()
+        for _ in range(80):
+            if "rc" in box:
+                break
+            time.sleep(0.1)
+        client.disconnect()
+        client.loop_stop()
+    except Exception as exc:  # noqa: BLE001
+        return f"error {type(exc).__name__}: {str(exc)[:80]}"
+    rc = box.get("rc")
+    return "timeout (no CONNACK)" if rc is None else str(rc)
+
+
+def _probe_mqtt(access_token: str, attempts: list[tuple[str, str]]) -> None:
+    """Try each candidate client-id form at the broker — read-only, CONNECT only,
+    one at a time, reporting the CONNACK reason code per form. The MQTT v5 codes
+    are specific (Success=0, 0x85 client-id invalid, 0x87 not authorized, …), so
+    they separate "this client id is wrong" from "the token is refused". No
+    SUBSCRIBE and no PUBLISH are issued (a user-scoped SUBSCRIBE is a later step
+    with its own go)."""
+    print("\n  ====== MQTT CONNECT per client-id form (read-only, no subscribe) ======")
+    try:
+        import paho.mqtt.client  # noqa: F401, PLC0415
+    except Exception:  # noqa: BLE001
+        print("    paho-mqtt not installed — skipped")
+        return
+    for label, client_id in attempts:
+        rc = _mqtt_connect_once(access_token, label, client_id)
+        accepted = rc in ("Success", "0")
+        print(f"    clientId={label}: CONNACK {rc}"
+              f"{'  ← ACCEPTED' if accepted else ''}")
+    print("    (no subscribe, no publish were issued; username IDK, token as "
+          "password; MQTT v5)")
+
+
 def _catch_code(redirect_uri: str, timeout_s: int = 300) -> str | None:
     """A tiny server on the callback's localhost port; catches ?code=."""
     parsed = urllib.parse.urlparse(redirect_uri)
@@ -218,6 +401,7 @@ def _catch_code(redirect_uri: str, timeout_s: int = 300) -> str | None:
 
 
 def main() -> None:
+    _install_doh_resolver()
     brand = (sys.argv[1] if len(sys.argv) > 1 else "audi").lower()
     routes = _auth0.routes_for(brand)
     if not routes:
@@ -282,6 +466,25 @@ def main() -> None:
 
     if tokens.get("access_token"):
         _probe_cariad(tokens["access_token"])
+        id_claims = _decode_jwt_claims(tokens.get("id_token") or "")
+        token_sub = id_claims.get("sub") if isinstance(id_claims, dict) else None
+        token_sub = token_sub if isinstance(token_sub, str) else None
+        mbb_id = _probe_mbbuser(tokens["access_token"], token_sub)
+        # Candidate client-id forms (the ids themselves are never printed). The
+        # app connects with clientId myAudi-android-<ver>-<stored id>; Event Grid
+        # usually ties the client id to the token identity, so sub and mbbUserId
+        # are the likely accepted forms. The CONNACK per form tells us which.
+        attempts: list[tuple[str, str]] = [
+            (f"myAudi-android-{MYAUDI_APP_VERSION}-<random>",
+             f"myAudi-android-{MYAUDI_APP_VERSION}-{uuid.uuid4()}"),
+        ]
+        if token_sub:
+            attempts.append(("<token-sub>", token_sub))
+        if mbb_id:
+            attempts.append(("<mbbUserId>", mbb_id))
+        attempts.append(("vag-connect-probe-<random> (control)",
+                         f"vag-connect-probe-{uuid.uuid4().hex[:8]}"))
+        _probe_mqtt(tokens["access_token"], attempts)
 
     print("\n  (The token values themselves were deliberately not printed. "
           "What you see above — audience, scopes, validity — says which "

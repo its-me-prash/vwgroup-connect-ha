@@ -70,6 +70,7 @@ from ..models import (
     BRAND_CUPRA,
     BRAND_SEAT,
     BRAND_VW_EU,
+    MYAUDI_USER_AGENT,
     BrandConfig,
     TokenSet,
 )
@@ -124,12 +125,10 @@ _HARD_REFRESH_ERRORS: Final[frozenset[str]] = frozenset(
     {"invalid_grant", "unauthorized_client", "invalid_client"}
 )
 
-#: Sent on the token calls. The myAudi app's UA; the token endpoint does not
-#: key on it, so one value serves every brand's route.
-_USER_AGENT: Final = (
-    "Android/5.8.1 (Build 800344777.root project 'myaudi_android'"
-    ".ext.buildTime) Android/13"
-)
+#: Sent on the token calls. The myAudi app's UA (the one identity in
+#: ``models.py``); the token endpoint does not key on it, so one value serves
+#: every brand's route.
+_USER_AGENT: Final = MYAUDI_USER_AGENT
 _REQUEST_TIMEOUT_S: Final = 30
 
 #: The brands measured open, keyed the way ``ClientFactory`` spells them. The
