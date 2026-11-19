@@ -1483,12 +1483,17 @@ class PorscheClient:
         ``de.porsche.app.domain.connect.vehicledata.refresh``), while its plain
         reads leave ``wakeUpJob`` out. This used to send ``HONK_FLASH`` without
         the ``mode`` the payload requires, which the backend cannot accept and
-        which would flash the lights if it did. The read asks for one cheap
-        measurement; the next poll collects the rest.
+        which would flash the lights if it did.
+
+        The refresh service sends the ``wakeUpJob`` together with its full set
+        of measurements (``refresh/e.java``), not with a single one, so this
+        read asks for the same measurements a poll asks for. Whether the
+        backend then wakes the car is not tried on a car.
         """
+        params = [("mf", key) for key in _MEASUREMENTS]
+        params.append(("wakeUpJob", str(uuid.uuid4())))
         await self._get(
-            f"{_API_BASE}/app/connect/v1/vehicles/{vin}",
-            params=[("mf", "GLOBAL_TIMESTAMP"), ("wakeUpJob", str(uuid.uuid4()))],
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}", params=params,
         )
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:

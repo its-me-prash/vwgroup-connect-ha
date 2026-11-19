@@ -143,6 +143,19 @@ class TestWakeIsAFreshStatusRead:
         assert "mf" in params
 
     @pytest.mark.asyncio
+    async def test_wake_asks_for_the_same_measurements_as_a_poll(self) -> None:
+        # The app's refresh service sends wakeUpJob with its full measurement
+        # set, not with one key, so the wake read must not shrink to one key.
+        from custom_components.vag_connect.cariad.api.porsche import _MEASUREMENTS
+
+        c = _client()
+        c._get = AsyncMock(return_value={})
+        await c.command_wake(_VIN)
+        params = c._get.call_args.kwargs["params"]
+        assert [v for k, v in params if k == "mf"] == list(_MEASUREMENTS)
+        assert [k for k, _ in params].count("wakeUpJob") == 1
+
+    @pytest.mark.asyncio
     async def test_every_wake_uses_its_own_job(self) -> None:
         c = _client()
         c._get = AsyncMock(return_value={})

@@ -651,7 +651,7 @@ class VWNAClient:
                     -> data.challenge (str) + data.remainingTries (int)
             2. spinHash = SHA512(challenge + "." + spin).hexdigest().upper()
             3. POST {base}/ss/v1/user/{uid}/vehicle/{uuid}/session
-                    body {idToken, spinHash, tsp:"WCT"}
+                    body {idToken, spinHash, tsp:<the car's own WCT|ATC, default WCT>}
                     -> data.carnetVehicleToken (a JWT)
 
         v2.29.x (sstur/vwapp): this SAME ``carnetVehicleToken`` is now the auth

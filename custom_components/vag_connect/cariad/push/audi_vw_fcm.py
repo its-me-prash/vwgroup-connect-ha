@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # ---------------------------------------------------------------------------
-# BETA — opt-in, GATED. VW: closed off-device. Audi: both push channels
-# reject the tokens we can hold off-device (REST 403, MQTT CONNECT 0x88).
+# BETA — opt-in, GATED. VW: closed off-device. Audi: both push legs refuse
+# what we can present off-device (REST 403; MQTT CONNECT 0x88, cause unknown).
 #
 # The real Audi/VW vehicle-push subscription service is grounded from We
 # Connect 4.8.1 / myAudi 5.10.1: host ``https://eu.mobilepush.cariad.digital``
@@ -17,14 +17,15 @@
 #   - VW   — 2026-07: MBB / portal / We-Connect-Go bearers all HTTP 403
 #            "invalid audience — clientId not whitelisted"; the only
 #            whitelisted client is Play-Integrity-walled (off-device
-#            unmintable, confirmed again by the attestation-emulator probe
-#            2026-11-18). VW push is off-device-infeasible.
+#            unmintable; a desk analysis of an emulator route on
+#            2026-11-18, not a live probe, found no way around it). VW push
+#            is off-device-infeasible.
 #   - Audi — 2026-11-18: the ACPP IdentityKit bearer (aud ec6198b1-...)
 #            → 403 on the REST leg. A follow-up live MQTT probe (Auth0
 #            bearer, aud api.cariad.com, user IDK, token as password) tried
 #            ALL clientId forms (myAudi-android-..., sub, mbbUserId, generic)
 #            → every CONNECT returned CONNACK 0x88 "server unavailable" (not
-#            0x85/0x87). Both push channels reject the tokens we can hold;
+#            0x85/0x87). Both push legs refused what we can present;
 #            only /user/v1/mbbuser (pure BFF leg) accepts the Auth0 bearer
 #            (200). The 0x88 is generic — it does not pin down WHY (Event-Grid
 #            audience vs. registered client identity vs. network), which would
@@ -61,9 +62,9 @@ Three pieces (analog to v1.18.0 Skoda MQTT + v1.19.0 CUPRA/SEAT FCM):
    subscription endpoint. The real REST service
    (``eu.mobilepush.cariad.digital``, grounded from We Connect 4.8.1)
    audience-gates on the attested app client: VW bearers → 403 (2026-07),
-   the Audi ACPP bearer → 403 (2026-11-18). That closes the REST leg, but
-   NOT the channel — the real transport is MQTT, whose CONNECT auth is
-   looser and is UNTESTED for Audi (see the banner). We keep the pycupra
+   the Audi ACPP bearer → 403 (2026-11-18). The MQTT leg was probed for
+   Audi on 2026-11-18 too and every CONNECT got 0x88 (see the banner), so
+   both legs are closed with what we can present. We keep the pycupra
    ``/v2/subscriptions`` body shape against a placeholder host as an inert
    GATED stub + one-time warning — it never reaches a real subscription.
 
@@ -104,7 +105,7 @@ Real FCM register (``firebase-messaging``) + notification subscribe
   A follow-up live MQTT probe (Auth0 bearer, aud api.cariad.com, user IDK)
   tried all clientId forms (myAudi-android-..., sub, mbbUserId, generic) →
   every CONNECT returned CONNACK 0x88 "server unavailable" (not 0x85/0x87).
-  Both push channels reject the tokens we can hold; only ``/user/v1/mbbuser``
+  Both push legs refused what we can present; only ``/user/v1/mbbuser``
   (pure BFF leg) accepts the Auth0 bearer (200). The 0x88 is generic and
   does not pin down WHY — characterising the Audi Event-Grid gate would
   need an on-device capture, not another login.
@@ -191,8 +192,8 @@ _BRAND_FCM: dict[str, _FcmCreds] = {
 # off-device bearer we hold -> HTTP 403 "invalid audience" (VW 2026-07;
 # Audi ACPP IdentityKit bearer 2026-11-18). The MQTT delivery path was
 # probed too (Audi Auth0 bearer, all clientId forms, 2026-11-18) -> CONNACK
-# 0x88 "server unavailable" every time. So both legs reject the tokens we
-# can hold; swapping the host here would only turn a silent no-op into a
+# 0x88 "server unavailable" every time. So both legs refused what we can
+# present; swapping the host here would only turn a silent no-op into a
 # logged 403, so we keep the OLA placeholder — the manager stays inert and
 # the body-shape test is stable.
 _SUBSCRIPTION_BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"
@@ -504,16 +505,16 @@ class AudiVWPushManager(PushManager):
     ) -> None:
         """POST the FCM token to the notification-subscription endpoint.
 
-        GATED / UNVERIFIED — see the module banner. No upstream library
-        exposes the Audi/VW app-BFF push-subscription endpoint, so we
-        borrow the pycupra OLA ``/v2/subscriptions`` body shape as a
-        best-effort placeholder and warn once. The body is the pycupra
-        GROUNDED shape: ``deviceId`` (GCM app_id), ``locale``,
+        Inert placeholder — see the module banner. The real service is
+        ``eu.mobilepush.cariad.digital`` (grounded from We Connect 4.8.1 /
+        myAudi 5.10.1), and it refuses the bearers we can present
+        off-device, so this keeps the pycupra OLA ``/v2/subscriptions``
+        body shape against a placeholder host and warns once. The body is
+        the pycupra shape: ``deviceId`` (GCM app_id), ``locale``,
         ``services`` (charging + climatisation booleans), ``token``
         (the FCM push token), ``userId``, ``vin`` — per-VIN, not bulk.
 
-        A live mitmproxy capture must confirm the real host + path +
-        body before this can be trusted. Failures fail-soft: they
+        Failures fail-soft: they
         propagate to ``_run_loop`` which trips the breaker after 3
         strikes rather than spamming.
         """
@@ -521,10 +522,11 @@ class AudiVWPushManager(PushManager):
             self._subscription_warned = True
             _LOGGER.warning(
                 "Audi/VW push (brand=%s): this channel is GATED. Both push "
-                "legs reject the tokens we can hold off-device — REST "
+                "legs refuse what we can present off-device — REST "
                 "(eu.mobilepush.cariad.digital) HTTP 403 'invalid audience' "
                 "(VW 2026-07; Audi ACPP 2026-11-18) and MQTT CONNECT 0x88 "
-                "(Audi, all clientId forms, 2026-11-18). The POST below uses "
+                "(Audi, all clientId forms, 2026-11-18; the cause of the "
+                "0x88 is not known). The POST below uses "
                 "a placeholder host and cannot subscribe — nothing to fix "
                 "on your side.",
                 self._brand,
