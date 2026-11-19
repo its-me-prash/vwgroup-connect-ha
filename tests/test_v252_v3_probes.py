@@ -185,3 +185,32 @@ def test_coordinator_calls_run_v3_probe_pass_when_present() -> None:
     assert "hasattr(self._cariad_client, \"run_v3_probe_pass\")" in src, (
         "coordinator must hasattr-guard run_v3_probe_pass to support older clients"
     )
+
+
+def test_skoda_probes_drop_the_paths_the_app_does_not_have() -> None:
+    """MyŠkoda 8.18.0 (vc 261012003) has no route under these five paths (the
+    app's 253 Retrofit routes were listed from the decompiled API clients), so
+    these probes most likely returned nothing (not checked live). The app's
+    equivalents —
+    ``api/v2/predictive-maintenance/vehicles/{vin}`` (6h refresh),
+    ``api/v1/vehicle-information/{vin}/software-version/update-status``,
+    ``api/v1/vehicle-health-report/warning-lights/{vin}`` (poll) — are already
+    read, so nothing is replaced."""
+    from custom_components.vag_connect.cariad.api._v3_probes import (  # noqa: PLC0415
+        probes_for_brand,
+    )
+
+    paths = {p.path for p in probes_for_brand("skoda")}
+    for dead in (
+        "/api/v2/maintenance/{vin}/predictive",
+        "/api/v2/software-version/{vin}/update-status",
+        "/api/v1/maintenance/{vin}/bookings",
+        "/api/v1/maintenance/{vin}/service-partner",
+        "/api/v1/vehicle-health-warnings/{vin}",
+    ):
+        assert dead not in paths
+    assert paths == {
+        "/api/v1/charging/{vin}/history",
+        "/api/v2/vehicle-status/{vin}/driving-score",
+        "/api/v1/vehicle-information/{vin}/renders",
+    }
