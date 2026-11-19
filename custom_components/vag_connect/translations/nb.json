@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "Status for programvareoppdatering"
       },
+      "connectivity_sunset_impact": {
+        "name": "Påvirkning av 2G/3G-nedleggelsen"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Kortsiktig gjennomsnittlig strømforbruk"
       },
@@ -1933,6 +1936,9 @@
       "brake_fluid_warning": {
         "name": "Bremsevæske"
       },
+      "hibernation_mode": {
+        "name": "Dvalemodus"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Forbrukstelleren har rullet over"
       },
@@ -2184,6 +2190,9 @@
       },
       "marketing_consent_given": {
         "name": "Markedsføringssamtykke gitt"
+      },
+      "workshop_mode": {
+        "name": "Verkstedmodus"
       },
       "data_source": {
         "name": "Kilde: {source}"

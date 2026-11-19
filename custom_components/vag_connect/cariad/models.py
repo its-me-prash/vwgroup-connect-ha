@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Final
 
 
 @dataclass(frozen=True)
@@ -52,22 +52,25 @@ BRAND_VW_EU = BrandConfig(
     name="volkswagen",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/4.2.1-android/14",
+    user_agent="Volkswagen/4.8.1-android/14",
     api_base="https://emea.bff.cariad.digital",
     # scope from volkswagencarnet (upstream/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
-    # v2.5.11 — matches atlas profile vw_group_auth_profile.json#brands.vw.package_name.
-    # Source: VW WeConnect 3.61.0 APK xapk archive name + ioBroker commit 884269b1.
-    # v2.15.3 — user_agent bumped 3.61.0 → 3.63.2 to match the live We Connect
-    # build (DEX-verified; _mbb_app_identity() in vw_eu.py already ships 3.63.2).
-    # Unreleased (App Atlas refresh 2026-07) — bumped 3.63.2 → 4.2.1 from the
-    # fresh com.volkswagen.weconnect DEX. This literal had drifted two whole
-    # generations behind the app while _mbb_app_identity() had already moved on,
-    # so the two channels were announcing different builds of the same app.
-    # Nothing else changed between 4.1.1 and 4.2.1 (no new clients/endpoints).
-    # Pre-v2.5.11 this was silently impersonating the Audi package via the
-    # hardcoded ``de.myaudi.mobile.assistant`` default in idk.py.
-    android_package_name="de.volkswagen.weconnect",
+    # user_agent tracks the live We Connect build (fs-car endpoints reject stale
+    # versions): 3.61.0 → 3.63.2 (v2.15.3) → 4.2.1 (App Atlas 2026-07) → 4.8.1
+    # (2026-11-18 dismantle). The live app UA literal is
+    # ``Volkswagen/<version>-android/<os>`` (DEX-verified); _mbb_app_identity()
+    # in vw_eu.py ships the same X-App-Version so the two channels agree.
+    # 0 new client-ids / endpoints 4.2.1 → 4.8.1.
+    # android_package_name is the real manifest package com.volkswagen.weconnect
+    # (4.8.1 androguard + the app's X-Android-Package-Name on the attestation
+    # path). It was ``de.volkswagen.weconnect`` — a confusion with the
+    # de.volkswagen.* legacy family (vwconnect / carnet); the main We Connect app
+    # has always shipped under com. (corrected 2026-11-18). It only feeds the
+    # idk.py attestation header, which VW's read-only path does not use, so this
+    # is a latent correctness fix. Pre-v2.5.11 the field defaulted to the Audi
+    # package via idk.py's hardcoded ``de.myaudi.mobile.assistant``.
+    android_package_name="com.volkswagen.weconnect",
 )
 
 # #1316 — VW Commercial Vehicles (Nutzfahrzeuge) is a SEPARATE EU Data Act
@@ -82,10 +85,10 @@ BRAND_VW_COMMERCIAL = BrandConfig(
     name="volkswagen_commercial",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/4.2.1-android/14",
+    user_agent="Volkswagen/4.8.1-android/14",
     api_base="https://emea.bff.cariad.digital",
     scope="openid profile badge cars dealers vin",
-    android_package_name="de.volkswagen.weconnect",
+    android_package_name="com.volkswagen.weconnect",
 )
 
 # ── DataPlug / plug&play cloud (OBD-dongle cars WITHOUT built-in connectivity) ──
@@ -130,13 +133,35 @@ BRAND_VW_WCG = BrandConfig(
 #   ola  : 3f16b970-38ab-49c6-a1bf-af38460fd388 / f1cd60b6-e40f-4bf2-822d-0201eabc09b5
 #   vw_na: 59992128-69a9-42c3-8621-7942041ba824_MYVW_ANDROID (US prod, primary)
 
+# The myAudi app identity, in ONE place. Every Audi site that names the app —
+# the BrandConfig User-Agent below, the AZS token exchange, the MBB
+# ``X-App-Version``, the vgql headers, the Auth0 token calls and the
+# market-config fetch (``v=``) — reads these, so they can no longer drift apart
+# (before this they named 5.5.1, 5.6.0 and 5.8.1 at six sites).
+#
+# Read from the Google-Play build de.myaudi.mobile.assistant 5.10.1
+# (versionCode 800345183, signing cert 8eae072f…, dismantled 2026-11-18). The
+# app builds its User-Agent in ``core/network/internal/UserAgentExtensionsKt.a``
+# as ``Android/<versionName> (Build <versionCode>.<build time>) Android/<OS>``;
+# the build time is ``BuildConfig.VERSION_BUILD_TIME`` (yyMMddHHmm), fixed per
+# build. The trailing OS release is the device's own; 13 sits inside the app's
+# minSdk 32 … targetSdk 36 range. The market-config CDN answers app versions
+# below 5.9.0 with an update notice (``minimumVersionWithoutUpdateNoticeAndroid``,
+# DE/CH, measured 2026-11-18).
+MYAUDI_APP_VERSION: Final = "5.10.1"
+MYAUDI_VERSION_CODE: Final = 800345183
+MYAUDI_BUILD_TIME: Final = "2611170047"
+MYAUDI_USER_AGENT: Final = (
+    f"Android/{MYAUDI_APP_VERSION} "
+    f"(Build {MYAUDI_VERSION_CODE}.{MYAUDI_BUILD_TIME}) Android/13"
+)
+
 BRAND_AUDI = BrandConfig(
     name="audi",
     # client_id from upstream (arjenvrh/upstream, MIT) — confirmed working
     client_id="09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
     redirect_uri="myaudi:///",
-    # v2.20.0 (APK audit) — current myAudi build 5.6.0 / versionCode 800344256.
-    user_agent="Android/5.6.0 (Build 800344256.root project 'myaudi_android'.ext.buildTime) Android/13",
+    user_agent=MYAUDI_USER_AGENT,
     api_base="https://emea.bff.cariad.digital",
     # scope exactly matching upstream — no extra "cars"/"dealers" scopes
     scope=(
@@ -166,7 +191,7 @@ BRAND_AUDI_NA = BrandConfig(
     # d8ef5ed0-2fd5-4afe-9ffb-018da6b76724@apps_vw-dilab_com.
     client_id="7c6b4634-f0c5-488b-a78f-b1a65414fb90@apps_vw-dilab_com",
     redirect_uri="myaudi:///",
-    user_agent="Android/5.6.0 (Build 800344256.root project 'myaudi_android'.ext.buildTime) Android/13",
+    user_agent=MYAUDI_USER_AGENT,
     # US is the default market; AudiNAClient overrides reads to emea.bff for CA.
     api_base="https://na.bff.cariad.digital",
     scope=(
@@ -1528,6 +1553,14 @@ class VehicleData:
     # the existing capabilities_count diagnostic sensor (state unchanged).
     connected_services: list[dict[str, Any]] = field(default_factory=list)
 
+    # MyŠkoda 8.18.0 — from the garage document (``VehicleDto``), filled by the
+    # coordinator for Škoda. ``workshop_mode`` = ``workshopModeEnabled``;
+    # ``connectivity_sunset_impact`` = ``sunset2g3gImpact`` verbatim (the app knows
+    # OCU_3G_NOT_UPGRADABLE, OCU_3G_UPGRADABLE_VIA_OTA and five more). None = not
+    # reported → no entity.
+    workshop_mode: bool | None = None
+    connectivity_sunset_impact: str | None = None
+
     # Departure timers
     departure_timer_1_enabled: bool = False
     departure_timer_1_time: str | None = None
@@ -1796,6 +1829,11 @@ class VehicleData:
     # (brake-system lamp). None default + _DATA_PRESENT_REQUIRED gate so
     # non-reporting cars get no phantom entity. PROBLEM class: True = red.
     brake_fluid_warning: bool | None = None
+
+    # Porsche HIBERNATION_MODE.isEnabled (My Porsche 21.26.46). True while the
+    # car is in its hibernation mode. None on cars that do not report it, and
+    # gated in _DATA_PRESENT_REQUIRED so they get no phantom entity.
+    hibernation_mode: bool | None = None
 
     # v2.0.0 (Big-Bang) — Vehicle alarm (issue #33).
     # Cariad-BFF ``access.accessStatus.value`` may carry vehicleAlarm /

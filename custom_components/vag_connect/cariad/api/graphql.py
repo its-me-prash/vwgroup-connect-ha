@@ -20,6 +20,8 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
 
+from ..models import MYAUDI_APP_VERSION, MYAUDI_USER_AGENT
+
 _LOGGER = logging.getLogger(__name__)
 
 # GraphQL endpoints per brand
@@ -64,15 +66,17 @@ _BRAND_APP_IDS: dict[str, str] = {
 # v2.15.3 — brand-aware app version + User-Agent for the vgql proxy. Previously
 # every brand sent the hardcoded myAudi build, which can get a foreign-brand
 # request flagged by the proxy. Map per brand; fall back to the Audi build.
+# The Audi values come from the one myAudi identity in ``models.py``; the app
+# sends its standard User-Agent on every OkHttp/Ktor call, vgql included.
 _BRAND_APP_VERSIONS: dict[str, str] = {
-    "audi":       "5.5.1",
+    "audi":       MYAUDI_APP_VERSION,
     "volkswagen": "4.27.0",
     "skoda":      "7.20.0",
     "seat":       "3.0.0",
     "cupra":      "3.0.0",
 }
 _BRAND_USER_AGENTS: dict[str, str] = {
-    "audi":       "myAudi/5.5.1 Android/34",
+    "audi":       MYAUDI_USER_AGENT,
     "volkswagen": "We Connect/4.27.0 Android/34",
     "skoda":      "myŠkoda/7.20.0 Android/34",
     "seat":       "SEAT CONNECT/3.0.0 Android/34",
@@ -292,9 +296,10 @@ class VehicleImageFetcher:
                 "Content-Type":  "application/json; charset=utf-8",
                 "Accept":        "application/json",
                 "X-App-Name":    "myAudi",
-                "X-App-Version": _BRAND_APP_VERSIONS.get(brand.lower(), "5.5.1"),
+                "X-App-Version": _BRAND_APP_VERSIONS.get(
+                    brand.lower(), MYAUDI_APP_VERSION),
                 "User-Agent":    _BRAND_USER_AGENTS.get(
-                    brand.lower(), "myAudi/5.5.1 Android/34"),
+                    brand.lower(), MYAUDI_USER_AGENT),
             }
         else:
             headers = {
@@ -303,9 +308,10 @@ class VehicleImageFetcher:
                 "Accept":        "application/json",
                 "X-App-ID":      _BRAND_APP_IDS.get(brand.lower(), "de.audi.myaudi"),
                 # v2.15.3 — brand-aware version + UA (Audi build as fallback).
-                "X-App-Version": _BRAND_APP_VERSIONS.get(brand.lower(), "5.5.1"),
+                "X-App-Version": _BRAND_APP_VERSIONS.get(
+                    brand.lower(), MYAUDI_APP_VERSION),
                 "User-Agent":    _BRAND_USER_AGENTS.get(
-                    brand.lower(), "myAudi/5.5.1 Android/34"),
+                    brand.lower(), MYAUDI_USER_AGENT),
             }
         # Localised model strings (media.shortName/longName) only come back when
         # the request carries a locale — see _locale_headers.

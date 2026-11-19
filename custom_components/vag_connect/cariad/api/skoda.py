@@ -102,8 +102,10 @@ _OFFICIAL_KEY_NAME = "Home Assistant"
 _KEY_NAME_ALLOWED = r"^[\w \-]+$"
 # The key-management route is only exercised by the MyŠkoda app (v8.16+); spoof the
 # real app User-Agent on these calls so a possible min-app-version gate is satisfied
-# (verbatim from the 8.16 APK; MySkoda/Android/{versionName}/{versionCode}).
-_KEYGEN_USER_AGENT = "MySkoda/Android/8.16.0/260821007"
+# (MySkoda/Android/{versionName}/{versionCode}, format verbatim from the 8.16 APK).
+# MyŠkoda 8.18.0 (vc 261012003) builds the same header the same way; the values
+# follow the current app so a min-app-version gate keeps being satisfied.
+_KEYGEN_USER_AGENT = "MySkoda/Android/8.18.0/261012003"
 # 1:1 with the app: the MyŠkoda "[bff-api-auth]" client attaches a full app-identity
 # header set on EVERY request (RE'd byte-for-byte from 8.16 br0/b.smali). The read
 # endpoints accept our token without it, but the key-management route (create/list/
@@ -111,9 +113,9 @@ _KEYGEN_USER_AGENT = "MySkoda/Android/8.16.0/260821007"
 # difference left after host/method/token/body were all confirmed identical. Every
 # value is client-generated (the installation-id is a locally-persisted UUID, not a
 # server-registered one; traceparent is random per request), so we reproduce them
-# exactly. Values verbatim from the APK.
-_KEYGEN_APP_VERSION_NAME = "8.16.0"
-_KEYGEN_APP_VERSION_CODE = "260821007"
+# exactly. Values from the current APK (8.18.0, vc 261012003; same header set).
+_KEYGEN_APP_VERSION_NAME = "8.18.0"
+_KEYGEN_APP_VERSION_CODE = "261012003"
 
 _COMBUSTION_ENGINE_TYPES = ("gasoline", "petrol", "diesel", "cng", "lpg")
 
@@ -1220,24 +1222,44 @@ class SkodaClient(CariadBaseClient):
 
         We normalise to the ``{"capabilities": [{"id", "statuses"}]}`` shape the
         coordinator's gate reads. We deliberately do NOT synthesise an ``active``
-        flag from ``statuses``: the 8.15.0 statics carry no groundable
-        status→available vocabulary, and defaulting to "supported" (no
-        ``active: False``) keeps the gate permissive — it can never wrongly HIDE a
-        control. Status-based hiding can be layered on once a live capabilities
-        sample pins the status enum. Best-effort: any failure → ``{}``.
+        flag from ``statuses`` and never hide a control on one: defaulting to
+        "supported" (no ``active: False``) keeps the gate permissive.
+
+        MyŠkoda 8.18.0 (vc 261012003) — the app's garage mapper
+        ``uk0/b.a(VehicleDto)`` (8.16.0: ``ak0/b.b``) names 24 status values
+        (``LICENSE_EXPIRED``, ``INSUFFICIENT_SPIN``, ``WORKSHOP_MODE`` …), so the
+        vocabulary is known; what each one means for availability is not read
+        from the app, which is why they are shown, not gated on. Three fields of
+        the same document ride along for display: ``serviceExpiration`` on each
+        entry, and the top-level ``workshopModeEnabled`` (bool) and
+        ``sunset2g3gImpact`` (string; the app maps ``OCU_3G_NOT_UPGRADABLE``,
+        ``OCU_3G_UPGRADABLE_VIA_OTA`` and five more). They are returned even when
+        the document has no capability list; the gate then still sees "nothing
+        to read". Best-effort: any failure → ``{}``.
         """
         data = await self._get(f"{_BASE}/api/v2/garage/vehicles/{vin}")
         if not isinstance(data, dict):
             return {}
+        extras: dict[str, Any] = {}
+        workshop = data.get("workshopModeEnabled")
+        if isinstance(workshop, bool):
+            extras["workshopModeEnabled"] = workshop
+        sunset = data.get("sunset2g3gImpact")
+        if isinstance(sunset, str) and sunset.strip():
+            extras["sunset2g3gImpact"] = sunset.strip()
         caps = data.get("capabilities")
         items = caps.get("capabilities") if isinstance(caps, dict) else None
         if not isinstance(items, list):
-            return {}
-        entries: list[dict[str, Any]] = [
-            {"id": c.get("id"), "statuses": c.get("statuses") or []}
-            for c in items
-            if isinstance(c, dict) and isinstance(c.get("id"), str)
-        ]
+            return extras
+        entries: list[dict[str, Any]] = []
+        for c in items:
+            if not isinstance(c, dict) or not isinstance(c.get("id"), str):
+                continue
+            entry: dict[str, Any] = {"id": c["id"], "statuses": c.get("statuses") or []}
+            expiry = c.get("serviceExpiration")
+            if isinstance(expiry, str) and expiry:
+                entry["serviceExpiration"] = expiry
+            entries.append(entry)
         # Remember the advertised ids so a capability-gated read (battery-health)
         # can decide for itself whether to call at all: the client is the only
         # layer that knows that read exists, and the coordinator's capability
@@ -1247,7 +1269,7 @@ class SkodaClient(CariadBaseClient):
         if not hasattr(self, "_capability_ids"):
             self._capability_ids = {}
         self._capability_ids[vin] = {str(e["id"]) for e in entries}
-        return {"capabilities": entries}
+        return {"capabilities": entries, **extras}
 
     async def get_widget(self, vin: str) -> dict[str, Any]:
         """v1.20.0 (Bundle 2 Phase A) — Skoda lightweight widget endpoint.

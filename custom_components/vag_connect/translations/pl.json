@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "Stan aktualizacji oprogramowania"
       },
+      "connectivity_sunset_impact": {
+        "name": "Wpływ wyłączenia sieci 2G/3G"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Krótkoterminowe średnie zużycie energii"
       },
@@ -1999,6 +2002,9 @@
       "brake_fluid_warning": {
         "name": "Płyn hamulcowy"
       },
+      "hibernation_mode": {
+        "name": "Tryb hibernacji"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Licznik zużycia przepełniony"
       },
@@ -2184,6 +2190,9 @@
       },
       "marketing_consent_given": {
         "name": "Udzielono zgody marketingowej"
+      },
+      "workshop_mode": {
+        "name": "Tryb serwisowy"
       },
       "data_source": {
         "name": "Źródło: {source}"

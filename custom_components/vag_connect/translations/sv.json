@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "Status för programuppdatering"
       },
+      "connectivity_sunset_impact": {
+        "name": "Påverkan av 2G/3G-nedstängningen"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Kortsiktig genomsnittlig elförbrukning"
       },
@@ -1999,6 +2002,9 @@
       "brake_fluid_warning": {
         "name": "Bromsvätska"
       },
+      "hibernation_mode": {
+        "name": "Viloläge"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Förbrukningsräknaren har slagit runt"
       },
@@ -2184,6 +2190,9 @@
       },
       "marketing_consent_given": {
         "name": "Marknadsföringssamtycke givet"
+      },
+      "workshop_mode": {
+        "name": "Verkstadsläge"
       },
       "data_source": {
         "name": "Källa: {source}"

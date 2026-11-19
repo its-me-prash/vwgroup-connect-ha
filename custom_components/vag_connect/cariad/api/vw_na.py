@@ -166,6 +166,19 @@ _NA_IDP_BASE = "https://identity.na.vwgroup.io"
 # ``signin-service/v1/b680e751… → "no code"``. Kept documented, not used.
 _NA_SIGNIN_CLIENT_GUID_DORMANT = "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com"
 
+# Telematics service provider sent in the S-PIN session body (``tsp``). The myVW
+# app models it as a per-vehicle enum and threads the garage vehicle's own value
+# into the session request; the garage payload field is ``tspProvider``.
+# APK-confirmed (com.vw.carnet.release 2026.9.29-9674): the enum's JSON values
+# are "WCT" (WirelessCar) and "ATC" (Aeris) — VW NA runs two telematics
+# backends and routes the S-PIN session by this value. A car provisioned on the
+# Aeris/ATC backend REJECTS a session request that claims WCT, so a blanket
+# "WCT" blocked every S-PIN read AND command for those vehicles. We now carry
+# the per-vehicle ``tspProvider`` through; "WCT" stays the default when the
+# garage omits it or reports an unknown value (the pre-existing behaviour).
+_NA_VALID_TSP = ("WCT", "ATC")
+_NA_DEFAULT_TSP = "WCT"
+
 
 # ── v2.29.x (#659) — NA command completion poll ────────────────────────────
 # A con-veh command 2xx-accepts, then runs asynchronously against the vehicle;
@@ -426,6 +439,10 @@ class VWNAClient:
         # Used by get_status() / device-info to enrich the entity model.
         self._vin_to_nickname: dict[str, str] = {}
         self._vin_to_model: dict[str, str] = {}
+        # Per-vehicle telematics service provider ("WCT"/"ATC") from the garage
+        # ``tspProvider`` field, threaded into the S-PIN session body so cars on
+        # the Aeris/ATC backend get a valid session token (see _NA_VALID_TSP).
+        self._vin_to_tsp: dict[str, str] = {}
         # v2.10.0 (Group C). user_id for the NA-specific endpoints that
         # are addressed by user-id rather than VIN/UUID. Populated from
         # the IDK auth redirect or by decoding the id_token ``sub``
@@ -634,7 +651,7 @@ class VWNAClient:
                     -> data.challenge (str) + data.remainingTries (int)
             2. spinHash = SHA512(challenge + "." + spin).hexdigest().upper()
             3. POST {base}/ss/v1/user/{uid}/vehicle/{uuid}/session
-                    body {idToken, spinHash, tsp:"WCT"}
+                    body {idToken, spinHash, tsp:<the car's own WCT|ATC, default WCT>}
                     -> data.carnetVehicleToken (a JWT)
 
         v2.29.x (sstur/vwapp): this SAME ``carnetVehicleToken`` is now the auth
@@ -715,6 +732,12 @@ class VWNAClient:
         # (401/403) fetch a FRESH single-use challenge and retry with the legacy
         # uppercase before disabling. The remaining-tries guard runs on each
         # challenge, so the fallback can never push the S-PIN budget to lockout.
+        #
+        # tsp: the garage reports each vehicle's telematics backend as
+        # ``tspProvider`` ("WCT"/"ATC"); send the car's own value so Aeris/ATC
+        # vehicles get a valid session (a blanket "WCT" was refused by them).
+        # Unknown/missing → the WCT default (the historical behaviour).
+        tsp_value = getattr(self, "_vin_to_tsp", {}).get(vin, _NA_DEFAULT_TSP)
         for use_upper in (False, True):
             # ── 1) challenge (fresh each attempt: single-use) ──────────────────
             try:
@@ -761,7 +784,11 @@ class VWNAClient:
             try:
                 sess = await self._post(
                     session_url,
-                    json={"idToken": id_token, "spinHash": spin_hash, "tsp": "WCT"},
+                    json={
+                        "idToken": id_token,
+                        "spinHash": spin_hash,
+                        "tsp": tsp_value,
+                    },
                 )
             except APIError as err:
                 status = err.status or 0
@@ -854,6 +881,12 @@ class VWNAClient:
                     model = node.get("modelName")
                     if isinstance(model, str) and model:
                         self._vin_to_model[vin] = model
+                    # Telematics provider ("WCT"/"ATC") — routes the S-PIN
+                    # session; only store a value the backend recognises so an
+                    # unexpected string falls back to the WCT default.
+                    tsp = node.get("tspProvider")
+                    if isinstance(tsp, str) and tsp.upper() in _NA_VALID_TSP:
+                        self._vin_to_tsp[vin] = tsp.upper()
                     vins.append(vin)
                     # uuid (account-scoped vehicle id) + nickname (owner free-text)
                     # are PII — log presence flags, not the raw values.

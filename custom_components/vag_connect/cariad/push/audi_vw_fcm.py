@@ -1,17 +1,42 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# ╔════════════════════════════════════════════════════════════════════╗
-# ║ BETA — opt-in, live-test-gated (v2.15.10)                         ║
-# ║ Real FCM register + subscribe + receive is wired. Firebase creds  ║
-# ║ are verified per-brand (audi + volkswagen are SEPARATE Firebase   ║
-# ║ projects). The notification-SUBSCRIPTION endpoint host/path/body  ║
-# ║ for the Audi/VW app-BFF is UNVERIFIED off-device (no upstream lib  ║
-# ║ exposes it) — we ship the pycupra ``/v2/subscriptions`` body shape ║
-# ║ against the OLA-style host as a GATED placeholder + log a one-time ║
-# ║ warning. A live mitmproxy capture of myAudi/WeConnect must confirm ║
-# ║ the real host+path before this is anything but experimental.      ║
-# ╚════════════════════════════════════════════════════════════════════╝
+# ---------------------------------------------------------------------------
+# BETA — opt-in, GATED. VW: closed off-device. Audi: both push legs refuse
+# what we can present off-device (REST 403; MQTT CONNECT 0x88, cause unknown).
+#
+# The real Audi/VW vehicle-push subscription service is grounded from We
+# Connect 4.8.1 / myAudi 5.10.1: host ``https://eu.mobilepush.cariad.digital``
+# — the "eventing core" ``SubscriptionsService`` (``POST /v3/device/settings``
+# + ``POST /v1/subscriptions/{vin}/topics``), and vehicle push itself is
+# delivered over MQTT (``eu.mqtt.mobilepush.cariad.digital:8883``, user
+# ``IDK``, token as password, topic ``app/<brand>/<userId>/#``) — NOT FCM; the
+# app's REST ``DeviceSettingsService`` is ``@Deprecated``.
+#
+# The REST subscription endpoint audience-gates on the attested app clientId:
+#   - VW   — 2026-07: MBB / portal / We-Connect-Go bearers all HTTP 403
+#            "invalid audience — clientId not whitelisted"; the only
+#            whitelisted client is Play-Integrity-walled (off-device
+#            unmintable; a desk analysis of an emulator route on
+#            2026-11-18, not a live probe, found no way around it). VW push
+#            is off-device-infeasible.
+#   - Audi — 2026-11-18: the ACPP IdentityKit bearer (aud ec6198b1-...)
+#            → 403 on the REST leg. A follow-up live MQTT probe (Auth0
+#            bearer, aud api.cariad.com, user IDK, token as password) tried
+#            ALL clientId forms (myAudi-android-..., sub, mbbUserId, generic)
+#            → every CONNECT returned CONNACK 0x88 "server unavailable" (not
+#            0x85/0x87). Both push legs refused what we can present;
+#            only /user/v1/mbbuser (pure BFF leg) accepts the Auth0 bearer
+#            (200). The 0x88 is generic — it does not pin down WHY (Event-Grid
+#            audience vs. registered client identity vs. network), which would
+#            need an on-device capture, not another login.
+#
+# So this manager stays GATED/inert: the placeholder POST below never reaches
+# a real subscription. Off-device push is not reachable for either brand with
+# the tokens we can mint; the remaining route is an official channel
+# (EU-Data-Act / CARIAD data-hub) or an on-device capture that characterises
+# the Audi Event-Grid gate.
+# ---------------------------------------------------------------------------
 """Audi/VW Cariad-BFF Firebase Cloud Messaging push manager (BETA).
 
 User-suggested feature 2026-05-07: "weil ich auf der app push nachrichten
@@ -34,13 +59,14 @@ Three pieces (analog to v1.18.0 Skoda MQTT + v1.19.0 CUPRA/SEAT FCM):
    ``Store`` helper, listens for push notifications.
 
 2. **Notification subscription** — POST the FCM token to the app-BFF
-   subscription endpoint. GATED/UNVERIFIED for Audi/VW: no upstream lib
-   exposes their push-subscription endpoint, so we reuse the pycupra
-   ``/v2/subscriptions`` body shape as a best-effort and emit a one-time
-   runtime warning. (An earlier ``mal-1a.prd.ece.vwg-connect.com`` guess
-   was fabricated — it has no notification path in any source.) A live
-   mitmproxy capture must confirm the real host/path/body before this
-   leaves BETA.
+   subscription endpoint. The real REST service
+   (``eu.mobilepush.cariad.digital``, grounded from We Connect 4.8.1)
+   audience-gates on the attested app client: VW bearers → 403 (2026-07),
+   the Audi ACPP bearer → 403 (2026-11-18). The MQTT leg was probed for
+   Audi on 2026-11-18 too and every CONNECT got 0x88 (see the banner), so
+   both legs are closed with what we can present. We keep the pycupra
+   ``/v2/subscriptions`` body shape against a placeholder host as an inert
+   GATED stub + one-time warning — it never reaches a real subscription.
 
 3. **Coordinator callback** — each push event decoded into
    ``PushUpdateEvent`` and forwarded via ``on_event`` callback. The
@@ -60,25 +86,34 @@ credential resolver therefore branches on ``self._brand``. One
 Per-VIN routing is supplied from subscription context (the FCM
 ``data`` dict does not always carry a ``vin`` — see ``_decode``).
 
-### BETA status (v2.15.10)
+### BETA status — GATED (v2.15.10, updated 2026-11-18)
 
 Real FCM register (``firebase-messaging``) + notification subscribe
-+ receive loop are wired. Verified per-brand Firebase creds are
-baked in (independently confirmed against the raw APKs). What is
-NOT verified off-device:
++ receive loop are wired, but the manager stays GATED:
 
-- The Audi/VW app-BFF notification-subscription **host + path**.
-  No upstream library exposes a VW/Audi push-subscription endpoint
-  (checked WeConnect-python, CarConnectivity-volkswagen, ioBroker —
-  ioBroker implements it only for Skoda). We ship the pycupra
-  ``/v2/subscriptions`` body shape as a GATED placeholder and log a
-  one-time warning; a live mitmproxy capture must confirm the real
-  host/path/body before this is trustworthy.
-- The exact Audi/VW ``type`` string vocabulary (CUPRA's kebab-case
-  ``vehicle-access-*`` / ``charging-*`` values are the template).
+- The real subscription service is ``eu.mobilepush.cariad.digital``
+  (grounded from We Connect 4.8.1 / myAudi 5.10.1: the "eventing core"
+  ``SubscriptionsService`` — ``POST /v3/device/settings`` +
+  ``POST /v1/subscriptions/{vin}/topics``; vehicle push is delivered
+  over MQTT, not FCM — the app's REST ``DeviceSettingsService`` is
+  ``@Deprecated``).
+- VW: the REST endpoint audience-gates and every off-device VW bearer
+  (MBB / portal / We-Connect-Go, 2026-07) is rejected HTTP 403; the only
+  whitelisted client is Play-Integrity-walled → VW push is
+  off-device-infeasible.
+- Audi: the ACPP IdentityKit bearer → 403 on the REST leg (2026-11-18).
+  A follow-up live MQTT probe (Auth0 bearer, aud api.cariad.com, user IDK)
+  tried all clientId forms (myAudi-android-..., sub, mbbUserId, generic) →
+  every CONNECT returned CONNACK 0x88 "server unavailable" (not 0x85/0x87).
+  Both push legs refused what we can present; only ``/user/v1/mbbuser``
+  (pure BFF leg) accepts the Auth0 bearer (200). The 0x88 is generic and
+  does not pin down WHY — characterising the Audi Event-Grid gate would
+  need an on-device capture, not another login.
 
-Live activation confirmation requires an Audi/VW owner with an
-active Connect+ subscription running a capture.
+So this manager stays GATED/inert: off-device push is not reachable for
+either brand with the tokens we can mint. The remaining route is an
+OFFICIAL channel (EU-Data-Act / CARIAD data-hub) or an on-device capture
+that characterises the Audi Event-Grid gate.
 
 ### References
 
@@ -143,18 +178,24 @@ _BRAND_FCM: dict[str, _FcmCreds] = {
     ),
 }
 
-# Notification-subscription endpoint.
+# Notification-subscription endpoint — GATED PLACEHOLDER (kept for the
+# scaffolding + tests; it is NOT the real endpoint and never reaches one).
 #
-# GATED / UNVERIFIED — there is NO VW/Audi push-subscription endpoint in
-# any upstream library (WeConnect-python, CarConnectivity-volkswagen,
-# ioBroker all lack it; ioBroker implements notification-subscribe only
-# for Skoda). The legacy ``mal-1a.prd.ece.vwg-connect.com/api/
-# notification/...`` literal that earlier scaffolding asserted as
-# "verified" is fabricated — it carries only vehicle-data / auth paths,
-# never a notification path. Until a live mitmproxy capture of the
-# myAudi / WeConnect app confirms the real host + path, we borrow the
-# pycupra OLA subscription host/path shape as a best-effort placeholder
-# and emit a one-time GATED warning before POSTing.
+# The REAL Audi/VW subscription service is now grounded (We Connect 4.8.1
+# "eventing core" SubscriptionsService):
+#   host  https://eu.mobilepush.cariad.digital   (net-sec-pinned)
+#   POST  /v3/device/settings             (RemoteDeviceSettingsItem)
+#   POST  /v1/subscriptions/{vin}/topics  (TopicsRequest)
+#   + vehicle push is delivered over MQTT (not FCM); the app's REST
+#     DeviceSettingsService is @Deprecated.
+# The REST endpoint audience-gates on the attested app clientId: every
+# off-device bearer we hold -> HTTP 403 "invalid audience" (VW 2026-07;
+# Audi ACPP IdentityKit bearer 2026-11-18). The MQTT delivery path was
+# probed too (Audi Auth0 bearer, all clientId forms, 2026-11-18) -> CONNACK
+# 0x88 "server unavailable" every time. So both legs refused what we can
+# present; swapping the host here would only turn a silent no-op into a
+# logged 403, so we keep the OLA placeholder — the manager stays inert and
+# the body-shape test is stable.
 _SUBSCRIPTION_BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"
 _SUBSCRIPTION_PATH = "/v2/subscriptions"
 
@@ -464,27 +505,30 @@ class AudiVWPushManager(PushManager):
     ) -> None:
         """POST the FCM token to the notification-subscription endpoint.
 
-        GATED / UNVERIFIED — see the module banner. No upstream library
-        exposes the Audi/VW app-BFF push-subscription endpoint, so we
-        borrow the pycupra OLA ``/v2/subscriptions`` body shape as a
-        best-effort placeholder and warn once. The body is the pycupra
-        GROUNDED shape: ``deviceId`` (GCM app_id), ``locale``,
+        Inert placeholder — see the module banner. The real service is
+        ``eu.mobilepush.cariad.digital`` (grounded from We Connect 4.8.1 /
+        myAudi 5.10.1), and it refuses the bearers we can present
+        off-device, so this keeps the pycupra OLA ``/v2/subscriptions``
+        body shape against a placeholder host and warns once. The body is
+        the pycupra shape: ``deviceId`` (GCM app_id), ``locale``,
         ``services`` (charging + climatisation booleans), ``token``
         (the FCM push token), ``userId``, ``vin`` — per-VIN, not bulk.
 
-        A live mitmproxy capture must confirm the real host + path +
-        body before this can be trusted. Failures fail-soft: they
+        Failures fail-soft: they
         propagate to ``_run_loop`` which trips the breaker after 3
         strikes rather than spamming.
         """
         if not self._subscription_warned:
             self._subscription_warned = True
             _LOGGER.warning(
-                "Audi/VW push (brand=%s): the notification-subscription "
-                "endpoint is UNVERIFIED off-device — using the pycupra "
-                "/v2/subscriptions body shape as a GATED placeholder. "
-                "Push may not activate until a live capture confirms the "
-                "real Audi/VW host+path. This is experimental BETA.",
+                "Audi/VW push (brand=%s): this channel is GATED. Both push "
+                "legs refuse what we can present off-device — REST "
+                "(eu.mobilepush.cariad.digital) HTTP 403 'invalid audience' "
+                "(VW 2026-07; Audi ACPP 2026-11-18) and MQTT CONNECT 0x88 "
+                "(Audi, all clientId forms, 2026-11-18; the cause of the "
+                "0x88 is not known). The POST below uses "
+                "a placeholder host and cannot subscribe — nothing to fix "
+                "on your side.",
                 self._brand,
             )
         url = f"{_SUBSCRIPTION_BASE}{_SUBSCRIPTION_PATH}"

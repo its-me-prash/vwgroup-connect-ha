@@ -12,9 +12,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import re
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -153,7 +154,55 @@ _MEASUREMENTS = (
     "TRIP_STATISTICS_SHORT_TERM", "TRIP_STATISTICS_SHORT_TERM_HISTORY",
     "TRIP_STATISTICS_LONG_TERM", "TRIP_STATISTICS_LONG_TERM_HISTORY",
     "TRIP_STATISTICS_CYCLIC", "TRIP_STATISTICS_CYCLIC_HISTORY",
+    # My Porsche 21.26.46 added HIBERNATION_MODE ({isEnabled}) to its
+    # measurement enum; the backend that serves that app knows the key.
+    "HIBERNATION_MODE",
 )
+
+# HVAC_SUMMARY.status in My Porsche 21.26.46. ERROR means the run failed, so
+# it counts as not running; anything outside both sets leaves the decision to
+# the older CLIMATIZER_STATE.
+_HVAC_RUNNING = frozenset({
+    "ON", "HEATING", "COOLING", "VENTILATING", "HOLDING",
+    "HEATING_HOLD", "COOLING_HOLD", "VENTILATING_HOLD",
+})
+_HVAC_STOPPED = frozenset({"OFF", "ERROR"})
+
+_HH_MM = re.compile(r"^(\d{1,2}):(\d{2})$")
+_TRIGGER = re.compile(
+    r"^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$"
+)
+
+
+def _departure_trigger(current: object, wanted: str) -> str:
+    """Return the ``triggerDateTimeWithOffset`` for a requested departure time.
+
+    My Porsche 21.26.46 serialises the trigger as an ISO 8601 string with an
+    offset. A full ISO time with an offset is taken as given. ``HH:MM`` keeps
+    the date and offset of the current trigger and replaces the time of day.
+    Anything else raises, so nothing is sent.
+    """
+    wanted = wanted.strip()
+    hh_mm = _HH_MM.match(wanted)
+    if hh_mm:
+        hour, minute = int(hh_mm.group(1)), int(hh_mm.group(2))
+        cur = _TRIGGER.match(current) if isinstance(current, str) else None
+        if hour > 23 or minute > 59 or cur is None:
+            raise VehicleCommandError(
+                "DEPARTURES_EDIT",
+                f"cannot place {wanted!r} on the current departure time {current!r}",
+            )
+        return f"{cur.group(1)}T{hour:02d}:{minute:02d}:00{cur.group(2)}"
+    try:
+        parsed = datetime.fromisoformat(wanted.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = None
+    if parsed is None or parsed.tzinfo is None:
+        raise VehicleCommandError(
+            "DEPARTURES_EDIT",
+            f"departure time {wanted!r} is neither HH:MM nor an ISO time with an offset",
+        )
+    return wanted
 
 
 # ── b23 (competitor-triage ADOPT #1) — wire already-fetched `mf` fields ──────
@@ -344,6 +393,28 @@ def _parse_charging_session_history(
     return sessions, charge_type
 
 
+# S-PIN hash, as My Porsche 21.26.46 builds it
+# (de.porsche.mobile.paf.service.vehicle.core, static method on the command
+# executor). Without a userChallenge: SHA-512 over the hex-decoded PIN and
+# challenge. With one: PBKDF2-HMAC-SHA512 over the PIN characters, salt = the
+# hex-decoded userChallenge, 100 000 rounds, 64 bytes, then SHA-512 over that
+# key followed by the hex-decoded challenge. Upper-case hex either way. The
+# userChallenge field has been in the answer model since at least 20.26.31.
+_SPIN_PBKDF2_ROUNDS = 100_000
+_SPIN_PBKDF2_BYTES = 64
+
+
+def _spin_hash(pin: str, challenge: str, user_challenge: str | None) -> str:
+    """Return the ``spin.hash`` value for a SPIN_CHALLENGE answer."""
+    if user_challenge:
+        key = hashlib.pbkdf2_hmac(
+            "sha512", pin.encode("utf-8"), bytes.fromhex(user_challenge),
+            _SPIN_PBKDF2_ROUNDS, _SPIN_PBKDF2_BYTES,
+        )
+        return hashlib.sha512(key + bytes.fromhex(challenge)).hexdigest().upper()
+    return hashlib.sha512(bytes.fromhex(pin + challenge)).hexdigest().upper()
+
+
 class PorscheClient:
     """Porsche Connect API client.
 
@@ -478,8 +549,8 @@ class PorscheClient:
         ``/vehicles/{vin}/measurements?fields=...`` for measurements) to
         CJNE's live-proven single-call shape: one GET on ``/vehicles/{vin}``
         with repeated ``mf=`` query params (one per requested measurement
-        key) plus a ``wakeUpJob`` UUID to force a live read rather than a
-        cached one. The response carries both the base vehicle fields (vin,
+        key). It also sent a ``wakeUpJob`` UUID until the 21.26.46 comparison
+        showed the app sends that only on refresh. The response carries both the base vehicle fields (vin,
         modelName, modelType, ...) and a top-level ``measurements`` array in
         the SAME payload — the previous two-call shape was never live-
         verified and may well have been hitting a non-existent sub-path.
@@ -489,8 +560,10 @@ class PorscheClient:
         v = self._val
         d = VehicleData(vin=vin)
 
+        # My Porsche 21.26.46 sends ``wakeUpJob`` only from its refresh
+        # service (``command_wake`` here); its plain reads leave it out and
+        # get the backend's stored state. A poll is a plain read.
         params = [("mf", key) for key in _MEASUREMENTS]
-        params.append(("wakeUpJob", str(uuid.uuid4())))
         try:
             overview = await self._get(
                 f"{_API_BASE}/app/connect/v1/vehicles/{vin}", params=params,
@@ -600,6 +673,29 @@ class PorscheClient:
                 bool(v(_cc_raw, "status", "isEnabled", default=True))
                 if _cc_raw is not None else None
             )
+            # My Porsche 21.26.46: CONNECT_CONTRACT.value is
+            # ``{lastModified?, isEnabled, until?}``. On an enabled
+            # measurement the value's own flag decides, and ``until`` (a
+            # timestamp) feeds the cross-brand subscription-end fields. A
+            # disabled measurement keeps meaning "inactive", as above.
+            _cc_val = _cc_raw.get("value") if isinstance(_cc_raw, dict) else None
+            if d.connect_contract_active and isinstance(_cc_val, dict):
+                _cc_flag = _cc_val.get("isEnabled")
+                if isinstance(_cc_flag, bool):
+                    d.connect_contract_active = _cc_flag
+                _cc_until = _cc_val.get("until")
+                if isinstance(_cc_until, str) and _cc_until:
+                    try:
+                        _cc_end = datetime.fromisoformat(_cc_until.replace("Z", "+00:00"))
+                    except ValueError:
+                        _cc_end = None
+                    if _cc_end is not None:
+                        if _cc_end.tzinfo is None:
+                            _cc_end = _cc_end.replace(tzinfo=timezone.utc)
+                        d.subscription_expiry_at = _cc_until
+                        d.subscription_days_remaining = (
+                            _cc_end - datetime.now(tz=timezone.utc)
+                        ).days
 
             d.battery_soc   = v(m, "BATTERY_LEVEL", "percent")
             # v2.2.1 Phase 8 PR #3 — split electric / combustion range
@@ -639,6 +735,15 @@ class PorscheClient:
                 d.is_charging = d.charging_state.upper() in (
                     "CHARGING", "CHARGING_AC", "CHARGING_DC"
                 )
+            # My Porsche 21.26.46: CHARGING_SUMMARY.reason is
+            # {error?, warning?, pause?}. The most severe one present wins.
+            _reason = v(ch, "reason")
+            if isinstance(_reason, dict):
+                for _part in ("error", "warning", "pause"):
+                    _why = _reason.get(_part)
+                    if isinstance(_why, str) and _why:
+                        d.charging_reason = _why
+                        break
             # chargingPower lives on CHARGING_RATE, not CHARGING_SUMMARY (real
             # capture: CHARGING_RATE={"chargingPower","chargingRate"}) — the old
             # read from CHARGING_SUMMARY never returned a value.
@@ -678,6 +783,11 @@ class PorscheClient:
             if target_soc is None and v(ch, "mode") == "PROFILE":
                 target_soc = v(ch, "chargingProfile", "minSoC")
             settings = m.get("CHARGING_SETTINGS", {})
+            # My Porsche 21.26.46: CHARGING_SETTINGS.acChargingCurrentLimitA,
+            # set with CHARGING_SETTINGS_AC_CURRENT_LIMIT_EDIT.
+            _ac_limit = v(settings, "acChargingCurrentLimitA")
+            if isinstance(_ac_limit, (int, float)) and not isinstance(_ac_limit, bool):
+                d.max_charge_current = _ac_limit
             if (
                 target_soc is None
                 and "DEPARTURES" in m
@@ -722,8 +832,21 @@ class PorscheClient:
             # Climate — real capture: CLIMATIZER_STATE={"isOn": bool,
             # "targetTemperature": <Kelvin>, "climateZonesEnabled": {...}}, not a
             # ``climatisationState`` string.
+            #
+            # My Porsche 21.26.46 reads HVAC_SUMMARY ({type, status,
+            # targetTemperature (Kelvin), ...}); CLIMATIZER_STATE is not in its
+            # measurement enum, though the backend still serves it. HVAC_SUMMARY
+            # decides when its status is one of the app's values, otherwise
+            # CLIMATIZER_STATE does as before.
             clim = m.get("CLIMATIZER_STATE", {})
+            hvac = m.get("HVAC_SUMMARY", {})
+            _hvac_status = v(hvac, "status")
+            _hvac_status = _hvac_status.upper() if isinstance(_hvac_status, str) else None
             clim_on = v(clim, "isOn")
+            if _hvac_status in _HVAC_RUNNING:
+                clim_on = True
+            elif _hvac_status in _HVAC_STOPPED:
+                clim_on = False
             if isinstance(clim_on, bool):
                 d.climatisation_active = clim_on
                 d.climatisation_state = "ON" if clim_on else "OFF"
@@ -732,7 +855,9 @@ class PorscheClient:
             # Was left unparsed before ("available for a future sensor"); wire it
             # to the shared target_temperature field. Guard non-numeric (bool is
             # an int subclass, so exclude it explicitly).
-            _target_k = v(clim, "targetTemperature")
+            _target_k = v(hvac, "targetTemperature")
+            if not isinstance(_target_k, (int, float)) or isinstance(_target_k, bool):
+                _target_k = v(clim, "targetTemperature")
             if isinstance(_target_k, (int, float)) and not isinstance(_target_k, bool):
                 d.target_temperature = round(_target_k - 273.15, 1)
             # Seat heating — NOT wired: no seat-heating levels exist in the real
@@ -744,6 +869,12 @@ class PorscheClient:
             #                           "rearLeft": true, "rearRight": true}
             # Mapping those into seat_heating would invent data. Leave None until
             # a capture surfaces real per-seat heating keys.
+
+            # My Porsche 21.26.46: HIBERNATION_MODE={isEnabled}. Read only; the
+            # app's start and stop commands are not offered here.
+            _hibernation = v(m, "HIBERNATION_MODE", "isEnabled")
+            if isinstance(_hibernation, bool):
+                d.hibernation_mode = _hibernation
 
             # GPS — real capture: GPS_LOCATION={"location":"<lat>,<lng>",
             # "direction":int}, one comma-separated string, not separate
@@ -776,39 +907,54 @@ class PorscheClient:
             # parsing below assumed a single aggregate dict keyed by corner
             # name, which was requesting a measurement key that doesn't
             # exist — very likely why TPMS has been silently empty.
-            # NOT LIVE-VERIFIED: the per-corner KEYS are androguard-confirmed
-            # real; the exact field names inside each one's value
-            # (``currentPressure``/``warning``) are carried over unchanged
-            # from the old aggregate shape as the best available guess — a
-            # live capture is what confirms whether that inner shape moved
-            # too when the key was split.
+            # Inner shape, as My Porsche 21.26.46 models it
+            # (``TirePressureMeasurementValue{lastModified?, differenceBar,
+            # actualPressureBar?}``, both in bar). The earlier guess
+            # ``currentPressure`` is no member of that model, so the sensors
+            # stayed empty; it is kept below only as a fallback read.
             def _corner_bar(key: str) -> float | None:
-                raw = v(m, key, "currentPressure")
+                raw = v(m, key, "actualPressureBar")
                 if raw is None:
+                    raw = v(m, key, "currentPressure")
+                if raw is None or isinstance(raw, bool):
                     return None
                 try:
                     n = float(raw)
                 except (TypeError, ValueError):
                     return None
-                # kPa heuristic: anything > 10 is kPa, divide by 100
+                # kPa heuristic, applied to both members: anything > 10 is
+                # kPa. A bar reading never gets that high.
                 return round(n / 100.0, 2) if n > 10 else round(n, 2)
-            d.tire_pressure_front_left_bar  = _corner_bar("TIRE_PRESSURE_FRONT_LEFT")
-            d.tire_pressure_front_right_bar = _corner_bar("TIRE_PRESSURE_FRONT_RIGHT")
-            d.tire_pressure_rear_left_bar   = _corner_bar("TIRE_PRESSURE_REAR_LEFT")
-            d.tire_pressure_rear_right_bar  = _corner_bar("TIRE_PRESSURE_REAR_RIGHT")
-            if any(
-                b is not None for b in (
-                    d.tire_pressure_front_left_bar, d.tire_pressure_front_right_bar,
-                    d.tire_pressure_rear_left_bar, d.tire_pressure_rear_right_bar,
-                )
-            ):
+            _tyre_keys = (
+                "TIRE_PRESSURE_FRONT_LEFT", "TIRE_PRESSURE_FRONT_RIGHT",
+                "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
+            )
+            d.tire_pressure_front_left_bar  = _corner_bar(_tyre_keys[0])
+            d.tire_pressure_front_right_bar = _corner_bar(_tyre_keys[1])
+            d.tire_pressure_rear_left_bar   = _corner_bar(_tyre_keys[2])
+            d.tire_pressure_rear_right_bar  = _corner_bar(_tyre_keys[3])
+            # The per-corner value has no warning flag. The car's own tyre
+            # warning is an INSTRUMENT_CLUSTER_ALERTS entry: lists ``infos`` /
+            # ``warnings`` / ``criticals`` of alert names, among them
+            # TIRE_PRESSURE_WARNING and TIRE_PRESSURE_CRITICAL. Without that
+            # measurement the warning stays unknown rather than "no warning";
+            # a per-corner ``warning`` bool is read only as a fallback.
+            _alerts = m.get("INSTRUMENT_CLUSTER_ALERTS")
+            _alert_lists = (
+                [_alerts.get(k) for k in ("infos", "warnings", "criticals")]
+                if isinstance(_alerts, dict) else []
+            )
+            if any(isinstance(lst, list) for lst in _alert_lists):
                 d.tire_pressure_warning = any(
-                    bool(v(m, key, "warning"))
-                    for key in (
-                        "TIRE_PRESSURE_FRONT_LEFT", "TIRE_PRESSURE_FRONT_RIGHT",
-                        "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
-                    )
+                    name in ("TIRE_PRESSURE_WARNING", "TIRE_PRESSURE_CRITICAL")
+                    for lst in _alert_lists[1:] if isinstance(lst, list)
+                    for name in lst
                 )
+            else:
+                _legacy = [v(m, key, "warning") for key in _tyre_keys]
+                _legacy_flags = [w for w in _legacy if isinstance(w, bool)]
+                if _legacy_flags:
+                    d.tire_pressure_warning = any(_legacy_flags)
 
             # ── b23 (competitor-triage ADOPT #1) — already-fetched mf fields ──
             # These keys were requested all along (see ``_MEASUREMENTS``) but
@@ -871,11 +1017,21 @@ class PorscheClient:
             # so CURRENT may be an absolute value on a 0..MAX scale rather than a
             # bare percent — normalise against MAX when available and it isn't
             # itself a 0..100 percent. Only ever yields 0..100 or None.
+            #
+            # My Porsche 21.26.46 models OIL_LEVEL_CURRENT as
+            # ``{lastModified?, percent}`` (and OIL_LEVEL_MAX as ``{liters}``).
+            # A ``percent`` member is taken as it stands; the ratio and
+            # 0..max readings below stay only for a value without one, so a
+            # real 1 % no longer reads as 100 %.
             _oil_keys = ("percent", "percentage", "currentValue", "value",
                          "level", "current")
-            oil_cur = _mf_number(m.get("OIL_LEVEL_CURRENT"), _oil_keys)
+            _oil_raw = m.get("OIL_LEVEL_CURRENT")
+            oil_percent = (
+                _mf_number(_oil_raw, ("percent",)) if isinstance(_oil_raw, dict) else None
+            )
+            oil_cur = None if oil_percent is not None else _mf_number(_oil_raw, _oil_keys)
             oil_max = _mf_number(m.get("OIL_LEVEL_MAX"), _oil_keys + ("max", "maximum"))
-            oil_pct: float | None = None
+            oil_pct: float | None = oil_percent
             if oil_cur is not None:
                 if 0.0 < oil_cur <= 1.0:                       # ratio 0..1
                     oil_pct = oil_cur * 100.0
@@ -945,7 +1101,8 @@ class PorscheClient:
         ``GET /vehicles/{vin}`` overview call ``get_status`` already makes
         can also carry a ``cf=`` (command-flags) query param alongside
         ``mf=``/``wakeUpJob`` — the real app sends all three in one request;
-        this project only ever sends ``mf=``+``wakeUpJob``. (2) A separate
+        this project sends ``mf=``, and ``wakeUpJob`` only from
+        ``command_wake``. (2) A separate
         ``GET /v1/config/capabilities/defaults`` +
         ``/v1/config/capabilities/suggestions`` cluster exists too.
 
@@ -1000,26 +1157,41 @@ class PorscheClient:
         """Shared SPIN-challenge/response protocol for unlock-class commands."""
         if not spin:
             raise SpinError(f"Porsche {key} requires an S-PIN")
-        challenge = await self._spin_challenge(vin)
+        challenge, user_challenge = await self._spin_challenge(vin)
         if not challenge:
             raise VehicleCommandError(key, "no SPIN challenge returned")
-        pinhash = hashlib.sha512(bytes.fromhex(spin + challenge)).hexdigest().upper()
+        if user_challenge:
+            # 100 000 PBKDF2 rounds take tens of milliseconds; keep them off
+            # the event loop.
+            pinhash = await asyncio.to_thread(
+                _spin_hash, spin, challenge, user_challenge,
+            )
+        else:
+            pinhash = _spin_hash(spin, challenge, None)
         await self._command(
             vin, key, {"spin": {"challenge": challenge, "hash": pinhash}},
         )
 
-    async def _spin_challenge(self, vin: str) -> str | None:
-        """Request a SPIN_CHALLENGE and return the challenge string, or
-        ``None`` if the response didn't carry one."""
+    async def _spin_challenge(self, vin: str) -> tuple[str | None, str | None]:
+        """Request a SPIN_CHALLENGE; return ``(challenge, user_challenge)``.
+
+        ``user_challenge`` is the optional second value of the answer
+        (``SpinCommandResultDataDto{challenge, userChallenge?}`` in My Porsche
+        21.26.46). Either is ``None`` when the response does not carry it.
+        """
         response = await self._post(
             f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands",
             json={"key": "SPIN_CHALLENGE", "payload": {"spin": None}},
         )
-        if isinstance(response, dict):
-            challenge = response.get("data", {}).get("challenge")
-            if isinstance(challenge, str):
-                return challenge
-        return None
+        data = response.get("data") if isinstance(response, dict) else None
+        if not isinstance(data, dict):
+            return None, None
+        challenge = data.get("challenge")
+        user_challenge = data.get("userChallenge")
+        return (
+            challenge if isinstance(challenge, str) and challenge else None,
+            user_challenge if isinstance(user_challenge, str) and user_challenge else None,
+        )
 
     async def command_open_windows(self, vin: str) -> None:
         """b20 (2026-09-08, androguard enum dump) — WINDOWS_SUNROOF_OPEN is a
@@ -1054,11 +1226,44 @@ class PorscheClient:
         is genuinely unknown, not just untested."""
         await self._command(vin, "CHARGING_START", {"spin": None})
 
-    async def command_start_ota_update(self, vin: str) -> None:
-        """b20 (2026-09-08) — ``OTA_UPDATE_REMOTE_START``, real command
-        (software-update-available flow). No payload fields evidenced.
-        NOT LIVE-VERIFIED."""
-        await self._command(vin, "OTA_UPDATE_REMOTE_START")
+    async def _read_measurement_value(self, vin: str, key: str) -> dict | None:
+        """Plain read of one measurement; its ``value`` when enabled, else None."""
+        overview = await self._get(
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}", params=[("mf", key)],
+        )
+        items = overview.get("measurements") if isinstance(overview, dict) else None
+        for item in items if isinstance(items, list) else []:
+            if (
+                isinstance(item, dict)
+                and item.get("key") == key
+                and self._val(item, "status", "isEnabled", default=True)
+            ):
+                value = item.get("value")
+                return value if isinstance(value, dict) else None
+        return None
+
+    async def command_start_ota_update(self, vin: str, update_id: str | None = None) -> None:
+        """Start a pending software update (``OTA_UPDATE_REMOTE_START``).
+
+        My Porsche 21.26.46 models the payload as ``{spin?, updateId,
+        campaignCode?}``; ``updateId`` is required, so the earlier empty
+        payload could not be accepted. Without an explicit ``update_id`` the
+        id is taken from ``OTA_UPDATE_DETAILS.updateId``. That source is an
+        inference: the app's own call site was not found, only the payload
+        model and the update-details model carrying an ``updateId``. Not
+        wired to an entity. NOT LIVE-VERIFIED.
+        """
+        if not update_id:
+            details = await self._read_measurement_value(vin, "OTA_UPDATE_DETAILS")
+            found = details.get("updateId") if details else None
+            update_id = found if isinstance(found, str) else None
+        if not update_id:
+            raise VehicleCommandError(
+                "OTA_UPDATE_REMOTE_START", "no pending software update reported",
+            )
+        await self._command(
+            vin, "OTA_UPDATE_REMOTE_START", {"spin": None, "updateId": update_id},
+        )
 
     async def command_give_ota_consent(self, vin: str) -> None:
         """b20 (2026-09-08) — ``OTA_CONSENT_GIVE``. NOT LIVE-VERIFIED."""
@@ -1068,11 +1273,30 @@ class PorscheClient:
         """b20 (2026-09-08) — ``OTA_CONSENT_REVOKE``. NOT LIVE-VERIFIED."""
         await self._command(vin, "OTA_CONSENT_REVOKE")
 
-    async def command_reset_service_predictions(self, vin: str) -> None:
-        """b20 (2026-09-08) — ``SERVICE_PREDICTIONS_RESET``, presumably
-        clears/recalculates the service-due predictions after maintenance.
-        No payload fields evidenced. NOT LIVE-VERIFIED."""
-        await self._command(vin, "SERVICE_PREDICTIONS_RESET")
+    async def command_reset_service_predictions(
+        self, vin: str, component_id: str, expiration_date: date | None = None,
+    ) -> None:
+        """Reset one service-prediction component (``SERVICE_PREDICTIONS_RESET``).
+
+        My Porsche 21.26.46 sends ``{spin?, id, expirationDate,
+        odometerLastReset}`` per component
+        (``de.porsche.mobile.paf.service.vehicle.core.servicepredictions``):
+        ``id`` is the component, ``expirationDate`` the start of an optional
+        date as an instant, or the text "null" when no date is given (Kotlin
+        ``toString()`` on a null), and ``odometerLastReset`` the current
+        mileage. The app takes the start of day in the phone's time zone;
+        this takes it in UTC. Not wired to an entity. NOT LIVE-VERIFIED.
+        """
+        mileage = await self._read_measurement_value(vin, "MILEAGE")
+        km = _mf_number(mileage, ("kilometers",)) if mileage else None
+        await self._command(vin, "SERVICE_PREDICTIONS_RESET", {
+            "spin": None,
+            "id": component_id,
+            "expirationDate": (
+                f"{expiration_date.isoformat()}T00:00:00Z" if expiration_date else "null"
+            ),
+            "odometerLastReset": int(km) if km is not None else None,
+        })
 
     async def command_disable_valet_alarm(self, vin: str) -> None:
         """b21 (2026-09-08) — ``VALET_ALARM_DISABLE``. NOT LIVE-VERIFIED."""
@@ -1252,8 +1476,25 @@ class PorscheClient:
         await self._command(vin, "HONK_FLASH", {"mode": mode, "spin": None})
 
     async def command_wake(self, vin: str) -> None:
-        # Porsche doesn't have a dedicated wake — flash serves as ping
-        await self._command(vin, "HONK_FLASH")
+        """Ask the car for a fresh status, the way My Porsche does it.
+
+        The app has no wake command. Its refresh service reads
+        ``GET /v1/vehicles/{vin}`` with a fresh ``wakeUpJob`` UUID (21.26.46,
+        ``de.porsche.app.domain.connect.vehicledata.refresh``), while its plain
+        reads leave ``wakeUpJob`` out. This used to send ``HONK_FLASH`` without
+        the ``mode`` the payload requires, which the backend cannot accept and
+        which would flash the lights if it did.
+
+        The refresh service sends the ``wakeUpJob`` together with its full set
+        of measurements (``refresh/e.java``), not with a single one, so this
+        read asks for the same measurements a poll asks for. Whether the
+        backend then wakes the car is not tried on a car.
+        """
+        params = [("mf", key) for key in _MEASUREMENTS]
+        params.append(("wakeUpJob", str(uuid.uuid4())))
+        await self._get(
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}", params=params,
+        )
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
         """Set the charging target SoC.
@@ -1292,9 +1533,33 @@ class PorscheClient:
             vin, "CHARGING_SETTINGS_EDIT", {"targetSoc": target, "spin": None},
         )
 
-    async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
+    async def command_set_max_charge_current(self, vin: str, ampere: int) -> None:
+        """Set the AC charging current limit.
+
+        My Porsche 21.26.46: ``CHARGING_SETTINGS_AC_CURRENT_LIMIT_EDIT`` with
+        ``{spin?, acChargingCurrentLimitA}``. The values a car accepts come
+        with the command's capability metadata, which this client does not
+        request; a value the car does not accept is refused by the backend.
+        """
         await self._command(
-            vin, "REMOTE_CLIMATIZER_START", {"temperature": temp_c},
+            vin, "CHARGING_SETTINGS_AC_CURRENT_LIMIT_EDIT",
+            {"spin": None, "acChargingCurrentLimitA": int(ampere)},
+        )
+
+    async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
+        """Start climatisation at a target temperature.
+
+        ``REMOTE_CLIMATIZER_START`` takes ``targetTemperature`` in Kelvin
+        (My Porsche 21.26.46: ``StartClimatizerCommandPayload{spin?,
+        targetTemperature: Kelvin, climateZonesEnabled?}``; the app converts
+        with +273.15). The read side, ``CLIMATIZER_STATE.targetTemperature``,
+        is already parsed as Kelvin in ``get_status``. The earlier
+        ``{"temperature": <°C>}`` named a field the payload does not have.
+        The value is rounded to two decimals.
+        """
+        await self._command(
+            vin, "REMOTE_CLIMATIZER_START",
+            {"spin": None, "targetTemperature": round(float(temp_c) + 273.15, 2)},
         )
 
     async def command_start_window_heating(self, vin: str) -> None:
@@ -1315,20 +1580,55 @@ class PorscheClient:
         target_soc_pct: int | None = None,  # noqa: ARG002
         one_off_day: str | None = None,  # noqa: ARG002
     ) -> None:
-        # v2.0.0 (Big-Bang) — accepts ``recurring_on`` to keep the
-        # cross-brand interface uniform; PPA's DEPARTURES_EDIT command
-        # doesn't expose a weekday list field today, so the parameter
-        # is silently ignored for Porsche.
-        # v4.7.11 (departure-timer-rich-setter) — same for charging/
-        # climatisation/target_soc_pct/one_off_day: PPA's timer command has no
-        # grounded field for them, so they're accepted (uniform interface) but
-        # ignored rather than sending guessed keys.
-        payload: dict[str, Any] = {"timerId": timer_id, "enabled": enabled}
-        if departure_time:
-            payload["departureTime"] = departure_time
-        await self._command(
-            vin, "DEPARTURES_EDIT" if enabled else "TIMERS_DISABLE", payload,
+        """Switch or move one departure the way My Porsche edits them.
+
+        My Porsche 21.26.46: ``DEPARTURES_EDIT`` takes ``{spin?, list}`` with
+        entries ``{id, isEnabled, triggerDateTimeWithOffset, repeatOn?,
+        chargingOption, preferredChargingTimes?, circle?,
+        isClimatizationEnabled}``, the same model ``DEPARTURES`` reports.
+        This reads the list, changes the entry whose ``id`` is ``timer_id``
+        and sends the whole list back. The earlier flat
+        ``{timerId, enabled, departureTime}`` matched no payload, and
+        ``TIMERS_DISABLE`` carries the ``TIMERS`` list, not departures.
+        ``recurring_on``, ``charging``, ``climatisation``, ``target_soc_pct``
+        and ``one_off_day`` are accepted for the shared interface and not
+        mapped; the entry keeps what the car reported for them.
+        """
+        probe = await self._get(
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}",
+            params=[("mf", "DEPARTURES")],
         )
+        entries: list[dict] = []
+        for item in (probe.get("measurements") or []) if isinstance(probe, dict) else []:
+            if not isinstance(item, dict) or item.get("key") != "DEPARTURES":
+                continue
+            status = item.get("status")
+            if isinstance(status, dict) and status.get("isEnabled") is False:
+                continue
+            value = item.get("value")
+            listed = value.get("list") if isinstance(value, dict) else None
+            if isinstance(listed, list):
+                entries = [e for e in listed if isinstance(e, dict)]
+        if not entries:
+            raise VehicleCommandError(
+                "DEPARTURES_EDIT", "the car reported no departure timers",
+            )
+        target = next(
+            (e for e in entries if str(e.get("id")) == str(timer_id)), None,
+        )
+        if target is None:
+            ids = ", ".join(str(e.get("id")) for e in entries)
+            raise VehicleCommandError(
+                "DEPARTURES_EDIT",
+                f"no departure timer with id {timer_id}; the car reports ids {ids}",
+            )
+        if departure_time:
+            target["triggerDateTimeWithOffset"] = _departure_trigger(
+                target.get("triggerDateTimeWithOffset"), departure_time,
+            )
+        if enabled is not None:
+            target["isEnabled"] = bool(enabled)
+        await self._command(vin, "DEPARTURES_EDIT", {"spin": None, "list": entries})
 
     # ── HTTP helpers ─────────────────────────────────────────────────────────
 

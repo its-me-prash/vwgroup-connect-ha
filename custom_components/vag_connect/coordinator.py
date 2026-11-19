@@ -52,7 +52,11 @@ from .const import (
     advised_scan_interval_from_budget,
 )
 from homeassistant.helpers import device_registry as dr
-from .cariad._channel_merge import _HELD_PUSH_SOURCES, is_held_source
+from .cariad._channel_merge import (
+    _HELD_PUSH_SOURCES,
+    is_held_source,
+    never_counts_as_live,
+)
 from .cariad._error_reporter import ErrorRingBuffer, record_error
 from .cariad._reporter_pipeline import (
     ensure_error_reporter_issue,
@@ -139,11 +143,13 @@ def _values_moved(
     # every trip while the portal can be frozen for days. Counted here, one
     # such change would clear the stale-data Repair this rule exists to keep
     # honest, and the owner flipping back to the batch would do it again.
+    # A gap-fill-only source (Tibber) is skipped for the same reason; a batch
+    # value still counts, so the test is ``never_counts_as_live``, not "not batch".
     prev_owners = previous.get("field_sources")
     cur_owners = current.get("field_sources")
 
     def _held(owners: Any, key: str) -> bool:
-        return isinstance(owners, dict) and is_held_source(owners.get(key))
+        return isinstance(owners, dict) and never_counts_as_live(owners.get(key))
 
     for key in _LIVENESS_FIELDS:
         if key not in previous or key not in current:
@@ -365,14 +371,15 @@ def _has_live_contributor(data: dict[str, Any]) -> bool:
     A held push source is not a live contributor either. It relays a reading
     that can be days old and never sets ``last_seen_at``, so counting it would
     let that anchor outvote the batch stamps on a car whose only read path is
-    the batch, which is the very case the anchor must not decide.
+    the batch, which is the very case the anchor must not decide. A
+    gap-fill-only source (Tibber) neither: no capture stamp, no ``last_seen_at``.
     """
     raw = data.get("source_channel")
     if not isinstance(raw, str) or not raw.strip():
         return False
     return any(
         tok
-        and tok not in _HELD_PUSH_SOURCES
+        and not never_counts_as_live(tok)
         and not any(marker in tok for marker in _BATCH_CHANNEL_MARKERS)
         for tok in (part.strip().lower() for part in raw.split("+"))
     )
@@ -1371,6 +1378,57 @@ _REMINDER_KEYS = {
     "FIRST_AID_KIT": "reminder_first_aid_kit",
     "TYRE_REPAIR_KIT": "reminder_tyre_repair_kit",
 }
+
+
+# Same cap as the VW/SEAT/CUPRA parsers (``_CONNECTED_SERVICES_CAP``) so the
+# attribute payload stays comparable; Škoda lists ~100 capabilities.
+_SKODA_CONNECTED_SERVICES_CAP = 40
+
+
+def _skoda_garage_extras(caps: Any) -> dict[str, Any]:
+    """MyŠkoda 8.18.0 — display fields from the cached garage document.
+
+    *caps* is what ``SkodaClient.get_capabilities`` cached in
+    ``vehicle_capabilities[vin]``. Returns vehicle-data keys:
+
+    - ``workshop_mode`` — ``workshopModeEnabled`` (False is real data, kept);
+    - ``connectivity_sunset_impact`` — ``sunset2g3gImpact`` verbatim;
+    - ``capabilities_count`` and ``connected_services`` — one
+      ``{id, expires_at, status}`` row per capability, the same shape the VW and
+      SEAT/CUPRA parsers fill, except that ``status`` is Škoda's ``statuses``
+      LIST (``None`` when empty). Restricted rows come first so the cap never
+      cuts the rows a user is looking for.
+
+    Display only — nothing here feeds the capability gate. Pure and total.
+    """
+    if not isinstance(caps, dict):
+        return {}
+    out: dict[str, Any] = {}
+    workshop = caps.get("workshopModeEnabled")
+    if isinstance(workshop, bool):
+        out["workshop_mode"] = workshop
+    sunset = caps.get("sunset2g3gImpact")
+    if isinstance(sunset, str) and sunset:
+        out["connectivity_sunset_impact"] = sunset
+    items = caps.get("capabilities")
+    if isinstance(items, list):
+        rows: list[dict[str, Any]] = []
+        for entry in items:
+            if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+                continue
+            raw = entry.get("statuses")
+            statuses = [s for s in raw if isinstance(s, str)] if isinstance(raw, list) else []
+            expiry = entry.get("serviceExpiration")
+            rows.append({
+                "id": entry["id"],
+                "expires_at": expiry if isinstance(expiry, str) and expiry else None,
+                "status": statuses or None,
+            })
+        if rows:
+            out["capabilities_count"] = len(rows)
+            rows.sort(key=lambda r: r["status"] is None)  # stable: restricted first
+            out["connected_services"] = rows[:_SKODA_CONNECTED_SERVICES_CAP]
+    return out
 
 
 # v4.7.12 (8.16.0 APK) — the same PredictiveMaintenanceDto grew a second
@@ -5182,12 +5240,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # never stands in for a read that failed: the poll stays the empty
             # one it was. This also covers a car seen for the first time, where
             # the caller has no last snapshot to fall back to and would take
-            # the merged result as a success.
+            # the merged result as a success. A gap-fill-only source (Tibber)
+            # is not a contact with the car either: it hands over its last
+            # known values, which can be days old on a parked car.
             _toks = [
                 t for t in str(getattr(merged, "source_channel", "") or "").split("+")
                 if t
             ]
-            if _toks and all(t in _HELD_PUSH_SOURCES for t in _toks):
+            if _toks and all(never_counts_as_live(t) for t in _toks):
                 merged = annotate_provenance(self._primary_channel_name(), primary)
         if only_held and merged is not primary:
             # The held source was the only other channel. A car without a
@@ -5257,8 +5317,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # counter and the last-good time on every poll, and a dead read path
         # would look healthy for as long as the hold time lasts. When a real
         # supplementary channel revived the poll, the held values ride along.
+        # The same holds for a gap-fill-only source (Tibber): it always answers
+        # with its last known values, so a dead read path would look healthy
+        # for as long as Tibber is reachable.
         if all(
-            tok in _HELD_PUSH_SOURCES
+            never_counts_as_live(tok)
             for tok in str(merged.source_channel).split("+") if tok
         ):
             return None
@@ -7547,6 +7610,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 mask_vin(vin),
                 type(err).__name__,
             )
+            # Škoda retries this from the poll: without a timestamp a failing
+            # fetch would run on EVERY poll. The cache keeps what it had; the next
+            # try waits for the TTL like a successful one.
+            if not hasattr(self, "_capabilities_fetched_at"):
+                self._capabilities_fetched_at = {}
+            self._capabilities_fetched_at[vin] = datetime.now(tz=timezone.utc)
             return
         if not isinstance(data, dict):
             return
@@ -7554,7 +7623,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             self.vehicle_capabilities = {}
         if not hasattr(self, "_capabilities_fetched_at"):
             self._capabilities_fetched_at = {}
-        self.vehicle_capabilities[vin] = data
+        # An empty answer (204, or a body that was not JSON) must not replace a
+        # document we already hold: Škoda refreshes this daily from the poll, and
+        # one such answer would blank workshop mode and the service rows for a
+        # whole TTL. Keep the old one; the timestamp still moves, so the next try
+        # waits for the TTL instead of running on every poll.
+        if data or not self.vehicle_capabilities.get(vin):
+            self.vehicle_capabilities[vin] = data
         self._capabilities_fetched_at[vin] = datetime.now(tz=timezone.utc)
         _LOGGER.debug(
             "Capabilities cached for %s (%d entries)",
@@ -8487,11 +8562,31 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             for view, url in flat.items():
                                 merged.setdefault(view, url)
                             data["image_urls"] = merged
+            # MyŠkoda 8.18.0 — workshop mode, 2G/3G-sunset impact and the
+            # per-capability statuses/expiry from the cached garage document.
+            # Škoda only: SEAT/CUPRA cache a capability list too, but their own
+            # parser owns these keys. A value a client already set wins.
+            _is_skoda = str(self.entry.data.get(CONF_BRAND, "")).lower() == "skoda"
+            if _is_skoda:
+                _garage = _skoda_garage_extras(
+                    getattr(self, "vehicle_capabilities", {}).get(vin)
+                )
+                for _gk, _gv in _garage.items():
+                    if data.get(_gk) in (None, []):
+                        data[_gk] = _gv
             # Trigger lazy 24h cache refresh — if fresh, no-op
             try:
                 await self.refresh_static_info(vin)
             except Exception:  # noqa: BLE001
                 pass  # Best-effort, never blocks _enrich
+            # The garage document was fetched once at startup only; workshop mode
+            # changes while HA runs. Same 24h TTL (_CAPABILITIES_TTL), Škoda only
+            # so no other brand gains a request.
+            if _is_skoda:
+                try:
+                    await self.refresh_capabilities(vin)
+                except Exception:  # noqa: BLE001
+                    pass  # Best-effort, never blocks _enrich
 
         # v1.19.1 — Pycupra-style API quota visibility. Copy the brand-
         # client's last-observed X-RateLimit-Remaining header onto each

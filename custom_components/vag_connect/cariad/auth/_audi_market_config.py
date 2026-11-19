@@ -12,9 +12,15 @@ The integration just had to read what the app was already telling it.
 This module replicates that capability for vag-connect-ha. The Audi
 app fetches::
 
-    GET https://content.app.my.audi.com/service/mobileapp/configurations/market/{country}/{language}?v=4.23.1
+    GET https://content.app.my.audi.com/service/mobileapp/configurations/market/{country}/{language}?v=<app version>
 
-at startup and reads three keys that survive backend rotations:
+at startup. ``v`` is the app's own versionName (myAudi 5.10.1:
+``MarketResourceDownloadAction.l()`` appends ``VersionInformation.e()``),
+and the CDN answers with a key set for that version: measured 2026-11-18,
+DE returned 68 keys for ``v=4.23.1`` and 122 for ``v=5.10.1``. We send the
+version from the one myAudi identity in ``models.py``.
+
+We read three keys that survive backend rotations:
 
 * ``idkLoginServiceConfigurationURLProduction`` — the OIDC discovery
   URL (typically ``https://emea.bff.cariad.digital/auth/v1/idk/oidc/
@@ -27,6 +33,26 @@ at startup and reads three keys that survive backend rotations:
   (``https://mbboauth-1d.prd.ece.vwg-connect.com``). Used by our
   legacy fs-car data path; if VW rotates that too the CDN value
   follows.
+
+**Measured 2026-11-18 (DE and CH, both ``v`` values): only the
+discovery URL is served.** ``idkClientIDAndroidLive`` and
+``mbbOAuthBaseURLLive`` are absent, so today the app uses its built-in
+defaults for both and so do we. They stay on the read list because their
+consumers (``_auth0.resolve_client_id``, ``_auth_config_resolver``) are
+the rotation path if a market starts serving them again; absent is the
+harmless case.
+
+It also carries four watch keys, read as strings and logged when they
+change, because they decide how the app signs in (myAudi 5.10.1):
+
+* ``marketSupportsAuth0`` — chooses Auth0 instead of IdentityKit for new
+  sign-ins (``UserModuleKt`` client configuration). App default false;
+  absent in DE and CH on 2026-11-18. Logged once at INFO when a market
+  turns it on.
+* ``marketSupportsAndroidClientValidation`` — Play Integrity on the token
+  call. ``true`` in DE and CH on 2026-11-18.
+* ``auth0MigrationNotice`` (``None``/``Inform``/``ForcedLogout``) and
+  ``webViewAuthenticationProvider`` (default ``idk``).
 
 The fetch is **best-effort with hard fallback**: a failed/timeout/
 malformed response leaves the existing chain (OIDC discovery → APK
@@ -70,6 +96,8 @@ import logging
 import time
 from typing import Any
 
+from ..models import MYAUDI_APP_VERSION, MYAUDI_USER_AGENT
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -83,7 +111,7 @@ _AUDI_MARKET_TIMEOUT_S = 5
 _MARKET_CONFIG_URL_TEMPLATE = (
     "https://content.app.my.audi.com"
     "/service/mobileapp/configurations/market/{country}/{language}"
-    "?v=4.23.1"
+    "?v={version}"
 )
 
 
@@ -95,6 +123,19 @@ _KEYS_OF_INTEREST = frozenset({
     "idkClientIDAndroidLive",
     "mbbOAuthBaseURLLive",
 })
+
+# Sign-in watch keys (see module docstring). Booleans are stored as
+# ``"true"``/``"false"`` so the returned dict keeps its ``str`` values.
+_WATCH_KEYS = frozenset({
+    "marketSupportsAuth0",
+    "marketSupportsAndroidClientValidation",
+    "auth0MigrationNotice",
+    "webViewAuthenticationProvider",
+})
+
+# Markets already reported as Auth0 sign-in markets in this process, so the
+# INFO line appears once per market and not on every 24 h refresh.
+_AUTH0_MARKETS_NOTED: set[tuple[str, str]] = set()
 
 
 async def fetch_audi_market_config(
@@ -113,8 +154,9 @@ async def fetch_audi_market_config(
         force_refresh: if True, bypasses the cache and re-fetches.
 
     Returns:
-        A dict with up to three keys (subset of ``_KEYS_OF_INTEREST``).
-        Values are strings (URLs or client IDs). Missing keys mean
+        A dict with a subset of ``_KEYS_OF_INTEREST`` and ``_WATCH_KEYS``.
+        Values are strings (URLs, client IDs, or ``"true"``/``"false"`` for
+        the boolean watch keys). Missing keys mean
         the field was absent from the response or fetch failed.
         Always safe to ``.get()`` against; never raises.
 
@@ -132,6 +174,7 @@ async def fetch_audi_market_config(
 
     url = _MARKET_CONFIG_URL_TEMPLATE.format(
         country=country.upper(), language=language.lower(),
+        version=MYAUDI_APP_VERSION,
     )
     try:
         # Local import to avoid a hard aiohttp dependency at module load.
@@ -144,10 +187,7 @@ async def fetch_audi_market_config(
                 # UA mirrors the official Audi app — content CDN does
                 # not require it but it makes the fetch indistinguishable
                 # from a real client which is friendlier to ops.
-                "User-Agent": (  # b13 (RE) — live myAudi 5.5.1 / 800344232
-                    "Android/5.5.1 (Build 800344232.root project "
-                    "'myaudi_android'.ext.buildTime) Android/13"
-                ),
+                "User-Agent": MYAUDI_USER_AGENT,
             },
         ) as resp:
             if resp.status != 200:
@@ -183,13 +223,30 @@ async def fetch_audi_market_config(
         v = payload.get(k)
         if isinstance(v, str) and v:
             extracted[k] = v
+    for k in _WATCH_KEYS:
+        v = payload.get(k)
+        if isinstance(v, bool):  # before str: JSON true/false
+            extracted[k] = "true" if v else "false"
+        elif isinstance(v, str) and v:
+            extracted[k] = v
+
+    if extracted.get("marketSupportsAuth0") == "true" and (
+        cache_key not in _AUTH0_MARKETS_NOTED
+    ):
+        _AUTH0_MARKETS_NOTED.add(cache_key)
+        _LOGGER.info(
+            "Audi market-config (%s/%s): marketSupportsAuth0 is set — the "
+            "myAudi app signs new logins in this market in through Auth0 "
+            "instead of IdentityKit",
+            country, language,
+        )
 
     # Log changes when refreshed (info-level — visible in HA logs at
     # default verbosity if cache key changed) — useful detection of
-    # an Audi-side rotation.
+    # an Audi-side rotation or a sign-in switch.
     if cached is not None:
         prior_cfg = cached[0]
-        for k in _KEYS_OF_INTEREST:
+        for k in _KEYS_OF_INTEREST | _WATCH_KEYS:
             if extracted.get(k) and prior_cfg.get(k) != extracted.get(k):
                 _LOGGER.info(
                     "Audi market-config (%s/%s): %s CHANGED — %s → %s",

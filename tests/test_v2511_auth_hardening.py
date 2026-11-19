@@ -44,9 +44,14 @@ class TestBrandConfigAndroidPackageName:
         assert BRAND_AUDI.android_package_name == "de.myaudi.mobile.assistant"
 
     def test_vw_package_name(self) -> None:
-        """Critical: VW MUST NOT impersonate Audi any more."""
+        """Critical: VW MUST NOT impersonate Audi, and must use its real manifest
+        package. com.volkswagen.weconnect is the live package (4.8.1 androguard +
+        the app's X-Android-Package-Name on the attestation path); the old
+        de.volkswagen.weconnect was a mix-up with the de.volkswagen.* legacy
+        family (corrected 2026-11-18, #2187)."""
         from custom_components.vag_connect.cariad.models import BRAND_VW_EU
-        assert BRAND_VW_EU.android_package_name == "de.volkswagen.weconnect"
+        assert BRAND_VW_EU.android_package_name == "com.volkswagen.weconnect"
+        assert BRAND_VW_EU.android_package_name != "de.myaudi.mobile.assistant"
 
     def test_seat_cupra_skoda_have_distinct_package_names(self) -> None:
         from custom_components.vag_connect.cariad.models import (

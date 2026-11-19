@@ -1674,6 +1674,9 @@
       "readiness_software_update_status": {
         "name": "État de la mise à jour logicielle"
       },
+      "connectivity_sunset_impact": {
+        "name": "Impact de l'arrêt de la 2G/3G"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Consommation électrique moyenne à court terme"
       },
@@ -1999,6 +2002,9 @@
       "brake_fluid_warning": {
         "name": "Liquide de frein"
       },
+      "hibernation_mode": {
+        "name": "Mode hibernation"
+      },
       "hv_battery_consumption_overflow": {
         "name": "Compteur de consommation rebouclé"
       },
@@ -2184,6 +2190,9 @@
       },
       "marketing_consent_given": {
         "name": "Consentement marketing donné"
+      },
+      "workshop_mode": {
+        "name": "Mode atelier"
       },
       "data_source": {
         "name": "Source : {source}"
