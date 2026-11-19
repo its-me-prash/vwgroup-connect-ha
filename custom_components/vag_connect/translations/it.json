@@ -1677,6 +1677,12 @@
       "connectivity_sunset_impact": {
         "name": "Impatto dello spegnimento 2G/3G"
       },
+      "battery_capacity_spec_kwh": {
+        "name": "Capacità della batteria (scheda tecnica)"
+      },
+      "max_charging_power_kw": {
+        "name": "Potenza di ricarica massima"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Consumo elettrico medio a breve termine"
       },

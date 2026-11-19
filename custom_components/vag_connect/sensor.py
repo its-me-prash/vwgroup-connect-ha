@@ -1960,6 +1960,30 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:signal-off",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # MyŠkoda 8.18.0 — factory specification (``vehicleSpecification``): battery
+    # capacity and maximum charging power. Nameplate values, so no state class
+    # (no long-term statistics for a constant) and a key of their own instead of
+    # ``battery_cap_kwh``, which feeds the SoH estimate. Škoda only, data-gated.
+    VagSensorDescription(
+        key="battery_capacity_spec_kwh",
+        translation_key="battery_capacity_spec_kwh",
+        data_key="battery_capacity_spec_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        icon="mdi:battery-high",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="max_charging_power_kw",
+        translation_key="max_charging_power_kw",
+        data_key="max_charging_power_kw",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        device_class=SensorDeviceClass.POWER,
+        icon="mdi:ev-plug-ccs2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+    ),
     # v1.15.0 (#35) — Skoda Charging History → HA Energy Dashboard.
     # ``total_charged_energy_kwh`` with TOTAL_INCREASING is THE long-
     # term-statistics signal users want for kWh-tracking dashboards.
@@ -4620,6 +4644,9 @@ _SPAWN_WITHOUT_DATA: frozenset[str] = frozenset({"plug_state"})
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # Škoda only (garage document, MyŠkoda 8.18.0); most cars never report it.
     "connectivity_sunset_impact",
+    # Škoda only (vehicle-information specification, MyŠkoda 8.18.0).
+    "battery_capacity_spec_kwh",
+    "max_charging_power_kw",
     # Companion only: no entities before the app's long-haul card was read.
     "companion_long_trip_distance_km",
     "companion_long_trip_duration_min",

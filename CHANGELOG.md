@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **Škoda: the car's battery capacity, its maximum charging power and its engine power are now shown from the factory specification.** MyŠkoda 8.18.0 lists `battery.capacityInKWh`, `maxChargingPowerInKW` and `engine.powerInKW` in the vehicle specification, and the integration already reads that answer (`vehicle-information`, kept for a day) but never used these three fields. Two new diagnostic sensors, battery capacity (kWh) and maximum charging power (kW), appear when the car reports the value; the engine power fills the existing engine power sensor as `<n> kW`, unless another source has already set it. The capacity sits under its own name on purpose: the existing battery capacity sensor is the measured usable capacity and feeds the battery health estimate and the ABRP export, which a nameplate figure would distort. Colour, gearbox, build date and dimensions are in the same answer and are not shown. This continues the MyŠkoda 8.18.0 reading of #2182. The field names come from the app 8.18 and the cached shape in the integration, not from a car; covered by unit tests, not tried on a car.
+
 ## [5.5.0] - 2026-11-19 — "Like the apps / Wie die Apps"
 
 ### Hinzugefügt / Added

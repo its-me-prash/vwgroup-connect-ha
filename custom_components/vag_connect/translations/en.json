@@ -1677,6 +1677,12 @@
       "connectivity_sunset_impact": {
         "name": "2G/3G shutdown impact"
       },
+      "battery_capacity_spec_kwh": {
+        "name": "Battery capacity (specification)"
+      },
+      "max_charging_power_kw": {
+        "name": "Maximum charging power"
+      },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Short Term Average Electric Consumption"
       },
