@@ -288,3 +288,78 @@ def test_the_legacy_long_term_answer_does_not_fill_the_totals() -> None:
 def test_the_last_trip_fuel_total_reads_the_capital_l_key() -> None:
     d = _parse(short=_short({"mileage_km": 80, "totalFuelConsumption_L": 6.4}))
     assert d.last_trip_total_fuel_consumption_l == pytest.approx(6.4)
+
+
+# ── what keeps the two long-term totals on screen ─────────────────────────────
+_TOTAL_KEYS = (
+    "lifetime_trip_total_electric_consumption_kwh",
+    "lifetime_trip_total_fuel_consumption_l",
+)
+
+
+def test_the_long_term_totals_are_held_when_a_poll_omits_them() -> None:
+    from custom_components.vag_connect.cariad.vehicle_cache import (
+        CARRY_FORWARD_FIELDS,
+        reconcile,
+    )
+
+    for k in _TOTAL_KEYS:
+        assert k in CARRY_FORWARD_FIELDS
+    prev = {_TOTAL_KEYS[0]: 947.128, _TOTAL_KEYS[1]: 130.1}
+    out, _disc = reconcile(prev, {"battery_soc": 80})
+    assert out[_TOTAL_KEYS[0]] == 947.128
+    assert out[_TOTAL_KEYS[1]] == 130.1
+    # a reset window ships a fresh 0 and wins over the carried value
+    out, _disc = reconcile(prev, {_TOTAL_KEYS[0]: 0.0})
+    assert out[_TOTAL_KEYS[0]] == 0.0
+
+
+_VIN = "WAUZZZ00000000001"
+
+
+def _spawned(vehicle: dict[str, Any], *, hide_empty: bool = True) -> set[str]:
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from custom_components.vag_connect import sensor as mod
+    from custom_components.vag_connect.const import CONF_HIDE_EMPTY_ENTITIES
+
+    c = MagicMock()
+    c.vehicles = {_VIN: vehicle}
+    c.data = c.vehicles
+    c.is_read_only = MagicMock(return_value=False)
+    c.is_companion = MagicMock(return_value=False)
+    c.read_capability_hidden = MagicMock(return_value=False)
+    c.command_capability_supported = MagicMock(return_value=None)
+    c.command_method_available = MagicMock(return_value=False)
+    c.async_add_listener = MagicMock(return_value=lambda: None)
+    entry = MagicMock()
+    entry.runtime_data = c
+    entry.data = {"brand": "audi"}
+    entry.options = {CONF_HIDE_EMPTY_ENTITIES: hide_empty}
+    entry.async_on_unload = lambda x: None
+    added: list[Any] = []
+    asyncio.run(mod.async_setup_entry(MagicMock(), entry, lambda e: added.extend(e)))
+    return {
+        e.entity_description.key for e in added
+        if getattr(e, "entity_description", None) is not None
+    }
+
+
+def test_the_total_sensors_spawn_only_with_a_reading_and_the_right_drivetrain() -> None:
+    plug_in = {
+        "vin": _VIN, "has_battery": True, "has_combustion": True,
+        _TOTAL_KEYS[0]: 947.128, _TOTAL_KEYS[1]: 0.0,
+    }
+    assert set(_TOTAL_KEYS) <= _spawned(plug_in)  # 0.0 is a reading
+    absent = {"vin": _VIN, "has_battery": True, "has_combustion": True}
+    assert not set(_TOTAL_KEYS) & _spawned(absent)  # no phantom without data
+    # ...and the allow-list holds even with "hide empty entities" switched off
+    assert not set(_TOTAL_KEYS) & _spawned(absent, hide_empty=False)
+    diesel = {
+        "vin": _VIN, "has_battery": False, "has_combustion": True,
+        _TOTAL_KEYS[0]: 5.0, _TOTAL_KEYS[1]: 130.1,
+    }
+    keys = _spawned(diesel)
+    assert _TOTAL_KEYS[1] in keys
+    assert _TOTAL_KEYS[0] not in keys  # no electric sensor on a diesel
