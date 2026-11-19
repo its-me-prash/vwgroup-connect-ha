@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Cuentakilómetros inicial (largo plazo)"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Consumo eléctrico total del viaje a largo plazo"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Consumo total de combustible del viaje a largo plazo"
+      },
       "last_trip_start_odometer_km": {
         "name": "Cuentakilómetros al inicio del último viaje"
       },

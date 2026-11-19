@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Langzeit-Start-Kilometerstand"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Langzeit-Fahrt Stromverbrauch gesamt"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Langzeit-Fahrt Kraftstoffverbrauch gesamt"
+      },
       "last_trip_start_odometer_km": {
         "name": "Letzte-Fahrt-Start-Kilometerstand"
       },

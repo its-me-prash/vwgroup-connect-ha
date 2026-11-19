@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Mätarställning vid start (långtid)"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Långtidsresa, total elförbrukning"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Långtidsresa, total bränsleförbrukning"
+      },
       "last_trip_start_odometer_km": {
         "name": "Mätarställning vid senaste resans start"
       },

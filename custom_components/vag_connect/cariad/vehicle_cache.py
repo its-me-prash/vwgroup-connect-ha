@@ -167,6 +167,8 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "lifetime_avg_electric_consumption_kwh_100km",
     "lifetime_avg_recuperation_kwh_100km", "lifetime_trip_distance_km",
     "lifetime_trip_start_odometer_km", "lifetime_avg_aux_consumption_kwh_100km",
+    "lifetime_trip_total_electric_consumption_kwh",
+    "lifetime_trip_total_fuel_consumption_l",
     "lifetime_avg_gas_consumption_kg_100km", "lifetime_range_gain_km",
     "lifetime_zero_emission_km",
     # v4.10.0 (Scout #1655 + 9) — the third trip-computer memory, same reasoning

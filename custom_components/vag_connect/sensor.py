@@ -3514,6 +3514,30 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:map-marker-distance",
         suggested_display_precision=0,
     ),
+    # #2136 - energy / fuel used in the same long-term window, from the app's
+    # address. The window can be reset, so no TOTAL_INCREASING; HA allows only
+    # total/total_increasing together with the ENERGY and VOLUME classes, so
+    # both go without a device_class (as last_trip_total_electric_consumption_kwh).
+    VagSensorDescription(
+        key="lifetime_trip_total_electric_consumption_kwh",
+        translation_key="lifetime_trip_total_electric_consumption_kwh",
+        data_key="lifetime_trip_total_electric_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=1,
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="lifetime_trip_total_fuel_consumption_l",
+        translation_key="lifetime_trip_total_fuel_consumption_l",
+        data_key="lifetime_trip_total_fuel_consumption_l",
+        native_unit_of_measurement="L",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-station",
+        suggested_display_precision=1,
+        condition="combustion",
+    ),
     # v4.10.0 (Scout #1655/#1578/#1579/#1681/#1687/#1492/#1592/#1603 — 10
     # reports, 7 accounts) — the trip memory the manufacturer's app labels
     # "From refuelling", in km (see models.py for the grounding and the one
@@ -5040,6 +5064,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "charge_rate_unit",
     "lifetime_trip_distance_km",
     "lifetime_trip_start_odometer_km",
+    "lifetime_trip_total_electric_consumption_kwh",
+    "lifetime_trip_total_fuel_consumption_l",
     "last_trip_start_odometer_km",
     "oil_level_liters",
     "oil_level_additional_pct",

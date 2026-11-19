@@ -1280,6 +1280,12 @@
       "lifetime_trip_start_odometer_km": {
         "name": "Stav tachometru na začátku (dlouhodobě)"
       },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Celková spotřeba elektřiny (dlouhodobá jízda)"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Celková spotřeba paliva (dlouhodobá jízda)"
+      },
       "last_trip_start_odometer_km": {
         "name": "Stav tachometru na začátku poslední jízdy"
       },

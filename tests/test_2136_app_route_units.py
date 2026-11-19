@@ -234,3 +234,57 @@ def test_a_list_answer_is_sorted_newest_first() -> None:
     assert env["tripData"][-1] == undated
     d = _parse(env)
     assert d.last_trip_distance_km == 3.0
+
+
+def test_the_long_term_totals_on_the_app_route() -> None:
+    """#2136: the app's long-term answer carries the energy and fuel used in
+    the window; the fuel key is spelled with a capital L."""
+    d = _parse(long_=_short({
+        "mileage_km": 5204, "overallMileage_km": 20000,
+        "totalElectricConsumption_kwh": 947.128, "totalFuelConsumption_L": 130.1,
+        "averageElectricConsumption": 18.2, "averageFuelConsumption": 2.5,
+    }))
+    assert d.lifetime_trip_total_electric_consumption_kwh == pytest.approx(947.128)
+    assert d.lifetime_trip_total_fuel_consumption_l == pytest.approx(130.1)
+
+
+def test_the_long_term_fuel_total_falls_back_to_the_lowercase_key() -> None:
+    d = _parse(long_=_short({"totalFuelConsumption_l": 12.5}))
+    assert d.lifetime_trip_total_fuel_consumption_l == pytest.approx(12.5)
+
+
+def test_missing_long_term_totals_stay_none() -> None:
+    d = _parse(long_=_short({"mileage_km": 900, "averageFuelConsumption": 4.1}))
+    assert d.lifetime_trip_total_electric_consumption_kwh is None
+    assert d.lifetime_trip_total_fuel_consumption_l is None
+
+
+def test_a_zero_long_term_total_is_a_reading() -> None:
+    """A plug-in hybrid driven only on fuel has used 0 kWh in the window."""
+    d = _parse(long_=_short({
+        "totalElectricConsumption_kwh": 0, "totalFuelConsumption_L": 0.0,
+    }))
+    assert d.lifetime_trip_total_electric_consumption_kwh == 0.0
+    assert d.lifetime_trip_total_fuel_consumption_l == 0.0
+
+
+def test_a_non_numeric_long_term_total_is_ignored() -> None:
+    d = _parse(long_=_short({
+        "totalElectricConsumption_kwh": "947", "totalFuelConsumption_L": None,
+    }))
+    assert d.lifetime_trip_total_electric_consumption_kwh is None
+    assert d.lifetime_trip_total_fuel_consumption_l is None
+
+
+def test_the_legacy_long_term_answer_does_not_fill_the_totals() -> None:
+    d = _parse(long_=_short({
+        "mileage_km": 900, "totalElectricConsumption_kwh": 947.128,
+        "totalFuelConsumption_L": 130.1,
+    }, final=False))
+    assert d.lifetime_trip_total_electric_consumption_kwh is None
+    assert d.lifetime_trip_total_fuel_consumption_l is None
+
+
+def test_the_last_trip_fuel_total_reads_the_capital_l_key() -> None:
+    d = _parse(short=_short({"mileage_km": 80, "totalFuelConsumption_L": 6.4}))
+    assert d.last_trip_total_fuel_consumption_l == pytest.approx(6.4)
