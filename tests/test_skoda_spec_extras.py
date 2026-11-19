@@ -167,3 +167,27 @@ def test_entity_names_exist_in_strings_and_every_translation() -> None:
         ent = json.loads(f.read_text(encoding="utf-8"))["entity"]["sensor"]
         assert ent["battery_capacity_spec_kwh"]["name"], f.name
         assert ent["max_charging_power_kw"]["name"], f.name
+
+
+def test_sensors_read_their_value_from_the_data_dict() -> None:
+    """The sensor path itself: native_value comes from ``data_key`` of the data."""
+    from custom_components.vag_connect import sensor as sn
+
+    data = {
+        "vin": VIN,
+        "battery_capacity_spec_kwh": 77.0,
+        "max_charging_power_kw": 135.0,
+        "engine_power": "210 kW",
+    }
+    for key, want in (
+        ("battery_capacity_spec_kwh", 77.0),
+        ("max_charging_power_kw", 135.0),
+        ("engine_power", "210 kW"),
+    ):
+        desc = next(d for d in sn.SENSOR_DESCRIPTIONS if d.key == key)
+        s = sn.VagConnectSensor.__new__(sn.VagConnectSensor)
+        s._vin = VIN
+        s.entity_description = desc
+        s.coordinator = MagicMock()
+        s.coordinator.data = {VIN: data}
+        assert s.native_value == want, key
