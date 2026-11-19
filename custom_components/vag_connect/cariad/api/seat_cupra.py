@@ -592,11 +592,14 @@ class SeatCupraClient(CariadBaseClient):
                 getattr(exc, "status", None),
             )
             return None
+        # Also narrows ``_get``'s Any for mypy; covered by the non-dict test.
         if not isinstance(payload, dict):
             return None
         v = self._val
         cs = v(payload, "climatisationStatus") or v(payload, "status") or payload
-        if v(cs, "climatisationState") is None and v(cs, "state") is None:
+        # Only ``climatisationState`` counts: a bare generic ``state`` could be
+        # any other field and the parser would read it as "climate on".
+        if v(cs, "climatisationState") is None:
             _LOGGER.debug(
                 "%s climate/status answered but carries no known state field",
                 self._brand.name.upper(),

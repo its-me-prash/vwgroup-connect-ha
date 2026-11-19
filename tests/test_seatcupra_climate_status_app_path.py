@@ -86,3 +86,33 @@ class TestClimateStatusAppPathFallback:
         data = asyncio.run(client.get_status(_VIN))
         assert data.climatisation_active is None
         assert "climatisation" not in client.last_raw_responses
+
+    def test_app_payload_with_generic_state_field_is_ignored(self):
+        # a bare ``state`` is not a climatisation state: it must not read as "on"
+        for payload in ({"state": "ok"}, {"status": {"state": "idle"}}):
+            client = _client({_LEGACY: _404(_LEGACY), _APP: payload})
+            data = asyncio.run(client.get_status(_VIN))
+            assert data.climatisation_active is None
+            assert "climatisation" not in client.last_raw_responses
+
+    def test_app_payload_wrapper_forms_are_read(self):
+        for payload in (
+            {"status": {"climatisationState": "heating"}},
+            {"climatisationState": "heating"},
+        ):
+            client = _client({_LEGACY: _404(_LEGACY), _APP: payload})
+            data = asyncio.run(client.get_status(_VIN))
+            assert data.climatisation_active is True
+
+    def test_app_payload_not_a_dict_is_ignored(self):
+        for payload in (["x"], "text"):
+            client = _client({_LEGACY: _404(_LEGACY), _APP: payload})
+            data = asyncio.run(client.get_status(_VIN))
+            assert data.climatisation_active is None
+
+    def test_app_path_server_error_keeps_today_state(self):
+        client = _client({_LEGACY: _404(_LEGACY), _APP: APIError(500, _APP, "boom")})
+        data = asyncio.run(client.get_status(_VIN))
+        assert data.climatisation_active is None
+        assert "climatisation" not in client.last_raw_responses
+        assert client.parser_stats["climatisation"]["fail"] == 1
