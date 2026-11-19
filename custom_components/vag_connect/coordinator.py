@@ -955,6 +955,50 @@ def _static_info_model_year(info: dict[str, Any]) -> tuple[str | None, Any]:
     return model, year
 
 
+def _skoda_spec_extras(info: Any) -> dict[str, Any]:
+    """MyŠkoda 8.18.0 — factory figures from the cached ``/vehicle-information``.
+
+    *info* is ``vehicle_static_info[vin]["info"]``. The figures sit in
+    ``vehicleSpecification`` (``VehicleSpecificationDto``; ``specification`` is
+    the older Python-attribute spelling, see ``_static_info_model_year``):
+
+    - ``battery.capacityInKWh`` → ``battery_capacity_spec_kwh`` (the myskoda
+      docstring spells it ``capacityInKWH``; both are read);
+    - ``maxChargingPowerInKW`` → ``max_charging_power_kw``;
+    - ``engine.powerInKW`` → ``engine_power`` as ``"<n> kW"``, the string the
+      existing engine-power sensor already shows for other sources.
+
+    Zero, negative, boolean and non-numeric values are left out. Pure and total.
+    """
+    if not isinstance(info, dict):
+        return {}
+    spec = info.get("vehicleSpecification")
+    if not isinstance(spec, dict):
+        spec = info.get("specification")
+    if not isinstance(spec, dict):
+        return {}
+
+    def _pos(value: Any) -> float | None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return float(value) if value > 0 else None
+
+    out: dict[str, Any] = {}
+    battery = spec.get("battery")
+    if isinstance(battery, dict):
+        cap = _pos(battery.get("capacityInKWh", battery.get("capacityInKWH")))
+        if cap is not None:
+            out["battery_capacity_spec_kwh"] = cap
+    charge = _pos(spec.get("maxChargingPowerInKW"))
+    if charge is not None:
+        out["max_charging_power_kw"] = charge
+    engine = spec.get("engine")
+    kw = _pos(engine.get("powerInKW")) if isinstance(engine, dict) else None
+    if kw is not None:
+        out["engine_power"] = f"{kw:g} kW"
+    return out
+
+
 def _mbb_command_capability(
     coord: Any, vin: str, command_id: str
 ) -> bool | None:
@@ -8574,6 +8618,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 for _gk, _gv in _garage.items():
                     if data.get(_gk) in (None, []):
                         data[_gk] = _gv
+                # MyŠkoda 8.18.0 — factory figures from the 24h-cached static info
+                # (no extra request). Same rule: a value a client already set wins.
+                _static = getattr(self, "vehicle_static_info", {}).get(vin)
+                _spec = _skoda_spec_extras(
+                    _static.get("info") if isinstance(_static, dict) else None
+                )
+                for _sk, _sv in _spec.items():
+                    if data.get(_sk) in (None, []):
+                        data[_sk] = _sv
             # Trigger lazy 24h cache refresh — if fresh, no-op
             try:
                 await self.refresh_static_info(vin)
@@ -8820,6 +8873,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     _portal, "data_request_started_at", None
                 )
                 data["last_snapshot_at"] = getattr(_portal, "last_snapshot_at", None)
+                # #465 — when the PORTAL created the file we last read; unlike
+                # last_snapshot_at (our poll) it only moves on a new delivery.
+                data["last_dataset_created_at"] = getattr(
+                    _portal, "last_dataset_created_at", None
+                )
                 data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
                 data["no_data_count"] = getattr(_portal, "no_data_count", None)
                 # #465 (BooM80) — field-delivery honesty. VW can ship a field's

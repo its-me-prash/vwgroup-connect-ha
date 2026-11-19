@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "URL de la carte de stationnement (clair)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Raison de la limitation de la puissance de charge"
+      },
       "plug_led_color": {
         "name": "Couleur LED de la prise"
       },
@@ -1279,6 +1282,12 @@
       },
       "lifetime_trip_start_odometer_km": {
         "name": "Compteur au début (longue durée)"
+      },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Consommation électrique totale, trajet longue durée"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Consommation de carburant totale, trajet longue durée"
       },
       "last_trip_start_odometer_km": {
         "name": "Compteur au début du dernier trajet"
@@ -1658,6 +1667,9 @@
       "last_snapshot_at": {
         "name": "Dernier instantané reçu"
       },
+      "last_dataset_created_at": {
+        "name": "Fichier du portail créé"
+      },
       "last_no_data_at": {
         "name": "Dernière interrogation sans données"
       },
@@ -1676,6 +1688,12 @@
       },
       "connectivity_sunset_impact": {
         "name": "Impact de l'arrêt de la 2G/3G"
+      },
+      "battery_capacity_spec_kwh": {
+        "name": "Capacité de la batterie (fiche technique)"
+      },
+      "max_charging_power_kw": {
+        "name": "Puissance de charge maximale"
       },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Consommation électrique moyenne à court terme"
@@ -2007,6 +2025,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Compteur de consommation rebouclé"
+      },
+      "safelock_active": {
+        "name": "Safelock actif"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Compteur de récupération rebouclé"

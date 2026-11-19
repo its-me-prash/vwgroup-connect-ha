@@ -276,6 +276,16 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
     # beside it has wrapped at least once and is no longer a clean cumulative
     # figure, so these are the trust indicator for those two sensors rather than
     # a fault — hence no PROBLEM class. Gated by _DATA_PRESENT_REQUIRED.
+    # We Connect app 4.8.1 — AccessStatus.safelockActive (Boolean; exact
+    # meaning not documented in the app). Diagnostic, no device_class, gated
+    # by _DATA_PRESENT_REQUIRED.
+    VagBinarySensorDescription(
+        key="safelock_active",
+        translation_key="safelock_active",
+        data_key="safelock_active",
+        icon="mdi:lock-check",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     VagBinarySensorDescription(
         key="hv_battery_consumption_overflow",
         translation_key="hv_battery_consumption_overflow",
@@ -1254,6 +1264,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # BMS_05 Ueberlauf signals get these.
     "hv_battery_consumption_overflow",
     "hv_battery_recuperation_overflow",
+    # App 4.8.1 AccessStatus.safelockActive; only cars that report it.
+    "safelock_active",
     # #1592 — Audi Q6 PPE portal brake-fluid warning lamp; cars that don't
     # report the FlexRay/ESC signal stay None → no phantom entity.
     "brake_fluid_warning",

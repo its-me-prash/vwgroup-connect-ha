@@ -706,6 +706,10 @@ class VehicleData:
     # From ``charging.chargingStatus.value.remainingChargingTimeNavigation_min``.
     remaining_charge_time_nav_min: int | None = None
     plug_led_color: str | None = None  # none / red / green / blue
+    # We Connect app 4.8.1 — ``charging.batteryStatus.value.chargePowerLimitationReason``
+    # (raw token, vocabulary unknown) and ``access.accessStatus.value.safelockActive``.
+    charge_power_limitation_reason: str | None = None
+    safelock_active: bool | None = None
     # v2.10.0 - real-time charge rate in kW (instant), distinct from
     # the averaged charging_rate_kmh. Only populated by CARIAD BFF on
     # firmware that exposes a separate instant rate.
@@ -1560,6 +1564,13 @@ class VehicleData:
     # reported → no entity.
     workshop_mode: bool | None = None
     connectivity_sunset_impact: str | None = None
+    # MyŠkoda 8.18.0 — the car's factory specification (``vehicleSpecification``
+    # of ``vehicle-information``), filled by the coordinator for Škoda. Nameplate
+    # figures, NOT measurements: ``battery_capacity_spec_kwh`` is deliberately
+    # separate from ``battery_cap_kwh`` (the measured usable capacity, which the
+    # SoH estimate and ABRP read). None = not reported → no entity.
+    battery_capacity_spec_kwh: float | None = None
+    max_charging_power_kw: float | None = None
 
     # Departure timers
     departure_timer_1_enabled: bool = False
@@ -2226,6 +2237,10 @@ class VehicleData:
     lifetime_trip_distance_km: int | None = None
     # Odometer when the long-term window began — LOW. sensor, diagnostic.
     lifetime_trip_start_odometer_km: int | None = None
+    # #2136: energy / fuel used over the same long-term window (the app's
+    # address only; the window can be reset, so these are no lifetime counters).
+    lifetime_trip_total_electric_consumption_kwh: float | None = None
+    lifetime_trip_total_fuel_consumption_l: float | None = None
     # Odometer when the current/last trip began — LOW. sensor, diagnostic.
     last_trip_start_odometer_km: int | None = None
     # D. Fuel / fluids / SCR.

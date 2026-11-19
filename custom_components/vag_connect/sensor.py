@@ -247,6 +247,14 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
+        key="last_dataset_created_at",
+        translation_key="last_dataset_created_at",
+        data_key="last_dataset_created_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:file-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
         key="last_no_data_at",
         translation_key="last_no_data_at",
         data_key="last_no_data_at",
@@ -647,6 +655,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="plug_led_color",
         data_key="plug_led_color",
         icon="mdi:led-on",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # We Connect app 4.8.1 — why the charge power is limited. Raw backend token,
+    # shown as sent; phantom-gated (only cars that report it get the entity).
+    VagSensorDescription(
+        key="charge_power_limitation_reason",
+        translation_key="charge_power_limitation_reason",
+        data_key="charge_power_limitation_reason",
+        icon="mdi:flash-triangle-outline",
         condition="electric",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -1959,6 +1977,30 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         data_key="connectivity_sunset_impact",
         icon="mdi:signal-off",
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # MyŠkoda 8.18.0 — factory specification (``vehicleSpecification``): battery
+    # capacity and maximum charging power. Nameplate values, so no state class
+    # (no long-term statistics for a constant) and a key of their own instead of
+    # ``battery_cap_kwh``, which feeds the SoH estimate. Škoda only, data-gated.
+    VagSensorDescription(
+        key="battery_capacity_spec_kwh",
+        translation_key="battery_capacity_spec_kwh",
+        data_key="battery_capacity_spec_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        icon="mdi:battery-high",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="max_charging_power_kw",
+        translation_key="max_charging_power_kw",
+        data_key="max_charging_power_kw",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        device_class=SensorDeviceClass.POWER,
+        icon="mdi:ev-plug-ccs2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
     ),
     # v1.15.0 (#35) — Skoda Charging History → HA Energy Dashboard.
     # ``total_charged_energy_kwh`` with TOTAL_INCREASING is THE long-
@@ -3514,6 +3556,30 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:map-marker-distance",
         suggested_display_precision=0,
     ),
+    # #2136 - energy / fuel used in the same long-term window, from the app's
+    # address. The window can be reset, so no TOTAL_INCREASING; HA allows only
+    # total/total_increasing together with the ENERGY and VOLUME classes, so
+    # both go without a device_class (as last_trip_total_electric_consumption_kwh).
+    VagSensorDescription(
+        key="lifetime_trip_total_electric_consumption_kwh",
+        translation_key="lifetime_trip_total_electric_consumption_kwh",
+        data_key="lifetime_trip_total_electric_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=1,
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="lifetime_trip_total_fuel_consumption_l",
+        translation_key="lifetime_trip_total_fuel_consumption_l",
+        data_key="lifetime_trip_total_fuel_consumption_l",
+        native_unit_of_measurement="L",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-station",
+        suggested_display_precision=1,
+        condition="combustion",
+    ),
     # v4.10.0 (Scout #1655/#1578/#1579/#1681/#1687/#1492/#1592/#1603 — 10
     # reports, 7 accounts) — the trip memory the manufacturer's app labels
     # "From refuelling", in km (see models.py for the grounding and the one
@@ -4620,6 +4686,9 @@ _SPAWN_WITHOUT_DATA: frozenset[str] = frozenset({"plug_state"})
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # Škoda only (garage document, MyŠkoda 8.18.0); most cars never report it.
     "connectivity_sunset_impact",
+    # Škoda only (vehicle-information specification, MyŠkoda 8.18.0).
+    "battery_capacity_spec_kwh",
+    "max_charging_power_kw",
     # Companion only: no entities before the app's long-haul card was read.
     "companion_long_trip_distance_km",
     "companion_long_trip_duration_min",
@@ -4679,6 +4748,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # mode so it appears immediately; the timestamps appear on their first event.
     "data_request_created_at",
     "last_snapshot_at",
+    "last_dataset_created_at",
     "last_no_data_at",
     "no_data_count",
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal-only interior temp,
@@ -4781,6 +4851,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "primary_engine_soc_pct",       # Skoda-only (driving-range)
     "steering_wheel_position",      # Skoda-only (air-conditioning)
     "preferred_charge_mode",        # Skoda-only (charging settings) — v2.31.0
+    "charge_power_limitation_reason",  # CARIAD BFF only, app 4.8.1
     # v2.31.0 — Škoda pay-at-pump last fill-up; only present for enrolled users.
     "last_refuel_quantity",
     "last_refuel_cost",
@@ -5040,6 +5111,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "charge_rate_unit",
     "lifetime_trip_distance_km",
     "lifetime_trip_start_odometer_km",
+    "lifetime_trip_total_electric_consumption_kwh",
+    "lifetime_trip_total_fuel_consumption_l",
     "last_trip_start_odometer_km",
     "oil_level_liters",
     "oil_level_additional_pct",

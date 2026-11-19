@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Parkeringskarta-URL (ljus)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Orsak till begränsad laddeffekt"
+      },
       "plug_led_color": {
         "name": "Laddkontaktens LED-färg"
       },
@@ -1279,6 +1282,12 @@
       },
       "lifetime_trip_start_odometer_km": {
         "name": "Mätarställning vid start (långtid)"
+      },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Långtidsresa, total elförbrukning"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Långtidsresa, total bränsleförbrukning"
       },
       "last_trip_start_odometer_km": {
         "name": "Mätarställning vid senaste resans start"
@@ -1658,6 +1667,9 @@
       "last_snapshot_at": {
         "name": "Senaste ögonblicksbild mottagen"
       },
+      "last_dataset_created_at": {
+        "name": "Portalfil skapad"
+      },
       "last_no_data_at": {
         "name": "Senaste förfrågan utan data"
       },
@@ -1676,6 +1688,12 @@
       },
       "connectivity_sunset_impact": {
         "name": "Påverkan av 2G/3G-nedstängningen"
+      },
+      "battery_capacity_spec_kwh": {
+        "name": "Batterikapacitet (specifikation)"
+      },
+      "max_charging_power_kw": {
+        "name": "Maximal laddeffekt"
       },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Kortsiktig genomsnittlig elförbrukning"
@@ -2007,6 +2025,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Förbrukningsräknaren har slagit runt"
+      },
+      "safelock_active": {
+        "name": "Safelock aktivt"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Återmatningsräknaren har slagit runt"

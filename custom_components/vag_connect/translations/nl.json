@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Parkeerkaart-URL (licht)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Reden beperking laadvermogen"
+      },
       "plug_led_color": {
         "name": "Kleur laadstekker-LED"
       },
@@ -1279,6 +1282,12 @@
       },
       "lifetime_trip_start_odometer_km": {
         "name": "Kilometerstand bij start (langetermijn)"
+      },
+      "lifetime_trip_total_electric_consumption_kwh": {
+        "name": "Langetermijn-rit, totaal elektriciteitsverbruik"
+      },
+      "lifetime_trip_total_fuel_consumption_l": {
+        "name": "Langetermijn-rit, totaal brandstofverbruik"
       },
       "last_trip_start_odometer_km": {
         "name": "Kilometerstand bij start laatste rit"
@@ -1658,6 +1667,9 @@
       "last_snapshot_at": {
         "name": "Laatste momentopname ontvangen"
       },
+      "last_dataset_created_at": {
+        "name": "Portaalbestand aangemaakt"
+      },
       "last_no_data_at": {
         "name": "Laatste polling zonder gegevens"
       },
@@ -1676,6 +1688,12 @@
       },
       "connectivity_sunset_impact": {
         "name": "Gevolg van de 2G/3G-uitschakeling"
+      },
+      "battery_capacity_spec_kwh": {
+        "name": "Accucapaciteit (specificatie)"
+      },
+      "max_charging_power_kw": {
+        "name": "Maximaal laadvermogen"
       },
       "short_term_avg_electric_consumption_kwh_100km": {
         "name": "Kortetermijn gemiddeld elektriciteitsverbruik"
@@ -2007,6 +2025,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Verbruiksteller omgelopen"
+      },
+      "safelock_active": {
+        "name": "Safelock actief"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Recuperatieteller omgelopen"

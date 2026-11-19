@@ -573,6 +573,40 @@ class SeatCupraClient(CariadBaseClient):
                 return {}  # Both paths 404 — give up, return empty
             raise
 
+    async def _read_climate_status_app_path(self, vin: str) -> dict[str, Any] | None:
+        """Read the climate state from the 3.0.2 app's path (read-only fallback).
+
+        ``GET v1/vehicles/{vin}/climate/status`` is what SEAT/CUPRA app 3.0.2
+        calls (APK audit, ``v70/a.java``). Its response form is not documented in
+        the audit, so nothing new is guessed: the payload goes through the same
+        parser as the legacy one and is only used when that parser can read a
+        climatisation state from it. Anything else (error, empty, other shape)
+        returns None and the caller keeps the legacy 404, i.e. today's behaviour.
+        """
+        try:
+            payload = await self._get(f"{_BASE}/v1/vehicles/{vin}/climate/status")
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug(
+                "%s climate/status fallback failed: %s (HTTP %s)",
+                self._brand.name.upper(), type(exc).__name__,
+                getattr(exc, "status", None),
+            )
+            return None
+        # Also narrows ``_get``'s Any for mypy; covered by the non-dict test.
+        if not isinstance(payload, dict):
+            return None
+        v = self._val
+        cs = v(payload, "climatisationStatus") or v(payload, "status") or payload
+        # Only ``climatisationState`` counts: a bare generic ``state`` could be
+        # any other field and the parser would read it as "climate on".
+        if v(cs, "climatisationState") is None:
+            _LOGGER.debug(
+                "%s climate/status answered but carries no known state field",
+                self._brand.name.upper(),
+            )
+            return None
+        return payload
+
     async def _get_capabilities_count(self, vin: str) -> int | None:
         """v2.11.3 — cached per-VIN capabilities count.
 
@@ -838,6 +872,15 @@ class SeatCupraClient(CariadBaseClient):
             trip_short_data,  # v2.11.2
             trip_cyclic_data,  # v2.11.2
         ) = results
+
+        # App 3.0.2 reads the climate state from ``v1/.../climate/status``; the
+        # legacy ``climatisation/status`` is gone from the app, but whether the
+        # server still serves it is unmeasured. So the legacy path stays first
+        # and only its 404 triggers one read of the app's path.
+        if isinstance(climate, APIError) and climate.status == 404:
+            app_climate = await self._read_climate_status_app_path(vin)
+            if app_climate is not None:
+                climate = app_climate
 
         # v4.7.10 (#465 anju1337, also the #779 attestation-wall cohort) —
         # runtime OLA-wall → EU Data Act portal revive. get_vehicles arms the
