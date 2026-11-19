@@ -5,10 +5,17 @@
     "llm",
     "http"
   ],
+  "categories": [
+    "vehicles_transport.cars_evs",
+    "energy.ev_charging"
+  ],
   "codeowners": [
     "@its-me-prash"
   ],
   "config_flow": true,
+  "connectivity": [
+    "cloud"
+  ],
   "dependencies": [],
   "documentation": "https://github.com/its-me-prash/vwgroup-connect-ha",
   "integration_type": "hub",
