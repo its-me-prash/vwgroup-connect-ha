@@ -1,0 +1,32 @@
+meta {
+  name: GET climate status (3.0.2 app path, read fallback)
+  type: http
+  seq: 53
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/climate/status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  The path the SEAT and CUPRA 3.0.2 apps use for the climate state. The
+  integration still reads /v1/vehicles/{vin}/climatisation/status first
+  (50_GET_climatisation_status.bru) and calls this path only when that one
+  answers 404 (seat_cupra.py, _read_climate_status_app_path).
+
+  The response form is not documented in the app audit. The integration
+  uses an answer only when it carries climatisationState, directly or under
+  climatisationStatus or status; anything else is ignored. Whether the
+  server still serves the legacy path, and what this one returns, is
+  unmeasured.
+}
