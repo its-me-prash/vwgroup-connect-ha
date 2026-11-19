@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "URL mapy parkowania (jasna)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Powód ograniczenia mocy ładowania"
+      },
       "plug_led_color": {
         "name": "Kolor LED wtyczki"
       },
@@ -2007,6 +2010,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Licznik zużycia przepełniony"
+      },
+      "safelock_active": {
+        "name": "Safelock aktywny"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Licznik rekuperacji przepełniony"

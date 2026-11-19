@@ -650,6 +650,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         condition="electric",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # We Connect app 4.8.1 — why the charge power is limited. Raw backend token,
+    # shown as sent; phantom-gated (only cars that report it get the entity).
+    VagSensorDescription(
+        key="charge_power_limitation_reason",
+        translation_key="charge_power_limitation_reason",
+        data_key="charge_power_limitation_reason",
+        icon="mdi:flash-triangle-outline",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     VagSensorDescription(
         key="charging_type",
         translation_key="charging_type",
@@ -4781,6 +4791,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "primary_engine_soc_pct",       # Skoda-only (driving-range)
     "steering_wheel_position",      # Skoda-only (air-conditioning)
     "preferred_charge_mode",        # Skoda-only (charging settings) — v2.31.0
+    "charge_power_limitation_reason",  # CARIAD BFF only, app 4.8.1
     # v2.31.0 — Škoda pay-at-pump last fill-up; only present for enrolled users.
     "last_refuel_quantity",
     "last_refuel_cost",

@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Parkeerkaart-URL (licht)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Reden beperking laadvermogen"
+      },
       "plug_led_color": {
         "name": "Kleur laadstekker-LED"
       },
@@ -2007,6 +2010,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Verbruiksteller omgelopen"
+      },
+      "safelock_active": {
+        "name": "Safelock actief"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Recuperatieteller omgelopen"

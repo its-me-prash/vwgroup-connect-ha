@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Parkeringskarta-URL (ljus)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Orsak till begränsad laddeffekt"
+      },
       "plug_led_color": {
         "name": "Laddkontaktens LED-färg"
       },
@@ -2007,6 +2010,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Förbrukningsräknaren har slagit runt"
+      },
+      "safelock_active": {
+        "name": "Safelock aktivt"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Återmatningsräknaren har slagit runt"

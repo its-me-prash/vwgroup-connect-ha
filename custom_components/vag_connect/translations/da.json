@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "Parkeringskort-URL (lys)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Årsag til begrænset ladeeffekt"
+      },
       "plug_led_color": {
         "name": "Stik-LED-farve"
       },
@@ -1941,6 +1944,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Forbrugstælleren er løbet over"
+      },
+      "safelock_active": {
+        "name": "Safelock aktiv"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Recuperationstælleren er løbet over"

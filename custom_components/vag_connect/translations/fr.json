@@ -1057,6 +1057,9 @@
       "parking_map_url_light": {
         "name": "URL de la carte de stationnement (clair)"
       },
+      "charge_power_limitation_reason": {
+        "name": "Raison de la limitation de la puissance de charge"
+      },
       "plug_led_color": {
         "name": "Couleur LED de la prise"
       },
@@ -2007,6 +2010,9 @@
       },
       "hv_battery_consumption_overflow": {
         "name": "Compteur de consommation rebouclé"
+      },
+      "safelock_active": {
+        "name": "Safelock actif"
       },
       "hv_battery_recuperation_overflow": {
         "name": "Compteur de récupération rebouclé"
