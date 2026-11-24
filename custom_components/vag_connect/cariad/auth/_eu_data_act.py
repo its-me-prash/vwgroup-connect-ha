@@ -7688,6 +7688,24 @@ class EUDataActConnector:
         chosen: str | None = None
         saw_outage = False
         for name in ranked[:_MAX_DATASET_FALLBACK]:
+            # #2208 — the download reaches the session directly (see its
+            # docstring), so the per-attempt guard in _get_json does not cover
+            # it. The metadata and the listing reads are two awaits before this
+            # loop and every download is another one: an unload during any of
+            # them closes the session under the running poll, and the next GET
+            # raised aiohttp's bare RuntimeError("Session is closed") into the
+            # error reporter. Checked right before each call, with no await
+            # between the check and the request; ``is True`` for the reason
+            # given in _get_json. No _note_no_data: the portal was not asked,
+            # so there is no outcome to record, and the entry is going away.
+            if getattr(self._session, "closed", False) is True:
+                _LOGGER.debug(
+                    "EU Data Act: the entry's session closed during the poll for "
+                    "%s, so no dataset was downloaded (the entry is unloading or "
+                    "reloading; the next setup gets a fresh session)",
+                    vin[-6:],
+                )
+                return d
             got, _transient, st = await self._download_dataset_raw(
                 vin, identifier, name, request_type
             )
