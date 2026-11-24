@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-11-24 — "The real reason / Der echte Grund"
+
 ### Hinzugefügt / Added
 
 - **Audi/VW: the energy and fuel used in the long-term trip window are now shown (#2136).** The Audi app's long-term trip answer (`/trips/<vin>/longterm/last`, final units) carries `totalElectricConsumption_kwh` and `totalFuelConsumption_L` next to the averages; the reporter's example is 947.128 kWh and 130.1 L over 5204 km, with averages of 18.2 kWh/100 km and 2.5 l/100 km. The integration read the averages but not these two totals. Two new sensors, "Long-term trip total electric consumption" and "Long-term trip total fuel consumption", now take them, only from that address, and only for cars where the electric or the combustion part exists. A 0 is shown as 0. The window can be reset, so they are plain measurements without an energy or volume device class (Home Assistant allows those classes only with total or total-increasing statistics). The same capital-L spelling is now also read for the last trip's fuel total. Tested with the reporter's numbers and with the totals missing, 0 and non-numeric, and the older `tripstatistics` address still does not fill them; not tried on a car.
