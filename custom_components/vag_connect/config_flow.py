@@ -1296,6 +1296,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             AuthProxyUnavailableError,
+            WebsiteLoginIncompleteError,
         )
 
         if self._wap_connector is None:
@@ -1322,6 +1323,17 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             if isinstance(_status, int) and 400 <= _status < 500:
                 raise ValueError("authproxy_refused") from err
             raise ValueError("upstream_unavailable") from err
+        except WebsiteLoginIncompleteError as err:
+            # #2200 — the code step did not come back to the challenge page,
+            # which is the only outcome read as a refused code, and the sign-in
+            # then stopped short of volkswagen.de. "Code not accepted" would
+            # send the user round for a new code that lands on the same page.
+            # The message names where it stopped (host and path only).
+            _LOGGER.warning(
+                "Website authproxy OTP step: the sign-in did not complete "
+                "after the code: %s", err,
+            )
+            raise ValueError("website_login_failed") from err
         except AuthenticationError as err:
             # #1843 — @kalwados hit this same verdict on the OPTIONS flow; this
             # is its setup-time twin, on the path a first-time user takes. The
