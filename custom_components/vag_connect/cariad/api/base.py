@@ -1850,9 +1850,9 @@ class CariadBaseClient:
                             _RETRY_AFTER_MIN_S, min(_retry_after, _LOCKOUT_429_S)
                         )
                         _LOGGER.debug(
-                            "Rate limited (429) with Retry-After %ds — honouring"
-                            " it instead of retrying (holding %ds)",
-                            _retry_after, _hold,
+                            "Rate limited (429) from %s with Retry-After %ds —"
+                            " honouring it instead of retrying (holding %ds)",
+                            _redact_url(url), _retry_after, _hold,
                         )
                         self._enter_rate_lockout(_hold, 429, _redact_url(url))
                     elif _attempt < 3:
@@ -1860,7 +1860,13 @@ class CariadBaseClient:
                         # because a bare 429 can still be a momentary burst and
                         # giving up on it would lose reads that work today.
                         wait = (2 ** _attempt) * 5
-                        _LOGGER.debug("Rate limited (429) — retrying in %ds", wait)
+                        # #1850 (@indigomejor) — name the call, masked like the
+                        # lockout warning: two 429s 0.14 s apart in one poll
+                        # could not be told apart from this line alone.
+                        _LOGGER.debug(
+                            "Rate limited (429) from %s — retrying in %ds",
+                            _redact_url(url), wait,
+                        )
                         await asyncio.sleep(wait)
                         return await self._request(
                             method, url, retry=retry, _attempt=_attempt + 1,
@@ -1885,14 +1891,17 @@ class CariadBaseClient:
                     elif _spent >= _5XX_SUPPRESS_RETRIES_AFTER:
                         if _attempt == 0:
                             _LOGGER.debug(
-                                "Server error %d — not retrying: this endpoint"
-                                " spent its whole retry budget on each of the"
-                                " last %d poll(s) without succeeding",
-                                resp.status, _spent,
+                                "Server error %d from %s — not retrying: this"
+                                " endpoint spent its whole retry budget on each"
+                                " of the last %d poll(s) without succeeding",
+                                resp.status, _redact_url(url), _spent,
                             )
                     else:
                         wait = (2 ** _attempt) * 3
-                        _LOGGER.debug("Server error %d — retrying in %ds", resp.status, wait)
+                        _LOGGER.debug(
+                            "Server error %d from %s — retrying in %ds",
+                            resp.status, _redact_url(url), wait,
+                        )
                         await asyncio.sleep(wait)
                         return await self._request(
                             method, url, retry=retry, _attempt=_attempt + 1,
