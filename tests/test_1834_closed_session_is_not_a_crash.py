@@ -224,7 +224,7 @@ def test_a_magicmock_session_is_not_mistaken_for_a_closed_one() -> None:
         _run(conn._get_json(_URL, soft=True))
 
 def test_the_whole_poll_makes_no_request_and_never_reaches_the_download() -> None:
-    """Why there is exactly ONE guard, and not a second one further down.
+    """A session that is closed BEFORE the poll never reaches the download.
 
     ``_download_dataset_raw`` reaches the session directly, and its own
     docstring says so on purpose: "This GET bypasses ``_get_json``", because
@@ -232,17 +232,18 @@ def test_the_whole_poll_makes_no_request_and_never_reaches_the_download() -> Non
     clause takes TimeoutError and ClientConnectionError, so a RuntimeError
     would travel exactly as far as #1834's did.
 
-    A guard there would nonetheless be dead code. ``get_vehicle_data`` is the
-    only caller, and with the session closed it never gets near the loop:
-    measured, it makes exactly ONE soft ``_get_json`` call, for the metadata.
-    That returns None, the identifier stays empty, and the function returns its
-    empty VehicleData. The dataset listing — the call an earlier version of this
-    docstring named as the one that bails — is never reached at all.
+    With the session closed from the start, ``get_vehicle_data`` never gets
+    near the loop: measured, it makes exactly ONE soft ``_get_json`` call, for
+    the metadata. That returns None, the identifier stays empty, and the
+    function returns its empty VehicleData.
 
-    This is pinned as a test rather than written as a comment because it is a
-    claim about reachability, and reachability is what a later refactor
-    silently changes. If a route to the download appears that does not pass a
-    guarded call, this goes red and the second guard stops being dead code.
+    An earlier version of this docstring concluded from that that a guard at
+    the download would be dead code. #2208 showed the route this test cannot
+    see: the session closes DURING the poll, after the metadata and listing
+    reads succeeded, and the next download hit it. That case now has its own
+    guard in the download loop, pinned in
+    ``test_2208_download_closed_session.py``; this test keeps pinning the
+    closed-from-the-start case.
     """
     from custom_components.vag_connect.cariad.auth._eu_data_act import (
         EUDataActConnector,
