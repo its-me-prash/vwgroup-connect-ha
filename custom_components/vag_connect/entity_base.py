@@ -60,12 +60,26 @@ def _device_name(vehicle: dict, brand: str) -> str:
 # unavailable exactly when they need to read it (the whole car went dark, so did
 # the "last reported", "data source", error-reporter and connectivity entities).
 # Keyed by entity_description.key; custom classes set ``_stay_available_on_poll_failure``.
+#
+# #2209 — the EU Data Act portal's own feed diagnostics belong here too. A poll
+# whose file list holds only ``_no_content_found`` placeholders counts as a
+# failed poll, so after the tolerance and the stale-cache window "Portal feed
+# health" and the no-data counters went dark with everything else, at the one
+# moment they explain why. Only the portal sets their values; on a car read over
+# another channel they hold none, so there they read "unknown" during a failed
+# poll exactly as they do on a good one.
 _CONNECTION_STATUS_KEYS = frozenset({
     "last_updated_at",
     "last_seen_at",
     "data_source_channel",
     "error_reporter_count",
     "connection_active",
+    "portal_health",
+    "minutes_since_last_snapshot",
+    "last_snapshot_at",
+    "last_dataset_created_at",
+    "last_no_data_at",
+    "no_data_count",
 })
 
 
