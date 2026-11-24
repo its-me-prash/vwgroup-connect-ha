@@ -3405,6 +3405,32 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 if _tok:  # v4.7.7 (#1337) — bridge a Porsche login token
                     merged["porsche_initial_tokens"] = _tok
 
+                # #2202 — the box UNticked. The merge above keeps every key the
+                # base builder does not own, and only the ticked box had a
+                # branch, so an armed command channel stayed armed and the
+                # entry kept calling MBB after the user switched it off.
+                # Only an explicit False counts: the form always sends the box,
+                # and a submit without it keeps the channel (v2.17.2 merge).
+                # The tokens and client id stay when the entry also carries the
+                # Audi BFF fallback, which runs on the same bearer and has its
+                # own menu. The VIN list is never written by this channel and
+                # is left alone: an MBB-primary entry reads its cars from it.
+                if (
+                    not account_changed
+                    and brand in ("volkswagen", "audi")
+                    and "enable_mbb_commands" in user_input
+                    and not user_input["enable_mbb_commands"]
+                ):
+                    _drop = [
+                        CONF_MBB_COMMAND_CHANNEL,
+                        CONF_MEB_COMMANDS_UNAVAILABLE,
+                        CONF_MBB_COMMANDS_BLOCKED_REASON,
+                    ]
+                    if not merged.get(CONF_MBB_COMMAND_FALLBACK):
+                        _drop += [CONF_MBB_COMMAND_TOKENS, CONF_MBB_COMMAND_CLIENT_ID]
+                    for _key in _drop:
+                        merged.pop(_key, None)
+
                 # v2.17.2 (#666) — arm the durable-MBB command channel on an
                 # EXISTING portal entry via Reconfigure (VW/Audi). Mirrors the
                 # initial email_password MBB chain; the QR finish/approve steps
