@@ -241,10 +241,12 @@ def test_real_datasets_keep_dataset_12_stamp_while_values_stay() -> None:
         stamps.append((merged.get("field_captured_ts") or {}).get("battery_soc"))
         previous = strip_runtime(merged)
     assert seq == [66, 66, 66, 55], seq
-    assert stamps[0] == "2026-08-18T18:02:42+00:00"
+    # #2096: the stamp is the value's OWN paired time (key 3f5a294b), not the
+    # neighbouring capture entry the list order happened to put in front of it.
+    assert stamps[0] == "2026-08-18T18:02:45.415000+00:00"
     assert stamps[1] == stamps[0]
     assert stamps[2] == stamps[0]
-    assert stamps[3] == "2026-08-18T18:41:53+00:00"
+    assert stamps[3] == "2026-08-18T18:43:14.337000+00:00"
 
 
 def test_never_hv_car_is_untouched() -> None:

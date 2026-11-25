@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **EU Data Act portal: the state of charge and the odometer now show their own capture time in `data_captured_at`, and none when the export carries no time for them (#2096).** A flat portal export is an unordered list, and each value took the time of the nearest capture entry in front of it, so when the portal reordered the list between two downloads the same unchanged reading showed a different time (up to 2.5 hours too early on one ID.7, back to a frozen 6 November on a CUPRA Born). The battery level (`battery_level_HV`, value and state) and the mileage (value and state) each have a `timestamp` entry under a fixed key in the export, and the integration now pairs them by that key instead of by position: the battery level takes the time under `3f5a294b-b672-3963-83d8-bfb54e5b943d`, the mileage the time under `067f539c-85fe-3067-9c29-d63e177e3712`. The same time also feeds the choice between two readings of the same field and the check for a stale export, so those now follow the reading's own time as well. When an export has no such time entry, the battery level and the odometer get no `data_captured_at` at all rather than a neighbour's. Range, target charge level, fuel level, charging state and plug state are deliberately unchanged and still take the neighbouring entry's time, because no key pair is known for them. The pairing rests on 47 ID.7 exports from the reporter and on the same keys being present in a CUPRA Born export, not on a published description; the EU field catalogue lists both keys only as plain `timestamp`. Covered by `tests/test_2096_pair_capture_times.py` (200 shuffles of one dataset give identical times; a file without the time keys gives none) and on the real dataset files of `tests/test_2134_hv_hold_release.py`, whose expected times are now the paired ones; not tried on a car. Thanks to @jneuveglise for the files and @zeboh for the analysis of the 47 exports and the key pairs.
+
 ## [5.6.1] - 2026-11-25 — "New addresses / Neue Adressen"
 
 ### Hinzugefügt / Added
