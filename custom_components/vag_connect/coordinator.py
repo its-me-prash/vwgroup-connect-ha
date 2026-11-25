@@ -167,7 +167,9 @@ def _values_moved(
 #: Side maps that describe WHERE a snapshot value came from and WHEN the car
 #: captured it. They are ordinary keys in the snapshot dict, which is why the
 #: gap-fill below has to treat them specially.
-_PROVENANCE_MAPS = ("field_sources", "field_captured_ts", "field_source_leaf")
+_PROVENANCE_MAPS = (
+    "field_sources", "field_captured_ts", "field_source_leaf", "field_carried_since",
+)
 
 
 def _release_held(data: dict[str, Any], keys: list[str]) -> None:
@@ -248,6 +250,8 @@ def _gap_fill_from_export(
     if released:
         _release_held(current, released)
     for name in _PROVENANCE_MAPS:
+        if name == "field_carried_since":
+            continue  # #1917 — a carried mark is rebuilt per poll, never imported
         source = hist.get(name)
         if not isinstance(source, dict):
             continue
@@ -2869,10 +2873,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # the users it exists for. Same two-stage treatment as the poll loop:
             # keep last-known-good VISIBLE on no-data, and reconcile a partial
             # payload instead of letting it blank recorded fields.
-            from .cariad.vehicle_cache import (  # noqa: PLC0415
-                keep_overlay_owned_marker_state,
-                reconcile,
-            )
+            from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
 
             with self._vehicles_lock:
                 for vin, prepared_data, failed, no_data in prepared:
@@ -2897,10 +2898,6 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         )
                         continue
                     prepared_data, _setup_disc = reconcile(
-                        self.vehicles.get(vin), prepared_data
-                    )
-                    # #1917 — the official overlay does not run on this path
-                    keep_overlay_owned_marker_state(
                         self.vehicles.get(vin), prepared_data
                     )
                     if _setup_disc:
@@ -9347,13 +9344,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     data = merged.to_dict()
                     data["_client"] = client
                     enriched = await self._enrich(data)
-                    from .cariad.vehicle_cache import (  # noqa: PLC0415
-                        keep_overlay_owned_marker_state,
-                        reconcile,
-                    )
+                    from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
                     enriched, _disc = reconcile(self.vehicles.get(vin), enriched)
-                    # #1917 — the official overlay does not run on this path
-                    keep_overlay_owned_marker_state(self.vehicles.get(vin), enriched)
                     # v4.7.10 (#465, toglo) — recompute the per-source
                     # connectivity map the SAME fail-soft way the poll loop does
                     # (see ~4160). This command-refresh path had skipped it, so

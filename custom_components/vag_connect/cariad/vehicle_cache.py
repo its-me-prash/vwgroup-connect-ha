@@ -1376,11 +1376,17 @@ def reconcile(
     prev_carried = previous.get("field_carried_since")
     if not isinstance(prev_carried, dict):
         prev_carried = {}
+    # A value from the portal export (#1780) is kept by the import branch above
+    # and keeps its own provenance ("point"); it is not "carried" in this sense.
+    imported_keys = merged.get("field_imported_from_export")
+    if not isinstance(imported_keys, list):
+        imported_keys = []
     carried_since: dict[str, str] = {}
     carried_now: str | None = None
     for field in CARRY_FORWARD_FIELDS:
         if (
-            fresh.get(field) is None
+            field not in imported_keys
+            and fresh.get(field) is None
             and previous.get(field) is not None
             and merged.get(field) is not None
             and merged[field] == previous[field]
@@ -1397,34 +1403,3 @@ def reconcile(
         merged.pop("field_carried_since", None)
     return merged, notes
 
-
-def keep_overlay_owned_marker_state(
-    previous: dict[str, Any] | None, merged: dict[str, Any]
-) -> None:
-    """#1917 — for the callers where the Škoda official overlay does not run
-    after ``reconcile()`` (setup, command refresh): a value the overlay owned
-    (``previous["field_sources"][key] == "skoda_official"``) is not newly
-    marked carried there, since nothing in that path can tell whether the
-    overlay would have refreshed it. Its marker goes back to what it was in
-    ``previous`` (absent stays absent). Edits ``merged`` in place."""
-    marks = merged.get("field_carried_since")
-    if not previous or not isinstance(marks, dict):
-        return
-    sources = previous.get("field_sources")
-    if not isinstance(sources, dict):
-        return
-    before = previous.get("field_carried_since")
-    if not isinstance(before, dict):
-        before = {}
-    kept: dict[str, str] = {}
-    for key, since in marks.items():
-        if sources.get(key) == "skoda_official":
-            old = before.get(key)
-            if isinstance(old, str) and old:
-                kept[key] = old
-        else:
-            kept[key] = since
-    if kept:
-        merged["field_carried_since"] = kept
-    else:
-        merged.pop("field_carried_since", None)

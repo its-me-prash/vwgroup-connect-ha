@@ -21,7 +21,6 @@ from unittest.mock import MagicMock
 
 from custom_components.vag_connect.cariad.vehicle_cache import (
     CARRY_FORWARD_FIELDS,
-    keep_overlay_owned_marker_state,
     reconcile,
     strip_runtime,
 )
@@ -249,82 +248,6 @@ def test_the_last_official_overwrite_drops_the_whole_map() -> None:
     assert not out.get("field_carried_since")
 
 
-def _owned_previous() -> dict[str, Any]:
-    return {
-        "range_km": 300, "odometer_km": 1000,
-        "field_sources": {"range_km": "skoda_official"},
-    }
-
-
-def test_a_value_the_overlay_owns_is_not_newly_marked_where_the_overlay_does_not_run() -> None:
-    previous = _owned_previous()
-    merged, _ = reconcile(previous, {"vin": "X", "range_km": None, "odometer_km": None})
-    keep_overlay_owned_marker_state(previous, merged)
-    assert merged["range_km"] == 300  # still carried, value untouched
-    # the overlay-owned key stays unmarked; the other carried key is marked
-    assert set(merged["field_carried_since"]) == {"odometer_km"}
-
-
-def test_the_map_goes_when_only_overlay_owned_values_were_marked() -> None:
-    previous = _owned_previous()
-    merged, _ = reconcile(previous, {"vin": "X", "range_km": None, "odometer_km": 1000})
-    assert set(merged["field_carried_since"]) == {"range_km"}
-    keep_overlay_owned_marker_state(previous, merged)
-    assert "field_carried_since" not in merged
-
-
-def test_an_overlay_owned_value_keeps_the_marker_it_already_had() -> None:
-    previous = _owned_previous()
-    previous["field_carried_since"] = {"range_km": "2026-11-20T08:00:00+00:00"}
-    merged, _ = reconcile(previous, {"vin": "X", "range_km": None, "odometer_km": 1000})
-    keep_overlay_owned_marker_state(previous, merged)
-    assert merged["field_carried_since"] == {"range_km": "2026-11-20T08:00:00+00:00"}
-
-
-def test_the_helper_is_a_no_op_without_previous_or_map() -> None:
-    merged: dict[str, Any] = {"range_km": 1}
-    keep_overlay_owned_marker_state(None, merged)
-    keep_overlay_owned_marker_state(_owned_previous(), merged)
-    assert merged == {"range_km": 1}
-
-
-def test_the_poll_path_still_marks_an_overlay_owned_value() -> None:
-    # the overlay runs after reconcile there and clears the mark itself
-    merged, _ = reconcile(_owned_previous(), {"vin": "X", "range_km": None})
-    assert "range_km" in merged["field_carried_since"]
-
-
-def test_setup_and_command_refresh_paths_restore_the_overlay_owned_marker_state() -> None:
-    import ast
-    import inspect
-
-    from custom_components.vag_connect import coordinator
-
-    tree = ast.parse(inspect.getsource(coordinator))
-    sites: dict[str, dict[str, list[int]]] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            calls: dict[str, list[int]] = {}
-            for c in ast.walk(node):
-                if isinstance(c, ast.Call) and isinstance(c.func, ast.Name):
-                    calls.setdefault(c.func.id, []).append(c.lineno)
-            if "reconcile" in calls:
-                sites[node.name] = calls
-    # three reconcile sites: setup, periodic poll, command refresh
-    assert len(sites) == 3, list(sites)
-    restoring = []
-    for name, calls in sites.items():
-        src = inspect.getsource(getattr(coordinator.VagConnectCoordinator, name))
-        if "_merge_official_live" in src:
-            # periodic poll: the overlay runs after reconcile and clears itself
-            assert "keep_overlay_owned_marker_state" not in calls, name
-        else:
-            restoring.append(name)
-            assert min(calls["keep_overlay_owned_marker_state"]) > max(
-                calls["reconcile"]), name
-    assert len(restoring) == 2
-
-
 def test_the_optimistic_hold_does_not_touch_the_carried_marker() -> None:
     import inspect
 
@@ -333,3 +256,56 @@ def test_the_optimistic_hold_does_not_touch_the_carried_marker() -> None:
     assert "_clear_carried_marker" not in inspect.getsource(
         VagConnectCoordinator._apply_optimistic_hold
     )
+
+
+def test_a_value_imported_from_the_export_is_not_marked_carried() -> None:
+    previous = {
+        "odometer_km": 1000,
+        "field_sources": {"odometer_km": "eu_data_act"},
+        "field_captured_ts": {"odometer_km": "2026-10-09T02:15:00Z"},
+        "field_imported_from_export": ["odometer_km"],
+    }
+    merged, _ = reconcile(previous, {"vin": "X", "odometer_km": None})
+    assert merged["odometer_km"] == 1000
+    assert "field_carried_since" not in merged
+    assert merged["field_sources"]["odometer_km"] == "eu_data_act"
+
+
+def test_a_gap_filled_export_value_is_not_marked_carried_on_the_next_poll() -> None:
+    from custom_components.vag_connect.coordinator import _gap_fill_from_export
+
+    car: dict[str, Any] = {"odometer_km": None, "fuel_level": 40}
+    export = {
+        "odometer_km": 1000,
+        "field_sources": {"odometer_km": "eu_data_act"},
+        "field_captured_ts": {"odometer_km": "2026-10-09T02:15:00Z"},
+    }
+    assert _gap_fill_from_export(car, export) == ["odometer_km"]
+    merged, _ = reconcile(car, {"vin": "X", "odometer_km": None, "fuel_level": None})
+    assert merged["odometer_km"] == 1000
+    # the live-feed value that really is carried keeps its mark
+    assert set(merged["field_carried_since"]) == {"fuel_level"}
+    ent = _entity("odometer_km", merged)
+    assert _attrs(ent).get("freshness_source") == "point"
+
+
+def test_the_gap_fill_treats_the_carried_map_as_provenance() -> None:
+    from custom_components.vag_connect.coordinator import (
+        _PROVENANCE_MAPS,
+        _gap_fill_from_export,
+        _release_held,
+    )
+
+    assert "field_carried_since" in _PROVENANCE_MAPS
+    # an export snapshot that itself carried a mark must not hand it on
+    car: dict[str, Any] = {"odometer_km": None}
+    export = {
+        "odometer_km": 1000,
+        "field_carried_since": {"odometer_km": "2026-10-01T00:00:00+00:00"},
+    }
+    _gap_fill_from_export(car, export)
+    assert "field_carried_since" not in car
+    # a held value replaced by one of the car's own drops its mark too
+    data: dict[str, Any] = {"field_carried_since": {"odometer_km": "x"}}
+    _release_held(data, ["odometer_km"])
+    assert "odometer_km" not in data["field_carried_since"]
