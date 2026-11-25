@@ -115,6 +115,32 @@ def test_battery_value_in_this_poll_blocks_it() -> None:
     assert out["range_km"] == 760
 
 
+def test_value_from_the_one_time_export_is_replaced_and_unmarked() -> None:
+    """#1780: a value the export filled in is kept by the import branch until
+    the feed delivers it. A range from this poll replaces it like any other
+    reading, so its import mark must go, and the note must not call it carried."""
+    stored = _stored(field_imported_from_export=["range_km", "odometer_km"],
+                     odometer_km=24000)
+    out, notes = _poll(stored, ("website_authproxy", _car(combustion_range_km=720)))
+    assert out["range_km"] == 720
+    assert out["field_imported_from_export"] == ["odometer_km"]
+    note = next(n for n in notes if "#2072" in n)
+    assert "export" in note and "carried" not in note
+
+
+def test_only_import_mark_is_dropped_when_it_was_the_last() -> None:
+    stored = _stored(field_imported_from_export=["range_km"])
+    out, _ = _poll(stored, ("website_authproxy", _car(combustion_range_km=720)))
+    assert out["range_km"] == 720
+    assert "field_imported_from_export" not in out
+
+
+def test_is_electric_alone_in_the_stored_snapshot_blocks_it() -> None:
+    stored = _stored(has_battery=None, is_electric=True)
+    out, _ = _poll(stored, ("website_authproxy", _car(combustion_range_km=600)))
+    assert out["range_km"] == 760
+
+
 def test_never_delivered_headline_stays_missing() -> None:
     stored = _stored(range_km=None)
     out, _ = _poll(stored, ("website_authproxy", _car(combustion_range_km=600)))

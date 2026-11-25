@@ -1521,7 +1521,10 @@ def _derive_combustion_headline(
     Left alone: a headline this poll delivered (other than a 0 in case 1), a
     headline that was never delivered, a real 0 with an empty or unknown tank,
     and every car with high-voltage battery evidence in this merge or in the
-    stored snapshot. Never writes 0.
+    stored snapshot. Never writes 0. "Delivered by this poll" means present in
+    this poll's data, not recently captured: the candidate keeps its own capture
+    time, so an old reading stays recognisable. A value from the one-time export
+    (#1780) is replaced like a carried one and loses its import mark.
     """
     head = merged.get("range_km")
     if head == 0:
@@ -1530,7 +1533,11 @@ def _derive_combustion_headline(
             return frozenset()
         why = f"range_km was 0 with fuel_level {fuel}"
     elif head is not None and fresh.get("range_km") is None:
-        why = f"range_km {head} was carried from an earlier poll"
+        _imp = merged.get("field_imported_from_export")
+        if isinstance(_imp, list) and "range_km" in _imp:
+            why = f"range_km {head} came from the one-time export (#1780)"
+        else:
+            why = f"range_km {head} was carried from an earlier poll"
     else:
         return frozenset()
     for flag in ("has_battery", "is_hybrid", "is_electric"):
@@ -1547,6 +1554,15 @@ def _derive_combustion_headline(
                 k: v for k, v in _amb.items() if k != "range_km"
             }
         notes.append(f"{why}; took {cand} {val} from this poll (#2072)")
+        # #1780 — a reading from this poll replaces an imported value for good,
+        # the same rule the import branch applies when the feed delivers it.
+        _imp = merged.get("field_imported_from_export")
+        if isinstance(_imp, list) and "range_km" in _imp:
+            _rest = [k for k in _imp if k != "range_km"]
+            if _rest:
+                merged["field_imported_from_export"] = _rest
+            else:
+                merged.pop("field_imported_from_export", None)
         for key in (
             "field_sources", "field_captured_ts", "field_source_leaf",
             "field_captured_inherited",
