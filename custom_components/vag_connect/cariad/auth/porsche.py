@@ -4,8 +4,10 @@
 
 ⚠️ v2.17.1 (#666 fresh APK sweep): this module's ACTIVE flow targets the OLD
 My-Porsche Auth0 password stack (identity.porsche.com /authorize + /oauth/token,
-hardcoded Auth0 client XhygisuebbrqQ80byOuU5VncxLIm8E6H,
-my-porsche-app://auth0/callback). The live app is **Porsche One**
+hardcoded Auth0 client XhygisuebbrqQ80byOuU5VncxLIm8E6H, app callback
+https://security.porsche.com/auth/en-GB/app/callback — the custom-scheme
+my-porsche-app://auth0/callback was removed in Nov 2026, see _REDIRECT_URI).
+The live app is **Porsche One**
 (com.porsche.one 12.24.27), and that password flow returns "wrong credentials
 or captcha required" on current accounts (see #13). Porsche stays experimental
 in the brand picker until the device-grant below is wired in.
@@ -143,7 +145,15 @@ _AUTH_SERVER   = "identity.porsche.com"
 _AUTH_URL      = f"https://{_AUTH_SERVER}/authorize"
 _TOKEN_URL     = f"https://{_AUTH_SERVER}/oauth/token"
 _CLIENT_ID     = "XhygisuebbrqQ80byOuU5VncxLIm8E6H"
-_REDIRECT_URI  = "my-porsche-app://auth0/callback"
+# #1337 (25.11.2026) — Porsche removed the custom-scheme callback
+# ``my-porsche-app://auth0/callback`` from this client's allowed callbacks;
+# the current app uses this https app link instead. Measured without
+# credentials against /authorize with this client_id: the old value now gets
+# Auth0's "Callback URL mismatch" (403), this one redirects to the login page
+# (302). Only the en-GB path is registered (de-DE → 403), so it is NOT derived
+# from the HA locale. The final redirect to it carries the one-time ``code``
+# and is never fetched — see _is_app_callback.
+_REDIRECT_URI  = "https://security.porsche.com/auth/en-GB/app/callback"
 _AUDIENCE      = "https://api.porsche.com"
 # #1337 (v4.7.8) — a plain library User-Agent, the same CLASS the reference
 # client (CJNE/pyporscheconnectapi) authenticates and reads with. We previously
@@ -232,6 +242,24 @@ def _pkce() -> tuple[str, str]:
     return verifier, challenge
 
 
+def _is_app_callback(url: str) -> bool:
+    """True when ``url`` is the registered app callback, whatever its query.
+
+    #1337 (Nov 2026) — the callback used to be a custom scheme nothing else
+    could produce, so a string prefix was enough. It is now an ordinary https
+    page, so match scheme, host and the exact path. A URL that matches is the
+    END of the flow: the code (or ``error=``) is read from its query and the
+    URL itself is never requested.
+    """
+    parts = urlsplit(url)
+    want = urlsplit(_REDIRECT_URI)
+    return (
+        parts.scheme.lower() == want.scheme
+        and (parts.hostname or "").lower() == want.hostname
+        and parts.path == want.path
+    )
+
+
 def _oauth_error_label(body: str) -> str:
     """Printable OAuth error code for a message a tester will copy-paste.
 
@@ -316,10 +344,12 @@ class PorscheAuth:
             # Step 1: /authorize. allow_redirects=False and read the Location
             # header directly (b19, CJNE-comparison #10): with allow_redirects=True
             # an already-authenticated Auth0 session would redirect straight to
-            # ``my-porsche-app://auth0/callback?code=...`` — a non-http(s) scheme
-            # aiohttp's redirect follower cannot land on safely. Reading Location
-            # ourselves both avoids that crash risk AND lets us short-circuit the
-            # whole identifier/password dance when a session is already valid.
+            # the app callback ``…/app/callback?code=...``. Since the callback is
+            # an https URL (#1337, Nov 2026) aiohttp would follow it to Porsche's
+            # web page, and the code would sit in a Location header we never
+            # read. Reading Location ourselves keeps the code AND
+            # lets us short-circuit the whole identifier/password dance when a
+            # session is already valid.
             params = {
                 "client_id":             _CLIENT_ID,
                 "redirect_uri":          _REDIRECT_URI,
@@ -480,7 +510,7 @@ class PorscheAuth:
         # Step 4: follow the Auth0 redirect chain to the code.
         #
         # In Auth0's Identifier-First flow the password POST does NOT redirect
-        # straight to my-porsche-app://auth0/callback. Its Location is a *resume*
+        # straight to the app callback (_REDIRECT_URI). Its Location is a *resume*
         # path (e.g. /authorize/resume?state=...), and the code only appears
         # after following that hop (and sometimes a second one). The old code
         # required the callback immediately, so it ALWAYS fell through to
@@ -606,9 +636,10 @@ class PorscheAuth:
             if code:
                 return code
             target = urljoin(current_base, location)
-            # The app-scheme callback is terminal; if it carried no code the
-            # chain has failed rather than continuing.
-            if target.startswith(_REDIRECT_URI):
+            # The app callback is terminal; if it carried no code the chain
+            # has failed rather than continuing. It is an https page now, so
+            # this check is what keeps it from being requested below.
+            if _is_app_callback(target):
                 return self._extract_code(target)
             async with self._session.get(
                 target,
@@ -949,12 +980,9 @@ class PorscheAuth:
 
     @staticmethod
     def _extract_code(location: str) -> str | None:
-        prefix = "my-porsche-app://auth0/callback"
-        if not location.startswith(prefix):
+        if not _is_app_callback(location):
             return None
-        query = location.split("?", 1)[-1] if "?" in location else ""
-        params = parse_qs(query)
-        codes = params.get("code")
+        codes = parse_qs(urlsplit(location).query).get("code")
         return codes[0] if codes else None
 
 

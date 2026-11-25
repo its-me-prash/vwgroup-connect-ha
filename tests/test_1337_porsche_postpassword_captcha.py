@@ -27,7 +27,7 @@ from custom_components.vag_connect.cariad.exceptions import (
     PorscheLoginWallError,
 )
 
-_CB = "my-porsche-app://auth0/callback"
+_CB = "https://security.porsche.com/auth/en-GB/app/callback"
 _IMG = "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="
 
 

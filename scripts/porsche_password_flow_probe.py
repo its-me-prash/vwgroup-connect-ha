@@ -56,7 +56,10 @@ _AUTH_SERVER = "identity.porsche.com"
 _AUTH_URL = f"https://{_AUTH_SERVER}/authorize"
 _TOKEN_URL = f"https://{_AUTH_SERVER}/oauth/token"
 _CLIENT_ID = "XhygisuebbrqQ80byOuU5VncxLIm8E6H"
-_REDIRECT_URI = "my-porsche-app://auth0/callback"
+# #1337 (25.11.2026) — the custom-scheme callback my-porsche-app://auth0/callback
+# was removed from this client's allowed callbacks; same value as
+# custom_components/vag_connect/cariad/auth/porsche.py:_REDIRECT_URI.
+_REDIRECT_URI = "https://security.porsche.com/auth/en-GB/app/callback"
 _AUDIENCE = "https://api.porsche.com"
 _SCOPE = (
     "openid profile email offline_access mbb ssodb badge vin dealers cars "
@@ -71,8 +74,10 @@ _MAX_HOPS = 10
 class _NoRedirect(urllib.request.HTTPErrorProcessor):
     """Surface 3xx as a normal response instead of urllib auto-following it.
 
-    Needed because one hop in this chain redirects to the app custom-scheme
-    ``my-porsche-app://...``, which urllib cannot open at all.
+    Needed because the last hop redirects to the app callback (_REDIRECT_URI).
+    It is an https page now, so urllib would follow it and the code would only
+    be in a Location header we never read; the hop loop reads it instead and
+    never requests the callback.
     """
 
     def http_response(self, request, response):
@@ -211,6 +216,12 @@ def main() -> int:
     for hop in range(_MAX_HOPS):
         code = _extract_code(current)
         if code:
+            break
+        if current.startswith(_REDIRECT_URI):
+            # The callback without a code (e.g. error=...) ends the flow too;
+            # it is an https page now, so it must not be requested below.
+            err = urllib.parse.parse_qs(urllib.parse.urlsplit(current).query).get("error")
+            print(f"  hop {hop}: callback without a code (error={err[0] if err else '-'}), stopping.")
             break
         if not current.startswith("https://"):
             print(f"  hop {hop}: non-https target ({current[:40]}...), stopping.")
