@@ -1017,15 +1017,11 @@ _PAIRED_TS_BY_NAME: dict[str, str] = {
     "mileage.value": _ODO_TS_KEY,
     "mileage.state": _ODO_TS_KEY,
 }
-# Targets whose recorded capture time must be their OWN (sibling or paired), never
-# a neighbour's: without a pair they get no ``field_captured_ts``.
-_OWN_STAMP_ONLY_TARGETS: frozenset[str] = frozenset({"battery_soc", "odometer_km"})
-# ... but only for the leaves that HAVE a pairing key. Another leaf feeding the
-# same target (battery_state_report.soc, ...) keeps the time it inherited: the
-# age release of a held SoC (#2134) reads it as evidence.
-_PAIRED_LEAVES: frozenset[str] = frozenset(_PAIRED_TS_BY_VALUE_KEY) | frozenset(
-    _PAIRED_TS_BY_NAME
-)
+# Targets whose ``data_captured_at`` is shown only when the stamp is the value's
+# OWN (paired, or a real per-point stamp), never when it was borrowed from a
+# neighbouring capture entry. The stamp itself is recorded either way; the
+# borrowed ones are listed in ``field_captured_inherited`` (display only).
+_DISPLAY_OWN_STAMP_TARGETS: frozenset[str] = frozenset({"battery_soc", "odometer_km"})
 
 
 def _collect_paired_ts(payload: Any) -> dict[str, float]:
@@ -1337,7 +1333,7 @@ def _walk_fields(
     # a running ``car_captured_time`` marker in the flat event-log rather than
     # its OWN sibling timestamp — that ts is order-dependent (VW reorders the log
     # between exports), so it must not be trusted to decide a value conflict (#465).
-    best: dict[str, tuple[str, float, bool, bool]] = {}
+    best: dict[str, tuple[str, float, bool, bool, bool]] = {}
     # #1088 — per-name value occurrence counts, so a contest with a clear
     # majority (the same reading repeated) can be resolved by mode instead of
     # left ambiguous. Only consulted for names that end up contested.
@@ -1351,6 +1347,7 @@ def _walk_fields(
         ts: float | None,
         ts_real: bool,
         ts_inherited: bool = False,
+        ts_shown_inherited: bool | None = None,
     ) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
@@ -1367,9 +1364,16 @@ def _walk_fields(
         cand = ts if ts is not None else float("-inf")
         cand_real = ts_real and ts is not None
         cand_inh = bool(ts_inherited) and cand_real
+        # #2096 display only: was the stamp borrowed from a running marker? Kept
+        # apart from ``cand_inh`` so that the conflict choice stays exactly as it
+        # was (the UUID alias add never passed ``ts_inherited``).
+        cand_shown = (
+            bool(ts_inherited if ts_shown_inherited is None else ts_shown_inherited)
+            and cand_real
+        )
         prev = best.get(name)
         if prev is None:
-            best[name] = (str(value), cand, cand_real, cand_inh)
+            best[name] = (str(value), cand, cand_real, cand_inh, cand_shown)
             return
         # #529: ALL fields (incl. monotonic odometer/mileage) resolve by genuine
         # freshness so they come from the same snapshot. Cross-poll monotonic
@@ -1398,9 +1402,9 @@ def _walk_fields(
                 # unchanged, so this is observation only — reconcile overrides it.
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
             if cand >= prev[1]:
-                best[name] = (str(value), cand, True, cand_inh)
+                best[name] = (str(value), cand, True, cand_inh, cand_shown)
         elif cand_real and not prev_real:
-            best[name] = (str(value), cand, True, cand_inh)  # real beats floor
+            best[name] = (str(value), cand, True, cand_inh, cand_shown)  # real beats floor
         elif not cand_real and not prev_real:
             # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
             # #1088: but when the two values DISAGREE and neither carries a real
@@ -1417,7 +1421,7 @@ def _walk_fields(
                 and not _is_envelope_noise(name)
             ):
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
-            best[name] = (str(value), cand, False, False)
+            best[name] = (str(value), cand, False, False, False)
         # else: incumbent is real and candidate is not → keep the real one.
 
     def walk(
@@ -1528,7 +1532,8 @@ def _walk_fields(
                      and pkey_l in _MAPPED_UUIDS)
                     or pkey_l in _SCALE_ENCODING_UUIDS
                 ):
-                    add(pkey_l, node.get("value"), ts, ts_real)
+                    add(pkey_l, node.get("value"), ts, ts_real,
+                        ts_shown_inherited=ts_inh)
                     # v2.24.2 (#959, #960, #961) — record the pair as synonyms,
                     # exactly like the container-qualified branch below already
                     # did. Without it the bare generic leaf was never reclaimed
@@ -1629,15 +1634,15 @@ def _walk_fields(
                 winner = ranked[0][1]
                 prev = best.get(name)
                 if prev is not None:
-                    best[name] = (winner, prev[1], prev[2], prev[3])
+                    best[name] = (winner, prev[1], prev[2], prev[3], prev[4])
                 del _contested_out[name]
     if _ts_out is not None:
         # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
         # (-inf) carry no snapshot identity and must not constrain last_seen.
-        for k, (_v, ts_v, ts_real_v, _inh_v) in best.items():
+        for k, (_v, ts_v, ts_real_v, _inh_v, shown_v) in best.items():
             if ts_real_v:
                 _ts_out[k] = ts_v
-                if _inh_v and _inherited_out is not None:
+                if shown_v and _inherited_out is not None:
                     _inherited_out.add(k)
     return {k: v[0] for k, v in best.items()}
 
@@ -2404,20 +2409,17 @@ def map_dataset_to_vehicle_data(
             # leaf that carries no timestamp still needs to be nameable.
             d.field_source_leaf[attr] = chosen
             ts = (field_ts or {}).get(chosen)
-            # #2096 — the state of charge and the odometer only ever show a
-            # time that is their OWN; one borrowed from a neighbouring list
-            # entry moves with the list order, so it is not reported at all.
-            if (
-                ts is not None
-                and attr in _OWN_STAMP_ONLY_TARGETS
-                and chosen.strip().lower() in _PAIRED_LEAVES
-                and chosen in (field_ts_inherited or ())
-            ):
-                ts = None
             if ts is not None:
                 iso = _epoch_or_iso(str(ts))
                 if iso:
                     d.field_captured_ts[attr] = iso
+                    # #2096 — recorded as before; the display alone leaves out
+                    # a stamp borrowed from a neighbouring list entry.
+                    if attr in _DISPLAY_OWN_STAMP_TARGETS:
+                        if chosen in (field_ts_inherited or ()):
+                            d.field_captured_inherited[attr] = True
+                        else:
+                            d.field_captured_inherited.pop(attr, None)
         for cand in [c for c in (chosen, *names) if c]:
             vals = (contested or {}).get(cand)
             if vals and len(vals) > 1:
