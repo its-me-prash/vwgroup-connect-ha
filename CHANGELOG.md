@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **Volkswagen companion phone (ADB): the "Reduced AC charging current" switch on the vehicle Settings screen is now read (#2198).** The companion read that screen for the charge limit and *Automatically release AC connector*, but skipped the switch above them. In the app the switch is on when the car's AC charge current is set to reduced and off when it is set to maximum, so it now fills the existing "Max AC charge current" diagnostic sensor with REDUCED or MAXIMUM, the values the EU Data Act portal sends for the same setting. Read only: nothing on the screen is tapped. The switch of the same name per charging location was already read and is unchanged. The meaning of the switch was taken from the We Connect 4.10.1 app; covered by `tests/test_2198_companion_reduced_ac.py` on a real capture of the Settings screen (app 4.3.2), with the switch flipped in the test for the "on" case; not tried on a phone. Thanks to @SaschaWeicht for the report.
+
 ### Geändert / Changed
 
 - **Škoda: API-key requests report MyŠkoda 8.19.0, and the background probe for the charging history the app dropped is removed (#2186).** Google Play has shipped MyŠkoda 8.19.0 (versionCode 261106003) since 19 November 2026. Creating, listing and deleting an official Škoda API key now identifies as 8.19.0 instead of 8.18.0; the app still sends the same header set, only the version values change. 8.19.0 no longer has `GET api/v1/charging/{vin}/history` or its export: the route and its three response types are gone from the app, which reads charging sessions from the CARIAD charging-statistics service, as the integration already does. The hourly background probe for that address is removed. The integration's own fallback read of the same address is unchanged, because whether the server still answers it has not been measured. Checked against the app downloaded from Google Play (signing certificate unchanged); covered by `tests/test_skoda_official_failover.py` and `tests/test_v252_v3_probes.py`; not tried with a Škoda account.

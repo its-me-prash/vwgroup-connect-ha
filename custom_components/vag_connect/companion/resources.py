@@ -82,8 +82,13 @@ _CLIMA_KEYS = (
 )
 # Switches on vehicle Settings, read into the field the VW cloud parser fills
 # for the same setting (vw_eu: autoUnlockPlugWhenCharged).
+# #2198 — "Reduced AC charging current": the app turns this switch on for
+# ``maxChargeCurrentAC == "reduced"`` and off for ``"maximum"``
+# (ChargingSettingsMapper, We Connect 4.10.1), and the EU Data Act portal fills
+# the same field with REDUCED / MAXIMUM, so both channels show the same values.
 SETTINGS_SWITCHES = {
     "vehiclesettingsscreen_automaticplugunlock": ("auto_unlock_when_charged", True, False),
+    "vehiclesettingsscreen_reducedchargingspeed": ("max_charge_current_ac", "REDUCED", "MAXIMUM"),
 }
 # Vehicle Health Report subheads, each followed by its value line: a distance,
 # or "<days> <word> / <distance>" for the service countdowns.
