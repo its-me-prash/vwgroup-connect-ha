@@ -43,10 +43,14 @@ from .const import (
     CONF_PASSWORD,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
+    CONF_STALE_THRESHOLD_HOURS,
     CONF_SPIN,
     CONF_SPIN_BY_VIN,
     CONF_USERNAME,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STALE_THRESHOLD_HOURS,
+    MAX_STALE_THRESHOLD_HOURS,
+    MIN_STALE_THRESHOLD_HOURS,
     DOMAIN,
     EVENT_PUSH,
     advised_scan_interval_from_budget,
@@ -6915,9 +6919,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         The same figure ``_enrich`` uses, lifted out so the verdict can be
         re-decided without re-running the enrichment.
-        """
-        from .repairs import STALE_DATA_MIN_AGE_S  # noqa: PLC0415
 
+        #2209 - the floor is the option ``stale_threshold_hours`` (default 72,
+        1 to 168); eight scan intervals still apply on top of it. The Repair
+        does not use this figure alone, see ``_enrich``.
+        """
+        raw = self.entry.options.get(CONF_STALE_THRESHOLD_HOURS)
+        if raw is None:
+            raw = self.entry.data.get(CONF_STALE_THRESHOLD_HOURS)
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raw = DEFAULT_STALE_THRESHOLD_HOURS
+        hours = min(
+            max(int(raw), MIN_STALE_THRESHOLD_HOURS), MAX_STALE_THRESHOLD_HOURS
+        )
         interval_s = max(
             int(
                 self.entry.options.get(CONF_SCAN_INTERVAL)
@@ -6926,7 +6940,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             * 60,
             _CC_MIN_INTERVAL_S,
         )
-        return max(STALE_DATA_MIN_AGE_S, 8 * interval_s)
+        return max(hours * 3600, 8 * interval_s)
 
     def _redecide_stale(self, vehicle: dict[str, Any]) -> dict[str, Any]:
         """Re-decide ``data_stale`` on a snapshot that is being republished.
@@ -8866,12 +8880,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 clear_stale_data_issue,
                 raise_issue_stale_data,
             )
-            _interval_s = max(
-                int(self.entry.options.get(CONF_SCAN_INTERVAL)
-                    or self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)) * 60,
-                _CC_MIN_INTERVAL_S,
-            )
-            _threshold_s = max(STALE_DATA_MIN_AGE_S, 8 * _interval_s)
+            # #2209 - the verdict and the portal health state follow the option;
+            # the Repair keeps its own 72 h floor, so a low option never raises
+            # it earlier, while a high option holds it back with the verdict.
+            _threshold_s = self._stale_threshold_s()
+            _repair_threshold_s = max(STALE_DATA_MIN_AGE_S, _threshold_s)
             _age = _capture_age_s(data)
             # #5 (#1431 Lagaff86) — the EU-DA portal ships a fresh data block
             # next to a frozen one, so THIS poll's raw last_seen_at can be the
@@ -8916,7 +8929,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 None if _age is None
                 else (False if _moved else _age >= _threshold_s)
             )
-            if _age is not None and _age >= _threshold_s and not _moved:
+            if _age is not None and _age >= _repair_threshold_s and not _moved:
                 # #1896 — name the car the way the device page names it, from
                 # the same helper, so the two cannot drift apart. A warning that
                 # says only "***022149" is unactionable on a two-car account:

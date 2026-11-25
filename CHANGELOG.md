@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **The age at which "Data stale" switches on is now an option (#2209).** Until now the problem sensor "Data stale" and the portal health state "Stale" switched on once the car's own capture time was 72 hours old, or eight update intervals if that is longer, with no way to shorten it for a car whose charging schedule cannot wait three days. The integration options now have "Data stale after (hours)": whole hours from 1 to 168, default 72, so nothing changes unless you set it. The eight-interval rule still applies on top of it, so a short value cannot make a slowly polled car look frozen. The repair about old data keeps its own floor of 72 hours: a lower value makes "Data stale" and the portal state react sooner but does not raise the repair earlier, while a higher value holds all three back together. The same figure now comes from one place instead of two copies. The option does not change what is read or kept, and values are still carried forward as before. Thanks to @borpin for asking for this. Covered by `tests/test_2209_stale_threshold_option.py`; not tried on a car.
+
 ## [5.6.1] - 2026-11-25 — "New addresses / Neue Adressen"
 
 ### Hinzugefügt / Added

@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Pojemność znamionowa akumulatora (kWh, do stanu zdrowia)",
           "fuel_tank_capacity": "Pojemność zbiornika (litry, dla % paliwa)",
+          "stale_threshold_hours": "Dane nieaktualne po (godzinach)",
           "enable_reverse_geocoding": "Geokodowanie odwrotne (adres parkowania)",
           "read_only_mode": "Tryb tylko do odczytu",
           "companion_wake_sleep": "Companion: wybudź ekran do odpytania, potem uśpij",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Tryb źródła oficjalnego API Škoda"
         },
         "data_description": {
+          "stale_threshold_hours": "Jak stary może być własny czas zapisu danych pojazdu, zanim włączą się \"Dane nieaktualne\" i stan portalu \"Nieaktualne\". Domyślnie 72 godziny, zakres od 1 do 168. Nigdy mniej niż 8 interwałów aktualizacji. Naprawa dotycząca nieaktualnych danych zachowuje własny dolny próg 72 godzin, więc niższa wartość nie uruchomi jej wcześniej.",
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",
           "spin": "S-PIN do blokowania drzwi.",
           "enable_reverse_geocoding": "Wysyła GPS parkowania do OpenStreetMap Nominatim, aby uzyskać ulicę/miasto. Domyślnie wyłączone (prywatność).",
