@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.6.1] - 2026-11-25 — "New addresses / Neue Adressen"
+
 ### Hinzugefügt / Added
 
 - **Volkswagen companion phone (ADB): the "Reduced AC charging current" switch on the vehicle Settings screen is now read (#2198).** The companion read that screen for the charge limit and *Automatically release AC connector*, but skipped the switch above them. In the app the switch is on when the car's AC charge current is set to reduced and off when it is set to maximum, so it now fills the existing "Max AC charge current" diagnostic sensor with REDUCED or MAXIMUM, the values the EU Data Act portal sends for the same setting. Read only: nothing on the screen is tapped. The switch of the same name per charging location was already read and is unchanged. The meaning of the switch was taken from the We Connect 4.10.1 app; covered by `tests/test_2198_companion_reduced_ac.py` on a real capture of the Settings screen (app 4.3.2), with the switch flipped in the test for the "on" case; not tried on a phone. Thanks to @SaschaWeicht for the report.
