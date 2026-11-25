@@ -762,6 +762,13 @@ def _is_selfhealing_poll_error(err: object) -> bool:
 # command that silently didn't take effect self-corrects within a few minutes.
 _OPTIMISTIC_HOLD_SECONDS = 150.0
 
+# Reverse-geocoded parking address (_compose_parking_location). Countries that
+# write the street before the house number ("Main Street 12"); #2199 added "pl".
+_ROAD_HOUSE_COUNTRIES = frozenset({"de", "at", "ch", "li", "pl"})
+# #2199 — countries whose parking locality is the town, not the suburb or
+# neighbourhood #1219 prefers, with the address as "<postcode> <town>, <street>".
+_TOWN_FIRST_COUNTRIES = frozenset({"pl"})
+
 # Minimum interval enforced by Audi/VW connector (Sekunden)
 _CC_MIN_INTERVAL_S = 180
 # #968 — after "Synchronise now", wait this long before re-reading the app: the
@@ -9107,6 +9114,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         placement is locale-specific — en/AU/UK/US write ``12 Main St``, DACH
         writes ``Hauptstraße 12`` — so house-before-road is used only outside the
         German-order countries, leaving existing DE/AT/CH users unchanged.
+
+        #2199 (@bzykcar, Poland): there Nominatim often returns a housing estate
+        or a residential area as the suburb or neighbourhood, so the suburb-first
+        rule hid the town and the address carried no town at all. For the
+        countries in ``_TOWN_FIRST_COUNTRIES`` the locality is the town (city,
+        town, village or municipality, the suburb only when none is given) and
+        the address is ``<postcode> <town>, <street> <house>``. Every other
+        country keeps the #1219 composition unchanged.
         """
         road = addr.get("road") or addr.get("pedestrian") or addr.get("path") or ""
         house = addr.get("house_number") or ""
@@ -9127,17 +9142,22 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         state = addr.get("state") or addr.get("province") or ""
         postcode = addr.get("postcode") or ""
-        locality = suburb or city
 
         country_code = str(addr.get("country_code") or "").lower()
-        road_house_order = country_code in {"de", "at", "ch", "li"}
+        town_first = country_code in _TOWN_FIRST_COUNTRIES
+        locality = (city or suburb) if town_first else (suburb or city)
+        road_house_order = country_code in _ROAD_HOUSE_COUNTRIES
         if house and road:
             street = f"{road} {house}" if road_house_order else f"{house} {road}"
         else:
             street = house or road
 
-        state_zip = " ".join(p for p in (state, postcode) if p)
-        address = ", ".join(p for p in (street, suburb, state_zip) if p)
+        if town_first:
+            town_line = " ".join(p for p in (postcode, locality) if p)
+            address = ", ".join(p for p in (town_line, street) if p)
+        else:
+            state_zip = " ".join(p for p in (state, postcode) if p)
+            address = ", ".join(p for p in (street, suburb, state_zip) if p)
         if not address:
             address = locality or (display[:60] if display else "")
 
