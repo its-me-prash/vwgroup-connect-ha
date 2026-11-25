@@ -73,7 +73,17 @@ def test_both_drivers_separate_the_two_cases():
     src = inspect.getsource(cf) + inspect.getsource(reauth)
     # one credential branch + one non-credential branch per driver
     assert src.count("except InvalidCredentialsError as err:") == 2
-    assert src.count('raise ValueError("website_login_failed") from err') == 2
+    # Per driver: the password step above, and since #2200 the e-mail code
+    # step, where a sign-in that stops short after the code is not a refused
+    # code. The loops below pin which method each one sits in.
+    assert src.count('raise ValueError("website_login_failed") from err') == 4
+    for driver in ("_wap_submit_otp", "_ovw_submit_otp"):
+        body = src[src.index(f"async def {driver}"):]
+        body = body[: body.index("\n    def ", 10)]
+        assert "except WebsiteLoginIncompleteError as err:" in body, driver
+        assert 'ValueError("website_login_failed")' in body, driver
+        # a code that really was refused keeps its own verdict
+        assert 'ValueError("invalid_otp")' in body, driver
     for driver in ("_wap_begin_login", "_ovw_begin_login"):
         body = src[src.index(f"async def {driver}"):]
         body = body[: body.index("\n    async def ", 10)]

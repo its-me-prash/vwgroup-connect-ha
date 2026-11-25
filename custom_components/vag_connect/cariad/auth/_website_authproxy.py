@@ -63,6 +63,7 @@ from ..exceptions import (
     AuthenticationError,
     CommandFailureReason,
     InvalidCredentialsError,
+    WebsiteLoginIncompleteError,
 )
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action, _TC_MARKERS
@@ -1739,7 +1740,7 @@ class WebsiteAuthProxyConnector:
         # let an unrecognised — i.e. exactly the suspicious — value through.
         landed_error_raw = parse_qs(urlparse(landed_url).query).get("error", [""])[0]
         if landed_error_raw:
-            raise AuthenticationError(
+            raise WebsiteLoginIncompleteError(
                 "Website authproxy: login ended on an error page "
                 f"(error={safe_error_token(landed_error_raw) or 'unrecognised'})"
             )
@@ -1752,7 +1753,7 @@ class WebsiteAuthProxyConnector:
                 "Website authproxy: login succeeded (read-only, beta)"
             )
         else:
-            raise AuthenticationError(
+            raise WebsiteLoginIncompleteError(
                 "Website authproxy: login did not complete "
                 f"(ended at {_safe_url(landed_url)})"
             )

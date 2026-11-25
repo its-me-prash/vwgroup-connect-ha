@@ -5962,6 +5962,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             else:
                                 old = self._without_stale_held(vin, self.vehicles.get(vin, {}))
                                 old["_poll_failed"] = True
+                                # #2209 — the portal has recorded THIS poll's
+                                # outcome; show it, not the last good poll's.
+                                self._apply_portal_diagnostics(
+                                    old, _capture_age_s(old), self._stale_threshold_s()
+                                )
                                 self._redecide_stale(old)
                                 fresh[vin] = old
                                 self.vehicle_success[vin] = False
@@ -6944,6 +6949,85 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         age = _capture_age_s(vehicle)
         vehicle["data_stale"] = None if age is None else age >= self._stale_threshold_s()
         return vehicle
+
+    def _apply_portal_diagnostics(
+        self,
+        data: dict[str, Any],
+        age_s: float | None,
+        threshold_s: float,
+    ) -> Any:
+        """Write the EU Data Act portal's feed diagnostics onto *data*.
+
+        Stage-0 — surface the portal feed's health + snapshot age as sensors, so
+        a user can tell "the portal snapshot is stale/empty" from "the
+        integration is broken". Only for a car actually read over the portal; a
+        BFF/MBB/brand-native read has no portal connector and leaves them unset
+        (the sensors stay unavailable → hidden). Returns the connector, or None.
+
+        #2209 — this used to sit inline in ``_enrich``, and ``_enrich`` only runs
+        on a poll that parsed vehicle data. A poll that brought no data
+        republishes the previous snapshot instead, so on a car whose portal list
+        held only ``_no_content_found`` placeholders "Portal feed health" kept
+        the verdict of the last good poll (usually "Live") and the no-data
+        counters stood still: the diagnostics meant to explain an empty feed
+        described the poll before it. The no-data paths call this too, after the
+        connector has recorded this poll's outcome. Not the restore from disk:
+        a fresh connector there knows nothing yet and would blank what was
+        restored.
+        """
+        client = getattr(self, "_cariad_client", None)
+        _portal = (
+            getattr(client, "_eu_portal", None)
+            or getattr(client, "_supplementary_eu_portal", None)
+        )
+        if _portal is None:
+            return None
+        _reason = getattr(_portal, "last_no_data_reason", "") or ""
+        data["portal_health"] = _portal_health(
+            data, _reason, age_s, threshold_s
+        )
+        # #1688 — this is named for the SNAPSHOT and was computed from
+        # the capture age, so a car whose stamp is frozen reported
+        # "6317 minutes since the last snapshot" while last_snapshot_at
+        # right beside it read minutes ago. That self-contradiction is
+        # what put the reporter onto the real bug. Measure the snapshot.
+        _snap_at = getattr(_portal, "last_snapshot_at", None)
+        _snap_age = _age_s(_snap_at)
+        data["minutes_since_last_snapshot"] = (
+            int(_snap_age // 60) if _snap_age is not None
+            else (int(age_s // 60) if age_s is not None else None)
+        )
+        # #465/#1273 observability — surface the portal connector's own
+        # timestamps/counters so a user can see WHEN the data request was
+        # created, WHEN a real snapshot last arrived, and WHEN / HOW OFTEN
+        # the portal returned nothing. Set only in portal mode; None stays
+        # None (the TIMESTAMP sensors then read unavailable).
+        data["data_request_created_at"] = getattr(
+            _portal, "data_request_started_at", None
+        )
+        data["last_snapshot_at"] = getattr(_portal, "last_snapshot_at", None)
+        # #465 — when the PORTAL created the file we last read; unlike
+        # last_snapshot_at (our poll) it only moves on a new delivery.
+        data["last_dataset_created_at"] = getattr(
+            _portal, "last_dataset_created_at", None
+        )
+        data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
+        data["no_data_count"] = getattr(_portal, "no_data_count", None)
+        # #465 (BooM80) — field-delivery honesty. VW can ship a field's
+        # name + capture time but no value (BooM80: 10 names, 3 valued);
+        # surface how many of the delivered names actually carried a value
+        # so a thin feed reads as "VW sent nothing", not "we dropped it".
+        data["fields_with_values"] = getattr(
+            _portal, "last_valued_count", None
+        )
+        data["fields_delivered_without_values"] = getattr(
+            _portal, "last_valueless_count", None
+        )
+        _valueless = getattr(_portal, "last_valueless_fields", None)
+        data["valueless_field_names"] = (
+            list(_valueless) if _valueless else None
+        )
+        return _portal
 
     def _active_vins(self, vins: list[str]) -> list[str]:
         """Drop VINs whose HA device *the user* disabled, so a deactivated
@@ -8840,60 +8924,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 clear_stale_data_issue(self.hass, self.entry.entry_id, _vin_sd)
 
             # Stage-0 — surface the EU-DA portal feed's health + snapshot age as
-            # sensors, so a user can tell "the portal snapshot is stale/empty"
-            # from "the integration is broken". Only for a car actually read over
-            # the portal; a BFF/MBB/brand-native read has no portal connector and
-            # leaves both unset (the sensors stay unavailable → hidden).
-            _portal = (
-                getattr(self._cariad_client, "_eu_portal", None)
-                or getattr(self._cariad_client, "_supplementary_eu_portal", None)
-            )
-            if _portal is not None:
-                _reason = getattr(_portal, "last_no_data_reason", "") or ""
-                data["portal_health"] = _portal_health(
-                    data, _reason, _age, _threshold_s
-                )
-                # #1688 — this is named for the SNAPSHOT and was computed from
-                # the capture age, so a car whose stamp is frozen reported
-                # "6317 minutes since the last snapshot" while last_snapshot_at
-                # right beside it read minutes ago. That self-contradiction is
-                # what put the reporter onto the real bug. Measure the snapshot.
-                _snap_at = getattr(_portal, "last_snapshot_at", None)
-                _snap_age = _age_s(_snap_at)
-                data["minutes_since_last_snapshot"] = (
-                    int(_snap_age // 60) if _snap_age is not None
-                    else (int(_age // 60) if _age is not None else None)
-                )
-                # #465/#1273 observability — surface the portal connector's own
-                # timestamps/counters so a user can see WHEN the data request was
-                # created, WHEN a real snapshot last arrived, and WHEN / HOW OFTEN
-                # the portal returned nothing. Set only in portal mode; None stays
-                # None (the TIMESTAMP sensors then read unavailable).
-                data["data_request_created_at"] = getattr(
-                    _portal, "data_request_started_at", None
-                )
-                data["last_snapshot_at"] = getattr(_portal, "last_snapshot_at", None)
-                # #465 — when the PORTAL created the file we last read; unlike
-                # last_snapshot_at (our poll) it only moves on a new delivery.
-                data["last_dataset_created_at"] = getattr(
-                    _portal, "last_dataset_created_at", None
-                )
-                data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
-                data["no_data_count"] = getattr(_portal, "no_data_count", None)
-                # #465 (BooM80) — field-delivery honesty. VW can ship a field's
-                # name + capture time but no value (BooM80: 10 names, 3 valued);
-                # surface how many of the delivered names actually carried a value
-                # so a thin feed reads as "VW sent nothing", not "we dropped it".
-                data["fields_with_values"] = getattr(
-                    _portal, "last_valued_count", None
-                )
-                data["fields_delivered_without_values"] = getattr(
-                    _portal, "last_valueless_count", None
-                )
-                _valueless = getattr(_portal, "last_valueless_fields", None)
-                data["valueless_field_names"] = (
-                    list(_valueless) if _valueless else None
-                )
+            # sensors (see _apply_portal_diagnostics). #2209 — the same helper
+            # runs on a poll that brought no data, which republishes the previous
+            # snapshot without coming through here.
+            if self._apply_portal_diagnostics(data, _age, _threshold_s) is not None:
                 # Stage-1 — the one-time historical export lifecycle state, set
                 # only while an export is actually in flight (or just finished) so
                 # the sensor stays hidden for the majority who never use it.
@@ -9253,6 +9287,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         )
                         if revived is None:
                             self._drop_stale_held_in_place(vin)
+                            # #2209 — as in the poll loop: the portal's outcome
+                            # of this refresh, not the last good poll's.
+                            _kept = self.vehicles.get(vin)
+                            if isinstance(_kept, dict):
+                                self._apply_portal_diagnostics(
+                                    _kept, _capture_age_s(_kept),
+                                    self._stale_threshold_s(),
+                                )
                             continue
                         # revive already ran the supplementary merge over the
                         # empty primary → use it directly (mirror the poll
