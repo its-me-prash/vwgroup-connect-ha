@@ -72,12 +72,16 @@ def test_stored_zero_with_poll_without_headline_is_corrected() -> None:
     assert out["range_km"] == 760
 
 
-def test_missing_headline_is_carried_not_derived() -> None:
+def test_missing_headline_takes_this_polls_range_instead_of_carrying() -> None:
+    """Until 25 November this pinned the carried 700. On 5.6.1 that is what kept
+    a Tayron at a stale 760 km next to the app's 720 km, so a carried headline on
+    a car without battery evidence now follows the range this poll delivered
+    (tests/test_2072_carried_headline_fuel_range.py has the cases)."""
     previous = {"vin": VIN, "range_km": 700, "fuel_level": 80,
                 "combustion_range_km": 760}
     out = _poll(previous, ("eu_data_act", _eu(fuel_level=80,
                                               combustion_range_km=760)))
-    assert out["range_km"] == 700
+    assert out["range_km"] == 760
 
 
 def test_nothing_stored_and_no_headline_stays_missing() -> None:
