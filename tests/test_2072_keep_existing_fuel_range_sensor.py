@@ -28,7 +28,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.vag_connect.const import DOMAIN, vehicle_unique_id
+from custom_components.vag_connect.const import (
+    CONF_STRATEGY,
+    DOMAIN,
+    STRATEGY_COMPANION_ADB,
+    vehicle_unique_id,
+)
 
 VIN = "VINX"
 ENTRY_ID = "entry-2072"
@@ -59,6 +64,7 @@ class _Registry:
 
 def _built_keys(
     vehicle: dict, monkeypatch: pytest.MonkeyPatch, registry: Any,
+    entry_data: dict[str, Any] | None = None,
 ) -> set[str]:
     from homeassistant.helpers import entity_registry as er
 
@@ -75,7 +81,7 @@ def _built_keys(
     coord.command_capability_supported = MagicMock(return_value=True)
     entry = MagicMock()
     entry.entry_id = ENTRY_ID
-    entry.data = {"brand": "volkswagen"}
+    entry.data = entry_data if entry_data is not None else {"brand": "volkswagen"}
     entry.options = {}
     entry.runtime_data = coord
     added: list = []
@@ -122,6 +128,37 @@ def test_total_range_rule_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     reg = _Registry({("sensor", uid): ("sensor.tayron_total_range", ENTRY_ID)})
     keys = _built_keys(_COMBUSTION, monkeypatch, reg)
     assert "total_range_km" not in keys
+
+
+_COMPANION_DATA = {"brand": "volkswagen", CONF_STRATEGY: STRATEGY_COMPANION_ADB}
+
+
+def test_companion_entry_looks_up_its_own_unique_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uid = vehicle_unique_id(VIN, "combustion_range_km", companion=True)
+    reg = _Registry({("sensor", uid): ("sensor.tayron_fuel_range_2", ENTRY_ID)})
+    keys = _built_keys(_COMBUSTION, monkeypatch, reg, _COMPANION_DATA)
+    assert "combustion_range_km" in keys
+
+
+def test_companion_entry_ignores_the_cloud_unique_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = _built_keys(_COMBUSTION, monkeypatch, _registered(), _COMPANION_DATA)
+    assert "combustion_range_km" not in keys
+
+
+def test_an_entity_id_that_is_not_a_string_does_not_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The entity-id guard on its own: a non-string id with an owner that
+    matches this entry must still not read as 'already there'."""
+    reg = MagicMock()
+    reg.async_get_entity_id = MagicMock(return_value=MagicMock())
+    reg.async_get = MagicMock(return_value=SimpleNamespace(config_entry_id=ENTRY_ID))
+    keys = _built_keys(_COMBUSTION, monkeypatch, reg)
+    assert "combustion_range_km" not in keys
 
 
 def test_a_mocked_registry_does_not_switch_the_rule_off(
