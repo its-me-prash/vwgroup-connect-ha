@@ -1670,6 +1670,9 @@
       "last_dataset_created_at": {
         "name": "Portalfil skapad"
       },
+      "newer_empty_portal_files": {
+        "name": "Nyare tomma portalfiler"
+      },
       "last_no_data_at": {
         "name": "Senaste förfrågan utan data"
       },

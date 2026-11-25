@@ -1670,6 +1670,9 @@
       "last_dataset_created_at": {
         "name": "Portaalin tiedosto luotu"
       },
+      "newer_empty_portal_files": {
+        "name": "Uudemmat tyhjät portaalitiedostot"
+      },
       "last_no_data_at": {
         "name": "Viimeisin kysely ilman dataa"
       },

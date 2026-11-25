@@ -1670,6 +1670,9 @@
       "last_dataset_created_at": {
         "name": "Fichier du portail créé"
       },
+      "newer_empty_portal_files": {
+        "name": "Fichiers vides du portail plus récents"
+      },
       "last_no_data_at": {
         "name": "Dernière interrogation sans données"
       },

@@ -1670,6 +1670,9 @@
       "last_dataset_created_at": {
         "name": "Portaalbestand aangemaakt"
       },
+      "newer_empty_portal_files": {
+        "name": "Nieuwere lege portaalbestanden"
+      },
       "last_no_data_at": {
         "name": "Laatste polling zonder gegevens"
       },

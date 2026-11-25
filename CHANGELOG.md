@@ -46,6 +46,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **EU Data Act portal: a new diagnostic sensor "Newer empty portal files" counts the empty files the portal listed after the file that was read (#2209).** The integration drops the `_no_content_found` placeholder files from the file list before it picks the newest one, so a real file is read even when the portal has listed newer, empty ones, and nothing showed that this had happened. The sensor compares each placeholder's creation time with the creation time of the file that was read and shows how many are newer; it shows 0 when none are, and it stays unknown when the read file has no creation time. It is a diagnostic sensor, it appears only on cars read over the portal once a value exists, and it stays available while polls fail, like the other portal feed diagnostics. Portal feed health, the values and which file is read are unchanged. Covered by `tests/test_2209_newer_empty_portal_files.py`; not tried on a car. Thanks to @borpin for the report.
+
+### Geändert / Changed
+
+- **Volkswagen companion phone (ADB): reads that find nothing now say so in the DEBUG log (#2197, #968).** When the parking-position read finds no Google Maps link with coordinates in the text the Share button shows, it now logs that fact, the number of screen elements and the length of the longest text, and nothing else: neither the text nor a coordinate is written to the log. The climate sheet, the departure timers and the charge-limit slider each log one short line about what they found on screen (found or not found, and a count), where they logged nothing before. Nothing is read or tapped differently. Covered by `tests/test_2197_companion_debug_lines.py`; not tried on a phone. Thanks to @K3str3l and @Odatas for the reports.
+- **EU Data Act portal: the climate state and the climate reason now record their own capture time (#1881).** Both were read without keeping the time the dataset gave for them, so "field captured" in the diagnostics never held an entry for the climate state, even when the dataset leaf carried its own timestamp. The time is now recorded together with the name of the leaf it came from, and only for a value that is actually used (a state of INVALID records nothing). A leaf that has no time of its own still gives no entry. What the climate sensors show, and when, is unchanged; this is data for the diagnostics only. Covered by `tests/test_1881_climate_capture_time.py`; not tried on a car. Thanks to @rcpreisinger for the report.
+
 ## [5.6.1] - 2026-11-25 — "New addresses / Neue Adressen"
 
 ### Hinzugefügt / Added

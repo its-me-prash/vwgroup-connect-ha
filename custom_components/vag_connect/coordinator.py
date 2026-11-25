@@ -7018,6 +7018,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         data["last_dataset_created_at"] = getattr(
             _portal, "last_dataset_created_at", None
         )
+        data["newer_empty_portal_files"] = getattr(
+            _portal, "last_newer_empty_files", None
+        )
         data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
         data["no_data_count"] = getattr(_portal, "no_data_count", None)
         # #465 (BooM80) — field-delivery honesty. VW can ship a field's
