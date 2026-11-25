@@ -72,26 +72,29 @@ class VagClimate(VagConnectEntity, ClimateEntity):
     # ``native_current_temperature`` and ``native_target_temperature``, with
     # removal announced for **2027.11**.
     #
-    # We keep the old names on purpose, and the three ``type: ignore[misc]``
-    # below are the whole cost of that decision:
+    # #2084 — so the class provides BOTH name sets, and the old names return
+    # what the native ones return:
     #
     # * the native names **do not exist** before 2026.11 (measured: they are
     #   absent from ``ClimateEntity`` on 2026.10.1), and ``hacs.json`` declares
-    #   a floor of 2026.6.0 — switching now would break the climate entity on
-    #   every installation that has not taken the 2026.11 update yet;
-    # * for a CUSTOM integration the deprecation only logs a warning. The
-    #   ``RuntimeError`` path in ``migrate_deprecated_entity_members`` is
-    #   reachable only for modules under ``homeassistant.components.``, so this
-    #   keeps working on 2026.11 rather than failing;
-    # * defining both names is not a middle road: our own override would still
-    #   shadow the base descriptor, so the native member would never be read.
-    #   Dead code that looks like a migration is worse than an honest bridge.
+    #   a floor of 2026.6.0, so the old names must stay for those versions;
+    # * from 2026.11 on, ``migrate_deprecated_entity_members`` (called from
+    #   ``ClimateEntity.__init_subclass__``) lets "the native one when a class
+    #   provides both" win: nothing is migrated and nothing is logged, and Home
+    #   Assistant reads the native members for state and attributes. Checked in
+    #   the 2026.11.0, 2026.11.3 and 2026.12.0b0 sources. Until #2084 this note
+    #   said defining both was no middle road; that does not hold for 2026.11+.
+    # * the old-name overrides shadow the base ``DeprecatedEntityProperty``,
+    #   which only forwards to the replacement, so a reader of the old name
+    #   gets the same value either way.
     #
-    # The migration is a two-line change per member — see
-    # ``tests/test_1965_climate_native_temperature_bridge.py``, which fails the
-    # moment the floor in ``hacs.json`` reaches 2026.11 and these are still
-    # here. CI does not pass ``--warn-unused-ignores``, so the ignores cost
-    # nothing on the versions that do not need them.
+    # The three ``type: ignore[misc]`` remain because the old names are
+    # ``Final`` from 2026.11 on. When the floor in ``hacs.json`` reaches
+    # 2026.11, the old names go — see
+    # ``tests/test_1965_climate_native_temperature_bridge.py``, which fails at
+    # that moment while they are still here, and
+    # ``tests/test_2084_climate_native_names.py``.
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_temperature_unit = UnitOfTemperature.CELSIUS  # type: ignore[misc]
     _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT_COOL]
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
@@ -137,6 +140,11 @@ class VagClimate(VagConnectEntity, ClimateEntity):
 
     @property  # type: ignore[misc]  # #1965 — see the note on the class body
     def current_temperature(self) -> float | None:
+        # #2084 — the old name for Home Assistant before 2026.11.
+        return self.native_current_temperature
+
+    @property
+    def native_current_temperature(self) -> float | None:
         # #2068 — the CABIN temperature, never the outside one. When the feed
         # carries no interior temperature this stays None and HA omits the
         # attribute, instead of implying the cabin is as cold as the street.
@@ -150,6 +158,11 @@ class VagClimate(VagConnectEntity, ClimateEntity):
 
     @property  # type: ignore[misc]  # #1965 — see the note on the class body
     def target_temperature(self) -> float | None:
+        # #2084 — the old name for Home Assistant before 2026.11.
+        return self.native_target_temperature
+
+    @property
+    def native_target_temperature(self) -> float | None:
         # Companion: the temperature held in HA for the next Start (the poll
         # reads what the app's dial shows, which Start overwrites).
         if self.coordinator.is_companion():
