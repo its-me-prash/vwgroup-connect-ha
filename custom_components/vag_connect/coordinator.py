@@ -601,6 +601,23 @@ _DROP_RETRY_MAX_STREAK = 3
 _DROP_ANCHOR_ADVANCE_S = 1.0
 
 
+def _retry_5xx_snapshot(client: Any) -> dict[str, Any]:
+    """#1973 — the client's 5xx retry memory for the vehicle cache, or ``{}``.
+
+    A brand client without the memory (Porsche, VW NA, companion), a double, or
+    a failing export all give ``{}``: this runs inside the debounced save and
+    must never stop the vehicle snapshot from being written.
+    """
+    export = getattr(client, "export_5xx_memory", None)
+    if not callable(export):
+        return {}
+    try:
+        out = export()
+    except Exception:  # noqa: BLE001
+        return {}
+    return out if isinstance(out, dict) else {}
+
+
 def _drop_anchor_advanced(
     previous: datetime | None, current: datetime | None,
 ) -> bool:
@@ -2311,6 +2328,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._drop_anchor_high_water.isoformat(),
                     self._drop_overdue_streak, _DROP_RETRY_MAX_STREAK,
                 )
+            # #1973 — restore the 5xx retry memory the same defensive way.
+            _restore_5xx = getattr(self._cariad_client, "restore_5xx_memory", None)
+            if callable(_restore_5xx):
+                try:
+                    _n_5xx = _restore_5xx(
+                        cached.get("retry_5xx"),  # 5xx-restore
+                    )
+                except Exception:  # noqa: BLE001
+                    _n_5xx = 0
+                if isinstance(_n_5xx, int) and _n_5xx > 0:
+                    _LOGGER.debug(
+                        "Restored the 5xx retry memory for %d endpoint(s) — "
+                        "a restart no longer refills it (#1973)", _n_5xx,
+                    )
             # #1878 — only resurrect the VEHICLE snapshot (SoC / position / …)
             # when it belongs to THIS entry's current account. A reauth onto a
             # different account keeps the same entry id, so the stored snapshot
@@ -9213,6 +9244,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "drop_state": drop_state_to_cache(
                     getattr(self, "_drop_anchor_high_water", None),
                     getattr(self, "_drop_overdue_streak", 0),
+                ),
+                # #1973 — the 5xx retry memory (method + path per entry).
+                "retry_5xx": _retry_5xx_snapshot(
+                    getattr(self, "_cariad_client", None)
                 ),
                 # #1878 — fingerprint of the account this snapshot belongs to, so
                 # a reauth onto a DIFFERENT account (same entry id) discards it
