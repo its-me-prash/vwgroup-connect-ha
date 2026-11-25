@@ -7763,6 +7763,7 @@ class EUDataActConnector:
         # #2209 - creation times of the listed placeholders, kept only to count
         # how many are newer than the file that ends up being read.
         placeholder_ts: list[float] = []
+        placeholder_total = 0
         for idx, f in enumerate(files):
             if not isinstance(f, dict):
                 continue
@@ -7780,8 +7781,17 @@ class EUDataActConnector:
                             break
                 if not name.endswith(_NO_CONTENT_SUFFIX):
                     cands.append((name, dts, idx))
-                elif dts is not None:
-                    placeholder_ts.append(dts)
+                else:
+                    placeholder_total += 1
+                    if dts is not None:
+                        placeholder_ts.append(dts)
+        # #2209 - the count for THIS poll, set before any early return so no
+        # path keeps the value of an earlier poll. No file read yet: every
+        # listed placeholder is newer than nothing; None for an empty listing.
+        # It is replaced below once a file has been chosen.
+        self.last_newer_empty_files = (
+            placeholder_total if (files if isinstance(files, list) else []) else None
+        )
         if not cands:
             # #709 — distinguish the three "no usable file" cases so a stuck feed
             # is diagnosable: (a) the listing was empty, (b) the portal IS
@@ -7802,10 +7812,6 @@ class EUDataActConnector:
                 and isinstance(f.get("name"), str)
                 and f["name"].endswith(_NO_CONTENT_SUFFIX)
             )
-            # #2209 - no file was read, so every listed placeholder is newer
-            # than nothing; None when the listing held none. Set here so a
-            # later poll does not keep the count of an earlier file poll.
-            self.last_newer_empty_files = _nc or None
             if _raw_n and _named == _raw_n and _nc == _raw_n:
                 self._note_no_data("no_content")
                 _LOGGER.info(
@@ -7872,6 +7878,15 @@ class EUDataActConnector:
                 break
             if st is not None and st in _PORTAL_OUTAGE_STATUSES:
                 saw_outage = True
+        # #2209 - a file was chosen: count the placeholders listed after it;
+        # unknown when it has no creation time to compare against. With no
+        # file chosen the count set above (all listed placeholders) stands.
+        if chosen is not None:
+            _read_ts = next((c[1] for c in cands if c[0] == chosen), None)
+            self.last_newer_empty_files = (
+                sum(1 for t in placeholder_ts if t > _read_ts)
+                if _read_ts is not None else None
+            )
         if raw is None or chosen is None:
             # Every attempted dataset returned a transient outage / timeout — same
             # "don't burn the session, no data this poll" outcome as before.
@@ -7910,14 +7925,6 @@ class EUDataActConnector:
         # listing's createdOn was only a sort key until now.
         self.last_dataset_created_at = _epoch_or_iso(
             next((str(c[1]) for c in cands if c[0] == chosen and c[1] is not None), None)
-        )
-        # #2209 - placeholders listed AFTER the file we read. Diagnostic only:
-        # health and values stay as they were. Unknown when the read file has
-        # no creation time to compare against.
-        _read_ts = next((c[1] for c in cands if c[0] == chosen), None)
-        self.last_newer_empty_files = (
-            sum(1 for t in placeholder_ts if t > _read_ts)
-            if _read_ts is not None else None
         )
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"

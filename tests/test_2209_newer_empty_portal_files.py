@@ -164,3 +164,85 @@ def test_an_empty_listing_after_a_file_poll_reads_unknown() -> None:
     assert conn.last_newer_empty_files == 1
     _poll(conn, [], "2026-11-19T10:35:00+00:00")
     assert conn.last_newer_empty_files is None
+
+
+# ── every path of the CURRENT poll sets the count ────────────────────────────
+
+_FILE = {"name": "a.zip", "createdOn": "2026-11-19T10:00:00Z"}
+_NEWER = {"name": "b_no_content_found.zip", "createdOn": "2026-11-19T10:15:00Z"}
+
+
+def _poll_with(conn: Any, listing: list[dict[str, Any]], download: tuple[Any, ...]) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from custom_components.vag_connect.cariad.auth._eu_data_act import EUDataActConnector
+    from tests.test_465_dataset_created_at import _SLEEP, _VIN, _LIVE_META, _Portal
+
+    conn._session = _Portal(meta=_LIVE_META, listing=listing)
+    with (
+        patch(_SLEEP, new=AsyncMock()),
+        patch.object(
+            EUDataActConnector, "_download_dataset_raw", new=AsyncMock(return_value=download)
+        ),
+        patch.object(EUDataActConnector, "_now_iso", staticmethod(lambda: "2026-11-19T10:40:00+00:00")),
+    ):
+        asyncio.run(conn.get_vehicle_data(_VIN))
+
+
+def _empty_zip() -> bytes:
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("data.json", json.dumps({"data": []}))
+    return buf.getvalue()
+
+
+def test_a_poll_whose_file_parses_to_no_fields_follows_its_own_listing() -> None:
+    conn = _conn()
+    _poll(conn, [_FILE, _NEWER], "2026-11-19T10:20:00+00:00")
+    assert conn.last_newer_empty_files == 1
+    second = [
+        {"name": "e.zip", "createdOn": "2026-11-19T10:30:00Z"},
+        {"name": "f_no_content_found.zip", "createdOn": "2026-11-19T10:35:00Z"},
+        {"name": "g_no_content_found.zip", "createdOn": "2026-11-19T10:36:00Z"},
+        {"name": "h_no_content_found.zip", "createdOn": "2026-11-19T10:10:00Z"},
+    ]
+    _poll_with(conn, second, (_empty_zip(), False, 200))
+    assert conn.last_no_data_reason == "empty"
+    assert conn.last_newer_empty_files == 2
+
+
+def test_a_poll_where_every_download_fails_counts_all_listed_placeholders() -> None:
+    conn = _conn()
+    _poll(conn, [_FILE, _NEWER], "2026-11-19T10:20:00+00:00")
+    assert conn.last_newer_empty_files == 1
+    _poll_with(
+        conn,
+        [_FILE, _NEWER, {"name": "c_no_content_found.zip"}, {"name": "x_no_content_found.zip"}],
+        (None, True, 503),
+    )
+    assert conn.last_newer_empty_files == 3
+
+
+def test_a_failed_download_with_no_placeholders_reads_zero() -> None:
+    conn = _conn()
+    _poll(conn, [_FILE, _NEWER], "2026-11-19T10:20:00+00:00")
+    _poll_with(conn, [_FILE], (None, True, 503))
+    assert conn.last_newer_empty_files == 0
+
+
+def test_a_placeholders_only_poll_counts_the_listed_placeholders() -> None:
+    conn = _conn()
+    _poll(conn, [{"name": "p_no_content_found.zip"}, _NEWER], "2026-11-19T10:20:00+00:00")
+    assert conn.last_newer_empty_files == 2
+
+
+def test_an_empty_listing_reads_unknown_after_a_failed_download_poll() -> None:
+    conn = _conn()
+    _poll_with(conn, [_FILE, _NEWER], (None, True, 503))
+    assert conn.last_newer_empty_files == 1
+    _poll(conn, [], "2026-11-19T10:50:00+00:00")
+    assert conn.last_newer_empty_files is None
