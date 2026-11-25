@@ -28,7 +28,7 @@ from custom_components.vag_connect.cariad.exceptions import (
 
 import pytest
 
-_CB = "my-porsche-app://auth0/callback"
+_CB = "https://security.porsche.com/auth/en-GB/app/callback"
 _PW_URL = "https://identity.porsche.com/u/login/password?state=xyz"
 _ENROLL_URL = "https://identity.porsche.com/u/passkey-enrollment?state=xyz"
 

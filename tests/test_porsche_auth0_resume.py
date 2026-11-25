@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from custom_components.vag_connect.cariad.auth.porsche import PorscheAuth
 
-_CB = "my-porsche-app://auth0/callback"
+_CB = "https://security.porsche.com/auth/en-GB/app/callback"
 _PW_URL = "https://identity.porsche.com/u/login/password?state=xyz"
 
 

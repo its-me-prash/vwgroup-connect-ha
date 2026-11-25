@@ -262,7 +262,9 @@ BRAND_VW_NA_MODEL = BrandConfig(
 BRAND_PORSCHE = BrandConfig(
     name="porsche",
     client_id="XhygisuebbrqQ80byOuU5VncxLIm8E6H",
-    redirect_uri="my-porsche-app://auth0/callback",
+    # #1337 (Nov 2026) — kept equal to auth/porsche.py's _REDIRECT_URI, which
+    # the login actually sends; the custom-scheme callback was removed.
+    redirect_uri="https://security.porsche.com/auth/en-GB/app/callback",
     user_agent="My Porsche/2.1.0 (iPhone; iOS 17.0; Scale/3.00)",
     api_base="https://api.ppa.porsche.com",
     scope="openid profile email offline_access mbb vin cars charging",
