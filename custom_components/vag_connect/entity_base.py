@@ -414,6 +414,24 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
             attrs["ambiguous_reading"] = True
         return attrs
 
+    def _carried_attributes(self) -> dict[str, Any]:
+        """#1917 — mark a value the last poll did not deliver but we still show.
+
+        ``carried_since`` is the time of the poll in which the value started
+        being carried (``field_carried_since``, set by ``reconcile``); it stays
+        the same until a fresh value arrives, so it does not bloat the recorder.
+        ``freshness_source`` reads "carried" then. The value itself is untouched.
+        """
+        desc = getattr(self, "entity_description", None)
+        data_key = (getattr(desc, "data_key", "") if desc is not None else "") or ""
+        carried = self._vehicle.get("field_carried_since")
+        if not data_key or not isinstance(carried, dict):
+            return {}
+        since = carried.get(data_key)
+        if not isinstance(since, str) or not since:
+            return {}
+        return {"freshness_source": "carried", "carried_since": since}
+
     def _platform_attributes(self) -> dict[str, Any] | None:
         """Per-platform attributes, merged into ``extra_state_attributes``.
 
@@ -473,6 +491,10 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         fresh = self._eu_da_freshness_attributes()
         if fresh:
             attrs.update(fresh)
+
+        carried = self._carried_attributes()
+        if carried:
+            attrs.update(carried)
 
         own = self._platform_attributes()
         if own:

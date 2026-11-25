@@ -673,6 +673,7 @@ def _carry_electric_range_leaf(
 # reader would date or attribute a field that no longer has a value.
 _PROVENANCE_MAPS: tuple[str, ...] = (
     "field_sources", "field_captured_ts", "field_source_leaf", "ambiguous_fields",
+    "field_carried_since",
 )
 
 
@@ -1371,7 +1372,46 @@ def reconcile(
                 f"{_flag} was reported False while the carried-forward "
                 "evidence still supports it; re-derived as True (#1403)"
             )
+    # #2072 first: a headline derived here is a new value, so the #1917
+    # marker below, which compares with the stored value, does not call it
+    # carried.
     _derive_combustion_headline(merged, previous, fresh, notes)
+    # #1917 — a carried value says so. Built from the FINAL result, because
+    # later rules above can replace a carried value (the energy-derived
+    # battery_soc) or take it out: a field counts as carried only if this poll
+    # did not deliver it and the value it ends with is the recorded one.
+    # ``field_carried_since`` maps it to the time of the poll in which it
+    # started being carried; that time stays put while the value stays carried
+    # and the field is gone as soon as a fresh value arrives. Marker only: no
+    # value changes, nothing is dropped, no age limit.
+    prev_carried = previous.get("field_carried_since")
+    if not isinstance(prev_carried, dict):
+        prev_carried = {}
+    # A value from the portal export (#1780) is kept by the import branch above
+    # and keeps its own provenance ("point"); it is not "carried" in this sense.
+    imported_keys = merged.get("field_imported_from_export")
+    if not isinstance(imported_keys, list):
+        imported_keys = []
+    carried_since: dict[str, str] = {}
+    carried_now: str | None = None
+    for field in CARRY_FORWARD_FIELDS:
+        if (
+            field not in imported_keys
+            and fresh.get(field) is None
+            and previous.get(field) is not None
+            and merged.get(field) is not None
+            and merged[field] == previous[field]
+        ):
+            since = prev_carried.get(field)
+            if not (isinstance(since, str) and since):
+                if carried_now is None:
+                    carried_now = datetime.now(tz=timezone.utc).isoformat()
+                since = carried_now
+            carried_since[field] = since
+    if carried_since:
+        merged["field_carried_since"] = carried_since
+    else:
+        merged.pop("field_carried_since", None)
     return merged, notes
 
 

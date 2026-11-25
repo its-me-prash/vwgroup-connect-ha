@@ -167,7 +167,9 @@ def _values_moved(
 #: Side maps that describe WHERE a snapshot value came from and WHEN the car
 #: captured it. They are ordinary keys in the snapshot dict, which is why the
 #: gap-fill below has to treat them specially.
-_PROVENANCE_MAPS = ("field_sources", "field_captured_ts", "field_source_leaf")
+_PROVENANCE_MAPS = (
+    "field_sources", "field_captured_ts", "field_source_leaf", "field_carried_since",
+)
 
 
 def _release_held(data: dict[str, Any], keys: list[str]) -> None:
@@ -248,6 +250,8 @@ def _gap_fill_from_export(
     if released:
         _release_held(current, released)
     for name in _PROVENANCE_MAPS:
+        if name == "field_carried_since":
+            continue  # #1917 — a carried mark is rebuilt per poll, never imported
         source = hist.get(name)
         if not isinstance(source, dict):
             continue
@@ -1800,6 +1804,20 @@ def _self_update_entry(
     if options is not None:
         kwargs["options"] = options
     coordinator.hass.config_entries.async_update_entry(entry, **kwargs)
+
+
+def _clear_carried_marker(vehicle: dict[str, Any], key: str) -> None:
+    """#1917 — the official overlay runs after ``reconcile()`` and sets a value
+    of its own; it takes the "carried" mark off that field, because
+    ``reconcile()`` built the map before that value existed."""
+    marks = vehicle.get("field_carried_since")
+    if not isinstance(marks, dict) or key not in marks:
+        return
+    rest = {k: v for k, v in marks.items() if k != key}
+    if rest:
+        vehicle["field_carried_since"] = rest
+    else:
+        vehicle.pop("field_carried_since", None)
 
 
 class VagConnectCoordinator(DataUpdateCoordinator):
@@ -5577,6 +5595,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _release_held(enriched, [key])
             enriched[key] = val
             field_sources[key] = "skoda_official"
+            _clear_carried_marker(enriched, key)
             merged += 1
         if merged:
             _LOGGER.debug(
@@ -10989,6 +11008,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             elif key in fresh and fresh[key] == value:
                 del holds[key]                     # backend caught up → confirmed
             else:
+                # No optimistic key is in CARRY_FORWARD_FIELDS, so none carries a marker.
                 fresh[key] = value                 # still pending → hold optimistic
         if not holds:
             hold_root.pop(vin, None)
