@@ -1,13 +1,19 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """#2072 — a car without a high-voltage battery gets its headline range from
-the total or combustion range when the merged headline is missing, or is 0
-while the tank is not empty (no false low-fuel alarm). PHEVs, EVs and a real
-0 with an empty or unknown tank are left alone."""
+the total or combustion range when the final headline is 0 while the tank is
+not empty (no false low-fuel alarm). The rule runs at the end of reconcile(),
+where carried values and the evidence of earlier polls are known; the channel
+merge sees one poll only and never derives it. PHEVs, EVs, a missing headline
+and a real 0 with an empty or unknown tank are left alone."""
 from __future__ import annotations
+
+from dataclasses import asdict
+from typing import Any
 
 from custom_components.vag_connect.cariad._channel_merge import merge_channels
 from custom_components.vag_connect.cariad.models import VehicleData
+from custom_components.vag_connect.cariad.vehicle_cache import reconcile
 
 VIN = "WVWZZZ00000000001"
 
@@ -20,84 +26,127 @@ def _merge(*pairs: tuple[str, VehicleData]) -> VehicleData:
     return merge_channels(list(pairs))
 
 
-def test_zero_head_range_with_fuel_takes_total() -> None:
-    """The reporter's constellation: range 0, combustion 760, total 780, fuel 100."""
+def _poll(
+    previous: dict[str, Any] | None, *pairs: tuple[str, VehicleData],
+) -> dict[str, Any]:
+    """One full poll: channel merge, then reconcile against the stored one."""
+    merged, _notes = reconcile(previous, asdict(_merge(*pairs)))
+    return merged
+
+
+# --- the channel merge no longer derives anything ---------------------------
+
+def test_merge_leaves_a_delivered_zero_alone() -> None:
     eu = _eu(range_km=0, combustion_range_km=760, total_range_km=780)
     web = _eu(fuel_level=100)
     m = _merge(("website_authproxy", web), ("eu_data_act", eu))
-    assert m.range_km == 780
-    assert m.combustion_range_km == 760
-    assert m.total_range_km == 780
+    assert m.range_km == 0
     assert m.has_battery is False
 
 
-def test_missing_head_range_is_not_derived() -> None:
-    """A poll without range_km must leave it missing, so reconcile can carry
-    the stored value forward."""
-    eu = _eu(combustion_range_km=760, fuel_level=80)
-    m = _merge(("eu_data_act", eu))
+def test_merge_leaves_a_missing_headline_missing() -> None:
+    m = _merge(("eu_data_act", _eu(combustion_range_km=760, fuel_level=80)))
     assert m.range_km is None
 
 
-def test_zero_head_range_falls_back_to_combustion() -> None:
-    eu = _eu(range_km=0, combustion_range_km=760, fuel_level=80)
-    m = _merge(("eu_data_act", eu))
-    assert m.range_km == 760
+# --- reconcile derives it ----------------------------------------------------
+
+def test_mogsug_constellation_gives_total() -> None:
+    """Range 0, combustion 760, total 780, fuel 100, no battery anywhere."""
+    eu = _eu(range_km=0, combustion_range_km=760, total_range_km=780)
+    web = _eu(fuel_level=100)
+    previous = {"vin": VIN, "range_km": 0, "fuel_level": 100}
+    out = _poll(previous, ("website_authproxy", web), ("eu_data_act", eu))
+    assert out["range_km"] == 780
+    assert out["combustion_range_km"] == 760
+    assert out["total_range_km"] == 780
+    assert out["has_battery"] is False
+
+
+def test_stored_zero_with_poll_without_headline_is_corrected() -> None:
+    """The stored 0 is carried (poll has no headline) and then corrected."""
+    previous = {"vin": VIN, "range_km": 0, "fuel_level": 80,
+                "combustion_range_km": 760, "has_battery": False}
+    eu = _eu(fuel_level=80, combustion_range_km=760)
+    out = _poll(previous, ("eu_data_act", eu))
+    assert out["range_km"] == 760
+
+
+def test_missing_headline_is_carried_not_derived() -> None:
+    previous = {"vin": VIN, "range_km": 700, "fuel_level": 80,
+                "combustion_range_km": 760}
+    out = _poll(previous, ("eu_data_act", _eu(fuel_level=80,
+                                              combustion_range_km=760)))
+    assert out["range_km"] == 700
+
+
+def test_nothing_stored_and_no_headline_stays_missing() -> None:
+    previous = {"vin": VIN, "fuel_level": 80}
+    out = _poll(previous, ("eu_data_act", _eu(fuel_level=80,
+                                              combustion_range_km=600)))
+    assert out["range_km"] is None
 
 
 def test_zero_candidates_are_never_taken() -> None:
-    eu = _eu(range_km=0, total_range_km=0, combustion_range_km=500, fuel_level=80)
-    m = _merge(("eu_data_act", eu))
-    assert m.range_km == 500
-    eu2 = _eu(range_km=0, total_range_km=0, combustion_range_km=0, fuel_level=80)
-    assert _merge(("eu_data_act", eu2)).range_km == 0
-
-
-def test_phev_partial_poll_leaves_headline_missing() -> None:
-    """Only fuel and combustion range delivered: has_battery is False for this
-    poll alone, range_km must stay None (not the combustion range)."""
-    eu = _eu(fuel_level=70, combustion_range_km=600)
-    m = _merge(("eu_data_act", eu))
-    assert m.has_battery is False
-    assert m.range_km is None
+    previous = {"vin": VIN, "range_km": 0}
+    eu = _eu(range_km=0, total_range_km=0, combustion_range_km=500,
+             fuel_level=80)
+    assert _poll(previous, ("eu_data_act", eu))["range_km"] == 500
+    eu2 = _eu(range_km=0, total_range_km=0, combustion_range_km=0,
+              fuel_level=80)
+    assert _poll(previous, ("eu_data_act", eu2))["range_km"] == 0
 
 
 def test_real_zero_with_empty_tank_is_kept() -> None:
+    previous = {"vin": VIN, "range_km": 0}
     eu = _eu(range_km=0, combustion_range_km=0, total_range_km=30, fuel_level=0)
-    m = _merge(("eu_data_act", eu))
-    assert m.range_km == 0
+    assert _poll(previous, ("eu_data_act", eu))["range_km"] == 0
 
 
 def test_zero_with_unknown_fuel_is_kept() -> None:
+    previous = {"vin": VIN, "range_km": 0}
     eu = _eu(range_km=0, combustion_range_km=760, total_range_km=780)
-    m = _merge(("eu_data_act", eu))
-    assert m.range_km == 0
+    assert _poll(previous, ("eu_data_act", eu))["range_km"] == 0
 
 
-def test_nonzero_head_range_is_not_touched() -> None:
+def test_nonzero_headline_is_not_touched() -> None:
+    previous = {"vin": VIN, "range_km": 650}
     eu = _eu(range_km=700, combustion_range_km=760, total_range_km=780,
              fuel_level=90)
-    m = _merge(("eu_data_act", eu))
-    assert m.range_km == 700
+    assert _poll(previous, ("eu_data_act", eu))["range_km"] == 700
 
 
-def test_phev_is_untouched() -> None:
+def test_phev_partial_poll_with_battery_evidence_in_previous_is_untouched() -> None:
+    """This poll: range 0, fuel, combustion, no battery field. The earlier
+    poll knew the battery, so the headline must stay 0."""
+    previous = {"vin": VIN, "range_km": 0, "has_battery": True,
+                "is_hybrid": True, "has_combustion": True,
+                "battery_soc": None, "electric_range_km": None}
+    eu = _eu(range_km=0, fuel_level=70, combustion_range_km=600)
+    out = _poll(previous, ("eu_data_act", eu))
+    assert out["range_km"] == 0
+
+
+def test_phev_untouched_when_battery_value_is_carried() -> None:
+    previous = {"vin": VIN, "range_km": 0, "battery_soc": 50,
+                "electric_range_km": 40}
+    eu = _eu(range_km=0, fuel_level=70, combustion_range_km=600)
+    out = _poll(previous, ("eu_data_act", eu))
+    assert out["range_km"] == 0
+    assert out["has_battery"] is True
+
+
+def test_phev_untouched_in_one_poll() -> None:
     eu = _eu(range_km=0, combustion_range_km=600, total_range_km=640,
              electric_range_km=40, battery_soc=50, fuel_level=70)
-    m = _merge(("eu_data_act", eu))
-    assert m.has_battery is True
-    assert m.range_km == 0
+    previous = {"vin": VIN, "range_km": 0}
+    assert _poll(previous, ("eu_data_act", eu))["range_km"] == 0
 
 
 def test_ev_is_untouched() -> None:
+    previous = {"vin": VIN, "range_km": 0}
     eu = _eu(range_km=None, electric_range_km=300, battery_soc=80)
-    m = _merge(("eu_data_act", eu))
-    assert m.range_km is None
-
-
-def test_no_range_sources_leaves_none() -> None:
-    m = _merge(("eu_data_act", _eu(fuel_level=50)))
-    assert m.range_km is None
+    assert _poll(previous, ("eu_data_act", eu))["range_km"] == 0
 
 
 def test_provenance_follows_the_source_field() -> None:
@@ -107,9 +156,22 @@ def test_provenance_follows_the_source_field() -> None:
              field_source_leaf={"range_km": "old.leaf",
                                 "total_range_km": "total.leaf"})
     web = _eu(fuel_level=100)
-    m = _merge(("website_authproxy", web), ("eu_data_act", eu))
-    assert m.range_km == 780
-    assert m.field_sources["range_km"] == "eu_data_act"
+    previous = {"vin": VIN, "range_km": 0}
+    out = _poll(previous, ("website_authproxy", web), ("eu_data_act", eu))
+    assert out["range_km"] == 780
+    assert out["field_sources"]["range_km"] == "eu_data_act"
+    assert "eu_data_act" in out["source_channel"].split("+")
     # the stamp and leaf of the replaced 0 are gone; the source field's are copied
-    assert m.field_captured_ts["range_km"] == "2026-11-11T08:00:00+00:00"
-    assert m.field_source_leaf["range_km"] == "total.leaf"
+    assert out["field_captured_ts"]["range_km"] == "2026-11-11T08:00:00+00:00"
+    assert out["field_source_leaf"]["range_km"] == "total.leaf"
+
+
+def test_provenance_of_the_zero_is_dropped_when_source_has_none() -> None:
+    eu = _eu(range_km=0, combustion_range_km=760,
+             field_captured_ts={"range_km": "2026-11-10T07:07:13+00:00"},
+             field_source_leaf={"range_km": "old.leaf"})
+    out = _poll({"vin": VIN, "range_km": 0}, ("eu_data_act", eu),
+                ("website_authproxy", _eu(fuel_level=100)))
+    assert out["range_km"] == 760
+    assert "range_km" not in out["field_captured_ts"]
+    assert "range_km" not in out["field_source_leaf"]

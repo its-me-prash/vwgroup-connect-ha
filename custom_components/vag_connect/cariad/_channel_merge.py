@@ -422,31 +422,6 @@ def merge_channels(
 
     _merge_drivetrain(merged, sources, field_sources)
 
-    # #2072 — a headline range of 0 next to a non-empty tank on a car WITHOUT a
-    # high-voltage battery is a false low-fuel alarm. Derive it from the first
-    # range above 0 (total, else combustion), in the BFF parser's order. Only a
-    # 0 delivered by this poll is replaced: a missing headline stays missing,
-    # because this merge sees one poll and reconcile carries the stored value
-    # forward. A real 0 (empty or unknown tank) and every PHEV/EV stay as they
-    # are; the has_battery gate stays because a PHEV's headline is not ours to
-    # interpret from a single poll.
-    range_source: str | None = None
-    if (
-        not merged.has_battery
-        and merged.range_km == 0
-        and (merged.fuel_level or 0) > 0
-    ):
-        for cand in ("total_range_km", "combustion_range_km"):
-            val = getattr(merged, cand)
-            if val is not None and val > 0:
-                merged.range_km = val
-                range_source = cand
-                owner = field_sources.get(cand)
-                if owner:
-                    field_sources["range_km"] = owner
-                    contributors.add(owner)
-                break
-
     # Provenance = the channels that actually contributed a value: "+"-joined
     # when several did, the single channel name when only one had data, None
     # when nothing did (every channel empty).
@@ -495,15 +470,6 @@ def merge_channels(
             note = src_amb.get(f_name)
             if isinstance(note, str) and note:
                 ambiguous[f_name] = note
-    if range_source is not None:
-        # The replaced value's stamp and leaf must not outlive it; the derived
-        # headline takes the ones of the field it was copied from.
-        captured_ts.pop("range_km", None)
-        source_leaf.pop("range_km", None)
-        if range_source in captured_ts:
-            captured_ts["range_km"] = captured_ts[range_source]
-        if range_source in source_leaf:
-            source_leaf["range_km"] = source_leaf[range_source]
     merged.field_captured_ts = captured_ts
     merged.ambiguous_fields = ambiguous
     merged.field_source_leaf = source_leaf
