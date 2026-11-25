@@ -519,6 +519,12 @@ DEEPLINK_SCHEMES: dict[str, str] = {
 # at upgrade — only the default for fresh installs changes.
 DEFAULT_SCAN_INTERVAL = 10   # minutes (was 5 — see v1.17.0 reasoning)
 MIN_SCAN_INTERVAL     = 5    # minutes (was 3 — quota protection)
+# #2209 - how old the car's capture stamp may get before "Data stale" and the
+# portal health state "Stale" switch on. 8 x scan interval stays on top.
+CONF_STALE_THRESHOLD_HOURS    = "stale_threshold_hours"
+DEFAULT_STALE_THRESHOLD_HOURS = 72
+MIN_STALE_THRESHOLD_HOURS     = 1
+MAX_STALE_THRESHOLD_HOURS     = 168
 MAX_SCAN_INTERVAL     = 60   # minutes — the config-flow selectable ceiling (#1115)
 
 # #1078 — some brands hand out short-lived access tokens, so at the default

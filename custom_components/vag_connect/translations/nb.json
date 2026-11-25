@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Nominell batterikapasitet (kWh, for helsetilstand)",
           "fuel_tank_capacity": "Tankkapasitet (liter, for drivstoff %)",
+          "stale_threshold_hours": "Data utdatert etter (timer)",
           "enable_reverse_geocoding": "Omvendt geokoding (parkeringsadresse)",
           "read_only_mode": "Skrivebeskyttet modus",
           "companion_wake_sleep": "Companion: vekk skjermen ved henting, sov etterpå",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Škoda offisiell API-kildemodus"
         },
         "data_description": {
+          "stale_threshold_hours": "Hvor gammelt bilens eget registreringstidspunkt kan bli før «Data utdatert» og portalstatusen «Utdatert» slår inn. Standard er 72 timer, område 1 til 168. Aldri under 8 oppdateringsintervaller. Reparasjonsmeldingen om utdaterte data beholder sin egen nedre grense på 72 timer, så en lavere verdi utløser den ikke tidligere.",
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",
           "spin": "S-PIN for dørlåsing. App → Sikkerhet → S-PIN.",
           "enable_reverse_geocoding": "Sender parkerings-GPS til OpenStreetMap Nominatim for å finne gate/by. Av som standard av personvernhensyn.",
@@ -1669,6 +1671,9 @@
       },
       "last_dataset_created_at": {
         "name": "Portalfil opprettet"
+      },
+      "newer_empty_portal_files": {
+        "name": "Nyere tomme portalfiler"
       },
       "last_no_data_at": {
         "name": "Siste spørring uten data"

@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Battery nameplate capacity (kWh, for State of Health)",
           "fuel_tank_capacity": "Fuel tank capacity (litres, for fuel level %)",
+          "stale_threshold_hours": "Data stale after (hours)",
           "enable_reverse_geocoding": "Reverse Geocoding (parking address)",
           "read_only_mode": "Read-only Mode",
           "companion_wake_sleep": "Companion: wake screen to poll, sleep after",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Škoda official-API source mode"
         },
         "data_description": {
+          "stale_threshold_hours": "How old the car's own capture time may get before \"Data stale\" and the portal health state \"Stale\" switch on. Default 72 hours, range 1 to 168. It never drops below 8 update intervals. The stale-data repair keeps its own 72-hour floor, so a lower value does not raise it earlier.",
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
           "spin": "S-PIN for door locking. App → Security → S-PIN.",
           "enable_reverse_geocoding": "Sends parking GPS to OpenStreetMap Nominatim to resolve street/city. Off by default for privacy.",
@@ -1702,6 +1704,9 @@
       },
       "last_dataset_created_at": {
         "name": "Portal file created"
+      },
+      "newer_empty_portal_files": {
+        "name": "Newer empty portal files"
       },
       "last_no_data_at": {
         "name": "Last no-data poll"

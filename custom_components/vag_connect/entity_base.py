@@ -78,6 +78,7 @@ _CONNECTION_STATUS_KEYS = frozenset({
     "minutes_since_last_snapshot",
     "last_snapshot_at",
     "last_dataset_created_at",
+    "newer_empty_portal_files",
     "last_no_data_at",
     "no_data_count",
 })
@@ -403,6 +404,12 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         attrs: dict[str, Any] = {}
         captured = self._vehicle.get("field_captured_ts")
         iso = captured.get(data_key) if isinstance(captured, dict) else None
+        # #2096 — a stamp borrowed from a neighbouring capture entry of the export
+        # moves with the list order: it stays in the snapshot for the readers that
+        # compare ages, but is not shown as THIS value's capture time.
+        borrowed = self._vehicle.get("field_captured_inherited")
+        if isinstance(borrowed, dict) and borrowed.get(data_key) is True:
+            iso = None
         if isinstance(iso, str) and iso:
             attrs["data_captured_at"] = iso
             attrs["freshness_source"] = "point"
@@ -412,6 +419,24 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         if isinstance(ambiguous, dict) and isinstance(ambiguous.get(data_key), str):
             attrs["ambiguous_reading"] = True
         return attrs
+
+    def _carried_attributes(self) -> dict[str, Any]:
+        """#1917 — mark a value the last poll did not deliver but we still show.
+
+        ``carried_since`` is the time of the poll in which the value started
+        being carried (``field_carried_since``, set by ``reconcile``); it stays
+        the same until a fresh value arrives, so it does not bloat the recorder.
+        ``freshness_source`` reads "carried" then. The value itself is untouched.
+        """
+        desc = getattr(self, "entity_description", None)
+        data_key = (getattr(desc, "data_key", "") if desc is not None else "") or ""
+        carried = self._vehicle.get("field_carried_since")
+        if not data_key or not isinstance(carried, dict):
+            return {}
+        since = carried.get(data_key)
+        if not isinstance(since, str) or not since:
+            return {}
+        return {"freshness_source": "carried", "carried_since": since}
 
     def _platform_attributes(self) -> dict[str, Any] | None:
         """Per-platform attributes, merged into ``extra_state_attributes``.
@@ -472,6 +497,10 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         fresh = self._eu_da_freshness_attributes()
         if fresh:
             attrs.update(fresh)
+
+        carried = self._carried_attributes()
+        if carried:
+            attrs.update(carried)
 
         own = self._platform_attributes()
         if own:

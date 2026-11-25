@@ -255,6 +255,14 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
+        key="newer_empty_portal_files",
+        translation_key="newer_empty_portal_files",
+        data_key="newer_empty_portal_files",
+        icon="mdi:file-hidden",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
         key="last_no_data_at",
         translation_key="last_no_data_at",
         data_key="last_no_data_at",
@@ -4749,6 +4757,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "data_request_created_at",
     "last_snapshot_at",
     "last_dataset_created_at",
+    "newer_empty_portal_files",
     "last_no_data_at",
     "no_data_count",
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal-only interior temp,
@@ -5531,6 +5540,15 @@ async def async_setup_entry(
                 desc.key == "combustion_range_km"
                 and not has_battery
                 and vehicle.get("combustion_range_km") == vehicle.get("range_km")
+            ):
+                continue
+            # #1316 — a petrol/diesel car without a high-voltage battery can report
+            # a secondary engine range of 0; there is no second engine to show.
+            # A PHEV with 0 keeps the sensor. Spawn only, nothing is removed.
+            if (
+                desc.key == "secondary_engine_range_km"
+                and not has_battery
+                and vehicle.get(desc.data_key) == 0
             ):
                 continue
             if desc.key in _DATA_PRESENT_REQUIRED:

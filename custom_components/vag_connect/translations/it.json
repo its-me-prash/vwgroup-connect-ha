@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Capacità nominale della batteria (kWh, per lo stato di salute)",
           "fuel_tank_capacity": "Capacità serbatoio (litri, per % carburante)",
+          "stale_threshold_hours": "Dati obsoleti dopo (ore)",
           "enable_reverse_geocoding": "Geocodifica inversa (indirizzo di parcheggio)",
           "read_only_mode": "Modalità sola lettura",
           "companion_wake_sleep": "Companion: accendi lo schermo per l'interrogazione, poi rimettilo in stop",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Modalità sorgente API ufficiale Škoda"
         },
         "data_description": {
+          "stale_threshold_hours": "Quanto può invecchiare l'orario di rilevazione del veicolo prima che si attivino \"Dati obsoleti\" e lo stato del portale \"Obsoleto\". Predefinito 72 ore, da 1 a 168. Mai meno di 8 intervalli di aggiornamento. La riparazione per dati obsoleti mantiene un proprio minimo di 72 ore, quindi un valore più basso non la anticipa.",
           "scan_interval": "Con quale frequenza vengono recuperati i dati (minuti). Minimo: 3.",
           "spin": "S-PIN per la chiusura delle porte. App → Sicurezza → S-PIN.",
           "enable_reverse_geocoding": "Invia le coordinate GPS del parcheggio a OpenStreetMap Nominatim per risolvere via/città. Disattivato per impostazione predefinita per motivi di privacy.",
@@ -1669,6 +1671,9 @@
       },
       "last_dataset_created_at": {
         "name": "File del portale creato"
+      },
+      "newer_empty_portal_files": {
+        "name": "File vuoti del portale più recenti"
       },
       "last_no_data_at": {
         "name": "Ultimo sondaggio senza dati"

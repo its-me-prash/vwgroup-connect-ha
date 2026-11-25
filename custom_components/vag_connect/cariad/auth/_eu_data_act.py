@@ -995,6 +995,82 @@ _CAPTURED_NAME_HINTS: tuple[str, ...] = (
     "captured_time", "capturedtime", "captured_utc",
 )
 
+# #2096 — a flat export is an unordered event log, so the "nearest capture entry
+# before the value" is an accident of list order. Two values can be tied to
+# their own capture time by KEY instead: the portal ships a ``timestamp`` entry
+# under a fixed key beside each of them, present in exactly the same exports as
+# the value (47 ID.7 exports, 2026-11; the same keys appear in a CUPRA Born
+# export). Value key -> key of its ``timestamp`` entry. The value NAMES pair the
+# same way (the UUIDs are the stable half, the names cover exports that carry
+# no ``key``).
+_SOC_TS_KEY = "3f5a294b-b672-3963-83d8-bfb54e5b943d"
+_ODO_TS_KEY = "067f539c-85fe-3067-9c29-d63e177e3712"
+_PAIRED_TS_BY_VALUE_KEY: dict[str, str] = {
+    "ac1108b1-b8cc-3db9-a663-03d387e42223": _SOC_TS_KEY,  # battery_level_HV.value
+    "2a9de7f7-a846-3d18-9883-650de9c4e4e1": _SOC_TS_KEY,  # battery_level_HV.state
+    "30cc36fd-71ca-3c09-9296-e94ebd47bd2b": _ODO_TS_KEY,  # mileage.value
+    "a04d086d-70bb-30c2-8361-68da66b4fd97": _ODO_TS_KEY,  # mileage.state
+}
+_PAIRED_TS_BY_NAME: dict[str, str] = {
+    "battery_level_hv.value": _SOC_TS_KEY,
+    "battery_level_hv.state": _SOC_TS_KEY,
+    "mileage.value": _ODO_TS_KEY,
+    "mileage.state": _ODO_TS_KEY,
+}
+_PAIRED_VALUE_UUIDS: frozenset[str] = frozenset({
+    "ac1108b1-b8cc-3db9-a663-03d387e42223",  # battery_level_HV.value
+    "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",  # mileage.value
+})
+# Targets whose ``data_captured_at`` is shown only when the stamp is the value's
+# OWN (paired, or a real per-point stamp), never when it was borrowed from a
+# neighbouring capture entry. The stamp itself is recorded either way; the
+# borrowed ones are listed in ``field_captured_inherited`` (display only).
+_DISPLAY_OWN_STAMP_TARGETS: frozenset[str] = frozenset({"battery_soc", "odometer_km"})
+
+
+def _collect_paired_ts(payload: Any) -> dict[str, float]:
+    """Key -> time of the ``timestamp`` entry that pairs with a value (#2096).
+
+    Collected over the WHOLE payload before the walk, so the result cannot
+    depend on where in the list an entry sits. A key is returned only when the
+    file holds exactly one distinct time under it AND exactly one distinct
+    value under the paired value entries (``.value``, not ``.state``)."""
+    wanted = {_SOC_TS_KEY, _ODO_TS_KEY}
+    seen: dict[str, set[float]] = {}
+    values: dict[str, set[str]] = {}
+    stack: list[Any] = [payload]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            k = node.get("key")
+            if isinstance(k, str) and k.strip().lower() in wanted and "value" in node:
+                parsed = _parse_ts(node.get("value"))
+                if parsed is not None:
+                    seen.setdefault(k.strip().lower(), set()).add(parsed)
+            ts_key = _PAIRED_TS_BY_VALUE_KEY.get(str(k).strip().lower()) if k else None
+            name = node.get("dataFieldName")
+            if ts_key is None and isinstance(name, str):
+                ts_key = _PAIRED_TS_BY_NAME.get(name.strip().lower())
+            if ts_key is not None and "value" in node:
+                label = str(k or name).strip().lower()
+                if label.endswith(".value") or label in _PAIRED_VALUE_UUIDS:
+                    values.setdefault(ts_key, set()).add(str(node["value"]).strip())
+            stack.extend(v for v in node.values() if isinstance(v, (dict, list)))
+        elif isinstance(node, list):
+            stack.extend(v for v in node if isinstance(v, (dict, list)))
+    # A file with several snapshots (#465, #529) carries one entry per snapshot
+    # under the SAME key, and a flat list does not say which value belongs to
+    # which. One time for the whole file (the newest, or any other) would stamp
+    # every value with it and let the list order decide again, so a key that
+    # carries more than one distinct time pairs nothing. The same holds for a
+    # key whose file carries several distinct values: a time entry beside only
+    # one of them says nothing about the others.
+    return {
+        k: next(iter(v))
+        for k, v in seen.items()
+        if len(v) == 1 and len(values.get(k, ())) == 1
+    }
+
 # v2.17.4 — MEB/ID.x ships some data-points (notably the primary electric range,
 # EU dict UUID 0ca40e18 "Value of the primary range") under a GENERIC
 # ``dataFieldName`` ("value"/"unit"/…) that only the per-point ``key`` UUID
@@ -1197,6 +1273,7 @@ def _walk_fields(
     _contested_out: dict[str, set[str]] | None = None,
     _uuid_out: dict[str, set[str]] | None = None,
     _delivery_out: dict[str, set[str]] | None = None,
+    _inherited_out: set[str] | None = None,
 ) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -1276,12 +1353,13 @@ def _walk_fields(
     # a running ``car_captured_time`` marker in the flat event-log rather than
     # its OWN sibling timestamp — that ts is order-dependent (VW reorders the log
     # between exports), so it must not be trusted to decide a value conflict (#465).
-    best: dict[str, tuple[str, float, bool, bool]] = {}
+    best: dict[str, tuple[str, float, bool, bool, bool]] = {}
     # #1088 — per-name value occurrence counts, so a contest with a clear
     # majority (the same reading repeated) can be resolved by mode instead of
     # left ambiguous. Only consulted for names that end up contested.
     counts: dict[str, dict[str, int]] = {}
     dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
+    paired_ts = _collect_paired_ts(payload)  # #2096: key-paired capture times
 
     def add(
         name: Any,
@@ -1289,6 +1367,7 @@ def _walk_fields(
         ts: float | None,
         ts_real: bool,
         ts_inherited: bool = False,
+        ts_shown_inherited: bool | None = None,
     ) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
@@ -1305,9 +1384,16 @@ def _walk_fields(
         cand = ts if ts is not None else float("-inf")
         cand_real = ts_real and ts is not None
         cand_inh = bool(ts_inherited) and cand_real
+        # #2096 display only: was the stamp borrowed from a running marker? Kept
+        # apart from ``cand_inh`` so that the conflict choice stays exactly as it
+        # was (the UUID alias add never passed ``ts_inherited``).
+        cand_shown = (
+            bool(ts_inherited if ts_shown_inherited is None else ts_shown_inherited)
+            and cand_real
+        )
         prev = best.get(name)
         if prev is None:
-            best[name] = (str(value), cand, cand_real, cand_inh)
+            best[name] = (str(value), cand, cand_real, cand_inh, cand_shown)
             return
         # #529: ALL fields (incl. monotonic odometer/mileage) resolve by genuine
         # freshness so they come from the same snapshot. Cross-poll monotonic
@@ -1336,9 +1422,9 @@ def _walk_fields(
                 # unchanged, so this is observation only — reconcile overrides it.
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
             if cand >= prev[1]:
-                best[name] = (str(value), cand, True, cand_inh)
+                best[name] = (str(value), cand, True, cand_inh, cand_shown)
         elif cand_real and not prev_real:
-            best[name] = (str(value), cand, True, cand_inh)  # real beats floor
+            best[name] = (str(value), cand, True, cand_inh, cand_shown)  # real beats floor
         elif not cand_real and not prev_real:
             # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
             # #1088: but when the two values DISAGREE and neither carries a real
@@ -1355,7 +1441,7 @@ def _walk_fields(
                 and not _is_envelope_noise(name)
             ):
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
-            best[name] = (str(value), cand, False, False)
+            best[name] = (str(value), cand, False, False, False)
         # else: incumbent is real and candidate is not → keep the real one.
 
     def walk(
@@ -1379,6 +1465,20 @@ def _walk_fields(
                         break
             # data-point shape: {dataFieldName|name: X, value: Y}
             fname = node.get("dataFieldName") or node.get("name")
+            # #2096 — a paired value (battery_level_HV / mileage) takes the time
+            # of its OWN ``timestamp`` entry, found by key, as a genuine own
+            # stamp. Without that entry it keeps whatever it inherited, which is
+            # then reported as inherited (and so never as its capture time).
+            _pair_key = node.get("key")
+            _pair_uuid = _PAIRED_TS_BY_VALUE_KEY.get(
+                _pair_key.strip().lower() if isinstance(_pair_key, str) else ""
+            ) or _PAIRED_TS_BY_NAME.get(
+                fname.strip().lower() if isinstance(fname, str) else ""
+            )
+            if _pair_uuid is not None and "value" in node and not own_ts:
+                _pt = paired_ts.get(_pair_uuid)
+                if _pt is not None:
+                    ts, ts_real, ts_inh = _pt, True, False
             # #1195 — a battery_state_report.soc point keyed by a known
             # "SoC at charge start" UUID must NOT feed the live-SoC pool (its stale
             # value is re-stamped fresh at charge start and would out-freshen the
@@ -1452,7 +1552,8 @@ def _walk_fields(
                      and pkey_l in _MAPPED_UUIDS)
                     or pkey_l in _SCALE_ENCODING_UUIDS
                 ):
-                    add(pkey_l, node.get("value"), ts, ts_real)
+                    add(pkey_l, node.get("value"), ts, ts_real,
+                        ts_shown_inherited=ts_inh)
                     # v2.24.2 (#959, #960, #961) — record the pair as synonyms,
                     # exactly like the container-qualified branch below already
                     # did. Without it the bare generic leaf was never reclaimed
@@ -1553,14 +1654,16 @@ def _walk_fields(
                 winner = ranked[0][1]
                 prev = best.get(name)
                 if prev is not None:
-                    best[name] = (winner, prev[1], prev[2], prev[3])
+                    best[name] = (winner, prev[1], prev[2], prev[3], prev[4])
                 del _contested_out[name]
     if _ts_out is not None:
         # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
         # (-inf) carry no snapshot identity and must not constrain last_seen.
-        for k, (_v, ts_v, ts_real_v, _inh_v) in best.items():
+        for k, (_v, ts_v, ts_real_v, _inh_v, shown_v) in best.items():
             if ts_real_v:
                 _ts_out[k] = ts_v
+                if shown_v and _inherited_out is not None:
+                    _inherited_out.add(k)
     return {k: v[0] for k, v in best.items()}
 
 
@@ -2272,6 +2375,7 @@ def map_dataset_to_vehicle_data(
     field_syn: dict[str, set[str]] | None = None,
     contested: dict[str, set[str]] | None = None,
     field_uuids: dict[str, set[str]] | None = None,
+    field_ts_inherited: set[str] | None = None,
 ) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -2329,6 +2433,13 @@ def map_dataset_to_vehicle_data(
                 iso = _epoch_or_iso(str(ts))
                 if iso:
                     d.field_captured_ts[attr] = iso
+                    # #2096 — recorded as before; the display alone leaves out
+                    # a stamp borrowed from a neighbouring list entry.
+                    if attr in _DISPLAY_OWN_STAMP_TARGETS:
+                        if chosen in (field_ts_inherited or ()):
+                            d.field_captured_inherited[attr] = True
+                        else:
+                            d.field_captured_inherited.pop(attr, None)
         for cand in [c for c in (chosen, *names) if c]:
             vals = (contested or {}).get(cand)
             if vals and len(vals) > 1:
@@ -3667,6 +3778,9 @@ def map_dataset_to_vehicle_data(
         _csv = _cs.strip().upper().replace("CLIMATISATION_STATE_", "")
         if _csv and _csv != "INVALID":
             d.climatisation_state = _csv
+            # #1881 - keep the leaf's own capture time (recorded here, not in
+            # first(), so an INVALID state never records one).
+            _record("climatisation_state", _matched[0], ("climatisation_state",))
             if d.climatisation_active is None:
                 # Scout 2026-09-25 (#1492, Touareg eHybrid) — a car can report
                 # "error" here (paired with climatisation_state_error_code below);
@@ -3681,6 +3795,10 @@ def map_dataset_to_vehicle_data(
         _crv = _clim_reason.strip().upper().replace("CLIMATISATION_REASON_TRIGGER_", "").replace("CLIMATISATION_REASON_", "")
         if _crv and _crv != "INVALID":
             d.climatisation_reason = _crv
+            _record(
+                "climatisation_reason", _matched[0],
+                ("climatisation_reason_trigger", "climatisation_reason"),
+            )
     # Scout 2026-09-28 (#1603, VW Passat eTSI) — the modern portal also ships a
     # bare climate on/off flag `climacontrol` ("true"/"false"). Official dict
     # 993a7694 (type=boolean): "Heating in the vehicle is in the preheating
@@ -6217,6 +6335,11 @@ class EUDataActConnector:
         # a user can tell a fresh delivery from a re-read. None when the chosen
         # file's listing entry carried no readable creation time.
         self.last_dataset_created_at: str | None = None
+        # #2209 - how many ``_no_content_found`` placeholders the last listing
+        # held that are NEWER than the file we read (all of them when no file
+        # was read). None until a listing held a placeholder or a file with a
+        # creation time was read.
+        self.last_newer_empty_files: int | None = None
         # v4.7.11 (#465 BooM80) — last dataset's field-delivery honesty. VW's
         # EU-DA export can ship a data point's NAME + capture timestamp but omit
         # the ``value`` (BooM80's official export: 10 names, only 3 valued), so
@@ -7748,11 +7871,15 @@ class EUDataActConnector:
         # (name, delivery_ts) per content file; keep array index as the tie/
         # fallback order so a listing with no timestamp behaves as before.
         cands: list[tuple[str, float | None, int]] = []
+        # #2209 - creation times of the listed placeholders, kept only to count
+        # how many are newer than the file that ends up being read.
+        placeholder_ts: list[float] = []
+        placeholder_total = 0
         for idx, f in enumerate(files):
             if not isinstance(f, dict):
                 continue
             name = f.get("name")
-            if isinstance(name, str) and not name.endswith(_NO_CONTENT_SUFFIX):
+            if isinstance(name, str):
                 # #529 step 4: prefer an explicit delivery timestamp over array
                 # order (the array is NOT guaranteed newest-last). createdOn is
                 # the portal's field (confirmed in the reference reader); accept
@@ -7763,7 +7890,19 @@ class EUDataActConnector:
                         dts = _parse_ts(f.get(tk))
                         if dts is not None:
                             break
-                cands.append((name, dts, idx))
+                if not name.endswith(_NO_CONTENT_SUFFIX):
+                    cands.append((name, dts, idx))
+                else:
+                    placeholder_total += 1
+                    if dts is not None:
+                        placeholder_ts.append(dts)
+        # #2209 - the count for THIS poll, set before any early return so no
+        # path keeps the value of an earlier poll. No file read yet: every
+        # listed placeholder is newer than nothing; None for an empty listing.
+        # It is replaced below once a file has been chosen.
+        self.last_newer_empty_files = (
+            placeholder_total if (files if isinstance(files, list) else []) else None
+        )
         if not cands:
             # #709 — distinguish the three "no usable file" cases so a stuck feed
             # is diagnosable: (a) the listing was empty, (b) the portal IS
@@ -7850,6 +7989,15 @@ class EUDataActConnector:
                 break
             if st is not None and st in _PORTAL_OUTAGE_STATUSES:
                 saw_outage = True
+        # #2209 - a file was chosen: count the placeholders listed after it;
+        # unknown when it has no creation time to compare against. With no
+        # file chosen the count set above (all listed placeholders) stands.
+        if chosen is not None:
+            _read_ts = next((c[1] for c in cands if c[0] == chosen), None)
+            self.last_newer_empty_files = (
+                sum(1 for t in placeholder_ts if t > _read_ts)
+                if _read_ts is not None else None
+            )
         if raw is None or chosen is None:
             # Every attempted dataset returned a transient outage / timeout — same
             # "don't burn the session, no data this poll" outcome as before.
@@ -7866,8 +8014,10 @@ class EUDataActConnector:
         contested: dict[str, set[str]] = {}  # same capture time, disagreeing values
         field_uuids: dict[str, set[str]] = {}  # generic-leaf -> content UUID(s)
         delivery: dict[str, set[str]] = {}  # #465: valued vs value-less names
+        ts_inherited: set[str] = set()  # #2096: stamps borrowed from a neighbour
         fields = _walk_fields(
-            payload, field_ts, field_syn, contested, field_uuids, delivery
+            payload, field_ts, field_syn, contested, field_uuids, delivery,
+            ts_inherited,
         )
         # #465 BooM80 — record the value/value-less split BEFORE the empty-dataset
         # early return, so the diagnostic reflects THIS parse even when VW shipped
@@ -7901,7 +8051,7 @@ class EUDataActConnector:
             except Exception:  # noqa: BLE001  # pragma: no cover - defensive
                 _LOGGER.debug("EU Data Act: raw-dataset archive hook failed")
         return map_dataset_to_vehicle_data(
-        fields, d, field_ts, field_syn, contested, field_uuids
+        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited
     )
 
     async def get_relation_nickname(self, vin: str) -> str | None:
@@ -7981,10 +8131,13 @@ def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleD
     field_syn: dict[str, set[str]] = {}
     contested: dict[str, set[str]] = {}  # #1088 — same as get_vehicle_data
     field_uuids: dict[str, set[str]] = {}  # generic-leaf -> content UUID(s)
-    fields = _walk_fields(payload, field_ts, field_syn, contested, field_uuids)
+    ts_inherited: set[str] = set()  # #2096
+    fields = _walk_fields(
+        payload, field_ts, field_syn, contested, field_uuids, None, ts_inherited
+    )
     if not fields:
         return d
     d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
     return map_dataset_to_vehicle_data(
-        fields, d, field_ts, field_syn, contested, field_uuids
+        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited
     )

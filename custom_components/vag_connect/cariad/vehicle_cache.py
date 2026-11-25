@@ -13,6 +13,7 @@ This module is the pure reconcile/serialise logic; the coordinator owns the
 from __future__ import annotations
 
 import hashlib
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -118,6 +119,71 @@ def drop_state_from_cache(
                 parsed = parsed.replace(tzinfo=timezone.utc)
             anchor = min(parsed, now)
     return anchor, streak
+
+
+# #1973 — the 5xx retry memory. An entry not seen for this long is forgotten, on
+# save and on restore, so a retired endpoint (or a car sold from the account)
+# does not keep a mark for ever.
+RETRY_5XX_MAX_AGE_S = 24 * 3600.0
+_RETRY_5XX_MAX_ENTRIES = 64
+_RETRY_5XX_MAX_KEY_LEN = 512
+_RETRY_5XX_MAX_COUNT = 1000
+
+
+def retry_memory_to_cache(
+    counts: dict[str, int], stamps: dict[str, float], now: float, max_age_s: float,
+) -> dict[str, dict[str, Any]]:
+    """Serialise the 5xx retry memory for the per-entry cache (#1973).
+
+    One ``{"spent": n, "at": epoch_seconds}`` per key. An entry without a
+    stamp, or older than ``max_age_s``, is not written. The keys are method +
+    path and so contain the VIN; the store is local to the config entry.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for key, spent in counts.items():
+        at = stamps.get(key)
+        if at is None or now - at > max_age_s or spent < 1:
+            continue
+        out[key] = {"spent": int(spent), "at": float(at)}
+    return out
+
+
+def retry_memory_from_cache(
+    raw: Any, now: float, max_age_s: float,
+) -> dict[str, tuple[int, float]]:
+    """Restore the 5xx retry memory, defensively (#1973).
+
+    Returns ``{key: (spent, stamp)}``. Never raises; an entry that is
+    malformed, or older than ``max_age_s``, is skipped on its own without
+    costing the good ones. A stamp in the future (wrong clock, edited store) is
+    clamped to ``now`` so it ages out instead of living for ever. The number of
+    entries and the count are capped so an edited store cannot grow the memory.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, tuple[int, float]] = {}
+    for key, entry in raw.items():
+        if len(out) >= _RETRY_5XX_MAX_ENTRIES:
+            break
+        if (
+            not isinstance(key, str) or not key
+            or len(key) > _RETRY_5XX_MAX_KEY_LEN
+            or not isinstance(entry, dict)
+        ):
+            continue
+        spent = entry.get("spent")
+        at = entry.get("at")
+        if isinstance(spent, bool) or not isinstance(spent, int) or spent < 1:
+            continue
+        if isinstance(at, bool) or not isinstance(at, (int, float)):
+            continue
+        if not math.isfinite(at):
+            continue
+        stamp = min(float(at), now)
+        if now - stamp > max_age_s:
+            continue
+        out[key] = (min(spent, _RETRY_5XX_MAX_COUNT), stamp)
+    return out
 
 
 # Cumulative / slow telemetry: when a fresh poll omits the field (None) but we
@@ -416,7 +482,7 @@ def _restore_soc_provenance(
     copied before writing. A recorded value without a stamp must not wear the
     fresh leaf's stamp, so that one is dropped.
     """
-    for key in ("field_captured_ts", "field_source_leaf"):
+    for key in ("field_captured_ts", "field_source_leaf", "field_captured_inherited"):
         mine = merged.get(key)
         if not isinstance(mine, dict):
             mine = {}
@@ -673,6 +739,8 @@ def _carry_electric_range_leaf(
 # reader would date or attribute a field that no longer has a value.
 _PROVENANCE_MAPS: tuple[str, ...] = (
     "field_sources", "field_captured_ts", "field_source_leaf", "ambiguous_fields",
+    "field_carried_since",
+    "field_captured_inherited",
 )
 
 
@@ -895,8 +963,10 @@ def reconcile(
         still_imported: list[str] = []
         carried_src = dict(merged.get("field_sources") or {})
         carried_ts = dict(merged.get("field_captured_ts") or {})
+        carried_inh = dict(merged.get("field_captured_inherited") or {})
         changed_src = False
         changed_ts = False
+        changed_inh = False
         for key in imported:
             if fresh.get(key) is not None:
                 continue  # feed delivered it live this poll — mark dropped
@@ -913,11 +983,18 @@ def reconcile(
                     and key not in carried_ts):
                 carried_ts[key] = prev_ts[key]
                 changed_ts = True
+                prev_inh = previous.get("field_captured_inherited")
+                if (isinstance(prev_inh, dict) and prev_inh.get(key) is True
+                        and key not in carried_inh):
+                    carried_inh[key] = True
+                    changed_inh = True
             still_imported.append(key)
         if changed_src:
             merged["field_sources"] = carried_src
         if changed_ts:
             merged["field_captured_ts"] = carried_ts
+        if changed_inh:
+            merged["field_captured_inherited"] = carried_inh
         if still_imported:
             merged["field_imported_from_export"] = still_imported
         else:
@@ -1054,7 +1131,14 @@ def reconcile(
         for field in (*POSITION_FIELDS, "position_captured_at"):
             if merged.get(field) is None and previous.get(field) is not None:
                 merged[field] = previous[field]
-        if age is not None and age > POSITION_MAX_AGE_S:
+        # #923 — only a position that exists can be stale; a car that never
+        # recorded one has nothing to flag.
+        if (
+            age is not None
+            and age > POSITION_MAX_AGE_S
+            and merged.get("latitude") is not None
+            and merged.get("longitude") is not None
+        ):
             merged["position_is_stale"] = True
             notes.append(
                 f"recorded position is {age / 3600:.0f}h old "
@@ -1364,4 +1448,104 @@ def reconcile(
                 f"{_flag} was reported False while the carried-forward "
                 "evidence still supports it; re-derived as True (#1403)"
             )
+    # #2072 first: a headline derived here is a new value, so the #1917
+    # marker below, which compares with the stored value, does not call it
+    # carried.
+    _derive_combustion_headline(merged, previous, fresh, notes)
+    # #1917 — a carried value says so. Built from the FINAL result, because
+    # later rules above can replace a carried value (the energy-derived
+    # battery_soc) or take it out: a field counts as carried only if this poll
+    # did not deliver it and the value it ends with is the recorded one.
+    # ``field_carried_since`` maps it to the time of the poll in which it
+    # started being carried; that time stays put while the value stays carried
+    # and the field is gone as soon as a fresh value arrives. Marker only: no
+    # value changes, nothing is dropped, no age limit.
+    prev_carried = previous.get("field_carried_since")
+    if not isinstance(prev_carried, dict):
+        prev_carried = {}
+    # A value from the portal export (#1780) is kept by the import branch above
+    # and keeps its own provenance ("point"); it is not "carried" in this sense.
+    imported_keys = merged.get("field_imported_from_export")
+    if not isinstance(imported_keys, list):
+        imported_keys = []
+    carried_since: dict[str, str] = {}
+    carried_now: str | None = None
+    for field in CARRY_FORWARD_FIELDS:
+        if (
+            field not in imported_keys
+            and fresh.get(field) is None
+            and previous.get(field) is not None
+            and merged.get(field) is not None
+            and merged[field] == previous[field]
+        ):
+            since = prev_carried.get(field)
+            if not (isinstance(since, str) and since):
+                if carried_now is None:
+                    carried_now = datetime.now(tz=timezone.utc).isoformat()
+                since = carried_now
+            carried_since[field] = since
+    if carried_since:
+        merged["field_carried_since"] = carried_since
+    else:
+        merged.pop("field_carried_since", None)
     return merged, notes
+
+
+def _derive_combustion_headline(
+    merged: dict[str, Any],
+    previous: dict[str, Any],
+    fresh: dict[str, Any],
+    notes: list[str],
+) -> None:
+    """#2072 — replace a final headline range of 0 on a combustion car, in place.
+
+    Runs last, because only here are the carried values and the drivetrain
+    evidence of earlier polls known; a single poll cannot tell a combustion car
+    from a plug-in hybrid whose poll lacked the battery fields. A 0 headline
+    next to a non-empty tank is a false low-fuel alarm, so the first of
+    ``total_range_km`` and ``combustion_range_km`` above 0 takes its place, with
+    the provenance of the field it was copied from. Only what THIS poll
+    delivered counts: the fuel level and the candidate must both come from
+    ``fresh``, never from a carried value. Left alone: a missing headline, a
+    real 0 with an empty or unknown tank, and every car with high-voltage
+    battery evidence in this merge or in the stored snapshot.
+    """
+    if merged.get("range_km") != 0:
+        return
+    fuel = fresh.get("fuel_level")
+    if not isinstance(fuel, (int, float)) or isinstance(fuel, bool) or fuel <= 0:
+        return
+    for flag in ("has_battery", "is_hybrid", "is_electric"):
+        if merged.get(flag) or previous.get(flag):
+            return
+    for cand in ("total_range_km", "combustion_range_km"):
+        val = fresh.get(cand)
+        if isinstance(val, bool) or not isinstance(val, (int, float)) or val <= 0:
+            continue
+        merged["range_km"] = val
+        _amb = merged.get("ambiguous_fields")
+        if isinstance(_amb, dict) and "range_km" in _amb:
+            merged["ambiguous_fields"] = {
+                k: v for k, v in _amb.items() if k != "range_km"
+            }
+        notes.append(
+            f"range_km was 0 with fuel_level {fuel}; took {cand} {val} (#2072)"
+        )
+        for key in (
+            "field_sources", "field_captured_ts", "field_source_leaf",
+            "field_captured_inherited",
+        ):
+            raw = merged.get(key)
+            mapping = dict(raw) if isinstance(raw, dict) else {}
+            mapping.pop("range_km", None)
+            if cand in mapping:
+                mapping["range_km"] = mapping[cand]
+            if mapping or isinstance(raw, dict):
+                merged[key] = mapping
+        owner = (merged.get("field_sources") or {}).get("range_km")
+        channel = merged.get("source_channel")
+        if isinstance(owner, str) and owner:
+            parts = channel.split("+") if isinstance(channel, str) and channel else []
+            if owner not in parts:
+                merged["source_channel"] = "+".join(sorted([*parts, owner]))
+        return

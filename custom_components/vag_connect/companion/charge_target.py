@@ -23,11 +23,14 @@ a Save button (``vwd_save_button``). Only Save sends the setting.
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
 from dataclasses import dataclass
 
 from .screen import UiNode
+
+_LOGGER = logging.getLogger(__name__)
 
 CHARGE_TARGET_APP_VERSIONS = ("4.8.1", "4.6.4", "4.3.2")
 TARGET_MIN = 50
@@ -95,12 +98,14 @@ def find_charge_target_row(nodes: list[UiNode]) -> ChargeTargetRow | None:
         # A track under 100 dp is not this layout.
         if dp <= 0 or end - start < 100 * dp:
             continue
+        _LOGGER.debug("companion charge target: slider row found at %s%%", m.group(1))
         return ChargeTargetRow(
             current=int(m.group(1)),
             track_start=start,
             track_end=end,
             y=(v_top + v_bottom) // 2,
         )
+    _LOGGER.debug("companion charge target: no slider row among %d nodes", len(nodes))
     return None
 
 

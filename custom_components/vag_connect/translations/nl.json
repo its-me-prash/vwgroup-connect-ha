@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Nominale accucapaciteit (kWh, voor State of Health)",
           "fuel_tank_capacity": "Tankinhoud (liter, voor brandstof %)",
+          "stale_threshold_hours": "Gegevens verouderd na (uren)",
           "enable_reverse_geocoding": "Reverse geocoding (parkeeradres)",
           "read_only_mode": "Alleen-lezen modus",
           "companion_wake_sleep": "Companion: scherm wekken om op te halen, daarna weer in slaap",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Škoda officiële-API-bronmodus"
         },
         "data_description": {
+          "stale_threshold_hours": "Hoe oud het eigen opnametijdstip van de auto mag worden voordat \"Gegevens verouderd\" en de portaalstatus \"Verouderd\" worden ingeschakeld. Standaard 72 uur, bereik 1 tot 168. Nooit minder dan 8 update-intervallen. De reparatiemelding voor verouderde gegevens houdt een eigen ondergrens van 72 uur aan, dus een lagere waarde activeert die niet eerder.",
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
           "spin": "S-PIN voor deurvergrendeling.",
           "enable_reverse_geocoding": "Verzendt parkeer-GPS naar OpenStreetMap Nominatim om straat/stad te vinden. Standaard uit (privacy).",
@@ -1669,6 +1671,9 @@
       },
       "last_dataset_created_at": {
         "name": "Portaalbestand aangemaakt"
+      },
+      "newer_empty_portal_files": {
+        "name": "Nieuwere lege portaalbestanden"
       },
       "last_no_data_at": {
         "name": "Laatste polling zonder gegevens"

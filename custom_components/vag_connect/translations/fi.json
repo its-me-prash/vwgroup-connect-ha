@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Akun nimelliskapasiteetti (kWh, SoH-laskentaan)",
           "fuel_tank_capacity": "Polttoainesäiliön tilavuus (litraa, polttoaine-%)",
+          "stale_threshold_hours": "Tiedot vanhentuneet (tuntia)",
           "enable_reverse_geocoding": "Käänteinen geokoodaus (pysäköintiosoite)",
           "read_only_mode": "Vain luku -tila",
           "companion_wake_sleep": "Companion: herätä näyttö kyselyn ajaksi, nukuta sen jälkeen",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Škodan virallisen API:n lähdetila"
         },
         "data_description": {
+          "stale_threshold_hours": "Kuinka vanha auton oma tallennusaika saa olla, ennen kuin \"Tiedot vanhentuneet\" ja portaalin tila \"Vanhentunut\" kytkeytyvät päälle. Oletus on 72 tuntia, vaihteluväli 1–168. Ei koskaan alle 8 päivitysvälin. Vanhentuneiden tietojen korjausilmoitus säilyttää oman 72 tunnin alarajansa, joten pienempi arvo ei laukaise sitä aiemmin.",
           "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",
           "spin": "S-PIN ovien lukitsemiseen. Sovellus → Turvallisuus → S-PIN.",
           "enable_reverse_geocoding": "Lähettää pysäköinnin GPS-sijainnin OpenStreetMap Nominatimille kadun/kaupungin selvittämiseksi. Oletuksena pois päältä yksityisyyden vuoksi.",
@@ -1669,6 +1671,9 @@
       },
       "last_dataset_created_at": {
         "name": "Portaalin tiedosto luotu"
+      },
+      "newer_empty_portal_files": {
+        "name": "Uudemmat tyhjät portaalitiedostot"
       },
       "last_no_data_at": {
         "name": "Viimeisin kysely ilman dataa"
