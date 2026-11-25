@@ -2200,10 +2200,11 @@ class VWEUClient(CariadBaseClient):
             return "myAudi", MYAUDI_APP_VERSION
         # b13 (#503 dismantle / H5) — track the live We Connect version; the
         # fs-car endpoints reject stale versions. 4.1.1 → 4.2.1 (App Atlas
-        # 2026-07) → 4.8.1 (2026-11-18 dismantle, versionCode 408010; 0 new
-        # client-ids / endpoints). BrandConfig.user_agent in models.py names the
+        # 2026-07) → 4.8.1 (2026-11-18 dismantle, versionCode 408010) → 4.10.1
+        # (2026-11-24 dismantle, versionCode 410010; 0 new client-ids, MBB/fs-car
+        # hosts unchanged). BrandConfig.user_agent in models.py names the
         # same build so the two channels agree.
-        return "Volkswagen", "4.8.1"
+        return "Volkswagen", "4.10.1"
 
     def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         app_name, app_version = self._mbb_app_identity()
