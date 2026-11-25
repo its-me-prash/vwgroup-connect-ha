@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 from custom_components.vag_connect.cariad.vehicle_cache import (
     CARRY_FORWARD_FIELDS,
+    keep_overlay_owned_marker_state,
     reconcile,
     strip_runtime,
 )
@@ -248,17 +249,87 @@ def test_the_last_official_overwrite_drops_the_whole_map() -> None:
     assert not out.get("field_carried_since")
 
 
-def test_an_optimistic_hold_clears_a_marker_on_the_key_it_sets() -> None:
-    from types import SimpleNamespace
+def _owned_previous() -> dict[str, Any]:
+    return {
+        "range_km": 300, "odometer_km": 1000,
+        "field_sources": {"range_km": "skoda_official"},
+    }
+
+
+def test_a_value_the_overlay_owns_is_not_newly_marked_where_the_overlay_does_not_run() -> None:
+    previous = _owned_previous()
+    merged, _ = reconcile(previous, {"vin": "X", "range_km": None, "odometer_km": None})
+    keep_overlay_owned_marker_state(previous, merged)
+    assert merged["range_km"] == 300  # still carried, value untouched
+    # the overlay-owned key stays unmarked; the other carried key is marked
+    assert set(merged["field_carried_since"]) == {"odometer_km"}
+
+
+def test_the_map_goes_when_only_overlay_owned_values_were_marked() -> None:
+    previous = _owned_previous()
+    merged, _ = reconcile(previous, {"vin": "X", "range_km": None, "odometer_km": 1000})
+    assert set(merged["field_carried_since"]) == {"range_km"}
+    keep_overlay_owned_marker_state(previous, merged)
+    assert "field_carried_since" not in merged
+
+
+def test_an_overlay_owned_value_keeps_the_marker_it_already_had() -> None:
+    previous = _owned_previous()
+    previous["field_carried_since"] = {"range_km": "2026-11-20T08:00:00+00:00"}
+    merged, _ = reconcile(previous, {"vin": "X", "range_km": None, "odometer_km": 1000})
+    keep_overlay_owned_marker_state(previous, merged)
+    assert merged["field_carried_since"] == {"range_km": "2026-11-20T08:00:00+00:00"}
+
+
+def test_the_helper_is_a_no_op_without_previous_or_map() -> None:
+    merged: dict[str, Any] = {"range_km": 1}
+    keep_overlay_owned_marker_state(None, merged)
+    keep_overlay_owned_marker_state(_owned_previous(), merged)
+    assert merged == {"range_km": 1}
+
+
+def test_the_poll_path_still_marks_an_overlay_owned_value() -> None:
+    # the overlay runs after reconcile there and clears the mark itself
+    merged, _ = reconcile(_owned_previous(), {"vin": "X", "range_km": None})
+    assert "range_km" in merged["field_carried_since"]
+
+
+def test_setup_and_command_refresh_paths_restore_the_overlay_owned_marker_state() -> None:
+    import ast
+    import inspect
+
+    from custom_components.vag_connect import coordinator
+
+    tree = ast.parse(inspect.getsource(coordinator))
+    sites: dict[str, dict[str, list[int]]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            calls: dict[str, list[int]] = {}
+            for c in ast.walk(node):
+                if isinstance(c, ast.Call) and isinstance(c.func, ast.Name):
+                    calls.setdefault(c.func.id, []).append(c.lineno)
+            if "reconcile" in calls:
+                sites[node.name] = calls
+    # three reconcile sites: setup, periodic poll, command refresh
+    assert len(sites) == 3, list(sites)
+    restoring = []
+    for name, calls in sites.items():
+        src = inspect.getsource(getattr(coordinator.VagConnectCoordinator, name))
+        if "_merge_official_live" in src:
+            # periodic poll: the overlay runs after reconcile and clears itself
+            assert "keep_overlay_owned_marker_state" not in calls, name
+        else:
+            restoring.append(name)
+            assert min(calls["keep_overlay_owned_marker_state"]) > max(
+                calls["reconcile"]), name
+    assert len(restoring) == 2
+
+
+def test_the_optimistic_hold_does_not_touch_the_carried_marker() -> None:
+    import inspect
 
     from custom_components.vag_connect.coordinator import VagConnectCoordinator
 
-    import time
-
-    fake = SimpleNamespace(
-        _optimistic_hold={"V": {"target_soc": (80, time.monotonic() + 100)}}
+    assert "_clear_carried_marker" not in inspect.getsource(
+        VagConnectCoordinator._apply_optimistic_hold
     )
-    fresh = {"target_soc": 60, "field_carried_since": {"target_soc": "2026-11-24T10:00:00+00:00"}}
-    out = VagConnectCoordinator._apply_optimistic_hold(fake, "V", fresh)  # type: ignore[arg-type]
-    assert out["target_soc"] == 80
-    assert not out.get("field_carried_since")

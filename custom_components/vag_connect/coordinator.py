@@ -1792,9 +1792,9 @@ def _self_update_entry(
 
 
 def _clear_carried_marker(vehicle: dict[str, Any], key: str) -> None:
-    """#1917 — a writer that runs after ``reconcile()`` and sets a value of its
-    own (the official overlay, an optimistic hold) takes the "carried" mark off
-    that field; ``reconcile()`` built the map before that value existed."""
+    """#1917 — the official overlay runs after ``reconcile()`` and sets a value
+    of its own; it takes the "carried" mark off that field, because
+    ``reconcile()`` built the map before that value existed."""
     marks = vehicle.get("field_carried_since")
     if not isinstance(marks, dict) or key not in marks:
         return
@@ -2869,7 +2869,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # the users it exists for. Same two-stage treatment as the poll loop:
             # keep last-known-good VISIBLE on no-data, and reconcile a partial
             # payload instead of letting it blank recorded fields.
-            from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
+            from .cariad.vehicle_cache import (  # noqa: PLC0415
+                keep_overlay_owned_marker_state,
+                reconcile,
+            )
 
             with self._vehicles_lock:
                 for vin, prepared_data, failed, no_data in prepared:
@@ -2894,6 +2897,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         )
                         continue
                     prepared_data, _setup_disc = reconcile(
+                        self.vehicles.get(vin), prepared_data
+                    )
+                    # #1917 — the official overlay does not run on this path
+                    keep_overlay_owned_marker_state(
                         self.vehicles.get(vin), prepared_data
                     )
                     if _setup_disc:
@@ -9340,8 +9347,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     data = merged.to_dict()
                     data["_client"] = client
                     enriched = await self._enrich(data)
-                    from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
+                    from .cariad.vehicle_cache import (  # noqa: PLC0415
+                        keep_overlay_owned_marker_state,
+                        reconcile,
+                    )
                     enriched, _disc = reconcile(self.vehicles.get(vin), enriched)
+                    # #1917 — the official overlay does not run on this path
+                    keep_overlay_owned_marker_state(self.vehicles.get(vin), enriched)
                     # v4.7.10 (#465, toglo) — recompute the per-source
                     # connectivity map the SAME fail-soft way the poll loop does
                     # (see ~4160). This command-refresh path had skipped it, so
@@ -10979,8 +10991,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             elif key in fresh and fresh[key] == value:
                 del holds[key]                     # backend caught up → confirmed
             else:
+                # No optimistic key is in CARRY_FORWARD_FIELDS, so none carries a marker.
                 fresh[key] = value                 # still pending → hold optimistic
-                _clear_carried_marker(fresh, key)
         if not holds:
             hold_root.pop(vin, None)
         return fresh
