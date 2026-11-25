@@ -5583,6 +5583,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         startup): its first read runs in the background poll loop instead.
         """
         self._push_official_mode()  # #1286 — official_only routing before read
+        # #1973: Škoda only. Load the garage document BEFORE the first read, so
+        # the client's capability gate (battery-health on a petrol car) already
+        # applies to it instead of paying a full 5xx retry ladder at every start.
+        # 24 h cache + failure stamp: the fetches in _bg_finish and _enrich hit
+        # it, so no request is added. A failed fetch leaves the list unknown and
+        # battery-health is still tried once (permissive by design).
+        if str(self.entry.data.get(CONF_BRAND, "")).lower() == "skoda":
+            await asyncio.gather(
+                *[self.refresh_capabilities(vin) for vin in vins],
+                return_exceptions=True,
+            )
         results = await asyncio.gather(
             *[self._cariad_client.get_status(vin) for vin in vins],
             return_exceptions=True,
