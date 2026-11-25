@@ -1670,6 +1670,9 @@
       "last_dataset_created_at": {
         "name": "Soubor portálu vytvořen"
       },
+      "newer_empty_portal_files": {
+        "name": "Novější prázdné soubory portálu"
+      },
       "last_no_data_at": {
         "name": "Poslední dotaz bez dat"
       },

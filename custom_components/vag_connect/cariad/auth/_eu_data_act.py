@@ -3667,6 +3667,9 @@ def map_dataset_to_vehicle_data(
         _csv = _cs.strip().upper().replace("CLIMATISATION_STATE_", "")
         if _csv and _csv != "INVALID":
             d.climatisation_state = _csv
+            # #1881 - keep the leaf's own capture time (recorded here, not in
+            # first(), so an INVALID state never records one).
+            _record("climatisation_state", _matched[0], ("climatisation_state",))
             if d.climatisation_active is None:
                 # Scout 2026-09-25 (#1492, Touareg eHybrid) — a car can report
                 # "error" here (paired with climatisation_state_error_code below);
@@ -3681,6 +3684,10 @@ def map_dataset_to_vehicle_data(
         _crv = _clim_reason.strip().upper().replace("CLIMATISATION_REASON_TRIGGER_", "").replace("CLIMATISATION_REASON_", "")
         if _crv and _crv != "INVALID":
             d.climatisation_reason = _crv
+            _record(
+                "climatisation_reason", _matched[0],
+                ("climatisation_reason_trigger", "climatisation_reason"),
+            )
     # Scout 2026-09-28 (#1603, VW Passat eTSI) — the modern portal also ships a
     # bare climate on/off flag `climacontrol` ("true"/"false"). Official dict
     # 993a7694 (type=boolean): "Heating in the vehicle is in the preheating
@@ -6217,6 +6224,11 @@ class EUDataActConnector:
         # a user can tell a fresh delivery from a re-read. None when the chosen
         # file's listing entry carried no readable creation time.
         self.last_dataset_created_at: str | None = None
+        # #2209 - how many ``_no_content_found`` placeholders the last listing
+        # held that are NEWER than the file we read (all of them when no file
+        # was read). None until a listing held a placeholder or a file with a
+        # creation time was read.
+        self.last_newer_empty_files: int | None = None
         # v4.7.11 (#465 BooM80) — last dataset's field-delivery honesty. VW's
         # EU-DA export can ship a data point's NAME + capture timestamp but omit
         # the ``value`` (BooM80's official export: 10 names, only 3 valued), so
@@ -7748,11 +7760,15 @@ class EUDataActConnector:
         # (name, delivery_ts) per content file; keep array index as the tie/
         # fallback order so a listing with no timestamp behaves as before.
         cands: list[tuple[str, float | None, int]] = []
+        # #2209 - creation times of the listed placeholders, kept only to count
+        # how many are newer than the file that ends up being read.
+        placeholder_ts: list[float] = []
+        placeholder_total = 0
         for idx, f in enumerate(files):
             if not isinstance(f, dict):
                 continue
             name = f.get("name")
-            if isinstance(name, str) and not name.endswith(_NO_CONTENT_SUFFIX):
+            if isinstance(name, str):
                 # #529 step 4: prefer an explicit delivery timestamp over array
                 # order (the array is NOT guaranteed newest-last). createdOn is
                 # the portal's field (confirmed in the reference reader); accept
@@ -7763,7 +7779,19 @@ class EUDataActConnector:
                         dts = _parse_ts(f.get(tk))
                         if dts is not None:
                             break
-                cands.append((name, dts, idx))
+                if not name.endswith(_NO_CONTENT_SUFFIX):
+                    cands.append((name, dts, idx))
+                else:
+                    placeholder_total += 1
+                    if dts is not None:
+                        placeholder_ts.append(dts)
+        # #2209 - the count for THIS poll, set before any early return so no
+        # path keeps the value of an earlier poll. No file read yet: every
+        # listed placeholder is newer than nothing; None for an empty listing.
+        # It is replaced below once a file has been chosen.
+        self.last_newer_empty_files = (
+            placeholder_total if (files if isinstance(files, list) else []) else None
+        )
         if not cands:
             # #709 — distinguish the three "no usable file" cases so a stuck feed
             # is diagnosable: (a) the listing was empty, (b) the portal IS
@@ -7850,6 +7878,15 @@ class EUDataActConnector:
                 break
             if st is not None and st in _PORTAL_OUTAGE_STATUSES:
                 saw_outage = True
+        # #2209 - a file was chosen: count the placeholders listed after it;
+        # unknown when it has no creation time to compare against. With no
+        # file chosen the count set above (all listed placeholders) stands.
+        if chosen is not None:
+            _read_ts = next((c[1] for c in cands if c[0] == chosen), None)
+            self.last_newer_empty_files = (
+                sum(1 for t in placeholder_ts if t > _read_ts)
+                if _read_ts is not None else None
+            )
         if raw is None or chosen is None:
             # Every attempted dataset returned a transient outage / timeout — same
             # "don't burn the session, no data this poll" outcome as before.

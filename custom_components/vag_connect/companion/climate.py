@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
@@ -53,6 +54,8 @@ from .resources import (
 )
 from .screen import UiNode, _rid_matches, find_node_for, find_rate_limit_banner, has_anchor
 from .transport import CompanionTransportError
+
+_LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .channel import CompanionChannel
@@ -372,6 +375,12 @@ class ClimateController:
             self._home = False
             if not read_sheet(nodes).present:
                 tile = find_node_for(nodes, nav.path[0])
+                _LOGGER.debug(
+                    "companion climate: tile %s among %d nodes",
+                    "found" if tile is not None and tile.tap_point is not None
+                    else "not found",
+                    len(nodes),
+                )
                 if tile is None or tile.tap_point is None:
                     raise self._blocked("the climate tile is not on the current screen")
                 await self._ch._t.tap(*tile.tap_point)

@@ -37,10 +37,13 @@ built for this editor.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
 from .screen import UiNode
+
+_LOGGER = logging.getLogger(__name__)
 
 # Home Assistant's own weekday codes, in the app's button order.
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -123,6 +126,9 @@ def departure_rows(nodes: list[UiNode]) -> list[DepartureRow]:
             continue
         rows.append(DepartureRow(row.bounds[1], switch.checked, f"{hour:02d}:{minute:02d}", switch, clock, row.bounds))
     rows.sort(key=lambda r: r.top)
+    _LOGGER.debug(
+        "companion departure: %d timer row(s) among %d nodes", len(rows), len(nodes)
+    )
     return rows
 
 
@@ -264,8 +270,12 @@ def read_timer_details(nodes: list[UiNode], slot: int) -> dict[str, object]:
     """
     legacy = read_timer_page(nodes)
     if legacy is not None:
+        _LOGGER.debug("companion departure: timer %d read from the legacy page", slot)
         return page_fields(legacy, slot)
     if not is_compose_timer_page(nodes):
+        _LOGGER.debug(
+            "companion departure: timer %d page not recognised (%d nodes)", slot, len(nodes)
+        )
         return {}
     groups = [n for n in nodes if _rid(n) == "editDepartureTimerRepeat" and n.bounds]
     if len(groups) != 1:

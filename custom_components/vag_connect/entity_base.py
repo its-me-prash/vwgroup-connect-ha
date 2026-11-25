@@ -78,6 +78,7 @@ _CONNECTION_STATUS_KEYS = frozenset({
     "minutes_since_last_snapshot",
     "last_snapshot_at",
     "last_dataset_created_at",
+    "newer_empty_portal_files",
     "last_no_data_at",
     "no_data_count",
 })

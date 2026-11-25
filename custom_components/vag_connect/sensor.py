@@ -255,6 +255,14 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
+        key="newer_empty_portal_files",
+        translation_key="newer_empty_portal_files",
+        data_key="newer_empty_portal_files",
+        icon="mdi:file-hidden",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
         key="last_no_data_at",
         translation_key="last_no_data_at",
         data_key="last_no_data_at",
@@ -4749,6 +4757,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "data_request_created_at",
     "last_snapshot_at",
     "last_dataset_created_at",
+    "newer_empty_portal_files",
     "last_no_data_at",
     "no_data_count",
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal-only interior temp,
