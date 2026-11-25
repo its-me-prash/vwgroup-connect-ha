@@ -422,6 +422,28 @@ def merge_channels(
 
     _merge_drivetrain(merged, sources, field_sources)
 
+    # #2072 — headline range of a car WITHOUT a high-voltage battery. The
+    # volkswagen.de channel does not deliver a headline range for a combustion
+    # car, so the value that survives is the portal's, which can be missing or
+    # a carried 0 while the tank is not empty (a false low-fuel alarm). Derive
+    # it from the total, else the combustion range, in the order the BFF parser
+    # uses. A real 0 (empty or unknown tank) and every PHEV/EV stay as they are.
+    range_source: str | None = None
+    if not merged.has_battery and (
+        merged.range_km is None
+        or (merged.range_km == 0 and (merged.fuel_level or 0) > 0)
+    ):
+        for cand in ("total_range_km", "combustion_range_km"):
+            val = getattr(merged, cand)
+            if val is not None and (val > 0 or merged.range_km is None):
+                merged.range_km = val
+                range_source = cand
+                owner = field_sources.get(cand)
+                if owner:
+                    field_sources["range_km"] = owner
+                    contributors.add(owner)
+                break
+
     # Provenance = the channels that actually contributed a value: "+"-joined
     # when several did, the single channel name when only one had data, None
     # when nothing did (every channel empty).
@@ -470,6 +492,15 @@ def merge_channels(
             note = src_amb.get(f_name)
             if isinstance(note, str) and note:
                 ambiguous[f_name] = note
+    if range_source is not None:
+        # The replaced value's stamp and leaf must not outlive it; the derived
+        # headline takes the ones of the field it was copied from.
+        captured_ts.pop("range_km", None)
+        source_leaf.pop("range_km", None)
+        if range_source in captured_ts:
+            captured_ts["range_km"] = captured_ts[range_source]
+        if range_source in source_leaf:
+            source_leaf["range_km"] = source_leaf[range_source]
     merged.field_captured_ts = captured_ts
     merged.ambiguous_fields = ambiguous
     merged.field_source_leaf = source_leaf
