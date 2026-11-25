@@ -13,6 +13,7 @@ This module is the pure reconcile/serialise logic; the coordinator owns the
 from __future__ import annotations
 
 import hashlib
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -118,6 +119,71 @@ def drop_state_from_cache(
                 parsed = parsed.replace(tzinfo=timezone.utc)
             anchor = min(parsed, now)
     return anchor, streak
+
+
+# #1973 — the 5xx retry memory. An entry not seen for this long is forgotten, on
+# save and on restore, so a retired endpoint (or a car sold from the account)
+# does not keep a mark for ever.
+RETRY_5XX_MAX_AGE_S = 24 * 3600.0
+_RETRY_5XX_MAX_ENTRIES = 64
+_RETRY_5XX_MAX_KEY_LEN = 512
+_RETRY_5XX_MAX_COUNT = 1000
+
+
+def retry_memory_to_cache(
+    counts: dict[str, int], stamps: dict[str, float], now: float, max_age_s: float,
+) -> dict[str, dict[str, Any]]:
+    """Serialise the 5xx retry memory for the per-entry cache (#1973).
+
+    One ``{"spent": n, "at": epoch_seconds}`` per key. An entry without a
+    stamp, or older than ``max_age_s``, is not written. The keys are method +
+    path and so contain the VIN; the store is local to the config entry.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for key, spent in counts.items():
+        at = stamps.get(key)
+        if at is None or now - at > max_age_s or spent < 1:
+            continue
+        out[key] = {"spent": int(spent), "at": float(at)}
+    return out
+
+
+def retry_memory_from_cache(
+    raw: Any, now: float, max_age_s: float,
+) -> dict[str, tuple[int, float]]:
+    """Restore the 5xx retry memory, defensively (#1973).
+
+    Returns ``{key: (spent, stamp)}``. Never raises; an entry that is
+    malformed, or older than ``max_age_s``, is skipped on its own without
+    costing the good ones. A stamp in the future (wrong clock, edited store) is
+    clamped to ``now`` so it ages out instead of living for ever. The number of
+    entries and the count are capped so an edited store cannot grow the memory.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, tuple[int, float]] = {}
+    for key, entry in raw.items():
+        if len(out) >= _RETRY_5XX_MAX_ENTRIES:
+            break
+        if (
+            not isinstance(key, str) or not key
+            or len(key) > _RETRY_5XX_MAX_KEY_LEN
+            or not isinstance(entry, dict)
+        ):
+            continue
+        spent = entry.get("spent")
+        at = entry.get("at")
+        if isinstance(spent, bool) or not isinstance(spent, int) or spent < 1:
+            continue
+        if isinstance(at, bool) or not isinstance(at, (int, float)):
+            continue
+        if not math.isfinite(at):
+            continue
+        stamp = min(float(at), now)
+        if now - stamp > max_age_s:
+            continue
+        out[key] = (min(spent, _RETRY_5XX_MAX_COUNT), stamp)
+    return out
 
 
 # Cumulative / slow telemetry: when a fresh poll omits the field (None) but we
