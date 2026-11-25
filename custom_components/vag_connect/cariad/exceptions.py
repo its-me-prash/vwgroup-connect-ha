@@ -413,6 +413,23 @@ class InvalidCredentialsError(AuthenticationError):
     """
 
 
+class WebsiteLoginIncompleteError(AuthenticationError):
+    """The volkswagen.de sign-in did not end back on volkswagen.de.
+
+    Raised by the website authproxy's ``_finalise_login`` when the chain stops
+    on another host or on a page whose address carries an ``error`` parameter.
+    The message names that landing point (host and path only, or the error
+    token), never the query.
+
+    After the e-mail code this is NOT a refused code: the code check treats only
+    an HTTP error or a return to the challenge page as a refusal. #2200
+    (@zdravac) was told "that e-mail code was not accepted" for exactly this
+    case, with nothing in the log to say where the sign-in had ended. Kept a
+    subclass of ``AuthenticationError`` so every caller that handles the parent
+    behaves as before.
+    """
+
+
 class TokenRefreshRetryError(CariadError):
     """A token refresh was rejected TRANSIENTLY — not a dead refresh token.
 

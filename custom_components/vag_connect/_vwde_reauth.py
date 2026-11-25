@@ -148,6 +148,7 @@ class VwDeReauthMixin:
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             AuthProxyUnavailableError,
+            WebsiteLoginIncompleteError,
         )
 
         if self._ovw_connector is None:
@@ -171,6 +172,19 @@ class VwDeReauthMixin:
             if isinstance(_status, int) and 400 <= _status < 500:
                 raise ValueError("authproxy_refused") from err
             raise ValueError("upstream_unavailable") from err
+        except WebsiteLoginIncompleteError as err:
+            # #2200 (@zdravac) — reached from the options dialog: the code step
+            # did not come back to the challenge page, so the code was not read
+            # as refused, and the sign-in then stopped short of volkswagen.de.
+            # He was told the code was not accepted, and the debug line below
+            # dropped the message, so his log could not say where it stopped.
+            # The setup twin in config_flow got the same branch; the repair
+            # flow reuses this method.
+            _LOGGER.warning(
+                "Website authproxy OTP step: the sign-in did not complete "
+                "after the code: %s", err,
+            )
+            raise ValueError("website_login_failed") from err
         except AuthenticationError as err:
             _LOGGER.debug("Website authproxy OTP step rejected the code")
             raise ValueError("invalid_otp") from err

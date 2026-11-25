@@ -350,4 +350,6 @@ class TestTheLogDoesNotLeak:
         text = caplog.text
         assert "not retrying" in text, "positive control: the line was emitted"
         assert _VIN not in text
-        assert "readiness" not in text
+        # #1850 — the line now names the call, masked like the lockout warning,
+        # so a reporter's log can tell two failing endpoints apart.
+        assert "connection-status/<vin>/readiness" in text

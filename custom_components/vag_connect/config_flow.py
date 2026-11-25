@@ -1296,6 +1296,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             AuthProxyUnavailableError,
+            WebsiteLoginIncompleteError,
         )
 
         if self._wap_connector is None:
@@ -1322,6 +1323,17 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             if isinstance(_status, int) and 400 <= _status < 500:
                 raise ValueError("authproxy_refused") from err
             raise ValueError("upstream_unavailable") from err
+        except WebsiteLoginIncompleteError as err:
+            # #2200 — the code step did not come back to the challenge page,
+            # which is the only outcome read as a refused code, and the sign-in
+            # then stopped short of volkswagen.de. "Code not accepted" would
+            # send the user round for a new code that lands on the same page.
+            # The message names where it stopped (host and path only).
+            _LOGGER.warning(
+                "Website authproxy OTP step: the sign-in did not complete "
+                "after the code: %s", err,
+            )
+            raise ValueError("website_login_failed") from err
         except AuthenticationError as err:
             # #1843 — @kalwados hit this same verdict on the OPTIONS flow; this
             # is its setup-time twin, on the path a first-time user takes. The
@@ -3392,6 +3404,32 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 merged = base if account_changed else {**entry.data, **base}
                 if _tok:  # v4.7.7 (#1337) — bridge a Porsche login token
                     merged["porsche_initial_tokens"] = _tok
+
+                # #2202 — the box UNticked. The merge above keeps every key the
+                # base builder does not own, and only the ticked box had a
+                # branch, so an armed command channel stayed armed and the
+                # entry kept calling MBB after the user switched it off.
+                # Only an explicit False counts: the form always sends the box,
+                # and a submit without it keeps the channel (v2.17.2 merge).
+                # The tokens and client id stay when the entry also carries the
+                # Audi BFF fallback, which runs on the same bearer and has its
+                # own menu. The VIN list is never written by this channel and
+                # is left alone: an MBB-primary entry reads its cars from it.
+                if (
+                    not account_changed
+                    and brand in ("volkswagen", "audi")
+                    and "enable_mbb_commands" in user_input
+                    and not user_input["enable_mbb_commands"]
+                ):
+                    _drop = [
+                        CONF_MBB_COMMAND_CHANNEL,
+                        CONF_MEB_COMMANDS_UNAVAILABLE,
+                        CONF_MBB_COMMANDS_BLOCKED_REASON,
+                    ]
+                    if not merged.get(CONF_MBB_COMMAND_FALLBACK):
+                        _drop += [CONF_MBB_COMMAND_TOKENS, CONF_MBB_COMMAND_CLIENT_ID]
+                    for _key in _drop:
+                        merged.pop(_key, None)
 
                 # v2.17.2 (#666) — arm the durable-MBB command channel on an
                 # EXISTING portal entry via Reconfigure (VW/Audi). Mirrors the
