@@ -103,9 +103,10 @@ _KEY_NAME_ALLOWED = r"^[\w \-]+$"
 # The key-management route is only exercised by the MyŠkoda app (v8.16+); spoof the
 # real app User-Agent on these calls so a possible min-app-version gate is satisfied
 # (MySkoda/Android/{versionName}/{versionCode}, format verbatim from the 8.16 APK).
-# MyŠkoda 8.18.0 (vc 261012003) builds the same header the same way; the values
-# follow the current app so a min-app-version gate keeps being satisfied.
-_KEYGEN_USER_AGENT = "MySkoda/Android/8.18.0/261012003"
+# MyŠkoda 8.18.0 (vc 261012003) and 8.19.0 (vc 261106003, header interceptor
+# ``ni0``) build the same header the same way; the values follow the current app
+# so a min-app-version gate keeps being satisfied.
+_KEYGEN_USER_AGENT = "MySkoda/Android/8.19.0/261106003"
 # 1:1 with the app: the MyŠkoda "[bff-api-auth]" client attaches a full app-identity
 # header set on EVERY request (RE'd byte-for-byte from 8.16 br0/b.smali). The read
 # endpoints accept our token without it, but the key-management route (create/list/
@@ -113,9 +114,9 @@ _KEYGEN_USER_AGENT = "MySkoda/Android/8.18.0/261012003"
 # difference left after host/method/token/body were all confirmed identical. Every
 # value is client-generated (the installation-id is a locally-persisted UUID, not a
 # server-registered one; traceparent is random per request), so we reproduce them
-# exactly. Values from the current APK (8.18.0, vc 261012003; same header set).
-_KEYGEN_APP_VERSION_NAME = "8.18.0"
-_KEYGEN_APP_VERSION_CODE = "261012003"
+# exactly. Values from the current APK (8.19.0, vc 261106003; same header set).
+_KEYGEN_APP_VERSION_NAME = "8.19.0"
+_KEYGEN_APP_VERSION_CODE = "261106003"
 
 _COMBUSTION_ENGINE_TYPES = ("gasoline", "petrol", "diesel", "cng", "lpg")
 

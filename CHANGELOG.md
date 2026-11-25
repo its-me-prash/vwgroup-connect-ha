@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Geändert / Changed
+
+- **Škoda: API-key requests report MyŠkoda 8.19.0, and the background probe for the charging history the app dropped is removed (#2186).** Google Play has shipped MyŠkoda 8.19.0 (versionCode 261106003) since 19 November 2026. Creating, listing and deleting an official Škoda API key now identifies as 8.19.0 instead of 8.18.0; the app still sends the same header set, only the version values change. 8.19.0 no longer has `GET api/v1/charging/{vin}/history` or its export: the route and its three response types are gone from the app, which reads charging sessions from the CARIAD charging-statistics service, as the integration already does. The hourly background probe for that address is removed. The integration's own fallback read of the same address is unchanged, because whether the server still answers it has not been measured. Checked against the app downloaded from Google Play (signing certificate unchanged); covered by `tests/test_skoda_official_failover.py` and `tests/test_v252_v3_probes.py`; not tried with a Škoda account.
+
 ## [5.6.0] - 2026-11-24 — "The real reason / Der echte Grund"
 
 ### Hinzugefügt / Added

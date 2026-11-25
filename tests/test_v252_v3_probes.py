@@ -210,7 +210,20 @@ def test_skoda_probes_drop_the_paths_the_app_does_not_have() -> None:
     ):
         assert dead not in paths
     assert paths == {
-        "/api/v1/charging/{vin}/history",
         "/api/v2/vehicle-status/{vin}/driving-score",
         "/api/v1/vehicle-information/{vin}/renders",
     }
+
+
+def test_skoda_probe_drops_the_charging_history_the_app_removed() -> None:
+    """MyŠkoda 8.19.0 (vc 261106003) no longer has ``GET api/v1/charging/{vin}/
+    history`` (``ChargingApi`` lost it together with its three DTOs), so the
+    background probe for it goes. The fallback read in the coordinator is a
+    separate path and is not touched here."""
+    from custom_components.vag_connect.cariad.api._v3_probes import (  # noqa: PLC0415
+        probes_for_brand,
+    )
+
+    probes = probes_for_brand("skoda")
+    assert "/api/v1/charging/{vin}/history" not in {p.path for p in probes}
+    assert "mysmob_v1_charging_history" not in {p.name for p in probes}

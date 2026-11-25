@@ -239,12 +239,13 @@ def test_keygen_headers_match_the_app_byte_for_byte():
     """The api-keys management endpoint 400s without the app-identity headers (host,
     method, token, body were all confirmed identical to the app). _keygen_headers
     reproduces the app's identity set byte-for-byte (8.16 br0/b.smali; values
-    raised to MyŠkoda 8.18.0, vc 261012003, whose interceptor sends the same set)."""
+    raised to MyŠkoda 8.19.0, vc 261106003, whose interceptor ``ni0`` sends the
+    same set)."""
     c = _skoda_client()
     h = c._keygen_headers()
-    assert h["User-Agent"] == "MySkoda/Android/8.18.0/261012003"
-    assert h["X-APP-VERSION-NAME"] == "8.18.0"
-    assert h["X-APP-VERSION-CODE"] == "261012003"
+    assert h["User-Agent"] == "MySkoda/Android/8.19.0/261106003"
+    assert h["X-APP-VERSION-NAME"] == "8.19.0"
+    assert h["X-APP-VERSION-CODE"] == "261106003"
     assert h["X-APP-PLATFORM"] == "Android"
     assert h["X-DEVICE-LANGUAGE"] and h["X-DEVICE-COUNTRY"]
     # installation id is a well-formed UUID and STABLE across calls (like the app's
@@ -310,7 +311,7 @@ async def test_mint_sends_app_identity_headers_and_vin_first_body():
     assert out and out["key"] == "msk_x"
     # full app-identity header set on the create call
     hdr = captured["headers"]
-    assert hdr["X-APP-VERSION-NAME"] == "8.18.0"
+    assert hdr["X-APP-VERSION-NAME"] == "8.19.0"
     assert hdr["X-APP-PLATFORM"] == "Android"
     assert "X-APP-INSTALLATION-ID" in hdr
     assert hdr["traceparent"].startswith("00-")

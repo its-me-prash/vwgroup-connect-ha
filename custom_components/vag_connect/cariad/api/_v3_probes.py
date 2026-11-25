@@ -130,11 +130,13 @@ _OLA_PROBES: tuple[V3Probe, ...] = (
 # doesn't visit today (driving-score, predictive-maintenance, garage
 # predictions, software-version status).
 _MYSMOB_PROBES: tuple[V3Probe, ...] = (
-    V3Probe(
-        name="mysmob_v1_charging_history",
-        path="/api/v1/charging/{vin}/history",
-        notes="Total kWh charged + per-session — myskoda exposes; field-coverage gap for us",
-    ),
+    # MyŠkoda 8.19.0 (vc 261106003) dropped ``GET api/v1/charging/{vin}/history``
+    # (and its export) from ``ChargingApi`` together with ChargingHistoryDto,
+    # ChargingPeriodDto and ChargingSessionDto; the app reads charging sessions
+    # from the CARIAD charging-statistics service, as the integration does
+    # (``get_charging_statistics``). The probe for it is removed. The best-effort
+    # fallback read of the same path (``refresh_charging_history``) stays, since
+    # whether the server still answers it is not measured.
     V3Probe(
         name="mysmob_v2_driving_score",
         path="/api/v2/vehicle-status/{vin}/driving-score",
@@ -324,11 +326,12 @@ def base_url_for_brand(brand_name: str) -> str | None:
 
 # Approx total probe surface (sum of unique endpoints across brand families):
 #   OLA (SEAT+CUPRA): 10
-#   mysmob (Skoda):    3 (five dead paths removed against MyŠkoda 8.18.0)
+#   mysmob (Skoda):    2 (five dead paths removed against MyŠkoda 8.18.0,
+#                         charging history against 8.19.0)
 #   CARIAD-BFF (VW+Audi): 11
 #   VW NA:             0 (removed in v2.29.x — see the VW NA block above)
 #   Porsche:           3
-# = 27 distinct endpoints (counted from PROBES_BY_BRAND, 18.11.2026). Per-VIN
-# per-pass at 1×/h = 27 calls/h max across
+# = 26 distinct endpoints (counted from PROBES_BY_BRAND, 25.11.2026). Per-VIN
+# per-pass at 1×/h = 26 calls/h max across
 # a multi-brand HA install. Per-user typical scope: 8-10 calls/h. Well under
 # any documented rate-limit for the targeted backends.
