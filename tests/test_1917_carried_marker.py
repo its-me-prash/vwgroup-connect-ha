@@ -176,3 +176,89 @@ def test_a_poll_with_no_previous_snapshot_is_returned_untouched() -> None:
     merged, _ = reconcile(None, fresh)
     assert merged is fresh
     assert "field_carried_since" not in merged
+
+
+def test_an_energy_derived_state_of_charge_is_not_marked_carried() -> None:
+    """The recorded charge level (90 %) rides the first carry step, then the
+    pack energy of THIS poll (30 of 60 kWh = 50 %) replaces it. The value is
+    this poll's own computation, so it must not be marked as carried."""
+    previous = {"battery_soc": 90, "range_km": 300}
+    fresh = {
+        "vin": "X",
+        "battery_soc": None,
+        "range_km": None,
+        "battery_available_kwh": 30.0,
+        "battery_cap_kwh": 60.0,
+        "is_charging": False,
+    }
+    merged, _ = reconcile(previous, fresh)
+    assert merged["battery_soc"] == 50  # the derived value won
+    since = merged.get("field_carried_since") or {}
+    assert "battery_soc" not in since
+    # a field that really was carried in the same poll keeps its marker
+    assert merged["range_km"] == 300
+    assert set(since) == {"range_km"}
+
+
+def _overlay_poll(previous: dict[str, Any], fresh: dict[str, Any],
+                  official: dict[str, Any]) -> dict[str, Any]:
+    """The poll order: reconcile(), then the Škoda official overlay."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from custom_components.vag_connect.cariad.models import VehicleData
+    from custom_components.vag_connect.coordinator import VagConnectCoordinator
+
+    enriched, _ = reconcile(previous, fresh)
+    data = VehicleData(vin="X")
+    for k, v in official.items():
+        setattr(data, k, v)
+
+    async def _read(_vin: str) -> Any:
+        return data
+
+    fake = SimpleNamespace(_cariad_client=SimpleNamespace(official_live_read=_read))
+    asyncio.new_event_loop().run_until_complete(
+        VagConnectCoordinator._merge_official_live(fake, "X", enriched)  # type: ignore[arg-type]
+    )
+    return enriched
+
+
+def test_a_fresh_official_value_clears_the_carried_marker() -> None:
+    previous = {"range_km": 300, "fuel_level": 40, "odometer_km": 1000}
+    out = _overlay_poll(
+        previous,
+        {"vin": "X", "range_km": None, "fuel_level": None, "odometer_km": None},
+        {"range_km": 310, "fuel_level": 38},
+    )
+    assert out["range_km"] == 310
+    assert out["fuel_level"] == 38
+    # still carried: the official read did not deliver it
+    assert out["odometer_km"] == 1000
+    assert set(out["field_carried_since"]) == {"odometer_km"}
+
+
+def test_the_last_official_overwrite_drops_the_whole_map() -> None:
+    out = _overlay_poll(
+        {"range_km": 300},
+        {"vin": "X", "range_km": None},
+        {"range_km": 310},
+    )
+    assert out["range_km"] == 310
+    assert not out.get("field_carried_since")
+
+
+def test_an_optimistic_hold_clears_a_marker_on_the_key_it_sets() -> None:
+    from types import SimpleNamespace
+
+    from custom_components.vag_connect.coordinator import VagConnectCoordinator
+
+    import time
+
+    fake = SimpleNamespace(
+        _optimistic_hold={"V": {"target_soc": (80, time.monotonic() + 100)}}
+    )
+    fresh = {"target_soc": 60, "field_carried_since": {"target_soc": "2026-11-24T10:00:00+00:00"}}
+    out = VagConnectCoordinator._apply_optimistic_hold(fake, "V", fresh)  # type: ignore[arg-type]
+    assert out["target_soc"] == 80
+    assert not out.get("field_carried_since")

@@ -868,27 +868,9 @@ def reconcile(
     previous = _heal_cached_combined_range(previous, fresh)
     merged = dict(fresh)
     notes: list[str] = []
-    # #1917 — a carried value says so: ``field_carried_since`` maps the field to
-    # the time of the poll in which it started being carried. It stays put while
-    # the value stays carried and is gone as soon as a fresh value arrives
-    # (``merged`` starts as the fresh poll, so nothing is copied over by itself).
-    # Marker only: no value changes, nothing is dropped, no age limit.
-    prev_carried = previous.get("field_carried_since")
-    if not isinstance(prev_carried, dict):
-        prev_carried = {}
-    carried_since: dict[str, str] = {}
-    carried_now: str | None = None
     for field in CARRY_FORWARD_FIELDS:
         if merged.get(field) is None and previous.get(field) is not None:
             merged[field] = previous[field]
-            since = prev_carried.get(field)
-            if not (isinstance(since, str) and since):
-                if carried_now is None:
-                    carried_now = datetime.now(tz=timezone.utc).isoformat()
-                since = carried_now
-            carried_since[field] = since
-    if carried_since:
-        merged["field_carried_since"] = carried_since
     # #1970 — the electric range's leaf name is the heal's evidence; it
     # travels with a carried value.
     _carry_electric_range_leaf(merged, fresh, previous)
@@ -1383,4 +1365,34 @@ def reconcile(
                 f"{_flag} was reported False while the carried-forward "
                 "evidence still supports it; re-derived as True (#1403)"
             )
+    # #1917 — a carried value says so. Built from the FINAL result, because
+    # later rules above can replace a carried value (the energy-derived
+    # battery_soc) or take it out: a field counts as carried only if this poll
+    # did not deliver it and the value it ends with is the recorded one.
+    # ``field_carried_since`` maps it to the time of the poll in which it
+    # started being carried; that time stays put while the value stays carried
+    # and the field is gone as soon as a fresh value arrives. Marker only: no
+    # value changes, nothing is dropped, no age limit.
+    prev_carried = previous.get("field_carried_since")
+    if not isinstance(prev_carried, dict):
+        prev_carried = {}
+    carried_since: dict[str, str] = {}
+    carried_now: str | None = None
+    for field in CARRY_FORWARD_FIELDS:
+        if (
+            fresh.get(field) is None
+            and previous.get(field) is not None
+            and merged.get(field) is not None
+            and merged[field] == previous[field]
+        ):
+            since = prev_carried.get(field)
+            if not (isinstance(since, str) and since):
+                if carried_now is None:
+                    carried_now = datetime.now(tz=timezone.utc).isoformat()
+                since = carried_now
+            carried_since[field] = since
+    if carried_since:
+        merged["field_carried_since"] = carried_since
+    else:
+        merged.pop("field_carried_since", None)
     return merged, notes

@@ -1791,6 +1791,20 @@ def _self_update_entry(
     coordinator.hass.config_entries.async_update_entry(entry, **kwargs)
 
 
+def _clear_carried_marker(vehicle: dict[str, Any], key: str) -> None:
+    """#1917 — a writer that runs after ``reconcile()`` and sets a value of its
+    own (the official overlay, an optimistic hold) takes the "carried" mark off
+    that field; ``reconcile()`` built the map before that value existed."""
+    marks = vehicle.get("field_carried_since")
+    if not isinstance(marks, dict) or key not in marks:
+        return
+    rest = {k: v for k, v in marks.items() if k != key}
+    if rest:
+        vehicle["field_carried_since"] = rest
+    else:
+        vehicle.pop("field_carried_since", None)
+
+
 class VagConnectCoordinator(DataUpdateCoordinator):
     """Coordinates vehicle data via own CARIAD API client (direct async polling).
 
@@ -5566,6 +5580,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _release_held(enriched, [key])
             enriched[key] = val
             field_sources[key] = "skoda_official"
+            _clear_carried_marker(enriched, key)
             merged += 1
         if merged:
             _LOGGER.debug(
@@ -10965,6 +10980,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 del holds[key]                     # backend caught up → confirmed
             else:
                 fresh[key] = value                 # still pending → hold optimistic
+                _clear_carried_marker(fresh, key)
         if not holds:
             hold_root.pop(vin, None)
         return fresh
