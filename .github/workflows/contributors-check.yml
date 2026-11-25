@@ -1,0 +1,48 @@
+name: Contributors check
+
+# Weekly check that CONTRIBUTORS.md lists everyone who took part on the tracker.
+#
+# From 2026-10-10 to 2026-11-25 nothing ran scripts/build_contributors.py, and
+# the list fell 204 people behind without anybody noticing. This run turns red
+# as soon as somebody is missing; the log names them. To fix it, run
+#   python scripts/build_contributors.py --write
+# and open a pull request with the result.
+#
+# It is not part of the pull-request CI on purpose: a new commenter on any
+# issue would otherwise turn unrelated pull requests red.
+#
+# Read only. The default GITHUB_TOKEN can read issues, pull requests and
+# discussions of this repository; nothing is written.
+#
+# Manual run: Actions -> "Contributors check" -> Run workflow.
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"   # Mondays 05:41 UTC (off-peak)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  discussions: read
+
+concurrency:
+  group: contributors-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: CONTRIBUTORS.md complete?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/build_contributors.py --check
