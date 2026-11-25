@@ -1364,12 +1364,15 @@ def reconcile(
                 f"{_flag} was reported False while the carried-forward "
                 "evidence still supports it; re-derived as True (#1403)"
             )
-    _derive_combustion_headline(merged, previous, notes)
+    _derive_combustion_headline(merged, previous, fresh, notes)
     return merged, notes
 
 
 def _derive_combustion_headline(
-    merged: dict[str, Any], previous: dict[str, Any], notes: list[str],
+    merged: dict[str, Any],
+    previous: dict[str, Any],
+    fresh: dict[str, Any],
+    notes: list[str],
 ) -> None:
     """#2072 — replace a final headline range of 0 on a combustion car, in place.
 
@@ -1378,27 +1381,37 @@ def _derive_combustion_headline(
     from a plug-in hybrid whose poll lacked the battery fields. A 0 headline
     next to a non-empty tank is a false low-fuel alarm, so the first of
     ``total_range_km`` and ``combustion_range_km`` above 0 takes its place, with
-    the provenance of the field it was copied from. Left alone: a missing
-    headline, a real 0 with an empty or unknown tank, and every car with
-    high-voltage battery evidence in this merge or in the stored snapshot.
+    the provenance of the field it was copied from. Only what THIS poll
+    delivered counts: the fuel level and the candidate must both come from
+    ``fresh``, never from a carried value. Left alone: a missing headline, a
+    real 0 with an empty or unknown tank, and every car with high-voltage
+    battery evidence in this merge or in the stored snapshot.
     """
     if merged.get("range_km") != 0:
         return
-    fuel = merged.get("fuel_level")
+    fuel = fresh.get("fuel_level")
     if not isinstance(fuel, (int, float)) or isinstance(fuel, bool) or fuel <= 0:
         return
     for flag in ("has_battery", "is_hybrid", "is_electric"):
         if merged.get(flag) or previous.get(flag):
             return
     for cand in ("total_range_km", "combustion_range_km"):
-        val = merged.get(cand)
+        val = fresh.get(cand)
         if isinstance(val, bool) or not isinstance(val, (int, float)) or val <= 0:
             continue
         merged["range_km"] = val
+        _amb = merged.get("ambiguous_fields")
+        if isinstance(_amb, dict) and "range_km" in _amb:
+            merged["ambiguous_fields"] = {
+                k: v for k, v in _amb.items() if k != "range_km"
+            }
         notes.append(
             f"range_km was 0 with fuel_level {fuel}; took {cand} {val} (#2072)"
         )
-        for key in ("field_sources", "field_captured_ts", "field_source_leaf"):
+        for key in (
+            "field_sources", "field_captured_ts", "field_source_leaf",
+            "field_captured_inherited",
+        ):
             raw = merged.get(key)
             mapping = dict(raw) if isinstance(raw, dict) else {}
             mapping.pop("range_km", None)

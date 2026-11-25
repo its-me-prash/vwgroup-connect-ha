@@ -175,3 +175,51 @@ def test_provenance_of_the_zero_is_dropped_when_source_has_none() -> None:
     assert out["range_km"] == 760
     assert "range_km" not in out["field_captured_ts"]
     assert "range_km" not in out["field_source_leaf"]
+
+
+# --- gate on what THIS poll delivered ---------------------------------------
+
+def test_poll_without_fuel_or_ranges_keeps_a_delivered_zero() -> None:
+    """A delivered 0 with nothing else from this poll: every candidate and the
+    fuel level are carried, so nothing is derived from them."""
+    previous = {"vin": VIN, "range_km": 500, "fuel_level": 80,
+                "combustion_range_km": 400, "has_battery": False}
+    out, _ = reconcile(previous, {"vin": VIN, "range_km": 0})
+    assert out["range_km"] == 0
+
+
+def test_carried_candidates_and_fuel_are_not_enough() -> None:
+    previous = {"vin": VIN, "range_km": 0, "fuel_level": 70,
+                "total_range_km": 600, "combustion_range_km": 600}
+    out, _ = reconcile(previous, {"vin": VIN, "range_km": 0, "fuel_level": 70})
+    assert out["range_km"] == 0
+
+
+def test_only_a_candidate_delivered_by_this_poll_is_used() -> None:
+    previous = {"vin": VIN, "range_km": 0, "fuel_level": 70,
+                "total_range_km": 900}
+    out, _ = reconcile(previous, {"vin": VIN, "range_km": 0, "fuel_level": 70,
+                                  "combustion_range_km": 500})
+    assert out["range_km"] == 500
+
+
+def test_replacement_drops_ambiguity_and_takes_inherited_stamp() -> None:
+    fresh = {"vin": VIN, "range_km": 0, "fuel_level": 70,
+             "combustion_range_km": 500,
+             "ambiguous_fields": {"range_km": ["a", "b"], "other": ["c"]},
+             "field_captured_inherited": {"range_km": True,
+                                          "combustion_range_km": False}}
+    out, _ = reconcile({"vin": VIN, "range_km": 0}, fresh)
+    assert out["range_km"] == 500
+    assert "range_km" not in out["ambiguous_fields"]
+    assert out["ambiguous_fields"]["other"] == ["c"]
+    assert out["field_captured_inherited"]["range_km"] is False
+
+
+def test_replacement_removes_inherited_key_when_source_has_none() -> None:
+    fresh = {"vin": VIN, "range_km": 0, "fuel_level": 70,
+             "combustion_range_km": 500,
+             "field_captured_inherited": {"range_km": True}}
+    out, _ = reconcile({"vin": VIN, "range_km": 0}, fresh)
+    assert out["range_km"] == 500
+    assert "range_km" not in out["field_captured_inherited"]
