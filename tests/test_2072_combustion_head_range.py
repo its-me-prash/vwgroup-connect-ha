@@ -31,16 +31,35 @@ def test_zero_head_range_with_fuel_takes_total() -> None:
     assert m.has_battery is False
 
 
-def test_missing_head_range_falls_back_to_combustion() -> None:
+def test_missing_head_range_is_not_derived() -> None:
+    """A poll without range_km must leave it missing, so reconcile can carry
+    the stored value forward."""
     eu = _eu(combustion_range_km=760, fuel_level=80)
+    m = _merge(("eu_data_act", eu))
+    assert m.range_km is None
+
+
+def test_zero_head_range_falls_back_to_combustion() -> None:
+    eu = _eu(range_km=0, combustion_range_km=760, fuel_level=80)
     m = _merge(("eu_data_act", eu))
     assert m.range_km == 760
 
 
-def test_missing_head_range_without_fuel_level_is_filled() -> None:
-    eu = _eu(combustion_range_km=500)
+def test_zero_candidates_are_never_taken() -> None:
+    eu = _eu(range_km=0, total_range_km=0, combustion_range_km=500, fuel_level=80)
     m = _merge(("eu_data_act", eu))
     assert m.range_km == 500
+    eu2 = _eu(range_km=0, total_range_km=0, combustion_range_km=0, fuel_level=80)
+    assert _merge(("eu_data_act", eu2)).range_km == 0
+
+
+def test_phev_partial_poll_leaves_headline_missing() -> None:
+    """Only fuel and combustion range delivered: has_battery is False for this
+    poll alone, range_km must stay None (not the combustion range)."""
+    eu = _eu(fuel_level=70, combustion_range_km=600)
+    m = _merge(("eu_data_act", eu))
+    assert m.has_battery is False
+    assert m.range_km is None
 
 
 def test_real_zero_with_empty_tank_is_kept() -> None:
@@ -83,10 +102,14 @@ def test_no_range_sources_leaves_none() -> None:
 
 def test_provenance_follows_the_source_field() -> None:
     eu = _eu(range_km=0, combustion_range_km=760, total_range_km=780,
-             field_captured_ts={"range_km": "2026-11-10T07:07:13+00:00"})
+             field_captured_ts={"range_km": "2026-11-10T07:07:13+00:00",
+                                "total_range_km": "2026-11-11T08:00:00+00:00"},
+             field_source_leaf={"range_km": "old.leaf",
+                                "total_range_km": "total.leaf"})
     web = _eu(fuel_level=100)
     m = _merge(("website_authproxy", web), ("eu_data_act", eu))
     assert m.range_km == 780
     assert m.field_sources["range_km"] == "eu_data_act"
-    # the stamp of the replaced 0 must not stay attached to the new value
-    assert "range_km" not in m.field_captured_ts
+    # the stamp and leaf of the replaced 0 are gone; the source field's are copied
+    assert m.field_captured_ts["range_km"] == "2026-11-11T08:00:00+00:00"
+    assert m.field_source_leaf["range_km"] == "total.leaf"

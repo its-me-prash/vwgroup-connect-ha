@@ -422,20 +422,23 @@ def merge_channels(
 
     _merge_drivetrain(merged, sources, field_sources)
 
-    # #2072 — headline range of a car WITHOUT a high-voltage battery. The
-    # volkswagen.de channel does not deliver a headline range for a combustion
-    # car, so the value that survives is the portal's, which can be missing or
-    # a carried 0 while the tank is not empty (a false low-fuel alarm). Derive
-    # it from the total, else the combustion range, in the order the BFF parser
-    # uses. A real 0 (empty or unknown tank) and every PHEV/EV stay as they are.
+    # #2072 — a headline range of 0 next to a non-empty tank on a car WITHOUT a
+    # high-voltage battery is a false low-fuel alarm. Derive it from the first
+    # range above 0 (total, else combustion), in the BFF parser's order. Only a
+    # 0 delivered by this poll is replaced: a missing headline stays missing,
+    # because this merge sees one poll and reconcile carries the stored value
+    # forward. A real 0 (empty or unknown tank) and every PHEV/EV stay as they
+    # are; the has_battery gate stays because a PHEV's headline is not ours to
+    # interpret from a single poll.
     range_source: str | None = None
-    if not merged.has_battery and (
-        merged.range_km is None
-        or (merged.range_km == 0 and (merged.fuel_level or 0) > 0)
+    if (
+        not merged.has_battery
+        and merged.range_km == 0
+        and (merged.fuel_level or 0) > 0
     ):
         for cand in ("total_range_km", "combustion_range_km"):
             val = getattr(merged, cand)
-            if val is not None and (val > 0 or merged.range_km is None):
+            if val is not None and val > 0:
                 merged.range_km = val
                 range_source = cand
                 owner = field_sources.get(cand)
