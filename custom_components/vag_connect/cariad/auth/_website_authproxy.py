@@ -63,6 +63,7 @@ from ..exceptions import (
     AuthenticationError,
     CommandFailureReason,
     InvalidCredentialsError,
+    WebsiteConsentRequiredError,
     WebsiteLoginIncompleteError,
 )
 from ..models import VehicleData
@@ -245,6 +246,33 @@ _ACTION_HOOK_SKIP_RE = re.compile(
     r"""href\s*=\s*["'](?P<href>[^"']*/hooks/[^"']*/skip\?[^"']*)["']""",
     re.IGNORECASE,
 )
+
+# #2200 (@zdravac, 5.6.1) — the identity provider's own consent question
+# ("Einwilligung in die persönliche Gestaltung der digitalen Services", with
+# "Ich stimme zu" / "Ich stimme nicht zu"). It has no skip link and is not ours
+# to answer; after he answered it in a browser, the channel was added on the
+# first try. Pinned host, and only a path whose LAST segment is ``consent``.
+_IDENTITY_HOST = "identity.vwgroup.io"
+
+
+def _is_consent_page(url: str) -> bool:
+    """True when the sign-in stopped on a page that asks the account for consent.
+
+    Two pages: the identity provider's ``.../consent`` question (#2200) and an
+    optional hook on ``consent.vwgroup.io`` that the decline could not remove,
+    because it offered no skip link or the decline request failed (#1827).
+    Host compared exactly, so a host
+    that merely starts with one of them does not count; the query is ignored.
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    if host == _ACTION_HOOK_HOST:
+        return True
+    segments = [s for s in parsed.path.split("/") if s]
+    return host == _IDENTITY_HOST and bool(segments) and segments[-1].lower() == "consent"
 
 
 def _safe_url(url: str) -> str:
@@ -1751,6 +1779,13 @@ class WebsiteAuthProxyConnector:
             self._resume_dead_this_cycle = False
             _LOGGER.info(
                 "Website authproxy: login succeeded (read-only, beta)"
+            )
+        elif _is_consent_page(landed_url):
+            # #2200 — same message, more specific class: the dialogs can tell
+            # the user to answer the question once in a browser.
+            raise WebsiteConsentRequiredError(
+                "Website authproxy: login did not complete "
+                f"(ended at {_safe_url(landed_url)}, a consent page)"
             )
         else:
             raise WebsiteLoginIncompleteError(
