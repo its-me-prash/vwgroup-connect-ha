@@ -127,11 +127,12 @@ def test_the_threshold_matches_the_one_enrich_computes() -> None:
     apart would let the card and the indicator disagree about the same feed.
     """
     src = inspect.getsource(VagConnectCoordinator._enrich)
-    assert "max(STALE_DATA_MIN_AGE_S, 8 * _interval_s)" in src, (
-        "_enrich's threshold changed; _stale_threshold_s must follow it"
+    # #2209: the inline copy is gone, _enrich asks the helper
+    assert "_threshold_s = self._stale_threshold_s()" in src, (
+        "_enrich must take its threshold from _stale_threshold_s"
     )
     helper = inspect.getsource(VagConnectCoordinator._stale_threshold_s)
-    assert "max(STALE_DATA_MIN_AGE_S, 8 * interval_s)" in helper
+    assert "max(hours * 3600, 8 * interval_s)" in helper
 
 
 # ── the exemption that must NOT apply here ─────────────────────────────────

@@ -122,6 +122,7 @@ def test_the_verdict_and_the_repair_use_the_liveness_rule():
     assert "_moved = _values_moved(_prev_snap, data)" in src
     # the binary and the Repair must agree — both gated on the same _moved
     assert 'data["data_stale"] = (' in src
-    assert "if _age is not None and _age >= _threshold_s and not _moved:" in src
+    # #2209: the Repair has its own 72 h floor, the binary follows the option
+    assert "if _age is not None and _age >= _repair_threshold_s and not _moved:" in src
     # and the misnamed field now measures the snapshot
     assert "_snap_age = _age_s(_snap_at)" in src

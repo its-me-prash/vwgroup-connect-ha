@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Netto-Nennkapazität der Batterie (kWh, für Batteriezustand)",
           "fuel_tank_capacity": "Tankgröße (Liter, für Tankfüllung %)",
+          "stale_threshold_hours": "Daten veraltet nach (Stunden)",
           "enable_reverse_geocoding": "Adress-Auflösung (Parkposition)",
           "force_ppe_climate": "Audi PPE/PPC Klima-Body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda Push-Updates (MQTT, EXPERIMENTELL)",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Škoda Offizielle-API-Quellenmodus"
         },
         "data_description": {
+          "stale_threshold_hours": "Wie alt der Erfassungszeitpunkt des Fahrzeugs werden darf, bevor \"Daten veraltet\" und der Portal-Zustand \"Veraltet\" anspringen. Standard 72 Stunden, Bereich 1 bis 168. Nie weniger als 8 Aktualisierungsintervalle. Die Reparatur-Meldung zu veralteten Daten behält ihre eigene Untergrenze von 72 Stunden, ein kleinerer Wert löst sie also nicht früher aus.",
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
           "force_ppe_climate": "Nur für Audi relevant. Erzwingt das neue PPE/PPC Body-Format beim Klima-Start. Nur aktivieren wenn du einen Q6 e-tron, A6 e-tron, RS e-tron GT Facelift oder A3 2024+ PHEV besitzt — sonst antwortet die API mit 400. Integration nach Aktivierung neu laden.",
           "enable_push_mqtt": "EXPERIMENTELL: Nur für Skoda. Aktiviert MQTT-basierte Echtzeit-Updates vom Skoda mysmob Backend (benötigt aiomqtt + firebase-messaging Python-Pakete — derzeit lazy-imported, nicht vorinstalliert). Foundation-Phase in v1.18.0; Live-Aktivierung wartet auf Validierung durch Community-Tester. Wenn Push nicht verfügbar ist, fällt die Integration still auf Polling zurück. Integration nach Aktivierung neu laden.",

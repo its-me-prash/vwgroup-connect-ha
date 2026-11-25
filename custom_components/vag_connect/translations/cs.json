@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Jmenovitá kapacita baterie (kWh, pro State of Health)",
           "fuel_tank_capacity": "Objem nádrže (litry, pro % paliva)",
+          "stale_threshold_hours": "Data zastarala po (hodinách)",
           "enable_reverse_geocoding": "Reverzní geokódování (adresa parkování)",
           "read_only_mode": "Režim jen pro čtení",
           "companion_wake_sleep": "Companion: probudit displej k dotazu, poté uspat",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Režim zdroje oficiálního API Škoda"
         },
         "data_description": {
+          "stale_threshold_hours": "Jak staré smí být vlastní časové razítko záznamu vozidla, než se zapne \"Data zastarala\" a stav portálu \"Zastaralé\". Výchozí hodnota je 72 hodin, rozsah 1 až 168. Nikdy méně než 8 intervalů aktualizace. Oprava pro zastaralá data si ponechává vlastní spodní mez 72 hodin, nižší hodnota ji tedy nespustí dříve.",
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",
           "spin": "S-PIN pro zamykání dveří.",
           "enable_reverse_geocoding": "Odesílá GPS parkování do OpenStreetMap Nominatim pro získání ulice/města. Výchozí: vypnuto (soukromí).",

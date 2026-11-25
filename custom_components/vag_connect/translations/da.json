@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Nominel batterikapacitet (kWh, til State of Health)",
           "fuel_tank_capacity": "Tankkapacitet (liter, for brændstof %)",
+          "stale_threshold_hours": "Data forældet efter (timer)",
           "enable_reverse_geocoding": "Omvendt geokodning (parkeringsadresse)",
           "read_only_mode": "Skrivebeskyttet tilstand",
           "companion_wake_sleep": "Companion: væk skærmen før hentning, sov bagefter",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Škoda officiel API-kildetilstand"
         },
         "data_description": {
+          "stale_threshold_hours": "Hvor gammelt bilens eget optagelsestidspunkt må blive, før \"Data forældet\" og portalstatussen \"Forældet\" slår til. Standard er 72 timer, interval 1 til 168. Aldrig under 8 opdateringsintervaller. Reparationsmeldingen om forældede data beholder sin egen nedre grænse på 72 timer, så en lavere værdi udløser den ikke tidligere.",
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",
           "spin": "S-PIN til dørlåsning. App → Sikkerhed → S-PIN.",
           "enable_reverse_geocoding": "Sender parkerings-GPS til OpenStreetMap Nominatim for at finde gade/by. Slået fra som standard af hensyn til privatliv.",

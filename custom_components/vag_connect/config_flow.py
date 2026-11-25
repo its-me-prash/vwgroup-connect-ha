@@ -42,6 +42,7 @@ from .const import (
     CONF_ABRP_USER_TOKEN,
     CONF_BATTERY_NOMINAL_KWH,
     CONF_FUEL_TANK_CAPACITY,
+    CONF_STALE_THRESHOLD_HOURS,
     CONF_KEEP_RAW_DATASETS,
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
@@ -79,6 +80,9 @@ from .const import (
     CONF_WEBSITE_AUTHPROXY,
     CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STALE_THRESHOLD_HOURS,
+    MAX_STALE_THRESHOLD_HOURS,
+    MIN_STALE_THRESHOLD_HOURS,
     DOMAIN,
     MIN_SCAN_INTERVAL,
 )
@@ -197,6 +201,17 @@ _KWH_SELECTOR = NumberSelector(
         step=0.1,
         mode=NumberSelectorMode.BOX,
         unit_of_measurement="kWh",
+    )
+)
+
+# #2209 - capture age in hours before "Data stale" switches on.
+_STALE_HOURS_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=MIN_STALE_THRESHOLD_HOURS,
+        max=MAX_STALE_THRESHOLD_HOURS,
+        step=1,
+        mode=NumberSelectorMode.BOX,
+        unit_of_measurement="h",
     )
 )
 
@@ -3887,6 +3902,17 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
                         current_data.get(CONF_FUEL_TANK_CAPACITY, 0),
                     ),
                 ): _LITERS_SELECTOR,
+                # #2209 - hours of capture age before "Data stale" and the portal
+                # health state "Stale" switch on (default 72; 8 x interval on top).
+                vol.Optional(
+                    CONF_STALE_THRESHOLD_HOURS,
+                    default=current_options.get(
+                        CONF_STALE_THRESHOLD_HOURS,
+                        current_data.get(
+                            CONF_STALE_THRESHOLD_HOURS, DEFAULT_STALE_THRESHOLD_HOURS
+                        ),
+                    ),
+                ): _STALE_HOURS_SELECTOR,
                 vol.Optional(
                     CONF_ENABLE_REVERSE_GEOCODING,
                     default=current_options.get(

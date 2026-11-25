@@ -277,6 +277,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Capacité nominale de la batterie (kWh, pour l'état de santé)",
           "fuel_tank_capacity": "Capacité du réservoir (litres, pour % carburant)",
+          "stale_threshold_hours": "Données périmées après (heures)",
           "enable_reverse_geocoding": "Géocodage inverse (adresse de stationnement)",
           "read_only_mode": "Mode lecture seule",
           "companion_wake_sleep": "Companion : réveiller l'écran pour interroger, puis le rendormir",
@@ -310,6 +311,7 @@
           "skoda_official_mode": "Mode de source de l'API officielle Škoda"
         },
         "data_description": {
+          "stale_threshold_hours": "Âge maximal de l'horodatage de saisie du véhicule avant que « Données périmées » et l'état du portail « Périmé » ne s'activent. Par défaut 72 heures, de 1 à 168. Jamais moins de 8 intervalles de mise à jour. La réparation pour données périmées garde son propre seuil minimal de 72 heures : une valeur plus basse ne la déclenche donc pas plus tôt.",
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",
           "spin": "S-PIN pour le verrouillage des portes.",
           "enable_reverse_geocoding": "Envoie le GPS de stationnement à OpenStreetMap Nominatim pour obtenir rue/ville. Désactivé par défaut (confidentialité).",
