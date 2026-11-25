@@ -138,3 +138,29 @@ def test_every_language_names_it() -> None:
     for f in files:
         name = json.loads(f.read_text(encoding="utf-8"))["entity"]["sensor"][KEY]["name"]
         assert name.strip(), f.name
+
+
+# ── a later poll that lists only placeholders ────────────────────────────────
+
+
+def test_a_placeholders_only_poll_replaces_the_old_count() -> None:
+    conn = _conn()
+    _poll(conn, [{"name": "a.zip", "createdOn": "2026-11-19T10:00:00Z"},
+                 {"name": "b_no_content_found.zip", "createdOn": "2026-11-19T10:15:00Z"}],
+          "2026-11-19T10:20:00+00:00")
+    assert conn.last_newer_empty_files == 1
+    _poll(conn, [{"name": "b_no_content_found.zip", "createdOn": "2026-11-19T10:15:00Z"},
+                 {"name": "c_no_content_found.zip", "createdOn": "2026-11-19T10:30:00Z"},
+                 {"name": "d_no_content_found.zip"}],
+          "2026-11-19T10:35:00+00:00")
+    assert conn.last_newer_empty_files == 3
+
+
+def test_an_empty_listing_after_a_file_poll_reads_unknown() -> None:
+    conn = _conn()
+    _poll(conn, [{"name": "a.zip", "createdOn": "2026-11-19T10:00:00Z"},
+                 {"name": "b_no_content_found.zip", "createdOn": "2026-11-19T10:15:00Z"}],
+          "2026-11-19T10:20:00+00:00")
+    assert conn.last_newer_empty_files == 1
+    _poll(conn, [], "2026-11-19T10:35:00+00:00")
+    assert conn.last_newer_empty_files is None

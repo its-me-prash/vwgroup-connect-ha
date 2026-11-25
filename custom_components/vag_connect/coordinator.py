@@ -385,6 +385,14 @@ def _has_live_contributor(data: dict[str, Any]) -> bool:
     )
 
 
+# Stamps that exist for the diagnostics only (#1881). The age verdict takes the
+# NEWEST stamp of the map, so a fresh climate stamp beside an 82 h odometer
+# would make the whole car read as fresh. They stay in ``field_captured_ts``
+# (the per-sensor ``data_captured_at`` attribute and the diagnostics dump read
+# them) and are left out here.
+_AGE_IGNORED_STAMPS = frozenset({"climatisation_state", "climatisation_reason"})
+
+
 def _capture_age_s(data: dict[str, Any]) -> float | None:
     """Seconds since the car itself captured the data, or None.
 
@@ -449,6 +457,7 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
                 k: v for k, v in stamps.items()
                 if not is_held_source(owners.get(k))
             }
+        stamps = {k: v for k, v in stamps.items() if k not in _AGE_IGNORED_STAMPS}
         # No emptiness test on the map itself: it would be redundant. An empty
         # map and a map whose every stamp is unparseable both yield an empty
         # ``ages``, and the guard below already falls through for that — a
@@ -480,9 +489,11 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
             #
             # Why the map is always the batch clock: ``field_captured_ts`` is
             # WRITTEN in exactly one module, the EU Data Act mapper, and it
-            # records a stamp for seven values at most (battery level, odometer,
-            # range, target charge level, charging state, plug state, fuel
-            # level). ``last_seen_at`` is written by eight channels. So a stamp
+            # records a stamp only for the values that module asks to record
+            # (battery level, odometer, range, target charge level, charging
+            # and plug state, fuel level, closures and a few more). The climate
+            # state and reason are stamped too (#1881) but are left out of the
+            # age verdict above. ``last_seen_at`` is written by eight channels. So a stamp
             # from the map may only override ``last_seen_at`` when that clock is
             # itself batch; where a live channel contributed, the fresher of the
             # two wins. The original portal-only case is untouched, because

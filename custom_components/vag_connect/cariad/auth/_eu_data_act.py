@@ -6225,7 +6225,8 @@ class EUDataActConnector:
         # file's listing entry carried no readable creation time.
         self.last_dataset_created_at: str | None = None
         # #2209 - how many ``_no_content_found`` placeholders the last listing
-        # held that are NEWER than the file we read. None until a file with a
+        # held that are NEWER than the file we read (all of them when no file
+        # was read). None until a listing held a placeholder or a file with a
         # creation time was read.
         self.last_newer_empty_files: int | None = None
         # v4.7.11 (#465 BooM80) — last dataset's field-delivery honesty. VW's
@@ -7801,6 +7802,10 @@ class EUDataActConnector:
                 and isinstance(f.get("name"), str)
                 and f["name"].endswith(_NO_CONTENT_SUFFIX)
             )
+            # #2209 - no file was read, so every listed placeholder is newer
+            # than nothing; None when the listing held none. Set here so a
+            # later poll does not keep the count of an earlier file poll.
+            self.last_newer_empty_files = _nc or None
             if _raw_n and _named == _raw_n and _nc == _raw_n:
                 self._note_no_data("no_content")
                 _LOGGER.info(
