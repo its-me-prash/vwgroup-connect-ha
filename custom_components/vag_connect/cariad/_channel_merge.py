@@ -51,6 +51,7 @@ _SKIP_FIELDS = frozenset(
      # the final ``field_sources`` instead, so the ts always tracks the surviving
      # value.
      "field_captured_ts", "ambiguous_fields", "field_source_leaf",
+     "field_captured_inherited",
      "no_data", "has_battery",
      "has_combustion", "is_electric", "is_hybrid"}
 )
@@ -449,6 +450,7 @@ def merge_channels(
     captured_ts: dict[str, str] = {}
     ambiguous: dict[str, str] = {}
     source_leaf: dict[str, str] = {}
+    captured_inherited: dict[str, bool] = {}
     for f_name, owner in field_sources.items():
         owner_vd = name_to_vd.get(owner)
         if owner_vd is None:
@@ -458,6 +460,10 @@ def merge_channels(
             iso = src_ts.get(f_name)
             if isinstance(iso, str) and iso:
                 captured_ts[f_name] = iso
+                # #2096 — the "borrowed stamp" mark follows its stamp
+                src_inh = getattr(owner_vd, "field_captured_inherited", None)
+                if isinstance(src_inh, dict) and src_inh.get(f_name) is True:
+                    captured_inherited[f_name] = True
         # #465 — rebuilt from the surviving owner exactly like the ts above,
         # so a leaf name can never outlive the value it described.
         src_leaf = getattr(owner_vd, "field_source_leaf", None)
@@ -471,6 +477,7 @@ def merge_channels(
             if isinstance(note, str) and note:
                 ambiguous[f_name] = note
     merged.field_captured_ts = captured_ts
+    merged.field_captured_inherited = captured_inherited
     merged.ambiguous_fields = ambiguous
     merged.field_source_leaf = source_leaf
 

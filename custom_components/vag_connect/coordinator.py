@@ -43,10 +43,14 @@ from .const import (
     CONF_PASSWORD,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
+    CONF_STALE_THRESHOLD_HOURS,
     CONF_SPIN,
     CONF_SPIN_BY_VIN,
     CONF_USERNAME,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STALE_THRESHOLD_HOURS,
+    MAX_STALE_THRESHOLD_HOURS,
+    MIN_STALE_THRESHOLD_HOURS,
     DOMAIN,
     EVENT_PUSH,
     advised_scan_interval_from_budget,
@@ -167,7 +171,10 @@ def _values_moved(
 #: Side maps that describe WHERE a snapshot value came from and WHEN the car
 #: captured it. They are ordinary keys in the snapshot dict, which is why the
 #: gap-fill below has to treat them specially.
-_PROVENANCE_MAPS = ("field_sources", "field_captured_ts", "field_source_leaf")
+_PROVENANCE_MAPS = (
+    "field_sources", "field_captured_ts", "field_source_leaf", "field_carried_since",
+    "field_captured_inherited",
+)
 
 
 def _release_held(data: dict[str, Any], keys: list[str]) -> None:
@@ -248,6 +255,8 @@ def _gap_fill_from_export(
     if released:
         _release_held(current, released)
     for name in _PROVENANCE_MAPS:
+        if name == "field_carried_since":
+            continue  # #1917 — a carried mark is rebuilt per poll, never imported
         source = hist.get(name)
         if not isinstance(source, dict):
             continue
@@ -385,6 +394,14 @@ def _has_live_contributor(data: dict[str, Any]) -> bool:
     )
 
 
+# Stamps that exist for the diagnostics only (#1881). The age verdict takes the
+# NEWEST stamp of the map, so a fresh climate stamp beside an 82 h odometer
+# would make the whole car read as fresh. They stay in ``field_captured_ts``
+# (the per-sensor ``data_captured_at`` attribute and the diagnostics dump read
+# them) and are left out here.
+_AGE_IGNORED_STAMPS = frozenset({"climatisation_state", "climatisation_reason"})
+
+
 def _capture_age_s(data: dict[str, Any]) -> float | None:
     """Seconds since the car itself captured the data, or None.
 
@@ -449,6 +466,7 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
                 k: v for k, v in stamps.items()
                 if not is_held_source(owners.get(k))
             }
+        stamps = {k: v for k, v in stamps.items() if k not in _AGE_IGNORED_STAMPS}
         # No emptiness test on the map itself: it would be redundant. An empty
         # map and a map whose every stamp is unparseable both yield an empty
         # ``ages``, and the guard below already falls through for that — a
@@ -480,9 +498,11 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
             #
             # Why the map is always the batch clock: ``field_captured_ts`` is
             # WRITTEN in exactly one module, the EU Data Act mapper, and it
-            # records a stamp for seven values at most (battery level, odometer,
-            # range, target charge level, charging state, plug state, fuel
-            # level). ``last_seen_at`` is written by eight channels. So a stamp
+            # records a stamp only for the values that module asks to record
+            # (battery level, odometer, range, target charge level, charging
+            # and plug state, fuel level, closures and a few more). The climate
+            # state and reason are stamped too (#1881) but are left out of the
+            # age verdict above. ``last_seen_at`` is written by eight channels. So a stamp
             # from the map may only override ``last_seen_at`` when that clock is
             # itself batch; where a live channel contributed, the fresher of the
             # two wins. The original portal-only case is untouched, because
@@ -599,6 +619,23 @@ _DROP_RETRY_MAX_STREAK = 3
 # magnitude above that jitter and orders of magnitude below a real drop, which
 # arrives on the portal's ~15-minute cadence.
 _DROP_ANCHOR_ADVANCE_S = 1.0
+
+
+def _retry_5xx_snapshot(client: Any) -> dict[str, Any]:
+    """#1973 — the client's 5xx retry memory for the vehicle cache, or ``{}``.
+
+    A brand client without the memory (Porsche, VW NA, companion), a double, or
+    a failing export all give ``{}``: this runs inside the debounced save and
+    must never stop the vehicle snapshot from being written.
+    """
+    export = getattr(client, "export_5xx_memory", None)
+    if not callable(export):
+        return {}
+    try:
+        out = export()
+    except Exception:  # noqa: BLE001
+        return {}
+    return out if isinstance(out, dict) else {}
 
 
 def _drop_anchor_advanced(
@@ -1791,6 +1828,20 @@ def _self_update_entry(
     coordinator.hass.config_entries.async_update_entry(entry, **kwargs)
 
 
+def _clear_carried_marker(vehicle: dict[str, Any], key: str) -> None:
+    """#1917 — the official overlay runs after ``reconcile()`` and sets a value
+    of its own; it takes the "carried" mark off that field, because
+    ``reconcile()`` built the map before that value existed."""
+    marks = vehicle.get("field_carried_since")
+    if not isinstance(marks, dict) or key not in marks:
+        return
+    rest = {k: v for k, v in marks.items() if k != key}
+    if rest:
+        vehicle["field_carried_since"] = rest
+    else:
+        vehicle.pop("field_carried_since", None)
+
+
 class VagConnectCoordinator(DataUpdateCoordinator):
     """Coordinates vehicle data via own CARIAD API client (direct async polling).
 
@@ -2311,6 +2362,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._drop_anchor_high_water.isoformat(),
                     self._drop_overdue_streak, _DROP_RETRY_MAX_STREAK,
                 )
+            # #1973 — restore the 5xx retry memory the same defensive way.
+            _restore_5xx = getattr(self._cariad_client, "restore_5xx_memory", None)
+            if callable(_restore_5xx):
+                try:
+                    _n_5xx = _restore_5xx(
+                        cached.get("retry_5xx"),  # 5xx-restore
+                    )
+                except Exception:  # noqa: BLE001
+                    _n_5xx = 0
+                if isinstance(_n_5xx, int) and _n_5xx > 0:
+                    _LOGGER.debug(
+                        "Restored the 5xx retry memory for %d endpoint(s) — "
+                        "a restart no longer refills it (#1973)", _n_5xx,
+                    )
             # #1878 — only resurrect the VEHICLE snapshot (SoC / position / …)
             # when it belongs to THIS entry's current account. A reauth onto a
             # different account keeps the same entry id, so the stored snapshot
@@ -5566,6 +5631,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _release_held(enriched, [key])
             enriched[key] = val
             field_sources[key] = "skoda_official"
+            _clear_carried_marker(enriched, key)
             merged += 1
         if merged:
             _LOGGER.debug(
@@ -5583,6 +5649,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         startup): its first read runs in the background poll loop instead.
         """
         self._push_official_mode()  # #1286 — official_only routing before read
+        # #1973: Škoda only. Load the garage document BEFORE the first read, so
+        # the client's capability gate (battery-health on a petrol car) already
+        # applies to it instead of paying a full 5xx retry ladder at every start.
+        # 24 h cache + failure stamp: the fetches in _bg_finish and _enrich hit
+        # it, so no request is added. A failed fetch leaves the list unknown and
+        # battery-health is still tried once (permissive by design).
+        if str(self.entry.data.get(CONF_BRAND, "")).lower() == "skoda":
+            await asyncio.gather(
+                *[self.refresh_capabilities(vin) for vin in vins],
+                return_exceptions=True,
+            )
         results = await asyncio.gather(
             *[self._cariad_client.get_status(vin) for vin in vins],
             return_exceptions=True,
@@ -6915,9 +6992,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         The same figure ``_enrich`` uses, lifted out so the verdict can be
         re-decided without re-running the enrichment.
-        """
-        from .repairs import STALE_DATA_MIN_AGE_S  # noqa: PLC0415
 
+        #2209 - the floor is the option ``stale_threshold_hours`` (default 72,
+        1 to 168); eight scan intervals still apply on top of it. The Repair
+        does not use this figure alone, see ``_enrich``.
+        """
+        raw = self.entry.options.get(CONF_STALE_THRESHOLD_HOURS)
+        if raw is None:
+            raw = self.entry.data.get(CONF_STALE_THRESHOLD_HOURS)
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raw = DEFAULT_STALE_THRESHOLD_HOURS
+        hours = min(
+            max(int(raw), MIN_STALE_THRESHOLD_HOURS), MAX_STALE_THRESHOLD_HOURS
+        )
         interval_s = max(
             int(
                 self.entry.options.get(CONF_SCAN_INTERVAL)
@@ -6926,7 +7013,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             * 60,
             _CC_MIN_INTERVAL_S,
         )
-        return max(STALE_DATA_MIN_AGE_S, 8 * interval_s)
+        return max(hours * 3600, 8 * interval_s)
 
     def _redecide_stale(self, vehicle: dict[str, Any]) -> dict[str, Any]:
         """Re-decide ``data_stale`` on a snapshot that is being republished.
@@ -7017,6 +7104,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # last_snapshot_at (our poll) it only moves on a new delivery.
         data["last_dataset_created_at"] = getattr(
             _portal, "last_dataset_created_at", None
+        )
+        data["newer_empty_portal_files"] = getattr(
+            _portal, "last_newer_empty_files", None
         )
         data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
         data["no_data_count"] = getattr(_portal, "no_data_count", None)
@@ -8866,12 +8956,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 clear_stale_data_issue,
                 raise_issue_stale_data,
             )
-            _interval_s = max(
-                int(self.entry.options.get(CONF_SCAN_INTERVAL)
-                    or self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)) * 60,
-                _CC_MIN_INTERVAL_S,
-            )
-            _threshold_s = max(STALE_DATA_MIN_AGE_S, 8 * _interval_s)
+            # #2209 - the verdict and the portal health state follow the option;
+            # the Repair keeps its own 72 h floor, so a low option never raises
+            # it earlier, while a high option holds it back with the verdict.
+            _threshold_s = self._stale_threshold_s()
+            _repair_threshold_s = max(STALE_DATA_MIN_AGE_S, _threshold_s)
             _age = _capture_age_s(data)
             # #5 (#1431 Lagaff86) — the EU-DA portal ships a fresh data block
             # next to a frozen one, so THIS poll's raw last_seen_at can be the
@@ -8916,7 +9005,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 None if _age is None
                 else (False if _moved else _age >= _threshold_s)
             )
-            if _age is not None and _age >= _threshold_s and not _moved:
+            if _age is not None and _age >= _repair_threshold_s and not _moved:
                 # #1896 — name the car the way the device page names it, from
                 # the same helper, so the two cannot drift apart. A warning that
                 # says only "***022149" is unactionable on a two-car account:
@@ -9213,6 +9302,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "drop_state": drop_state_to_cache(
                     getattr(self, "_drop_anchor_high_water", None),
                     getattr(self, "_drop_overdue_streak", 0),
+                ),
+                # #1973 — the 5xx retry memory (method + path per entry).
+                "retry_5xx": _retry_5xx_snapshot(
+                    getattr(self, "_cariad_client", None)
                 ),
                 # #1878 — fingerprint of the account this snapshot belongs to, so
                 # a reauth onto a DIFFERENT account (same entry id) discards it
@@ -10964,6 +11057,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             elif key in fresh and fresh[key] == value:
                 del holds[key]                     # backend caught up → confirmed
             else:
+                # No optimistic key is in CARRY_FORWARD_FIELDS, so none carries a marker.
                 fresh[key] = value                 # still pending → hold optimistic
         if not holds:
             hold_root.pop(vin, None)

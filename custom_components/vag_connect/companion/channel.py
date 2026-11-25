@@ -997,6 +997,17 @@ class CompanionChannel:
         extra: dict[str, object] | None = None,
     ) -> None:
         values = read_selectors(detail, nav.values)
+        if nav.name == "parking_position" and not (
+            "latitude" in values and "longitude" in values
+        ):
+            # #2197 / #968 - the share preview held no Maps link with
+            # coordinates. Facts and a length only: never the text itself.
+            _LOGGER.debug(
+                "companion %s: parking_position: no Maps link in the shared text "
+                "(%d nodes, longest text %d characters)",
+                self._preset.brand, len(detail),
+                max((max(len(n.text), len(n.content_desc)) for n in detail), default=0),
+            )
         if self._preset.brand == "volkswagen" and nav.name == "charge_detail":
             values.update(read_battery_resources(detail, self._app_strings))
         if self._preset.brand == "volkswagen" and nav.name == "vehicle_health":

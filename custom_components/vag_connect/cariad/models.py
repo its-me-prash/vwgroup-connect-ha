@@ -2089,6 +2089,12 @@ class VehicleData:
     # supersedes the EU-DA value. Never merged generically (see _channel_merge
     # ``_SKIP_FIELDS``).
     field_captured_ts: dict[str, str] = field(default_factory=dict)
+    # #2096 — attributes whose stamp in ``field_captured_ts`` was BORROWED from a
+    # neighbouring capture entry of the export (order-dependent) rather than being
+    # the value's own. Display only: ``data_captured_at`` leaves such a stamp out;
+    # the stamp itself still feeds every other reader. Only ``battery_soc`` and
+    # ``odometer_km`` are listed. Same skip/carry handling as field_captured_ts.
+    field_captured_inherited: dict[str, bool] = field(default_factory=dict)
     # v4.7.11 — attribute names whose EU-DA source shipped several DISAGREEING
     # candidates under one capture time (a genuine tie the mode-resolver could
     # not settle, #1088). Value is a short human note ("2 candidates disagree:

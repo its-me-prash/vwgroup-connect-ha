@@ -354,6 +354,9 @@ class CariadBaseClient:
         # this without bound; the VIN in the path keeps it per-vehicle, and the
         # key is never logged. Any non-5xx answer clears the entry.
         self._5xx_spent: dict[str, int] = {}
+        # #1973 — wall-clock time each entry above was last confirmed, so the
+        # memory can be saved with the vehicle cache and aged out (24 h).
+        self._5xx_spent_at: dict[str, float] = {}
         # v2.15.12 (#584) — SEPARATE storm budget for refreshes triggered by a
         # remote COMMAND (MBB lock/unlock/climate/charge). A failing command
         # (e.g. the MBB token exchange 500 or a data-plane 401) used to spend
@@ -1888,8 +1891,11 @@ class CariadBaseClient:
                     if _attempt >= 3:
                         # Budget fully spent on 5xx — remember it for next poll.
                         _budget_memory[_budget_key] = _spent + 1
+                        self._5xx_stamps()[_budget_key] = time.time()
                     elif _spent >= _5XX_SUPPRESS_RETRIES_AFTER:
                         if _attempt == 0:
+                            # Still failing: the entry is current, not old.
+                            self._5xx_stamps()[_budget_key] = time.time()
                             _LOGGER.debug(
                                 "Server error %d from %s — not retrying: this"
                                 " endpoint spent its whole retry budget on each"
@@ -1910,7 +1916,9 @@ class CariadBaseClient:
                 elif resp.status in (200, 201, 202, 204, 207):
                     # #1973 — a real answer withdraws the mark, so a transient
                     # outage costs the suppression only until the next good poll.
-                    self._5xx_memory().pop(_5xx_budget_key(method, url), None)
+                    _ok_key = _5xx_budget_key(method, url)
+                    self._5xx_memory().pop(_ok_key, None)
+                    self._5xx_stamps().pop(_ok_key, None)
                 if resp.status == 204:
                     self._capture_rate_limit_headers(resp.headers)
                     return None
@@ -2354,6 +2362,47 @@ class CariadBaseClient:
             store = {}
             self._5xx_spent = store  # type: ignore[attr-defined]
         return store
+
+    def _5xx_stamps(self) -> dict[str, float]:
+        """#1973 — last-confirmed time per entry of ``_5xx_memory``."""
+        store = getattr(self, "_5xx_spent_at", None)
+        if store is None:
+            store = {}
+            self._5xx_spent_at = store  # type: ignore[attr-defined]
+        return store
+
+    def export_5xx_memory(self) -> dict[str, dict[str, Any]]:
+        """#1973 — the 5xx retry memory in the form the vehicle cache stores.
+
+        Entries older than 24 h are left out.
+        """
+        from ..vehicle_cache import RETRY_5XX_MAX_AGE_S, retry_memory_to_cache
+
+        return retry_memory_to_cache(
+            self._5xx_memory(), self._5xx_stamps(), time.time(),
+            RETRY_5XX_MAX_AGE_S,
+        )
+
+    def restore_5xx_memory(self, raw: Any) -> int:
+        """#1973 — load a saved retry memory. Never raises; returns the number
+        of entries taken over. An entry the live client already holds wins, and
+        the keys are never logged (they contain the VIN)."""
+        from ..vehicle_cache import RETRY_5XX_MAX_AGE_S, retry_memory_from_cache
+
+        try:
+            restored = retry_memory_from_cache(raw, time.time(), RETRY_5XX_MAX_AGE_S)
+            memory = self._5xx_memory()
+            stamps = self._5xx_stamps()
+            taken = 0
+            for key, (spent, at) in restored.items():
+                if key in memory:
+                    continue
+                memory[key] = spent
+                stamps[key] = at
+                taken += 1
+            return taken
+        except Exception:  # noqa: BLE001
+            return 0
 
     def _capture_rate_limit_headers(self, headers: Any) -> None:
         """v1.19.1 — Read X-RateLimit-* headers from a response.

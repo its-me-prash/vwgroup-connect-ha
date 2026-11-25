@@ -28,6 +28,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import re
 import zipfile
 
 import pytest
@@ -174,7 +175,8 @@ def test_the_root_warning_leaks_neither_the_file_name_nor_a_value(
     with caplog.at_level(logging.WARNING):
         eda._unzip_json(raw, "WVWZZZAUZFW000000-export.zip")
     assert "WVWZZZAUZFW000000" not in caplog.text
-    assert "80" not in caplog.text
+    # not a bare substring: the log line carries a source line number (e.g. ``:8032``)
+    assert not re.search(r"(?<!\d)80(?!\d)", caplog.text)
 
 
 def test_an_empty_zip_stays_quiet() -> None:

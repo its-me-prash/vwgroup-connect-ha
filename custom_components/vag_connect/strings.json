@@ -224,6 +224,7 @@
       "invalid_credentials": "Email address or password incorrect.",
       "invalid_otp": "That e-mail code was not accepted. Your password is not the problem — it was already checked, which is why a code was sent. Request a new code and try again; if it keeps failing, sign in once on volkswagen.de in a browser, then add the channel again.",
       "website_login_failed": "Your email and password are not the problem — the volkswagen.de login got past that and then failed at a later step (for example an expired session, a redirect loop, or a page it did not recognise). The reason is in the Home Assistant log. Changing your password will not help; if it keeps happening, please open an issue and include that log line.",
+      "website_consent_required": "The volkswagen.de sign-in stopped at a consent question on your Volkswagen account. Your email and password are not the problem. Sign in once at volkswagen.de in a normal browser, answer the question shown there, then try again here.",
       "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, not a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
       "authproxy_refused": "volkswagen.de refused the e-mail-code step. This is not your code and not your password — the code is only sent after the password has been accepted, and unlike a server outage this will not necessarily clear on its own. Try this first: sign in at volkswagen.de in a browser from the same machine and clear whatever the site puts in front of you — a consent or advertising prompt counts, and declining it is enough. A reporter found that this lets the integration sign in again, and the site does not tell us when it is waiting for that. If it still fails afterwards, the useful report is the status from the log line next to this message and whether the browser sign-in worked.",
       "na_signin_attestation": "Your email and password are fine — Volkswagen North America now blocks this sign-in behind a Google device-attestation check (Play Integrity) that only the official app on a genuine phone can pass. Re-entering your password will not help; this is a VW server-side lock, not a credentials problem. (Tracked: #1165.)",
@@ -277,6 +278,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Battery nameplate capacity (kWh, for State of Health)",
           "fuel_tank_capacity": "Fuel tank capacity (litres, for fuel level %)",
+          "stale_threshold_hours": "Data stale after (hours)",
           "enable_reverse_geocoding": "Reverse Geocoding (parking address)",
           "read_only_mode": "Read-only Mode",
           "companion_wake_sleep": "Companion: wake screen to poll, sleep after",
@@ -310,6 +312,7 @@
           "skoda_official_mode": "Škoda official-API source mode"
         },
         "data_description": {
+          "stale_threshold_hours": "How old the car's own capture time may get before \"Data stale\" and the portal health state \"Stale\" switch on. Default 72 hours, range 1 to 168. It never drops below 8 update intervals. The stale-data repair keeps its own 72-hour floor, so a lower value does not raise it earlier.",
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
           "spin": "S-PIN for door locking. App → Security → S-PIN.",
           "enable_reverse_geocoding": "Sends parking GPS to OpenStreetMap Nominatim to resolve street/city. Off by default for privacy.",
@@ -411,6 +414,7 @@
       "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it.",
       "terms_and_conditions": "Terms and conditions need to be accepted. Sign in to the app once and confirm.",
       "website_login_failed": "Your email and password are not the problem — the volkswagen.de login got past that and then failed at a later step (for example an expired session, a redirect loop, or a page it did not recognise). The reason is in the Home Assistant log. Changing your password will not help; if it keeps happening, please open an issue and include that log line.",
+      "website_consent_required": "The volkswagen.de sign-in stopped at a consent question on your Volkswagen account. Your email and password are not the problem. Sign in once at volkswagen.de in a normal browser, answer the question shown there, then try again here.",
       "authproxy_refused": "volkswagen.de refused the e-mail-code step. This is not your code and not your password — the code is only sent after the password has been accepted, and unlike a server outage this will not necessarily clear on its own. Try this first: sign in at volkswagen.de in a browser from the same machine and clear whatever the site puts in front of you — a consent or advertising prompt counts, and declining it is enough. A reporter found that this lets the integration sign in again, and the site does not tell us when it is waiting for that. If it still fails afterwards, the useful report is the status from the log line next to this message and whether the browser sign-in worked.",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "eu_signin_attestation": "Your email and password are fine — the sign-in itself worked and the authorization code came back. Volkswagen now refuses the final step, trading that code for a token, because it wants a Google-signed device-attestation token (Play Integrity) that only the official app on a genuine phone can produce. Re-entering your password will not help, and neither will retrying. The read-only EU Data Act portal, which normally takes over in this case, did not deliver either — and this notice cannot tell you why. Open the portal in a browser: if it loads, check that data sharing is enabled for your car. If it does not load, the portal itself is down and nothing on your side needs changing. (Tracked: #1712.) Audi: choose Repair and pick the browser sign-in with myAudi — it gets past this wall.",
@@ -1703,6 +1707,9 @@
       "last_dataset_created_at": {
         "name": "Portal file created"
       },
+      "newer_empty_portal_files": {
+        "name": "Newer empty portal files"
+      },
       "last_no_data_at": {
         "name": "Last no-data poll"
       },
@@ -2727,6 +2734,7 @@
           "invalid_credentials": "Email address or password incorrect.",
           "cannot_connect": "Could not reach Volkswagen. Please try again.",
           "website_login_failed": "Your email and password are not the problem — the volkswagen.de login got past that and then failed at a later step (for example an expired session, a redirect loop, or a page it did not recognise). The reason is in the Home Assistant log. Changing your password will not help; if it keeps happening, please open an issue and include that log line.",
+          "website_consent_required": "The volkswagen.de sign-in stopped at a consent question on your Volkswagen account. Your email and password are not the problem. Sign in once at volkswagen.de in a normal browser, answer the question shown there, then try again here.",
           "authproxy_refused": "volkswagen.de refused the e-mail-code step. This is not your code and not your password — the code is only sent after the password has been accepted, and unlike a server outage this will not necessarily clear on its own. Try this first: sign in at volkswagen.de in a browser from the same machine and clear whatever the site puts in front of you — a consent or advertising prompt counts, and declining it is enough. A reporter found that this lets the integration sign in again, and the site does not tell us when it is waiting for that. If it still fails afterwards, the useful report is the status from the log line next to this message and whether the browser sign-in worked.",
           "invalid_otp": "That e-mail code was not accepted. Your password is not the problem — it was already checked, which is why a code was sent. Request a new code and try again; if it keeps failing, sign in once on volkswagen.de in a browser, then add the channel again.",
           "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, not a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration."

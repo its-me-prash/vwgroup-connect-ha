@@ -224,6 +224,7 @@
       "invalid_credentials": "Felaktig e-postadress eller lösenord.",
       "invalid_otp": "Den e-postkoden godtogs inte. Det är inte lösenordet — det har redan kontrollerats, vilket är varför en kod skickades. Begär en ny kod och försök igen; om det fortsätter att misslyckas, logga in en gång på volkswagen.de i en webbläsare och lägg till kanalen därefter.",
       "website_login_failed": "Din e-postadress och ditt lösenord är inte problemet — inloggningen på volkswagen.de kom förbi dem och misslyckades i ett senare steg (till exempel en utgången session, en omdirigeringsloop eller en sida den inte kände igen). Orsaken finns i Home Assistant-loggen. Ett nytt lösenord hjälper inte; om det fortsätter, öppna ett ärende och bifoga den loggraden.",
+      "website_consent_required": "Inloggningen på volkswagen.de stannade vid en fråga om samtycke på ditt Volkswagen-konto. Din e-postadress och ditt lösenord är inte problemet. Logga in en gång på volkswagen.de i en vanlig webbläsare, svara på frågan där och försök sedan igen här.",
       "portal_interaction_required": "EU Data Act-portalen kräver en engångsåtgärd i din webbläsare eller varumärkesapp (t.ex. godkänna villkor, bekräfta samtycke, slutföra onboarding/regionval) innan huvudlös åtkomst fungerar. Detta är INTE ett lösenordsproblem — öppna portalen en gång i en webbläsare, slutför uppmaningen och försök igen.",
       "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen.",
       "authproxy_refused": "volkswagen.de refused the e-mail-code step. This is not your code and not your password — the code is only sent after the password has been accepted, and unlike a server outage this will not necessarily clear on its own. Try this first: sign in at volkswagen.de in a browser from the same machine and clear whatever the site puts in front of you — a consent or advertising prompt counts, and declining it is enough. A reporter found that this lets the integration sign in again, and the site does not tell us when it is waiting for that. If it still fails afterwards, the useful report is the status from the log line next to this message and whether the browser sign-in worked.",
@@ -277,6 +278,7 @@
           "spin": "S-PIN",
           "battery_nominal_kwh": "Batteriets märkkapacitet (kWh, för hälsotillstånd)",
           "fuel_tank_capacity": "Tankvolym (liter, för bränsle-%)",
+          "stale_threshold_hours": "Data föråldrade efter (timmar)",
           "enable_reverse_geocoding": "Omvänd geokodning (parkeringsadress)",
           "read_only_mode": "Skrivskyddat läge",
           "companion_wake_sleep": "Companion: väck skärmen för hämtning, släck efteråt",
@@ -310,6 +312,7 @@
           "skoda_official_mode": "Škoda officiell API-källäge"
         },
         "data_description": {
+          "stale_threshold_hours": "Hur gammal bilens egen registreringstid får bli innan \"Data föråldrade\" och portalstatusen \"Föråldrad\" slår till. Standard är 72 timmar, intervall 1 till 168. Aldrig under 8 uppdateringsintervall. Reparationsmeddelandet om föråldrade data behåller sin egen nedre gräns på 72 timmar, så ett lägre värde utlöser det inte tidigare.",
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
           "spin": "S-PIN för dörrlåsning.",
           "enable_reverse_geocoding": "Skickar parkerings-GPS till OpenStreetMap Nominatim för att hämta gata/stad. Av som standard (integritet).",
@@ -411,6 +414,7 @@
       "vweu_no_bff_data": "Inloggningen lyckades, men Volkswagen har ännu inte returnerat några live-data för den här bilen på det moderna backendet, så VW EU Two-Way aktiverades inte och din nuvarande kanal är oförändrad. Försök igen senare, eller dela en diagnostikfil så att vi kan titta på det.",
       "terms_and_conditions": "Användarvillkor måste accepteras. Logga in i appen.",
       "website_login_failed": "Din e-postadress och ditt lösenord är inte problemet — inloggningen på volkswagen.de kom förbi dem och misslyckades i ett senare steg (till exempel en utgången session, en omdirigeringsloop eller en sida den inte kände igen). Orsaken finns i Home Assistant-loggen. Ett nytt lösenord hjälper inte; om det fortsätter, öppna ett ärende och bifoga den loggraden.",
+      "website_consent_required": "Inloggningen på volkswagen.de stannade vid en fråga om samtycke på ditt Volkswagen-konto. Din e-postadress och ditt lösenord är inte problemet. Logga in en gång på volkswagen.de i en vanlig webbläsare, svara på frågan där och försök sedan igen här.",
       "authproxy_refused": "volkswagen.de refused the e-mail-code step. This is not your code and not your password — the code is only sent after the password has been accepted, and unlike a server outage this will not necessarily clear on its own. Try this first: sign in at volkswagen.de in a browser from the same machine and clear whatever the site puts in front of you — a consent or advertising prompt counts, and declining it is enough. A reporter found that this lets the integration sign in again, and the site does not tell us when it is waiting for that. If it still fails afterwards, the useful report is the status from the log line next to this message and whether the browser sign-in worked.",
       "brand_not_dag_eligible": "Det valda märket stöder inte webbläsarinloggning. Använd flödet för e-post + lösenord i stället.",
       "eu_signin_attestation": "Din e-post och ditt lösenord är korrekta — själva inloggningen fungerade och auktoriseringskoden kom tillbaka. Volkswagen vägrar nu det sista steget, att byta den koden mot en token, eftersom de kräver ett Google-signerat enhetsintyg (Play Integrity) som bara den officiella appen på en äkta telefon kan skapa. Att skriva lösenordet igen hjälper inte, och inte heller att försöka igen. Den skrivskyddade EU Data Act-portalen, som normalt tar över i det här fallet, levererade inte heller något — och det här meddelandet kan inte säga varför. Öppna portalen i en webbläsare: om den laddar, kontrollera att datadelning är påslagen för din bil. Om den inte laddar är det portalen själv som ligger nere, och inget behöver ändras hos dig. (Spåras: #1712.) Audi: välj Reparera och sedan webbläsarinloggning med myAudi — den tar sig förbi den här spärren.",
@@ -1670,6 +1674,9 @@
       "last_dataset_created_at": {
         "name": "Portalfil skapad"
       },
+      "newer_empty_portal_files": {
+        "name": "Nyare tomma portalfiler"
+      },
       "last_no_data_at": {
         "name": "Senaste förfrågan utan data"
       },
@@ -2719,6 +2726,7 @@
           "invalid_credentials": "Felaktig e-postadress eller lösenord.",
           "cannot_connect": "Kunde inte nå Volkswagen. Försök igen.",
           "website_login_failed": "Din e-postadress och ditt lösenord är inte problemet — inloggningen på volkswagen.de kom förbi dem och misslyckades i ett senare steg (till exempel en utgången session, en omdirigeringsloop eller en sida den inte kände igen). Orsaken finns i Home Assistant-loggen. Ett nytt lösenord hjälper inte; om det fortsätter, öppna ett ärende och bifoga den loggraden.",
+          "website_consent_required": "Inloggningen på volkswagen.de stannade vid en fråga om samtycke på ditt Volkswagen-konto. Din e-postadress och ditt lösenord är inte problemet. Logga in en gång på volkswagen.de i en vanlig webbläsare, svara på frågan där och försök sedan igen här.",
           "authproxy_refused": "volkswagen.de refused the e-mail-code step. This is not your code and not your password — the code is only sent after the password has been accepted, and unlike a server outage this will not necessarily clear on its own. Try this first: sign in at volkswagen.de in a browser from the same machine and clear whatever the site puts in front of you — a consent or advertising prompt counts, and declining it is enough. A reporter found that this lets the integration sign in again, and the site does not tell us when it is waiting for that. If it still fails afterwards, the useful report is the status from the log line next to this message and whether the browser sign-in worked.",
           "invalid_otp": "Den e-postkoden godtogs inte. Det är inte lösenordet — det har redan kontrollerats, vilket är varför en kod skickades. Begär en ny kod och försök igen; om det fortsätter att misslyckas, logga in en gång på volkswagen.de i en webbläsare och lägg till kanalen därefter.",
           "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen."

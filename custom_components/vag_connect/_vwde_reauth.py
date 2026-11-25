@@ -85,6 +85,7 @@ class VwDeReauthMixin:
             AuthenticationError,
             EmailTwoFactorRequiredError,
             InvalidCredentialsError,
+            WebsiteConsentRequiredError,
         )
 
         await self._ovw_close_session()
@@ -103,6 +104,12 @@ class VwDeReauthMixin:
             await self._ovw_close_session()
             _LOGGER.warning("Website authproxy rejected the credentials: %s", err)
             raise ValueError("invalid_credentials") from err
+        except WebsiteConsentRequiredError as err:
+            # #2200 — the twin of the setup branch: a consent question only the
+            # user can answer, in a browser. Before the general branch below.
+            await self._ovw_close_session()
+            _LOGGER.warning("Website authproxy login failed: %s", err)
+            raise ValueError("website_consent_required") from err
         except AuthenticationError as err:
             await self._ovw_close_session()
             # v2.24.1 (#957) — this is the options-flow twin of the setup-time
@@ -148,6 +155,7 @@ class VwDeReauthMixin:
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             AuthProxyUnavailableError,
+            WebsiteConsentRequiredError,
             WebsiteLoginIncompleteError,
         )
 
@@ -172,6 +180,15 @@ class VwDeReauthMixin:
             if isinstance(_status, int) and 400 <= _status < 500:
                 raise ValueError("authproxy_refused") from err
             raise ValueError("upstream_unavailable") from err
+        except WebsiteConsentRequiredError as err:
+            # #2200 (@zdravac, 5.6.1) — the stop was a consent question of the
+            # account. Same log line as below; its own text for the user. The
+            # repair flow reuses this method, so it gets the text too.
+            _LOGGER.warning(
+                "Website authproxy OTP step: the sign-in did not complete "
+                "after the code: %s", err,
+            )
+            raise ValueError("website_consent_required") from err
         except WebsiteLoginIncompleteError as err:
             # #2200 (@zdravac) — reached from the options dialog: the code step
             # did not come back to the challenge page, so the code was not read

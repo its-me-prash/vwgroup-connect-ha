@@ -430,6 +430,23 @@ class WebsiteLoginIncompleteError(AuthenticationError):
     """
 
 
+class WebsiteConsentRequiredError(WebsiteLoginIncompleteError):
+    """The volkswagen.de sign-in stopped on a consent page of the account.
+
+    Two pages are known: ``identity.vwgroup.io/.../consent`` (#2200, @zdravac,
+    on 5.6.1: a consent question on the account, after the e-mail code) and an
+    optional hook on ``consent.vwgroup.io/hooks/...`` that the connector could
+    not decline, because the page offered no skip link or the decline request
+    failed (#1827). Both got past it only by answering it once in a normal browser
+    sign-in at volkswagen.de, which is what the dialog now says instead of
+    "failed at a later step, see the log". The integration does not answer the
+    question for the user.
+
+    A subclass of ``WebsiteLoginIncompleteError``, so every handler of the
+    parent keeps working.
+    """
+
+
 class TokenRefreshRetryError(CariadError):
     """A token refresh was rejected TRANSIENTLY — not a dead refresh token.
 

@@ -255,6 +255,14 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
+        key="newer_empty_portal_files",
+        translation_key="newer_empty_portal_files",
+        data_key="newer_empty_portal_files",
+        icon="mdi:file-hidden",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
         key="last_no_data_at",
         translation_key="last_no_data_at",
         data_key="last_no_data_at",
@@ -4749,6 +4757,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "data_request_created_at",
     "last_snapshot_at",
     "last_dataset_created_at",
+    "newer_empty_portal_files",
     "last_no_data_at",
     "no_data_count",
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal-only interior temp,
@@ -5484,6 +5493,33 @@ async def async_setup_entry(
         and preset_can_sync(brand)
     )
 
+    def _registered_here(vin: str, key: str) -> bool:
+        """True if this config entry already has a sensor entity for *key*.
+
+        #2072 — the range de-duplication below decides at build time and never
+        removes anything, so leaving out a sensor that already exists turns it
+        into an unavailable leftover. Only a real registry hit for THIS entry
+        counts: a mocked or foreign answer must not switch the rule off.
+        """
+        from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+
+        from .const import (  # noqa: PLC0415
+            DOMAIN,
+            is_companion_entry_data,
+            vehicle_unique_id,
+        )
+
+        registry = er.async_get(hass)
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN,
+            vehicle_unique_id(vin, key, companion=is_companion_entry_data(entry.data)),
+        )
+        if not isinstance(entity_id, str):
+            return False
+        reg_entry = registry.async_get(entity_id)
+        owner = getattr(reg_entry, "config_entry_id", None)
+        return isinstance(owner, str) and owner == entry.entry_id
+
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
         has_battery    = vehicle.get("has_battery", False)
@@ -5527,10 +5563,24 @@ async def async_setup_entry(
             # so a bi-fuel car reporting a distinct combustion range still keeps it.
             if desc.key == "total_range_km" and not (has_battery and has_combustion):
                 continue
+            # #2072 — but not for a fuel range sensor that already exists: since
+            # the carried main range follows this poll's fuel range, the two are
+            # equal far more often, and a skipped existing sensor shows as
+            # unavailable while automations still read it.
             if (
                 desc.key == "combustion_range_km"
                 and not has_battery
                 and vehicle.get("combustion_range_km") == vehicle.get("range_km")
+                and not _registered_here(vin, desc.key)
+            ):
+                continue
+            # #1316 — a petrol/diesel car without a high-voltage battery can report
+            # a secondary engine range of 0; there is no second engine to show.
+            # A PHEV with 0 keeps the sensor. Spawn only, nothing is removed.
+            if (
+                desc.key == "secondary_engine_range_km"
+                and not has_battery
+                and vehicle.get(desc.data_key) == 0
             ):
                 continue
             if desc.key in _DATA_PRESENT_REQUIRED:
