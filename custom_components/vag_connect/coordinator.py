@@ -169,6 +169,7 @@ def _values_moved(
 #: gap-fill below has to treat them specially.
 _PROVENANCE_MAPS = (
     "field_sources", "field_captured_ts", "field_source_leaf", "field_carried_since",
+    "field_captured_inherited",
 )
 
 

@@ -404,6 +404,12 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         attrs: dict[str, Any] = {}
         captured = self._vehicle.get("field_captured_ts")
         iso = captured.get(data_key) if isinstance(captured, dict) else None
+        # #2096 — a stamp borrowed from a neighbouring capture entry of the export
+        # moves with the list order: it stays in the snapshot for the readers that
+        # compare ages, but is not shown as THIS value's capture time.
+        borrowed = self._vehicle.get("field_captured_inherited")
+        if isinstance(borrowed, dict) and borrowed.get(data_key) is True:
+            iso = None
         if isinstance(iso, str) and iso:
             attrs["data_captured_at"] = iso
             attrs["freshness_source"] = "point"

@@ -416,7 +416,7 @@ def _restore_soc_provenance(
     copied before writing. A recorded value without a stamp must not wear the
     fresh leaf's stamp, so that one is dropped.
     """
-    for key in ("field_captured_ts", "field_source_leaf"):
+    for key in ("field_captured_ts", "field_source_leaf", "field_captured_inherited"):
         mine = merged.get(key)
         if not isinstance(mine, dict):
             mine = {}
@@ -674,6 +674,7 @@ def _carry_electric_range_leaf(
 _PROVENANCE_MAPS: tuple[str, ...] = (
     "field_sources", "field_captured_ts", "field_source_leaf", "ambiguous_fields",
     "field_carried_since",
+    "field_captured_inherited",
 )
 
 
@@ -896,8 +897,10 @@ def reconcile(
         still_imported: list[str] = []
         carried_src = dict(merged.get("field_sources") or {})
         carried_ts = dict(merged.get("field_captured_ts") or {})
+        carried_inh = dict(merged.get("field_captured_inherited") or {})
         changed_src = False
         changed_ts = False
+        changed_inh = False
         for key in imported:
             if fresh.get(key) is not None:
                 continue  # feed delivered it live this poll — mark dropped
@@ -914,11 +917,18 @@ def reconcile(
                     and key not in carried_ts):
                 carried_ts[key] = prev_ts[key]
                 changed_ts = True
+                prev_inh = previous.get("field_captured_inherited")
+                if (isinstance(prev_inh, dict) and prev_inh.get(key) is True
+                        and key not in carried_inh):
+                    carried_inh[key] = True
+                    changed_inh = True
             still_imported.append(key)
         if changed_src:
             merged["field_sources"] = carried_src
         if changed_ts:
             merged["field_captured_ts"] = carried_ts
+        if changed_inh:
+            merged["field_captured_inherited"] = carried_inh
         if still_imported:
             merged["field_imported_from_export"] = still_imported
         else:
