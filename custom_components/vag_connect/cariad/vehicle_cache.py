@@ -1054,7 +1054,14 @@ def reconcile(
         for field in (*POSITION_FIELDS, "position_captured_at"):
             if merged.get(field) is None and previous.get(field) is not None:
                 merged[field] = previous[field]
-        if age is not None and age > POSITION_MAX_AGE_S:
+        # #923 — only a position that exists can be stale; a car that never
+        # recorded one has nothing to flag.
+        if (
+            age is not None
+            and age > POSITION_MAX_AGE_S
+            and merged.get("latitude") is not None
+            and merged.get("longitude") is not None
+        ):
             merged["position_is_stale"] = True
             notes.append(
                 f"recorded position is {age / 3600:.0f}h old "

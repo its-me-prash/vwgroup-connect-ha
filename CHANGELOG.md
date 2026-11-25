@@ -46,6 +46,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **A petrol or diesel car without a high-voltage battery no longer gets a "Secondary engine range" sensor that reads 0 km (#1316).** A VW T6.1 petrol van on the EU Data Act feed reported a secondary engine range of 0, and the integration created the sensor from that 0 although the car has no second engine. The sensor is now not created when its value is 0 and the car has no high-voltage battery. A plug-in hybrid that reports 0 keeps it, and any non-zero value keeps it on every car. This only affects creation: a sensor that already exists is not removed from the entity registry. Thanks to @EcksteinU for the report. Covered by `tests/test_guards_secondary_range_and_stale_position.py`; not tried on a car.
+- **The position is only flagged as stale when a position was recorded (#923).** When a poll brings no coordinates, the last-known position is carried forward and flagged `position_is_stale` once it is older than 24 hours. The flag was set on age alone, so a car that never recorded a position (latitude and longitude both empty, as with a car whose portal delivers no coordinates) was flagged stale although there was no position to be old. It is now set only when both latitude and longitude exist. Cars with a recorded position are unchanged: it is kept and flagged after 24 hours as before. Thanks to @fight3 for the report in the thread. Covered by `tests/test_guards_secondary_range_and_stale_position.py`; not tried on a car.
+
 ## [5.6.1] - 2026-11-25 — "New addresses / Neue Adressen"
 
 ### Hinzugefügt / Added
