@@ -151,7 +151,7 @@ supersedes them as the place to start; the others stay as references.
 |---|---|---|
 | Overview | none | Battery level, electric and petrol range, charging state, lock, climate state, *Last vehicle sync*, *App request status* |
 | Charge detail | Read charge detail | Charge limit, charging power, speed and remaining time, charging method |
-| Vehicle Health and Settings | Read Vehicle Health & Settings | Odometer, service and oil-service due, warnings, *Automatically release AC connector*, the vehicle-wide charge limit |
+| Vehicle Health and Settings | Read Vehicle Health & Settings | Odometer, service and oil-service due, warnings, *Automatically release AC connector*, *Reduced AC charging current*, the vehicle-wide charge limit |
 | Climate detail | Read climate detail | Climate and window-heating state, target and outside temperature, remaining time, start mode |
 | Climate settings | Read climate settings | Climate at unlock, automatic window heating, climate zones |
 | Departure times | Read departure times | The three climate timers: on/off, time, days, Repeat |
@@ -233,6 +233,7 @@ the Read switches, intervals and Reset stay in **Configuration**.
 | Next Service, Service In | sensors | Distance and days to the next service; oil service where the app shows it. |
 | Warning Active, Vehicle Warning Messages | binary sensor, sensor | Warning header and the categories that carry a warning. |
 | Auto Unlock When Charged | binary sensor | The vehicle-wide *Automatically release AC connector*. |
+| Max AC Charge Current | sensor (Diagnostic) | The vehicle-wide *Reduced AC charging current*: `REDUCED` when the switch is on, `MAXIMUM` when it is off, the same values the EU Data Act portal sends. |
 | Charge Target | number (Controls) | Vehicle Settings also holds *Charging up to*, read on **every** poll (it can change in the app at any time). |
 
 **Climate** (*Read climate detail*, *Read climate settings*)
@@ -323,7 +324,7 @@ flowchart LR
 | overview | — | `electric_range_km`, `is_charging`, `doors_locked`, `climatisation_active`, `companion_app_synced_at` | every poll |
 | `charge_detail` | Read charge detail | `target_soc`, `charging_power_kw`, `charging_rate_kmh`, `remaining_charge_time_min`, `charge_mode` | every poll |
 | `vehicle_health` | Read Vehicle Health & Settings | `odometer_km`, `service_km`, `service_due_in_days`, `warning_*` | when the car sent new data |
-| `vehicle_settings` | (same switch) | `target_soc`, `auto_unlock_when_charged` | every poll |
+| `vehicle_settings` | (same switch) | `target_soc`, `auto_unlock_when_charged`, `max_charge_current_ac` | every poll |
 | `climate_detail` | Read climate detail | `climatisation_active`, `target_temperature`, `outside_temp`, `climate_remaining_time_min` | every poll |
 | `climate_settings` | Read climate settings | `climate_at_unlock`, `window_heating_enabled`, climate zones | every poll |
 | `departure_times` | Read departure times | `departure_timer_N_enabled/_time/_weekdays/_repeat` | every poll |

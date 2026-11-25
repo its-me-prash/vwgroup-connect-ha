@@ -727,7 +727,7 @@ _VW = BrandPreset(
             ),
             back_presses=1,
             opt_in="vehicle_health",
-            resource_targets=("auto_unlock_when_charged",),
+            resource_targets=("auto_unlock_when_charged", "max_charge_current_ac"),
         ),
         NavReadSelector(
             name="climate_detail",
