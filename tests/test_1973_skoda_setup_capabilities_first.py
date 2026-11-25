@@ -128,3 +128,21 @@ def test_other_brands_do_not_fetch_capabilities_first() -> None:
     coord._cariad_client.get_status = AsyncMock(return_value=None)  # type: ignore[method-assign]
     asyncio.run(coord._setup_initial_reads([VIN]))
     coord.refresh_capabilities.assert_not_awaited()
+
+
+def test_every_follow_up_fetch_goes_through_the_cache() -> None:
+    """The tests above drive a stand-in for ``_enrich``; this pins the real code.
+
+    "No request is added overall" holds only while every later fetch (the
+    background finish and ``_enrich``) calls ``refresh_capabilities`` without
+    ``force``, so it lands on the 24 h cache the setup read just filled.
+    """
+    import pathlib
+    import re
+
+    import custom_components.vag_connect.coordinator as coordinator_module
+
+    source = pathlib.Path(coordinator_module.__file__).read_text(encoding="utf-8")
+    calls = re.findall(r"self\.refresh_capabilities\(([^)]*)\)", source)
+    assert len(calls) >= 3, calls  # setup read, background finish, _enrich
+    assert [c for c in calls if "force" in c] == []
