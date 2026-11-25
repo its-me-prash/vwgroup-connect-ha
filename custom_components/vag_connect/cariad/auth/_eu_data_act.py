@@ -1017,6 +1017,10 @@ _PAIRED_TS_BY_NAME: dict[str, str] = {
     "mileage.value": _ODO_TS_KEY,
     "mileage.state": _ODO_TS_KEY,
 }
+_PAIRED_VALUE_UUIDS: frozenset[str] = frozenset({
+    "ac1108b1-b8cc-3db9-a663-03d387e42223",  # battery_level_HV.value
+    "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",  # mileage.value
+})
 # Targets whose ``data_captured_at`` is shown only when the stamp is the value's
 # OWN (paired, or a real per-point stamp), never when it was borrowed from a
 # neighbouring capture entry. The stamp itself is recorded either way; the
@@ -1028,10 +1032,12 @@ def _collect_paired_ts(payload: Any) -> dict[str, float]:
     """Key -> time of the ``timestamp`` entry that pairs with a value (#2096).
 
     Collected over the WHOLE payload before the walk, so the result cannot
-    depend on where in the list an entry sits. Only a key with exactly one
-    distinct time is returned."""
+    depend on where in the list an entry sits. A key is returned only when the
+    file holds exactly one distinct time under it AND exactly one distinct
+    value under the paired value entries (``.value``, not ``.state``)."""
     wanted = {_SOC_TS_KEY, _ODO_TS_KEY}
     seen: dict[str, set[float]] = {}
+    values: dict[str, set[str]] = {}
     stack: list[Any] = [payload]
     while stack:
         node = stack.pop()
@@ -1041,6 +1047,14 @@ def _collect_paired_ts(payload: Any) -> dict[str, float]:
                 parsed = _parse_ts(node.get("value"))
                 if parsed is not None:
                     seen.setdefault(k.strip().lower(), set()).add(parsed)
+            ts_key = _PAIRED_TS_BY_VALUE_KEY.get(str(k).strip().lower()) if k else None
+            name = node.get("dataFieldName")
+            if ts_key is None and isinstance(name, str):
+                ts_key = _PAIRED_TS_BY_NAME.get(name.strip().lower())
+            if ts_key is not None and "value" in node:
+                label = str(k or name).strip().lower()
+                if label.endswith(".value") or label in _PAIRED_VALUE_UUIDS:
+                    values.setdefault(ts_key, set()).add(str(node["value"]).strip())
             stack.extend(v for v in node.values() if isinstance(v, (dict, list)))
         elif isinstance(node, list):
             stack.extend(v for v in node if isinstance(v, (dict, list)))
@@ -1048,8 +1062,14 @@ def _collect_paired_ts(payload: Any) -> dict[str, float]:
     # under the SAME key, and a flat list does not say which value belongs to
     # which. One time for the whole file (the newest, or any other) would stamp
     # every value with it and let the list order decide again, so a key that
-    # carries more than one distinct time pairs nothing.
-    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
+    # carries more than one distinct time pairs nothing. The same holds for a
+    # key whose file carries several distinct values: a time entry beside only
+    # one of them says nothing about the others.
+    return {
+        k: next(iter(v))
+        for k, v in seen.items()
+        if len(v) == 1 and len(values.get(k, ())) == 1
+    }
 
 # v2.17.4 — MEB/ID.x ships some data-points (notably the primary electric range,
 # EU dict UUID 0ca40e18 "Value of the primary range") under a GENERIC

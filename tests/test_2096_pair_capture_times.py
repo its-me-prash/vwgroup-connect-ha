@@ -500,3 +500,51 @@ def test_the_imported_value_carried_across_polls_keeps_its_flag() -> None:
     merged, _ = reconcile(prev, {"odometer_km": None})
     assert merged["odometer_km"] == 999
     assert merged["field_captured_inherited"] == {"odometer_km": True}
+
+
+# ── R4: one time AND one value, or no pairing ────────────────────────────────
+def _snapshot_a_without_time_entry() -> list[dict[str, str]]:
+    return [
+        _p("33333333-0000-0000-0000-000000000001", "car_captured_utc_timestamp",
+           "2026-11-12T06:00:05Z"),
+        _p(SOC_UUID, "battery_level_HV.value", "50"),
+        SOC_STATE,
+    ]
+
+
+def _snapshot_b_with_time_entry() -> list[dict[str, str]]:
+    return [
+        _p("33333333-0000-0000-0000-000000000002", "car_captured_utc_timestamp",
+           "2026-11-13T06:00:05Z"),
+        _p(SOC_UUID, "battery_level_HV.value", "80"),
+        SOC_STATE,
+        _p(SOC_TS_KEY, "timestamp", "2026-11-13T06:00:05Z"),
+    ]
+
+
+@pytest.mark.parametrize("b_first", [True, False])
+def test_one_time_with_two_values_pairs_nothing(
+    b_first: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a, b = _snapshot_a_without_time_entry(), _snapshot_b_with_time_entry()
+    items = [*b, *a] if b_first else [*a, *b]
+    got = _map(items)
+    got_walk = _walk(items)
+    _control(monkeypatch)
+    want = _map(items)
+    assert _walk(items) == got_walk
+    assert _without_new_map(got) == _without_new_map(want)
+    assert got.field_captured_ts == want.field_captured_ts
+    assert got.field_captured_inherited == want.field_captured_inherited
+
+
+def test_one_value_repeated_still_pairs() -> None:
+    d = _map([*_full(), _p(SOC_UUID, "battery_level_HV.value", "81")])
+    assert d.field_captured_ts["battery_soc"].startswith("2026-11-13T06:57:12")
+    assert "battery_soc" not in d.field_captured_inherited
+
+
+def test_two_odometer_values_pair_no_odometer() -> None:
+    paired = eda._collect_paired_ts(
+        {"data": [ODO_VALUE, ODO_STAMP, _p(ODO_UUID, "mileage.value", "12999")]})
+    assert ODO_TS_KEY not in paired
