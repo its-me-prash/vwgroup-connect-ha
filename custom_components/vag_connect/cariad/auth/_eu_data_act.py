@@ -301,6 +301,45 @@ def _valid_marketing_callback(url: str) -> bool:
         return False
     return (parts.path or "") in _MARKETING_CALLBACK_PATHS
 
+
+# The single-page marketing question the identity provider has shown since late
+# October 2026 to accounts that never answered it (first seen on SEAT and CUPRA
+# accounts). Unlike the older page it carries no ``callback=``; it carries
+# ``relayState`` and ``state``, and its "not now" button posts exactly those two
+# fields to the same path plus ``/skip``. Nothing is granted by that POST — it is
+# the decline, the same outcome the callback-follow above produces.
+_MARKETING_CONSENT_PAGE_SUFFIX = "/login/ui/marketing-consent"
+
+
+def _marketing_consent_skip_request(
+    url: str,
+) -> tuple[str, list[tuple[str, str]]] | None:
+    """``(skip_url, form_fields)`` when *url* is the single-page marketing question.
+
+    Recognised only on https, only on the identity provider's own host, only
+    when the path ends in ``/login/ui/marketing-consent`` and only when both
+    ``relayState`` and ``state`` are present. The skip target is built from the
+    page's own host and path, never taken from anything the page names, so it
+    cannot point anywhere else. The ``/skip`` URL itself is not this page — its
+    path does not end in the suffix — so a re-landing there cannot trigger a
+    second POST.
+    """
+    parts = urlparse(url)
+    if parts.scheme != "https":
+        return None
+    if (parts.netloc or "").lower() != (urlparse(_IDENTITY_BASE).netloc or "").lower():
+        return None
+    path = (parts.path or "").rstrip("/")
+    if not path.endswith(_MARKETING_CONSENT_PAGE_SUFFIX):
+        return None
+    query = parse_qs(parts.query)
+    relay_state = query.get("relayState", [""])[0]
+    state = query.get("state", [""])[0]
+    if not relay_state or not state:
+        return None
+    skip_url = f"https://{parts.netloc}{path}/skip"
+    return skip_url, [("relayState", relay_state), ("state", state)]
+
 # Junk sentinels the portal uses for state STRINGS (no active session / single-
 # port car / infra not up / no reading). Any of these means "no value" → the
 # field stays None instead of surfacing the literal token as a phantom reading.
@@ -6387,9 +6426,11 @@ class EUDataActConnector:
         Port of ``idk._skip_marketing_consent`` (evcc PR #29980) to the EU Data
         Act portal channel. The marketing-consent page's URL carries an OIDC
         ``callback=`` param; following it completes the login on the "not now"
-        path — no marketing scopes granted, nothing accepted. Returns the new
+        path — no marketing scopes granted, nothing accepted. The newer
+        single-page variant without a callback is declined by
+        ``_decline_marketing_consent_page`` instead. Returns the new
         ``(landing_url, html, status)`` on success, or ``None`` when the landing
-        is NOT a marketing page, carries no callback, or the follow fails — the
+        is NOT a marketing page, carries neither shape, or the follow fails — the
         caller then falls through to the existing ``MarketingConsentError`` (safe,
         no regression). The legal T&C page is intentionally NOT handled here — it
         has no "not now" path and auto-accepting it would assert legal consent on
@@ -6400,6 +6441,11 @@ class EUDataActConnector:
             return None
         callback = parse_qs(urlparse(landing_url).query).get("callback", [""])[0]
         if not callback:
+            skip_request = _marketing_consent_skip_request(landing_url)
+            if skip_request is not None:
+                return await self._decline_marketing_consent_page(
+                    landing_url, *skip_request, headers=headers,
+                )
             _LOGGER.debug(
                 "EU Data Act portal: marketing-consent page at %s has no callback"
                 " — cannot auto-skip, leaving it to the classifier",
@@ -6457,6 +6503,93 @@ class EUDataActConnector:
             "EU Data Act portal: skipped optional marketing consent "
             "(followed callback, granted no marketing scopes)"
         )
+        return result
+
+    async def _decline_marketing_consent_page(
+        self,
+        page_url: str,
+        skip_url: str,
+        fields: list[tuple[str, str]],
+        *,
+        headers: dict[str, str],
+    ) -> tuple[str, str, int] | None:
+        """Press "not now" on the single-page marketing question, once.
+
+        One POST of ``relayState`` and ``state`` to the page's own ``/skip``
+        path, sent by hand without following redirects, with Referer and Origin
+        on the identity host the way the page's own form sends them. Only a
+        redirect counts as declined; its target must pass the same https and
+        host allowlist as every other login hop before the remaining chain is
+        walked to the portal callback. Origin is not carried past the POST — a
+        browser drops it on the GET that follows a redirect.
+
+        Called at most once per login, from the single place the landing is
+        checked. If the page comes back after the POST, the result is returned
+        unchanged and the caller's classifier raises ``MarketingConsentError``:
+        there is no second POST and no loop. Any failure returns ``None``, which
+        leaves the original landing to the same classifier. Nothing is granted
+        on the user's behalf; the legal terms page is not handled here.
+        """
+        page = urlparse(page_url)
+        post_headers = {
+            k: v for k, v in headers.items() if k.lower() not in ("referer", "origin")
+        }
+        post_headers["Referer"] = page_url
+        post_headers["Origin"] = f"https://{page.netloc}"
+        try:
+            async with self._session.post(
+                skip_url,
+                data=fields,
+                headers=post_headers,
+                allow_redirects=False,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                status = resp.status
+                location = resp.headers.get("Location", "")
+            if status not in _REDIRECT_STATUSES or not location:
+                _LOGGER.debug(
+                    "EU Data Act portal: declining the marketing question at %s"
+                    " answered HTTP %s without a redirect — leaving it to the"
+                    " classifier",
+                    _safe_url(page_url), status,
+                )
+                return None
+            next_url = urljoin(skip_url, location)
+            next_parts = urlparse(next_url)
+            if next_parts.scheme != "https" or not _is_login_host(next_parts.netloc):
+                _LOGGER.debug(
+                    "EU Data Act portal: declining the marketing question"
+                    " redirected to %s, outside the login hosts — not following"
+                    " it, leaving it to the classifier",
+                    (next_parts.netloc or "?").lower(),
+                )
+                return None
+            follow_headers = {
+                k: v for k, v in headers.items() if k.lower() not in ("referer", "origin")
+            }
+            follow_headers["Referer"] = skip_url
+            result = await self._follow_login_redirects(
+                "GET", next_url, headers=follow_headers,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Type only: a client error's str() can embed relayState or state.
+            _LOGGER.debug(
+                "EU Data Act portal: declining the marketing question failed (%s)",
+                type(exc).__name__,
+            )
+            return None
+        if _marketing_consent_skip_request(result[0]) is not None:
+            _LOGGER.debug(
+                "EU Data Act portal: the marketing question at %s came back after"
+                " declining it once — not posting again",
+                _safe_url(result[0]),
+            )
+        else:
+            _LOGGER.debug(
+                "EU Data Act portal: declined the optional marketing question"
+                " (no consent given) → %s",
+                _safe_url(result[0]),
+            )
         return result
 
     async def _request_login_redirects(
@@ -6962,8 +7095,11 @@ class EUDataActConnector:
         # ``callback=`` that, when followed, completes the login WITHOUT granting
         # marketing scopes (the "not now" path). Port of idk._skip_marketing_consent
         # (evcc PR #29980) to the portal channel. Safe no-op: only fires on a
-        # detected marketing page that actually carries a callback — otherwise it
-        # returns None and we fall through to the existing MarketingConsentError.
+        # detected marketing page that carries a callback, or on the single-page
+        # variant with relayState + state (declined with ONE POST to its /skip) —
+        # otherwise it returns None and we fall through to the existing
+        # MarketingConsentError. Called once here and nowhere else, so a page
+        # that comes back after the decline is never posted a second time.
         skipped = await self._skip_marketing_consent_landing(landing, headers)
         if skipped is not None:
             landing, landing_html, status = skipped

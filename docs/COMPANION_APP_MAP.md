@@ -280,7 +280,7 @@ units; durations by `duration_hours` / `duration_minutes`.
 | Row | Tiguan | Field → entity | Key | Status |
 |---|---|---|---|---|
 | Charging up to (50–100 %) | `80%` | `target_soc` + Charge Target number | — | Mapped (read and set) |
-| Reduced AC charging current | off | — (`vw_eu` has amps, not on/off) | `vehiclesettingsscreen_reducedchargingspeed` | Not mapped |
+| Reduced AC charging current | off | `max_charge_current_ac` (`REDUCED` / `MAXIMUM`, as the portal) → Max AC charge current sensor | `vehiclesettingsscreen_reducedchargingspeed` | Mapped (#2198); on = `maxChargeCurrentAC` `reduced` in the app |
 | Automatically release AC connector | on | `auto_unlock_when_charged` → binary sensor | `vehiclesettingsscreen_automaticplugunlock` | Mapped (gszigethy/vwgroup-connect-ha#9) |
 | Synchronise now | button | `command_sync_vehicle` → App sync interval number, Refresh vehicle data button | — | Mapped (command); the button syncs once, then re-reads the app after 3 minutes |
 | Plug & Charge, users, notifications, contracts | links | — | — | Not mapped (account) |
