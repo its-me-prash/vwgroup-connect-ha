@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **A value the integration keeps from an earlier poll now says so (#1917).** Readings in the keep-last-value list (odometer, fuel and charge level, the range figures, service intervals, the lifetime trip figures and the like) stay visible when a poll omits them, and until now nothing told a kept value from a fresh one. Such an entity now carries the attributes `freshness_source: carried` and `carried_since`, the time of the poll in which the value first went missing. `carried_since` stays the same while the value stays kept, so it adds no recorder churn, and it disappears the moment a fresh value arrives. It is stored with the vehicle snapshot, so it survives a Home Assistant restart. Thanks to @tdrieshof for "marking beats dropping" and to @MarvinBach2104 and the other reporters on #923 and #1971 for asking where a value comes from. Deliberately unchanged: every value, its availability and its history; there is no age limit and no value turns unknown (that question stays open on #1917), and fields outside the keep-last-value list (doors, locks, charging state) are not touched. A kept value of 0 is still shown as before. Covered by `tests/test_1917_carried_marker.py`; not tried on a car.
+
 ## [5.6.1] - 2026-11-25 — "New addresses / Neue Adressen"
 
 ### Hinzugefügt / Added

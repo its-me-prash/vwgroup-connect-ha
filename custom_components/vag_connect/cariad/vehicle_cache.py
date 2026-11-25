@@ -673,6 +673,7 @@ def _carry_electric_range_leaf(
 # reader would date or attribute a field that no longer has a value.
 _PROVENANCE_MAPS: tuple[str, ...] = (
     "field_sources", "field_captured_ts", "field_source_leaf", "ambiguous_fields",
+    "field_carried_since",
 )
 
 
@@ -867,9 +868,27 @@ def reconcile(
     previous = _heal_cached_combined_range(previous, fresh)
     merged = dict(fresh)
     notes: list[str] = []
+    # #1917 — a carried value says so: ``field_carried_since`` maps the field to
+    # the time of the poll in which it started being carried. It stays put while
+    # the value stays carried and is gone as soon as a fresh value arrives
+    # (``merged`` starts as the fresh poll, so nothing is copied over by itself).
+    # Marker only: no value changes, nothing is dropped, no age limit.
+    prev_carried = previous.get("field_carried_since")
+    if not isinstance(prev_carried, dict):
+        prev_carried = {}
+    carried_since: dict[str, str] = {}
+    carried_now: str | None = None
     for field in CARRY_FORWARD_FIELDS:
         if merged.get(field) is None and previous.get(field) is not None:
             merged[field] = previous[field]
+            since = prev_carried.get(field)
+            if not (isinstance(since, str) and since):
+                if carried_now is None:
+                    carried_now = datetime.now(tz=timezone.utc).isoformat()
+                since = carried_now
+            carried_since[field] = since
+    if carried_since:
+        merged["field_carried_since"] = carried_since
     # #1970 — the electric range's leaf name is the heal's evidence; it
     # travels with a carried value.
     _carry_electric_range_leaf(merged, fresh, previous)
