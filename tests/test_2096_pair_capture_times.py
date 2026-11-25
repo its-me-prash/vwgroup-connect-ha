@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 
+from custom_components.vag_connect.cariad.auth import _eu_data_act as eda
 from custom_components.vag_connect.cariad.auth._eu_data_act import (
     _walk_fields,
     map_dataset_to_vehicle_data,
@@ -133,3 +134,94 @@ def test_the_walker_reports_which_stamps_were_inherited(seed: int) -> None:
     assert "charging_state" in inh
     assert "battery_level_HV.value" not in inh
     assert "mileage.value" not in inh
+
+
+# ── review round 1 ────────────────────────────────────────────────────────────
+def _snapshot(soc: str, odo: str, soc_ts: str, odo_ts: str, marker: str):
+    return [
+        _p("33333333-0000-0000-0000-000000000001", "car_captured_utc_timestamp", marker),
+        _p("ac1108b1-b8cc-3db9-a663-03d387e42223", "battery_level_HV.value", soc),
+        SOC_STATE,
+        _p(SOC_TS_KEY, "timestamp", soc_ts),
+        _p("30cc36fd-71ca-3c09-9296-e94ebd47bd2b", "mileage.value", odo),
+        ODO_STATE,
+        _p(ODO_TS_KEY, "timestamp", odo_ts),
+    ]
+
+
+def _walk(items: list[dict[str, str]]):
+    ts: dict[str, float] = {}
+    syn: dict[str, set[str]] = {}
+    contested: dict[str, set[str]] = {}
+    inh: set[str] = set()
+    flat = _walk_fields({"data": items}, ts, syn, contested, {}, None, inh)
+    return flat, ts, contested, inh
+
+
+@pytest.mark.parametrize("newest_first", [False, True])
+def test_two_snapshots_in_one_file_are_not_paired(
+    newest_first: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#465/#529: a file with two snapshots carries two times under the SAME key.
+    One maximum for the whole file would stamp both SoC values with the newer
+    time and list order would decide again; the pairing stays off and the walk
+    equals the one made before the pairing existed."""
+    old = _snapshot("57", "12000", "2026-11-12T06:00:00Z", "2026-11-12T06:00:00Z",
+                    "2026-11-12T06:00:05Z")
+    new = _snapshot("81", "12100", "2026-11-13T06:00:00Z", "2026-11-13T06:00:00Z",
+                    "2026-11-13T06:00:05Z")
+    items = [*new, *old] if newest_first else [*old, *new]
+    got = _walk(items)
+    d = _map(items)
+    # control: the walker with the pairing switched off, i.e. the code as it
+    # was before the pairing existed
+    monkeypatch.setattr(eda, "_collect_paired_ts", lambda payload: {})
+    want = _walk(items)
+    d0 = _map(items)
+    assert got == want
+    assert d.battery_soc == d0.battery_soc
+    assert d.odometer_km == d0.odometer_km
+    # the order-dependent stamp is withheld, never the newer time of the file
+    assert "battery_soc" not in d.field_captured_ts
+    assert "odometer_km" not in d.field_captured_ts
+
+
+def test_one_key_may_repeat_with_the_same_time() -> None:
+    items = [*_full(), SOC_STAMP]
+    d = _map(items)
+    assert d.field_captured_ts["battery_soc"].startswith("2026-11-13T06:57:12")
+
+
+# the leaf-only state of charge (#2134): the suppression is for the PAIRED leaves
+def test_leaf_only_soc_keeps_its_inherited_stamp() -> None:
+    leaf = _p("506cb83e-0000-0000-0000-000000000001", "battery_state_report.soc", "74")
+    marker = _p("33333333-0000-0000-0000-000000000009", "car_captured_utc_timestamp",
+                "2026-11-16T10:00:00Z")
+    d = _map([marker, leaf, ODO_VALUE, ODO_STATE, ODO_STAMP])
+    assert d.battery_soc == 74
+    assert d.field_source_leaf["battery_soc"] == "battery_state_report.soc"
+    assert d.field_captured_ts["battery_soc"].startswith("2026-11-16T10:00:00")
+    # the paired odometer still shows its own time
+    assert d.field_captured_ts["odometer_km"].startswith("2026-11-13T06:57:06")
+
+
+def test_age_release_of_a_held_soc_still_fires_through_the_mapping() -> None:
+    from custom_components.vag_connect.cariad.vehicle_cache import reconcile
+    from tests.test_2134_hv_hold_release import _HELD_TS, _prev
+
+    leaf = _p("506cb83e-0000-0000-0000-000000000001", "battery_state_report.soc", "74")
+    marker = _p("33333333-0000-0000-0000-000000000009", "car_captured_utc_timestamp",
+                "2026-11-16T10:00:00Z")
+    odo_stamp = _p(ODO_TS_KEY, "timestamp", "2026-11-16T09:00:00Z")
+    fresh = _map([marker, leaf, ODO_VALUE, ODO_STATE, odo_stamp]).to_dict()
+    merged, notes = reconcile(_prev(), fresh)
+    assert merged["battery_soc"] == 74
+    assert merged["battery_soc_from_hv"] is False
+    assert any("#2134" in n for n in notes)
+    assert _HELD_TS < merged["field_captured_ts"]["battery_soc"]
+
+
+def test_an_unpaired_hv_leaf_still_gets_no_stamp() -> None:
+    """The suppression itself stays for the leaves that have a pairing key."""
+    d = _map([SOC_VALUE, SOC_STATE, *MARKERS])
+    assert "battery_soc" not in d.field_captured_ts

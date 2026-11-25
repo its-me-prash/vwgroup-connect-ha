@@ -1020,15 +1020,22 @@ _PAIRED_TS_BY_NAME: dict[str, str] = {
 # Targets whose recorded capture time must be their OWN (sibling or paired), never
 # a neighbour's: without a pair they get no ``field_captured_ts``.
 _OWN_STAMP_ONLY_TARGETS: frozenset[str] = frozenset({"battery_soc", "odometer_km"})
+# ... but only for the leaves that HAVE a pairing key. Another leaf feeding the
+# same target (battery_state_report.soc, ...) keeps the time it inherited: the
+# age release of a held SoC (#2134) reads it as evidence.
+_PAIRED_LEAVES: frozenset[str] = frozenset(_PAIRED_TS_BY_VALUE_KEY) | frozenset(
+    _PAIRED_TS_BY_NAME
+)
 
 
 def _collect_paired_ts(payload: Any) -> dict[str, float]:
-    """Key -> time of the ``timestamp`` entries that pair with a value (#2096).
+    """Key -> time of the ``timestamp`` entry that pairs with a value (#2096).
 
     Collected over the WHOLE payload before the walk, so the result cannot
-    depend on where in the list an entry sits."""
+    depend on where in the list an entry sits. Only a key with exactly one
+    distinct time is returned."""
     wanted = {_SOC_TS_KEY, _ODO_TS_KEY}
-    found: dict[str, float] = {}
+    seen: dict[str, set[float]] = {}
     stack: list[Any] = [payload]
     while stack:
         node = stack.pop()
@@ -1037,12 +1044,16 @@ def _collect_paired_ts(payload: Any) -> dict[str, float]:
             if isinstance(k, str) and k.strip().lower() in wanted and "value" in node:
                 parsed = _parse_ts(node.get("value"))
                 if parsed is not None:
-                    kl = k.strip().lower()
-                    found[kl] = max(found.get(kl, parsed), parsed)
+                    seen.setdefault(k.strip().lower(), set()).add(parsed)
             stack.extend(v for v in node.values() if isinstance(v, (dict, list)))
         elif isinstance(node, list):
             stack.extend(v for v in node if isinstance(v, (dict, list)))
-    return found
+    # A file with several snapshots (#465, #529) carries one entry per snapshot
+    # under the SAME key, and a flat list does not say which value belongs to
+    # which. One time for the whole file (the newest, or any other) would stamp
+    # every value with it and let the list order decide again, so a key that
+    # carries more than one distinct time pairs nothing.
+    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
 
 # v2.17.4 — MEB/ID.x ships some data-points (notably the primary electric range,
 # EU dict UUID 0ca40e18 "Value of the primary range") under a GENERIC
@@ -1517,8 +1528,7 @@ def _walk_fields(
                      and pkey_l in _MAPPED_UUIDS)
                     or pkey_l in _SCALE_ENCODING_UUIDS
                 ):
-                    add(pkey_l, node.get("value"), ts, ts_real,
-                        ts_inh if _pair_uuid is not None else False)
+                    add(pkey_l, node.get("value"), ts, ts_real)
                     # v2.24.2 (#959, #960, #961) — record the pair as synonyms,
                     # exactly like the container-qualified branch below already
                     # did. Without it the bare generic leaf was never reclaimed
@@ -2400,6 +2410,7 @@ def map_dataset_to_vehicle_data(
             if (
                 ts is not None
                 and attr in _OWN_STAMP_ONLY_TARGETS
+                and chosen.strip().lower() in _PAIRED_LEAVES
                 and chosen in (field_ts_inherited or ())
             ):
                 ts = None
