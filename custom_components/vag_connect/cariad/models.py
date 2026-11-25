@@ -52,16 +52,18 @@ BRAND_VW_EU = BrandConfig(
     name="volkswagen",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/4.8.1-android/14",
+    user_agent="Volkswagen/4.10.1-android/14",
     api_base="https://emea.bff.cariad.digital",
     # scope from volkswagencarnet (upstream/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
     # user_agent tracks the live We Connect build (fs-car endpoints reject stale
     # versions): 3.61.0 → 3.63.2 (v2.15.3) → 4.2.1 (App Atlas 2026-07) → 4.8.1
-    # (2026-11-18 dismantle). The live app UA literal is
+    # (2026-11-18 dismantle) → 4.10.1 (2026-11-24 dismantle, versionCode 410010).
+    # The live app UA literal is
     # ``Volkswagen/<version>-android/<os>`` (DEX-verified); _mbb_app_identity()
     # in vw_eu.py ships the same X-App-Version so the two channels agree.
-    # 0 new client-ids / endpoints 4.2.1 → 4.8.1.
+    # 0 new client-ids / endpoints 4.2.1 → 4.8.1 → 4.10.1; 4.10.1 still carries
+    # the ``Volkswagen/4.10.1-android/`` literal and the X-App-Version header.
     # android_package_name is the real manifest package com.volkswagen.weconnect
     # (4.8.1 androguard + the app's X-Android-Package-Name on the attestation
     # path). It was ``de.volkswagen.weconnect`` — a confusion with the
@@ -85,7 +87,7 @@ BRAND_VW_COMMERCIAL = BrandConfig(
     name="volkswagen_commercial",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/4.8.1-android/14",
+    user_agent="Volkswagen/4.10.1-android/14",
     api_base="https://emea.bff.cariad.digital",
     scope="openid profile badge cars dealers vin",
     android_package_name="com.volkswagen.weconnect",

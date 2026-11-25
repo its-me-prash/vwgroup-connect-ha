@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Geändert / Changed
+
+- **The Volkswagen app identity now names the We Connect 4.10.1 build (#2206).** Google Play has shipped We Connect 4.10.1 (versionCode 410010) since 23 November 2026; the integration still announced 4.8.1. The VW EU and VW-commercial User-Agent (`Volkswagen/4.10.1-android/14`) and the MBB `X-App-Version` now name 4.10.1, so both channels keep naming the same build, as with 4.8.1 in 5.5.0. Checked against the app downloaded from Google Play (signing certificate unchanged): the two client ids, the MBB and fs-car hosts and the CARIAD BFF base addresses are the same as in 4.8.1, and the app still builds its User-Agent as `Volkswagen/<version>-android/`. That stale versions are refused was not measured; nothing else changes. Covered by `tests/test_v2150b13_app_identity.py`; not tried against a live sign-in or a car.
+
 ## [5.6.0] - 2026-11-24 — "The real reason / Der echte Grund"
 
 ### Hinzugefügt / Added
