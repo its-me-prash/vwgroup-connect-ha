@@ -15,6 +15,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .cariad.vehicle_cache import carried_too_long
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
 
@@ -1678,6 +1679,15 @@ class VagDataStaleSensor(VagConnectEntity, BinarySensorEntity):
         for k in ("minutes_since_last_snapshot", "portal_health", "last_snapshot_at"):
             if v.get(k) is not None:
                 attrs[k] = v.get(k)
+        # #1917 — the state judges the newest capture of the whole vehicle,
+        # so a feed that keeps delivering some values stays "not stale" while
+        # others have not arrived for days. Those are listed here: the values
+        # kept from earlier polls for at least the same threshold.
+        threshold = self._carried_threshold_s()
+        if threshold is not None:
+            old = carried_too_long(v, threshold)
+            if old:
+                attrs["stale_carried_fields"] = old
         return attrs or None
 
 
