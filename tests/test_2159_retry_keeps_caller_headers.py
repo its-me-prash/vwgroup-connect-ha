@@ -106,13 +106,15 @@ def _run(coro: Any) -> Any:
     return asyncio.new_event_loop().run_until_complete(coro)
 
 
-def _post(c: Any, headers: dict[str, str] | None, timeout: Any) -> Any:
+def _post(
+    c: Any, headers: dict[str, str] | None, timeout: Any, method: str = "POST"
+) -> Any:
     kw: dict[str, Any] = {"json": {"x": 1}}
     if headers is not None:
         kw["headers"] = headers
     if timeout is not None:
         kw["timeout"] = timeout
-    return _run(c._request("POST", _URL, **kw))
+    return _run(c._request(method, _URL, **kw))
 
 
 def _assert_caller_options(sent: dict[str, Any], timeout: Any) -> None:
@@ -122,21 +124,23 @@ def _assert_caller_options(sent: dict[str, Any], timeout: Any) -> None:
 
 
 @pytest.mark.parametrize(
-    "first",
+    ("first", "method"),
     [
-        pytest.param(401, id="401-refresh"),
-        pytest.param(429, id="429-no-retry-after"),
-        pytest.param(500, id="500"),
-        pytest.param(503, id="503"),
-        pytest.param(ServerDisconnectedError(), id="server-disconnected"),
+        pytest.param(401, "POST", id="401-refresh"),
+        # #2241 — a POST is a command and is no longer repeated after a 429,
+        # so this path is reached by a read.
+        pytest.param(429, "GET", id="429-no-retry-after"),
+        pytest.param(500, "POST", id="500"),
+        pytest.param(503, "POST", id="503"),
+        pytest.param(ServerDisconnectedError(), "POST", id="server-disconnected"),
     ],
 )
-def test_each_retry_path_sends_the_caller_options_again(first: Any) -> None:
+def test_each_retry_path_sends_the_caller_options_again(first: Any, method: str) -> None:
     session = _Session([first, 200])
     c = _client(session)
     timeout = ClientTimeout(total=30)
 
-    result = _post(c, dict(_CALLER_HEADERS), timeout)
+    result = _post(c, dict(_CALLER_HEADERS), timeout, method)
 
     assert result == {"ok": True}
     assert len(session.sent) == 2

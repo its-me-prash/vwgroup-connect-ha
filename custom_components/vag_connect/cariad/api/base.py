@@ -145,6 +145,15 @@ _PROBE_CB_THRESHOLD  = 3
 _RETRY_AFTER_MIN_S = 30
 _LOCKOUT_429_S = 1800   # 30 min once 429 retries are exhausted
 _LOCKOUT_430_S = 7200   # 2 h on a hard 430 (explicit lockout signal)
+#: #2241 — methods that change something at the backend. On a 429 without
+#: ``Retry-After`` a request with one of these is not sent again: on this
+#: shared path such a call is a remote command (lock, flash, climate, charging,
+#: a setting) or another write, and one press has to reach the backend once.
+#: A call can override this with ``repeat_on_429`` (see ``_request``). Keyed
+#: on the method, not on a marker at each command, so a command added later
+#: cannot keep the repeats by being missed; a read that is missed loses its
+#: three repeats, which is the cheaper mistake.
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # #1973 — a URL that spent its ENTIRE 5xx retry budget without once succeeding
 # does not get that budget again on the next poll. Measured by @indigomejor on a
 # Škoda Octavia: two endpoints answer 500 on all four attempts of every poll
@@ -1730,20 +1739,31 @@ class CariadBaseClient:
         )
 
     async def _request(
-        self, method: str, url: str, retry: bool = True, _attempt: int = 0, **kwargs: Any
+        self, method: str, url: str, retry: bool = True, _attempt: int = 0,
+        *, repeat_on_429: bool | None = None, **kwargs: Any,
     ) -> Any:
         """Execute an authenticated request with retry for transient errors.
+
+        ``repeat_on_429`` decides what a 429 without ``Retry-After`` does
+        (#2241). ``None`` (the default) repeats a read and sends a
+        ``_WRITE_METHODS`` call, i.e. a command, once. ``True`` repeats it
+        anyway (a POST that only reads, the Škoda charging statistics).
+        ``False`` sends it once although it is a read (an optional read that
+        is asked rarely, the Škoda warning lights). A call that is sent once
+        raises the 429 at once and starts no account lockout.
 
         Retry behaviour (v1.8.7 hardening):
 
         - HTTP 401 → token refresh + 1 retry. Refresh itself is throttled
           to ``_REFRESH_MAX_PER_HOUR`` per rolling hour (storm protection).
         - HTTP 429 with ``Retry-After`` → NO retry; the client holds for the
-          stated time (clamped to ``_RETRY_AFTER_MIN_S``..``_LOCKOUT_430_S``).
+          stated time (clamped to ``_RETRY_AFTER_MIN_S``..``_LOCKOUT_429_S``).
           Spending retries against an explicit instruction is how a 429
           becomes a 430 (#1850).
         - HTTP 429 without it → exponential backoff up to 3 attempts
-          (5s/10s/20s), then the account lockout.
+          (5s/10s/20s), then the account lockout. A call that is sent once
+          (see ``repeat_on_429``) raises it at once instead, with no account
+          lockout (#2241).
         - HTTP 500/502/503/504 → exponential backoff up to 3 attempts
           (3s/6s/12s). 504 added in v1.8.7 — Gateway Timeouts from the
           CARIAD BFF are routine on weekends and were previously surfaced
@@ -1823,7 +1843,7 @@ class CariadBaseClient:
                 if resp.status == 401 and retry:
                     await self._refresh_tokens(stale_access_token=token_used)
                     return await self._request(
-                        method, url, retry=False,
+                        method, url, retry=False, repeat_on_429=repeat_on_429,
                         headers=_caller_headers, timeout=_timeout, **kwargs,
                     )
                 if resp.status in (429, 430):
@@ -1864,6 +1884,25 @@ class CariadBaseClient:
                             _redact_url(url), _retry_after, _hold,
                         )
                         self._enter_rate_lockout(_hold, 429, _redact_url(url))
+                    elif not (
+                        method.upper() not in _WRITE_METHODS
+                        if repeat_on_429 is None else repeat_on_429
+                    ):
+                        # #2241 (@driemeier) — sent once. A refused command
+                        # went out up to four times (5/10/20 s), and four
+                        # refusals paused every request of the account for 30
+                        # minutes, the reads included. In that report the same
+                        # pause came from the Škoda warning-lights read, an
+                        # optional one, and a flash a minute later was refused
+                        # locally. Now such a call is one request: the 429 is
+                        # raised below and the caller decides, with no account
+                        # lockout. A 430, a Retry-After, or a regular read that
+                        # keeps getting 429 still start one as before.
+                        _LOGGER.debug(
+                            "Rate limited (429) from %s on a %s — not sending"
+                            " it again and not pausing the account",
+                            _redact_url(url), method.upper(),
+                        )
                     elif _attempt < 3:
                         # No instruction from the server: unchanged behaviour,
                         # because a bare 429 can still be a momentary burst and
@@ -1879,6 +1918,7 @@ class CariadBaseClient:
                         await asyncio.sleep(wait)
                         return await self._request(
                             method, url, retry=retry, _attempt=_attempt + 1,
+                            repeat_on_429=repeat_on_429,
                             headers=_caller_headers, timeout=_timeout, **kwargs,
                         )
                     else:
@@ -1917,6 +1957,7 @@ class CariadBaseClient:
                         await asyncio.sleep(wait)
                         return await self._request(
                             method, url, retry=retry, _attempt=_attempt + 1,
+                            repeat_on_429=repeat_on_429,
                             headers=_caller_headers, timeout=_timeout, **kwargs,
                         )
                 elif resp.status in (200, 201, 202, 204, 207):
@@ -1949,6 +1990,7 @@ class CariadBaseClient:
                 await asyncio.sleep(wait)
                 return await self._request(
                     method, url, retry=retry, _attempt=_attempt + 1,
+                    repeat_on_429=repeat_on_429,
                     headers=_caller_headers, timeout=_timeout, **kwargs,
                 )
             # drop the raw {err} — it would sit in self.body; class name suffices.
