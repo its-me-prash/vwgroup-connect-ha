@@ -698,8 +698,6 @@ class CariadBaseClient:
                     self._brand.name,
                 )
                 if idx == len(strategies) - 1:
-                    if attestation_err is not None:
-                        raise attestation_err from err
                     # #1855 — but NOT for our own error classes. The redaction
                     # above exists because a foreign exception's __str__ can
                     # carry a callback URL or a token; it was never a reason to
@@ -714,8 +712,16 @@ class CariadBaseClient:
                     # UpstreamUnavailableError as a self-healing poll error, and
                     # the config flow already has distinct translated messages
                     # for both — all of that was simply unreachable from here.
+                    #
+                    # #1848: checked BEFORE the #1712 attestation hand-on. A 5xx
+                    # or timeout of the portal, or a rate limit, is not the
+                    # generic failure #1712 covers; behind the attestation
+                    # answer it turned a portal outage on VW and Audi EU into a
+                    # sign-in refusal that is never retried.
                     if isinstance(err, _SELF_DESCRIBING_ERRORS):
                         raise
+                    if attestation_err is not None:
+                        raise attestation_err from err
                     raise AuthenticationError(
                         f"Auth failed with {type(err).__name__} "
                         f"(no usable strategy left)"

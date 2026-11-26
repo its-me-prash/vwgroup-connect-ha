@@ -2013,6 +2013,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # #1848 — set when setup went on via volkswagen.de after the main
         # sign-in was refused; async_setup_entry reports it after setup.
         self.primary_refusal_reason: str | None = None
+        # #1848 — the error behind a setup that returns False, so
+        # async_setup_entry can tell a server outage from "no vehicles".
+        self.setup_failure: Exception | None = None
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
         from .cariad import CariadClientFactory  # noqa: PLC0415
         from .cariad.exceptions import (  # noqa: PLC0415
@@ -2688,7 +2691,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 try:
                     await self._cariad_client.authenticate()
                 except AuthenticationError as err:
-                    if not self._may_continue_on_vwde(err):
+                    if not self._may_continue_on_vwde(err, persisted):
                         raise
                     primary_refusal = err
                 else:
@@ -2712,6 +2715,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if primary_refusal is not None:
                 refusal_vins = await self._vins_kept_after_primary_refusal()
                 if not refusal_vins:
+                    # The channels were armed for the check; setup fails, so
+                    # nothing will close them on unload.
+                    _close = getattr(self._cariad_client, "close_supplementary", None)
+                    if _close is not None:
+                        try:
+                            await _close()
+                        except Exception:  # noqa: BLE001
+                            pass
                     raise primary_refusal
                 self.primary_refusal_reason = self._auth_refusal_reason(
                     primary_refusal
@@ -3164,19 +3175,31 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 type(err).__name__,
                 _detail,
             )
+            self.setup_failure = err
             return False
 
-    def _may_continue_on_vwde(self, err: Exception) -> bool:
+    def _may_continue_on_vwde(self, err: Exception, persisted: Any) -> bool:
         """#1848 — may setup go on after the main sign-in refused ``err``?
 
-        Only when volkswagen.de is configured as a supplementary channel and
-        only for a refusal that needs the user anyway (today it ends in a
-        reauth prompt). Not for an expired portal session, which is retried
-        with its own repair, and not for an expired device login, whose
-        notice routes to a QR sign-in the entry may not have. Errors that are
-        not refusals (a 5xx, a timeout) never get here: Home Assistant
-        retries the setup for them and the main channel comes back by itself,
-        while a setup that went on would leave it off until the next restart.
+        Only for an entry whose main channel is the EU Data Act portal with
+        its stored session (``persisted.strategy == "data_act_portal"``),
+        that has volkswagen.de configured as a supplementary channel and a
+        stored vehicle snapshot, and only for a refusal that needs the user
+        anyway (today it ends in a reauth prompt).
+
+        - The stored portal session is required because it keeps the client
+          read-only; without stored tokens it would offer command entities
+          that fail and are orphaned once a reauth reloads the entry.
+        - The snapshot is required because the setup read of a car goes
+          through the main channel; without one no car could be set up, and
+          the check is made before volkswagen.de is armed for nothing.
+        - Not for an expired portal session, which is retried with its own
+          repair, and not for an expired device login, whose notice routes to
+          a QR sign-in the entry may not have.
+        - Errors that are not refusals (a 5xx, a timeout, a rate limit) never
+          get here: Home Assistant retries the setup for them and the main
+          channel comes back by itself, while a setup that went on would
+          leave it off until the next restart.
         """
         from .cariad.exceptions import (  # noqa: PLC0415
             DeviceLoginExpiredError,
@@ -3185,6 +3208,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .const import CONF_SUPPLEMENTARY_AUTHPROXY  # noqa: PLC0415
 
         if isinstance(err, (PortalSessionExpiredError, DeviceLoginExpiredError)):
+            return False
+        if getattr(persisted, "strategy", None) != "data_act_portal":
+            return False
+        if not any(not str(v).startswith("_") for v in self.vehicles):
             return False
         return bool(self.entry.data.get(CONF_SUPPLEMENTARY_AUTHPROXY))
 
@@ -3361,6 +3388,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             CONF_EU_DATA_ACT_AUTO_KICKOFF,
             CONF_SUPPLEMENTARY_EU_PORTAL,
         )
+
+        # #1848 — setup went on via volkswagen.de because the portal refused
+        # the main sign-in. The portal session then has no cookies, so a
+        # kickoff draws a 401: a second, misleading "session expired" repair
+        # next to the refusal notice, and a 24 h backoff stamped on creating a
+        # request after the new sign-in. The manual button still runs it.
+        if not force and getattr(self, "primary_refusal_reason", None):
+            return
 
         # v2.17.1 — default ON. The integration is useless in portal mode
         # without an active Custom Data Request, and the other community

@@ -353,6 +353,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
         ) from err
 
     if not ok:
+        # #1848 — a server outage (a 5xx or timeout, also of the portal
+        # sign-in) is retried like before, but "the login itself worked" would
+        # be false for it. Its message is built from literals and the HTTP
+        # status only, so it is safe to show.
+        from .cariad.exceptions import UpstreamUnavailableError  # noqa: PLC0415
+        _failure = getattr(coordinator, "setup_failure", None)
+        if isinstance(_failure, UpstreamUnavailableError):
+            raise ConfigEntryNotReady(str(_failure)) from _failure
         raise ConfigEntryNotReady(
             "No vehicles found for this account. The login itself worked, so "
             "this is usually not a credentials problem — check the log for the "

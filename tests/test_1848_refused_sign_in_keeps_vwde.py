@@ -120,6 +120,7 @@ def _client(refusal: BaseException | None, *, listed: Any = (_VIN,),
         side_effect=exc.AuthenticationError("Not authenticated")
     )
     client._supplementary_eu_portal = None
+    client.close_supplementary = AsyncMock()
     client._eu_portal = None
     if armed:
         web = MagicMock()
@@ -157,11 +158,21 @@ def test_a_refused_portal_sign_in_goes_on_via_volkswagen_de():
     client._supplementary_authproxy.list_vehicle_vins.assert_awaited_once()
 
 
-def test_an_entry_without_stored_tokens_goes_on_the_same_way():
+@pytest.mark.parametrize("strategy", [None, "website_authproxy"])
+def test_only_a_stored_portal_session_goes_on(strategy):
+    """Without the stored portal session the client is not read-only, and a
+    run on volkswagen.de would offer command entities that fail and are left
+    behind once the reauth reloads the entry. Such an entry fails as before."""
+    from custom_components.vag_connect.cariad.models import TokenSet
+    tokens = None if strategy is None else TokenSet(
+        access_token="x", refresh_token="", id_token="",
+        expires_at=4102444800.0, strategy=strategy)
     coord = _coord()
     client = _client(exc.AuthenticationError("login failed"))
-    assert _run(coord, client, tokens=None) is True
-    assert coord.primary_refusal_reason == "invalid_credentials"
+    with pytest.raises(ValueError, match="^invalid_credentials$"):
+        _run(coord, client, tokens=tokens)
+    coord._arm_supplementary_channels.assert_not_awaited()
+    assert getattr(coord, "primary_refusal_reason", None) is None
 
 
 def test_a_portal_interaction_refusal_keeps_its_own_reason():
@@ -195,6 +206,14 @@ def test_without_a_working_volkswagen_de_the_refusal_fails_setup_as_before(case)
     with pytest.raises(ValueError, match="^invalid_credentials$"):
         _run(coord, client)
     assert getattr(coord, "primary_refusal_reason", None) is None
+    if case in ("no_vwde_configured", "no_snapshot"):
+        # decided before arming: no volkswagen.de session for a failing setup
+        coord._arm_supplementary_channels.assert_not_awaited()
+        client.close_supplementary.assert_not_awaited()
+    else:
+        # armed for the check, and closed again because setup fails
+        coord._arm_supplementary_channels.assert_awaited_once()
+        client.close_supplementary.assert_awaited_once()
 
 
 def test_an_expired_portal_session_keeps_its_retry_path():
@@ -223,6 +242,102 @@ def test_a_server_error_is_not_turned_into_a_running_entry():
     assert _run(coord, client) is False
     client._supplementary_authproxy.list_vehicle_vins.assert_not_awaited()
     assert getattr(coord, "primary_refusal_reason", None) is None
+    assert isinstance(getattr(coord, "setup_failure", None),
+                      exc.UpstreamUnavailableError)
+
+
+# ---------------------------------------------------------------------------
+# VW and Audi EU: the attestation answer must not hide a portal outage.
+# ---------------------------------------------------------------------------
+
+
+def _strategy_client(portal_error: BaseException, brand: str = "volkswagen"):
+    """The real strategy loop; both sign-in steps hit the EU attestation wall
+    (as with a correct password on VW and Audi EU), then the portal fails."""
+    from types import SimpleNamespace
+
+    from custom_components.vag_connect.cariad.api.base import CariadBaseClient
+
+    me = CariadBaseClient.__new__(CariadBaseClient)
+    me._brand = SimpleNamespace(name=brand)
+    me._email = "owner@example.com"
+    me._password = "right-password"
+    me._spin = ""
+    me._use_website_proxy = False
+    me._tokens = None
+    me._auth = SimpleNamespace(authenticate=AsyncMock(
+        side_effect=exc.EuropeAttestationError("Sign-in blocked by VW device attestation")
+    ))
+
+    async def _portal() -> None:
+        raise portal_error
+
+    me._arm_eu_portal = _portal
+    return me
+
+
+@pytest.mark.parametrize("brand", ["volkswagen", "audi"])
+@pytest.mark.parametrize("portal_error", [
+    exc.UpstreamUnavailableError(503, brand="volkswagen"),
+    exc.UpstreamUnavailableError(504, brand="volkswagen"),
+    exc.RateLimitError(),
+], ids=["5xx", "timeout", "rate_limit"])
+async def test_a_portal_outage_is_not_handed_on_as_the_attestation_refusal(
+    portal_error, brand,
+):
+    me = _strategy_client(portal_error, brand)
+    with pytest.raises(type(portal_error)):
+        await me.authenticate()
+
+
+async def test_a_generic_portal_failure_still_hands_on_the_attestation_answer():
+    """GUARD for #1712: a failure that says nothing is still reported as the
+    attestation wall, not as a wrong password."""
+    me = _strategy_client(RuntimeError("boom"))
+    with pytest.raises(exc.EuropeAttestationError):
+        await me.authenticate()
+
+
+def test_setup_retries_a_portal_outage_behind_the_attestation_wall():
+    """End to end: the real loop's result reaches setup as a server outage,
+    which fails and is retried, and never as a refusal to run on."""
+    coord = _coord()
+    client = _client(None)
+    client.authenticate = _strategy_client(
+        exc.UpstreamUnavailableError(503, brand="volkswagen")).authenticate
+    assert _run(coord, client) is False
+    assert getattr(coord, "primary_refusal_reason", None) is None
+    client._supplementary_authproxy.list_vehicle_vins.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# No portal kickoff while the portal refuses the sign-in.
+# ---------------------------------------------------------------------------
+
+
+def _kickoff_coord(refusal):
+    from custom_components.vag_connect.coordinator import VagConnectCoordinator
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    coord.entry = MagicMock()
+    coord.entry.options = MagicMock()
+    coord.entry.options.get = MagicMock(return_value=False)  # auto kickoff off
+    coord.entry.data = {}
+    coord._cariad_client = MagicMock()
+    coord.primary_refusal_reason = refusal
+    return coord
+
+
+def test_no_kickoff_while_the_portal_refuses_the_sign_in():
+    coord = _kickoff_coord("invalid_credentials")
+    asyncio.run(coord._ensure_data_act_custom_request_kickoff())
+    coord.entry.options.get.assert_not_called()
+
+
+def test_the_kickoff_check_runs_as_before_without_a_refusal():
+    """Contrast: without a refusal the function reaches its option check."""
+    coord = _kickoff_coord(None)
+    asyncio.run(coord._ensure_data_act_custom_request_kickoff())
+    coord.entry.options.get.assert_called()
 
 
 def test_a_working_sign_in_sets_no_refusal():
@@ -290,6 +405,32 @@ def test_no_refusal_no_notice():
     entry, calls = _setup_entry(None)
     assert calls == [("clear", "test_entry")]
     entry.async_start_reauth.assert_not_called()
+
+
+
+def _failed_setup_entry(failure):
+    from custom_components.vag_connect import async_setup_entry
+    coord = MagicMock()
+    coord.async_setup = AsyncMock(return_value=False)
+    coord.vehicles = {}
+    coord.setup_failure = failure
+    with patch("custom_components.vag_connect.VagConnectCoordinator",
+               return_value=coord):
+        asyncio.run(async_setup_entry(_hass(), _entry()))
+
+
+def test_a_server_outage_at_setup_does_not_claim_the_login_worked():
+    from homeassistant.exceptions import ConfigEntryNotReady
+    with pytest.raises(ConfigEntryNotReady) as ei:
+        _failed_setup_entry(exc.UpstreamUnavailableError(503, brand="volkswagen"))
+    assert "HTTP 503" in str(ei.value)
+    assert "login itself worked" not in str(ei.value)
+
+
+def test_no_vehicles_keeps_its_message():
+    from homeassistant.exceptions import ConfigEntryNotReady
+    with pytest.raises(ConfigEntryNotReady, match="No vehicles found"):
+        _failed_setup_entry(None)
 
 
 # ---------------------------------------------------------------------------
