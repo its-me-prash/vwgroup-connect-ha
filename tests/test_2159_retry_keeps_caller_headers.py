@@ -130,9 +130,11 @@ def _assert_caller_options(sent: dict[str, Any], timeout: Any) -> None:
         # #2241 — a POST is a command and is no longer repeated after a 429,
         # so this path is reached by a read.
         pytest.param(429, "GET", id="429-no-retry-after"),
-        pytest.param(500, "POST", id="500"),
-        pytest.param(503, "POST", id="503"),
-        pytest.param(ServerDisconnectedError(), "POST", id="server-disconnected"),
+        # #2241 — a command is not repeated after a 5xx or a broken
+        # connection either, so these paths are reached by a read as well.
+        pytest.param(500, "GET", id="500"),
+        pytest.param(503, "GET", id="503"),
+        pytest.param(ServerDisconnectedError(), "GET", id="server-disconnected"),
     ],
 )
 def test_each_retry_path_sends_the_caller_options_again(first: Any, method: str) -> None:
@@ -177,7 +179,7 @@ def test_the_callers_dict_is_not_written_into() -> None:
     c = _client(session)
     headers = dict(_CALLER_HEADERS)
 
-    _post(c, headers, ClientTimeout(total=30))
+    _post(c, headers, ClientTimeout(total=30), "GET")
 
     assert headers == _CALLER_HEADERS
 
@@ -188,7 +190,7 @@ def test_without_caller_options_a_retry_keeps_the_default_timeout() -> None:
     session = _Session([500, 200])
     c = _client(session)
 
-    _post(c, None, None)
+    _post(c, None, None, "GET")
 
     assert len(session.sent) == 2
     for sent in session.sent:

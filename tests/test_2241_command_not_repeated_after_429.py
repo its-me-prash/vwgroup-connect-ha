@@ -10,10 +10,11 @@ refusals then paused every request of the account, reads included, for
 
 Now a call with a write method (``_WRITE_METHODS``) raises the 429 at once:
 one request, no sleep, no account pause. Reads keep the repeats and the pause
-after four refusals; ``repeat_on_429=True`` keeps them for a POST that only
-reads (Škoda charging statistics), and ``repeat_on_429=False`` sends a read
+after four refusals; ``send_once=False`` keeps them for a POST that only
+reads (Škoda charging statistics), and ``send_once=True`` sends a read
 once (Škoda warning lights, see ``test_2241_skoda_warning_lights_every_6h``).
-A ``Retry-After`` and the 5xx repeats are unchanged.
+A ``Retry-After`` is unchanged; a 5xx or a broken connection on a command is
+covered by ``test_2241_command_not_repeated_after_5xx``.
 """
 from __future__ import annotations
 
@@ -175,18 +176,18 @@ def test_a_command_after_a_401_refresh_is_still_a_command(sleeps: list[float]) -
     assert len(session.sent) == 2
 
 
-def test_a_command_429_after_a_5xx_repeat_is_not_repeated(sleeps: list[float]) -> None:
-    """The 5xx repeats of a command are not part of this change; a 429 on the
-    repeat is raised like one on the first attempt."""
+def test_a_command_5xx_is_not_repeated_either(sleeps: list[float]) -> None:
+    """A server error on a command is raised at once as well (see
+    ``test_2241_command_not_repeated_after_5xx``)."""
     session = _Session([500, 429, 200])
     c = _client(session)
 
     with pytest.raises(APIError) as exc:
         _run(c._post(_URL, json={}))
 
-    assert exc.value.status == 429
-    assert len(session.sent) == 2
-    assert sleeps == [3]
+    assert exc.value.status == 500
+    assert len(session.sent) == 1
+    assert sleeps == []
 
 
 def test_a_command_429_with_retry_after_still_pauses_the_account(sleeps: list[float]) -> None:
@@ -232,7 +233,7 @@ def test_a_post_marked_read_keeps_the_repeats(sleeps: list[float]) -> None:
     session = _Session([429, 429, 200])
     c = _client(session)
 
-    assert _run(c._request("POST", _READ_URL, json={}, repeat_on_429=True)) == {"ok": True}
+    assert _run(c._request("POST", _READ_URL, json={}, send_once=False)) == {"ok": True}
     assert len(session.sent) == 3
     assert sleeps == [5, 10]
 
@@ -249,7 +250,7 @@ def test_the_read_mark_survives_the_other_repeat_paths(first: Any, sleeps: list[
     session = _Session([first, 429, 200])
     c = _client(session)
 
-    assert _run(c._request("POST", _READ_URL, json={}, repeat_on_429=True)) == {"ok": True}
+    assert _run(c._request("POST", _READ_URL, json={}, send_once=False)) == {"ok": True}
     assert len(session.sent) == 3
 
 
@@ -262,9 +263,9 @@ def test_the_read_mark_is_not_sent_to_the_server(sleeps: list[float]) -> None:
             return super().request(method, url, **kw)
 
     c = _client(_Recording([200]))
-    _run(c._request("POST", _READ_URL, json={}, repeat_on_429=True))
+    _run(c._request("POST", _READ_URL, json={}, send_once=False))
 
-    assert "repeat_on_429" not in seen[0]
+    assert "send_once" not in seen[0]
 
 
 def test_a_read_marked_send_once_goes_out_once_and_does_not_pause(
@@ -274,7 +275,7 @@ def test_a_read_marked_send_once_goes_out_once_and_does_not_pause(
     c = _client(session)
 
     with pytest.raises(APIError) as exc:
-        _run(c._request("GET", _READ_URL, repeat_on_429=False))
+        _run(c._request("GET", _READ_URL, send_once=True))
 
     assert exc.value.status == 429
     assert sleeps == []
@@ -288,7 +289,7 @@ def test_a_write_marked_send_once_is_still_sent_once(sleeps: list[float]) -> Non
     c = _client(session)
 
     with pytest.raises(APIError):
-        _run(c._request("POST", _URL, json={}, repeat_on_429=False))
+        _run(c._request("POST", _URL, json={}, send_once=True))
 
     assert len(session.sent) == 1
 

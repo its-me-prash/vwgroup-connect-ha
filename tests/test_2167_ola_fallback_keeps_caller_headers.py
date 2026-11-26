@@ -137,7 +137,9 @@ def test_a_server_error_retry_keeps_the_app_set_of_the_attempt_it_repeats() -> N
     session = _Session([500, 403, 200])
     c = _client("seat", session)
 
-    result = _run(c._request("POST", _OLA, headers={"SecToken": "sec-123"}, json={}))
+    # #2241 — a command (POST) is no longer repeated after a 5xx, so the
+    # repeat this test is about is reached by a read.
+    result = _run(c._request("GET", _OLA, headers={"SecToken": "sec-123"}))
 
     assert result == {"ok": True}
     versions = [h.get("app-version") for h in session.sent]

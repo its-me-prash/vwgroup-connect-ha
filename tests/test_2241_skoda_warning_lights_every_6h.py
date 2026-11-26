@@ -10,7 +10,7 @@ car. ``SkodaClient.get_warning_lights`` now:
 - skips a car whose known capability list has none of the three
   ``VEHICLE_HEALTH_*`` ids (an unknown list is still asked);
 - sends one request per car per 6 h, counted from each attempt;
-- sends it with ``repeat_on_429=False`` (one request on a 429, no pause; the
+- sends it with ``send_once=True`` (one request on a 429, no pause; the
   shared path is pinned in ``test_2241_command_not_repeated_after_429``);
 - returns the last payload in between and after a failure;
 - does not count a poll in an active account lockout as an attempt.
@@ -133,7 +133,7 @@ def test_the_read_is_sent_once_on_a_429() -> None:
 
     _lights(c)
 
-    assert backend.lights[0].get("repeat_on_429") is False
+    assert backend.lights[0].get("send_once") is True
 
 
 # ── every 6 hours ───────────────────────────────────────────────────────────
