@@ -283,8 +283,9 @@ class PushManager(ABC):
         import reads from disk, which Home Assistant reports as a blocking
         call on the event loop. Call it after setting ``STARTING``. An
         ImportError propagates unchanged for the caller's missing-dependency
-        branch. Returns False when ``stop()`` or a newer ``start()`` ran while
-        the check waited, so this start must not spawn a loop. A start that
+        branch, unless this start is no longer the current one. Returns False
+        when ``stop()`` or a newer ``start()`` ran while the check waited, so
+        this start must not spawn a loop or count a strike. A start that
         is cancelled while waiting leaves ``STOPPED`` instead of a
         ``STARTING`` that would make every later start() return early.
         """
@@ -293,6 +294,13 @@ class PushManager(ABC):
         try:
             await asyncio.get_running_loop().run_in_executor(None, check)
         except ImportError:
+            if (
+                generation != self._start_generation
+                or self._state != PushManagerState.STARTING
+            ):
+                # stop() or a newer start() ran meanwhile; this result is
+                # stale and must not set UNAVAILABLE or count a strike.
+                return False
             raise
         except BaseException:
             if (

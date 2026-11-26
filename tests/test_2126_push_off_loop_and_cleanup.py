@@ -448,3 +448,32 @@ async def test_a_failing_register_close_keeps_the_original_error(
     with pytest.raises(RuntimeError, match="Google Cloud Messaging"):
         await m._connect_and_listen()
     assert m._fcm_client is None
+
+
+@pytest.mark.parametrize(("module", "cls", "extra", "libs"), _MANAGERS, ids=_IDS)
+async def test_a_missing_dependency_reported_after_stop_is_not_applied(
+    module, cls, extra, libs, monkeypatch
+):
+    """stop() ran while the check waited; its late ImportError must neither
+    set UNAVAILABLE nor count a strike against the breaker."""
+    m = _make(module, cls, extra)
+    entered = threading.Event()
+    release = threading.Event()
+
+    def slow_missing() -> None:
+        entered.set()
+        release.wait(timeout=5)
+        raise ImportError("firebase_messaging: No module named 'firebase_messaging'")
+
+    monkeypatch.setattr(m, "_lazy_check_dependencies", slow_missing)
+    starting = asyncio.create_task(m.start())
+    for _ in range(200):
+        if entered.is_set():
+            break
+        await asyncio.sleep(0.01)
+    await m.stop()
+    release.set()
+    await starting
+    assert m._state == PushManagerState.STOPPED
+    assert m.strike_count == 0
+    assert m._loop_task is None
