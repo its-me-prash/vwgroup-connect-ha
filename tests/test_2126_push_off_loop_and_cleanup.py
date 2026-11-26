@@ -346,3 +346,105 @@ async def test_real_library_session_is_closed_after_a_refused_registration(
         await m._connect_and_listen()
     assert len(sessions) == 1
     assert sessions[0].closed
+
+
+# ---------------------------------------------------------------------------
+# Part 4: edges of the executor await and of the cleanup (review findings).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("module", "cls", "extra", "libs"), _MANAGERS, ids=_IDS)
+async def test_stop_then_restart_during_the_check_spawns_one_loop(
+    module, cls, extra, libs, monkeypatch
+):
+    """start(), stop(), start() while the first check still waits: both
+    starts resume with the state STARTING, and only the newer may spawn."""
+    m = _make(module, cls, extra)
+    release = threading.Event()
+    entered: list[int] = []
+
+    def slow_check() -> None:
+        entered.append(1)
+        release.wait(timeout=5)
+
+    loops: list[bool] = []
+
+    async def record_loop() -> None:
+        loops.append(True)
+        await m._stop_event.wait()
+
+    monkeypatch.setattr(m, "_lazy_check_dependencies", slow_check)
+    monkeypatch.setattr(m, "_run_loop", record_loop)
+
+    first = asyncio.create_task(m.start())
+    for _ in range(200):
+        if entered:
+            break
+        await asyncio.sleep(0.01)
+    await m.stop()
+    second = asyncio.create_task(m.start())
+    for _ in range(200):
+        if len(entered) == 2:
+            break
+        await asyncio.sleep(0.01)
+    assert len(entered) == 2
+    release.set()
+    await asyncio.gather(first, second)
+    await asyncio.sleep(0.01)
+    try:
+        assert loops == [True]
+        assert m._loop_task is not None
+    finally:
+        await m.stop()
+
+
+@pytest.mark.parametrize(("module", "cls", "extra", "libs"), _MANAGERS, ids=_IDS)
+async def test_a_start_cancelled_during_the_check_does_not_block_the_next(
+    module, cls, extra, libs, monkeypatch
+):
+    m = _make(module, cls, extra)
+    release = threading.Event()
+    entered = threading.Event()
+
+    def slow_check() -> None:
+        entered.set()
+        release.wait(timeout=5)
+
+    monkeypatch.setattr(m, "_lazy_check_dependencies", slow_check)
+    starting = asyncio.create_task(m.start())
+    for _ in range(200):
+        if entered.is_set():
+            break
+        await asyncio.sleep(0.01)
+    starting.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await starting
+    release.set()
+    assert m._state == PushManagerState.STOPPED
+
+    async def no_network() -> None:
+        await m._stop_event.wait()
+
+    monkeypatch.setattr(m, "_lazy_check_dependencies", lambda: None)
+    monkeypatch.setattr(m, "_run_loop", no_network)
+    await m.start()
+    try:
+        assert m._loop_task is not None
+    finally:
+        await m.stop()
+
+
+async def test_a_failing_register_close_keeps_the_original_error(
+    fake_firebase, monkeypatch
+):
+    """A close() that raises must neither replace the registration error
+    nor leave the client referenced."""
+
+    async def broken_close(self) -> None:
+        raise OSError("close failed")
+
+    monkeypatch.setattr(_FakeRegister, "close", broken_close)
+    m = _make("cupra_seat_fcm", "CupraSeatPushManager", {"brand": "cupra"})
+    with pytest.raises(RuntimeError, match="Google Cloud Messaging"):
+        await m._connect_and_listen()
+    assert m._fcm_client is None

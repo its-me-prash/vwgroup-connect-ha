@@ -196,9 +196,10 @@ class CupraSeatPushManager(PushManager):
         self._stop_event.clear()
         try:
             # #2126: the first import reads from disk; off the event loop.
-            await asyncio.get_running_loop().run_in_executor(
-                None, self._lazy_check_dependencies
-            )
+            if not await self._check_dependencies_off_loop(
+                self._lazy_check_dependencies
+            ):
+                return  # stop() or a newer start() ran meanwhile
         except ImportError as err:
             _LOGGER.warning(
                 "CUPRA/SEAT push: required dependency missing — %s. "
@@ -212,8 +213,6 @@ class CupraSeatPushManager(PushManager):
             # coordinator-start cycle.
             self._record_failure(f"missing-dep: {err}")
             return
-        if self._state != PushManagerState.STARTING:
-            return  # stop() ran while the check was in the executor
         self._loop_task = asyncio.create_task(
             self._run_loop(),
             name=f"vag_connect-{self._brand}-push-{self._user_id[-6:]}",

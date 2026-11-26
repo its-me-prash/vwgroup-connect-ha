@@ -9,6 +9,7 @@ uniformly via ``self._push_manager: PushManager | None``.
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -145,6 +146,9 @@ class PushManager(ABC):
         # propagates to all brands without per-file edits.
         self._backoff_seconds: float = PUSH_INITIAL_BACKOFF_S
         self._consecutive_fast_retries: int = 0
+        # #2126 — counts start() calls, so a start that waited in the
+        # executor can tell whether stop() or a newer start() ran meanwhile.
+        self._start_generation: int = 0
 
     @property
     def state(self) -> PushManagerState:
@@ -271,6 +275,36 @@ class PushManager(ABC):
         self._tripped_at = None
         if self._state == PushManagerState.TRIPPED:
             self._state = PushManagerState.STOPPED
+
+    async def _check_dependencies_off_loop(self, check: Callable[[], None]) -> bool:
+        """Run the dependency check in the executor; True when start() goes on.
+
+        #2126: the check imports the optional push libraries, and the first
+        import reads from disk, which Home Assistant reports as a blocking
+        call on the event loop. Call it after setting ``STARTING``. An
+        ImportError propagates unchanged for the caller's missing-dependency
+        branch. Returns False when ``stop()`` or a newer ``start()`` ran while
+        the check waited, so this start must not spawn a loop. A start that
+        is cancelled while waiting leaves ``STOPPED`` instead of a
+        ``STARTING`` that would make every later start() return early.
+        """
+        self._start_generation += 1
+        generation = self._start_generation
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, check)
+        except ImportError:
+            raise
+        except BaseException:
+            if (
+                generation == self._start_generation
+                and self._state == PushManagerState.STARTING
+            ):
+                self._state = PushManagerState.STOPPED
+            raise
+        return (
+            generation == self._start_generation
+            and self._state == PushManagerState.STARTING
+        )
 
     @abstractmethod
     async def start(self) -> None:
