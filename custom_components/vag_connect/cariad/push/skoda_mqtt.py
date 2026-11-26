@@ -114,6 +114,7 @@ from .base import (
     PushManagerState,
     PushEventCallback,
     PushUpdateEvent,
+    close_fcm_client,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -228,7 +229,11 @@ class SkodaPushManager(PushManager):
         # aren't installed, surface UNAVAILABLE so coordinator can
         # decide on user notification.
         try:
-            self._lazy_check_dependencies()
+            # #2126: the first import reads from disk; off the event loop.
+            if not await self._check_dependencies_off_loop(
+                self._lazy_check_dependencies
+            ):
+                return  # stop() or a newer start() ran meanwhile
         except ImportError as err:
             _LOGGER.warning(
                 "Skoda push: required dependency missing — %s. "
@@ -366,7 +371,11 @@ class SkodaPushManager(PushManager):
             ("auth_credentials", self._generate_totp(fcm_token)),
         ]
 
-        ssl_context = self._build_ssl_context()
+        # #2126: loading the system certificates reads from disk, which
+        # Home Assistant reports as a blocking call on the event loop.
+        ssl_context = await asyncio.get_running_loop().run_in_executor(
+            None, self._build_ssl_context
+        )
 
         # (4) Fresh client per connect so ``properties=`` carries the
         # current TOTP (public aiomqtt constructor API, >=2.0).
@@ -456,7 +465,12 @@ class SkodaPushManager(PushManager):
             self._fcm_credentials,
             self._on_fcm_credentials_updated,
         )
-        token = str(await client.checkin_or_register())
+        try:
+            token = str(await client.checkin_or_register())
+        finally:
+            # #2126: a failed registration leaves the library's HTTP
+            # session open unless it is closed here.
+            await close_fcm_client(client)
         self._fcm_token = token
         return token
 
