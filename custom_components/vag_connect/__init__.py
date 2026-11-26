@@ -353,6 +353,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
         ) from err
 
     if not ok:
+        # #1848 — a server outage (a 5xx, a timeout, also of the portal
+        # sign-in, or the portal's 429) is retried like before, but "the login
+        # itself worked" would be false for it. Its message is fixed wording
+        # plus the HTTP status and the brand, never a URL or a token, so it is
+        # safe to show. The same class also stands for a 404 or 410 on the
+        # portal's vehicle list (#1964); that is not an outage and keeps the
+        # text below.
+        from .cariad.exceptions import UpstreamUnavailableError  # noqa: PLC0415
+        _failure = getattr(coordinator, "setup_failure", None)
+        _status = getattr(_failure, "status", None)
+        if (
+            isinstance(_failure, UpstreamUnavailableError)
+            and isinstance(_status, int)
+            and (_status >= 500 or _status == 429)
+        ):
+            raise ConfigEntryNotReady(str(_failure)) from _failure
         raise ConfigEntryNotReady(
             "No vehicles found for this account. The login itself worked, so "
             "this is usually not a credentials problem — check the log for the "
@@ -363,6 +379,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
 
     from .repairs import clear_auth_issues  # noqa: PLC0415
     clear_auth_issues(hass, entry.entry_id)
+    # #1848 — setup went on via volkswagen.de after the main sign-in was
+    # refused. The refusal still needs the user, so it gets the notice and
+    # the reauth prompt a failed setup would have given, here after the
+    # clean-up above, which would otherwise remove the notice again. The
+    # entry stays loaded meanwhile; a completed reauth reloads it.
+    _refusal = getattr(coordinator, "primary_refusal_reason", None)
+    if isinstance(_refusal, str) and _refusal:
+        from .repairs import raise_issue_auth_required  # noqa: PLC0415
+        raise_issue_auth_required(
+            hass, entry.entry_id, _refusal, brand=entry.data.get(CONF_BRAND) or ""
+        )
+        entry.async_start_reauth(hass)
 
     coordinator.async_set_updated_data(dict(coordinator.vehicles))
     entry.runtime_data = coordinator

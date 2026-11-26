@@ -13,6 +13,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .cariad.api.graphql import VehicleImageFetcher
+from .cariad.vehicle_cache import CARRIED_NEVER_TOO_LONG, carried_too_long
 from .const import (
     COMPANION_NAME_TAG,
     COMPANION_NAV_MAX_AGE_S,
@@ -436,7 +437,30 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         since = carried.get(data_key)
         if not isinstance(since, str) or not since:
             return {}
-        return {"freshness_source": "carried", "carried_since": since}
+        attrs: dict[str, Any] = {"freshness_source": "carried", "carried_since": since}
+        # #1917 — carried_stale: kept for at least as long as "Data stale
+        # after (hours)", the same figure the Data stale sensor uses. The
+        # value itself stays as it is. Not set for the fields that do not
+        # change on their own, and not without a usable threshold.
+        threshold = self._carried_threshold_s()
+        if threshold is not None and data_key not in CARRIED_NEVER_TOO_LONG:
+            attrs["carried_stale"] = data_key in carried_too_long(
+                self._vehicle, threshold
+            )
+        return attrs
+
+    def _carried_threshold_s(self) -> int | None:
+        """#1917 — the coordinator's stale threshold in seconds, or None."""
+        getter = getattr(self.coordinator, "_stale_threshold_s", None)
+        if not callable(getter):
+            return None
+        try:
+            value = getter()
+        except Exception:  # noqa: BLE001
+            return None
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
 
     def _platform_attributes(self) -> dict[str, Any] | None:
         """Per-platform attributes, merged into ``extra_state_attributes``.
