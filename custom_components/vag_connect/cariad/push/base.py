@@ -343,3 +343,28 @@ class PushManager(ABC):
                 event.event_type,
                 err,
             )
+
+
+async def close_fcm_client(client: Any) -> None:
+    """Release what a firebase-messaging ``FcmPushClient`` holds (#2126).
+
+    Safe to call at any point of the client's life. ``stop()`` ends the
+    receive tasks once ``start()`` has run; before that it raises inside
+    the library, which is ignored here. ``checkin_or_register()`` closes
+    the HTTP session of its ``FcmRegister`` only when registration
+    succeeds; when it raises (Google answering PHONE_REGISTRATION_ERROR,
+    for example) the session stays open and later shows up as
+    "Unclosed client session". Closing the register again after a
+    successful registration does nothing.
+    """
+    try:
+        await client.stop()
+    except Exception:  # noqa: BLE001
+        pass
+    close = getattr(getattr(client, "register", None), "close", None)
+    if close is None:
+        return
+    try:
+        await close()
+    except Exception:  # noqa: BLE001
+        pass

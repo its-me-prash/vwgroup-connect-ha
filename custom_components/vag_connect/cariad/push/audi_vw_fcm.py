@@ -145,6 +145,7 @@ from .base import (
     PushManagerState,
     PushEventCallback,
     PushUpdateEvent,
+    close_fcm_client,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -313,7 +314,10 @@ class AudiVWPushManager(PushManager):
         self._state = PushManagerState.STARTING
         self._stop_event.clear()
         try:
-            self._lazy_check_dependencies()
+            # #2126: the first import reads from disk; off the event loop.
+            await asyncio.get_running_loop().run_in_executor(
+                None, self._lazy_check_dependencies
+            )
         except ImportError as err:
             _LOGGER.warning(
                 "Audi/VW push: required dependency missing — %s. "
@@ -327,6 +331,8 @@ class AudiVWPushManager(PushManager):
             # coordinator-start cycle.
             self._record_failure(f"missing-dep: {err}")
             return
+        if self._state != PushManagerState.STARTING:
+            return  # stop() ran while the check was in the executor
         self._loop_task = asyncio.create_task(
             self._run_loop(),
             name=f"vag_connect-{self._brand}-push-{self._user_id[-6:]}",
@@ -451,35 +457,34 @@ class AudiVWPushManager(PushManager):
             self._on_fcm_credentials_updated,
         )
         self._fcm_client = client
-        fcm_token = await client.checkin_or_register()
-
-        # Register the FCM token for push delivery, once per VIN.
-        for vin in self._vins:
-            await self._post_cariad_subscription(vin, fcm_token, token, creds)
-
-        await client.start()
-
-        # Connected: reset breaker + backoff, publish CONNECTED before
-        # parking so observers don't see a STARTING-stuck status.
-        self._state = PushManagerState.CONNECTED
-        self._record_success()
-        self._reset_backoff()
-        _LOGGER.info(
-            "Audi/VW push (brand=%s): live FCM receive loop up for "
-            "%d VIN(s) (project=%s)",
-            self._brand,
-            len(self._vins),
-            creds.project_id,
-        )
+        # #2126: the client is released on every exit, including a
+        # registration or subscription that raises before start().
         try:
+            fcm_token = await client.checkin_or_register()
+
+            # Register the FCM token for push delivery, once per VIN.
+            for vin in self._vins:
+                await self._post_cariad_subscription(
+                    vin, fcm_token, token, creds
+                )
+
+            await client.start()
+
+            # Connected: reset breaker + backoff, publish CONNECTED before
+            # parking so observers don't see a STARTING-stuck status.
+            self._state = PushManagerState.CONNECTED
+            self._record_success()
+            self._reset_backoff()
+            _LOGGER.info(
+                "Audi/VW push (brand=%s): live FCM receive loop up for "
+                "%d VIN(s) (project=%s)",
+                self._brand,
+                len(self._vins),
+                creds.project_id,
+            )
             await self._stop_event.wait()
-        except asyncio.CancelledError:
-            raise
         finally:
-            try:
-                await client.stop()
-            except Exception:  # noqa: BLE001
-                pass
+            await close_fcm_client(client)
             self._fcm_client = None
         self._state = PushManagerState.STOPPED
 
