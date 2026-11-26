@@ -266,11 +266,19 @@ class TestRuntimePath:
         # Same ordering trap as the config flow: as a subclass it would
         # otherwise land on "invalid_credentials" and prompt for a password
         # that is already right.
-        src = (_ROOT / "coordinator.py").read_text(encoding="utf-8")
-        specific = src.index("except EuropeAttestationError")
-        generic = src.index("except AuthenticationError as err:\n            raise ValueError(\"invalid_credentials\")")
-        assert specific < generic
-        assert 'raise ValueError("eu_signin_attestation")' in src
+        # Since #1848 the reasons come from _auth_refusal_reason; checked on
+        # the result rather than on the order of handlers in the source.
+        from custom_components.vag_connect.cariad.exceptions import (
+            AuthenticationError,
+            EuropeAttestationError,
+        )
+        from custom_components.vag_connect.coordinator import (
+            VagConnectCoordinator,
+        )
+
+        reason = VagConnectCoordinator._auth_refusal_reason
+        assert reason(EuropeAttestationError("x")) == "eu_signin_attestation"
+        assert reason(AuthenticationError("x")) == "invalid_credentials"
 
     def test_the_setup_reason_is_hard(self) -> None:
         # The wall does not clear on its own. As a soft ConfigEntryNotReady HA

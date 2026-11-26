@@ -213,19 +213,18 @@ class TestExceptionHandlerOrder:
     """The coordinator's exception-handler chain must catch
     ``EmailTwoFactorRequiredError`` with the email-specific reason
     BEFORE the parent ``TwoFactorRequiredError`` catches it as generic.
-    This test reads the source to verify ordering."""
+    Since #1848 the reasons come from ``_auth_refusal_reason``, so the order is
+    checked on the result rather than on the source text."""
 
     def test_email_handler_before_generic_2fa_in_coordinator(self) -> None:
-        from pathlib import Path
+        from custom_components.vag_connect.cariad.exceptions import (
+            EmailTwoFactorRequiredError,
+            TwoFactorRequiredError,
+        )
+        from custom_components.vag_connect.coordinator import (
+            VagConnectCoordinator,
+        )
 
-        src = Path("custom_components/vag_connect/coordinator.py").read_text(
-            encoding="utf-8"
-        )
-        email_pos = src.find("except EmailTwoFactorRequiredError")
-        generic_pos = src.find("except TwoFactorRequiredError")
-        assert email_pos > 0, "EmailTwoFactorRequiredError handler missing"
-        assert generic_pos > 0, "TwoFactorRequiredError handler missing"
-        assert email_pos < generic_pos, (
-            "EmailTwoFactorRequiredError handler must come BEFORE the parent "
-            "TwoFactorRequiredError handler (Python exception-handler order)"
-        )
+        reason = VagConnectCoordinator._auth_refusal_reason
+        assert reason(EmailTwoFactorRequiredError()) == "email_two_factor_required"
+        assert reason(TwoFactorRequiredError()) == "two_factor_required"
