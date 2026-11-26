@@ -6202,6 +6202,19 @@ def map_dataset_to_vehicle_data(
 
 # ── The connector ──────────────────────────────────────────────────────────
 
+def _raise_if_server_error(status: object, brand: str) -> None:
+    """#1848 — raise the 5xx class for a server error during the sign-in.
+
+    A server error is not a step the user could take. Raised as a refusal
+    it asked for a new sign-in and was never retried, and on VW and Audi
+    EU it was handed on as the attestation refusal; as
+    ``UpstreamUnavailableError`` it is retried until the portal answers
+    again. Only an int counts, since test doubles may carry anything.
+    """
+    if isinstance(status, int) and not isinstance(status, bool) and status >= 500:
+        raise UpstreamUnavailableError(status, brand=brand)
+
+
 class EUDataActConnector:
     """Cookie-authenticated VW EU Data Act portal client.
 
@@ -6229,6 +6242,10 @@ class EUDataActConnector:
         self._login_gen: int = 0
         self._login_error: BaseException | None = None
         self._session = session
+        # #1848 — the brand as the user knows it, for messages that reach
+        # the UI; ``_state`` below is the portal's country__language__brand
+        # handshake value and reads as noise there.
+        self._brand_label = brand.lower()
         cfg = _EUDA_BRANDS.get(brand.lower())
         if cfg is None:
             # Unknown brand → VW client with a brand-derived state suffix.
@@ -7015,7 +7032,7 @@ class EUDataActConnector:
                 # ONLY connection/timeouts map to transient. asyncio.TimeoutError
                 # is an alias of the builtin TimeoutError on py3.11+, so it is
                 # covered.
-                transient = UpstreamUnavailableError(504, brand=self._state)
+                transient = UpstreamUnavailableError(504, brand=self._brand_label)
                 self._login_error = transient
                 self._login_gen += 1
                 raise transient from exc
@@ -7092,7 +7109,12 @@ class EUDataActConnector:
             allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
             signin_url = str(resp.url)
+            signin_status = getattr(resp, "status", None)
             signin_html = await resp.text(errors="replace")
+        # #1848 — a server error before any credential was sent is the
+        # portal's side. Parsed as a form it read as "could not parse the
+        # sign-in form", a refusal that is never retried.
+        _raise_if_server_error(signin_status, self._brand_label)
 
         # 2. Read the sign-in page and work out WHICH page it is before
         #    assuming. #1947 — on 2026-10-26 the portal replaced the two-step
@@ -7142,7 +7164,11 @@ class EUDataActConnector:
                 allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
                 authenticate_url = str(resp.url)
+                identifier_status = getattr(resp, "status", None)
                 authenticate_html = await resp.text(errors="replace")
+            # #1848 — same for the identifier step: a 5xx here read as "no
+            # password form returned (check email address ...)".
+            _raise_if_server_error(identifier_status, self._brand_label)
 
             # 3. POST credentials (password step). The hmac on this page is a
             #    FRESH one bound to the password session.
@@ -7166,6 +7192,20 @@ class EUDataActConnector:
                 data=fields2,
                 headers={**headers, "Referer": authenticate_url},
             )
+
+        # #1848 — a 5xx landing is the portal's server error. Checked before
+        # the consent, terms and marketing handlers below: they read the page
+        # and can POST a form from it, and a server error page is no
+        # interstitial to accept. The same check after them covers a landing
+        # that only an interstitial step produced.
+        if isinstance(status, int) and status >= 500:
+            self.last_login_interaction = ""
+            _LOGGER.warning(
+                "EU Data Act portal: login did not complete — "
+                "landing=%s status=%s (server error)",
+                _safe_url(landing), status,
+            )
+            _raise_if_server_error(status, self._brand_label)
 
         # 3b. (#527, v2.15.5) — generic OAuth/IDP consent grant page. After
         # correct credentials the IDP can interject a server-rendered consent
@@ -7244,6 +7284,19 @@ class EUDataActConnector:
             or urlparse(landing).netloc != portal_host
         )
         if landed_failed:
+            # #1848 — status first, as at the two steps before. The
+            # classifier below matches short substrings ("2fa", "throttl",
+            # "onboarding") in the URL and the page, so an error page could
+            # pass for a step the user has to take. A 5xx is the portal's own
+            # server error whatever the page says, and not an interaction.
+            if isinstance(status, int) and status >= 500:
+                self.last_login_interaction = ""
+                _LOGGER.warning(
+                    "EU Data Act portal: login did not complete — "
+                    "landing=%s status=%s (server error)",
+                    _safe_url(landing), status,
+                )
+                _raise_if_server_error(status, self._brand_label)
             typed_exc, log_ctx = classify_portal_login_failure(
                 landing, landing_html
             )
@@ -7591,7 +7644,7 @@ class EUDataActConnector:
                             or resp.status in outage_statuses
                         ):
                             raise UpstreamUnavailableError(
-                                resp.status, brand=self._state
+                                resp.status, brand=self._brand_label
                             )
                         if resp.status == 401:
                             self._debug_dump_auth_state_on_401(
