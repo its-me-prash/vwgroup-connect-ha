@@ -669,3 +669,86 @@ def test_a_failing_close_of_the_armed_channel_keeps_the_refusal():
     with pytest.raises(ValueError, match="^invalid_credentials$"):
         _run(coord, client)
     client.close_supplementary.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Fifth review round: before the interstitial handlers, the timeout label,
+# and a foreign exception that carries a status.
+# ---------------------------------------------------------------------------
+
+
+class _TermsOutageSession(_Session):
+    """A 503 landing on a terms page that carries a form to accept."""
+
+    def post(self, url: str, **kw: Any) -> _Resp:
+        if "/login/authenticate" in url:
+            return _Resp(
+                "https://identity.vwgroup.io/signin-service/v1/CLIENT/"
+                "terms-and-conditions?relayState=x",
+                status=503,
+                text=('<form action="terms-and-conditions" method="post">'
+                      '<input type="hidden" name="_csrf" value="c">'
+                      '<input type="hidden" name="relayState" value="x">'
+                      "</form>"),
+            )
+        # anything else (an accept POST to the terms page) must not happen
+        return super().post(url, **kw)
+
+
+async def test_a_5xx_terms_page_is_not_accepted_but_reported_as_an_outage():
+    from custom_components.vag_connect.cariad.auth._eu_data_act import (
+        EUDataActConnector,
+    )
+    conn = EUDataActConnector(_TermsOutageSession())  # type: ignore[arg-type]
+    conn._accept_terms_page = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    conn._accept_consent_page = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    conn._skip_marketing_consent_landing = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    with pytest.raises(exc.CariadError) as ei:
+        await conn.login("user@example.com", "secret")
+    assert type(ei.value) is exc.UpstreamUnavailableError
+    assert ei.value.status == 503
+    # the server error page was never treated as an interstitial to accept
+    conn._accept_terms_page.assert_not_awaited()
+    conn._accept_consent_page.assert_not_awaited()
+    conn._skip_marketing_consent_landing.assert_not_awaited()
+
+
+@pytest.mark.parametrize("cause", ["timeout", "connection"])
+async def test_a_login_timeout_names_the_brand(cause):
+    from aiohttp import ClientConnectionError
+
+    from custom_components.vag_connect.cariad.auth._eu_data_act import (
+        EUDataActConnector,
+    )
+    conn = EUDataActConnector(_Session())  # type: ignore[arg-type]
+
+    async def _fails(email: str, password: str) -> None:
+        raise TimeoutError() if cause == "timeout" else ClientConnectionError()
+
+    conn._login_impl = _fails  # type: ignore[method-assign]
+    with pytest.raises(exc.UpstreamUnavailableError) as ei:
+        await conn.login("user@example.com", "secret")
+    assert ei.value.status == 504
+    assert "for brand volkswagen" in str(ei.value)
+    assert "__" not in str(ei.value)
+
+
+def test_a_foreign_failure_with_a_status_never_reaches_the_message():
+    """An exception of another class that carries an int status (as aiohttp's
+    response errors do, whose text can hold a URL) keeps the generic text."""
+    from homeassistant.exceptions import ConfigEntryNotReady
+
+    class _Foreign(Exception):
+        status = 503
+
+    with pytest.raises(ConfigEntryNotReady, match="No vehicles found") as ei:
+        _failed_setup_entry(_Foreign("https://x.invalid/?token=abc"))
+    assert "token=abc" not in str(ei.value)
+
+
+def test_a_bool_status_is_not_an_outage_status():
+    from homeassistant.exceptions import ConfigEntryNotReady
+    err = exc.UpstreamUnavailableError(503, brand="volkswagen")
+    err.status = True  # type: ignore[assignment]
+    with pytest.raises(ConfigEntryNotReady, match="No vehicles found"):
+        _failed_setup_entry(err)

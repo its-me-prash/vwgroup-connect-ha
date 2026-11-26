@@ -366,7 +366,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
         if (
             isinstance(_failure, UpstreamUnavailableError)
             and isinstance(_status, int)
-            and not isinstance(_status, bool)
             and (_status >= 500 or _status == 429)
         ):
             raise ConfigEntryNotReady(str(_failure)) from _failure

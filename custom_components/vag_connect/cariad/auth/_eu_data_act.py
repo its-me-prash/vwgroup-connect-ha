@@ -7193,6 +7193,20 @@ class EUDataActConnector:
                 headers={**headers, "Referer": authenticate_url},
             )
 
+        # #1848 — a 5xx landing is the portal's server error. Checked before
+        # the consent, terms and marketing handlers below: they read the page
+        # and can POST a form from it, and a server error page is no
+        # interstitial to accept. The same check after them covers a landing
+        # that only an interstitial step produced.
+        if isinstance(status, int) and status >= 500:
+            self.last_login_interaction = ""
+            _LOGGER.warning(
+                "EU Data Act portal: login did not complete — "
+                "landing=%s status=%s (server error)",
+                _safe_url(landing), status,
+            )
+            _raise_if_server_error(status, self._brand_label)
+
         # 3b. (#527, v2.15.5) — generic OAuth/IDP consent grant page. After
         # correct credentials the IDP can interject a server-rendered consent
         # page (``/signin-service/v1/consent/users/{uid}/{client}``,
