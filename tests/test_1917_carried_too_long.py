@@ -247,3 +247,17 @@ def test_the_data_stale_sensor_adds_nothing_when_nothing_is_old():
                    "target_soc": (now - timedelta(hours=2)).isoformat()}}
     attrs = _stale_sensor(_coordinator(vehicle))._platform_attributes()
     assert attrs == {"portal_health": "ok"}
+
+
+@pytest.mark.parametrize("bad", [True, False, "72", 72.0, None])
+def test_a_threshold_that_is_not_a_whole_number_gives_no_verdict(bad):
+    """A bool is an int in Python; True would mean one second, and every
+    kept value would read stale."""
+    since = (datetime.now(tz=timezone.utc) - timedelta(hours=2)).isoformat()
+    coordinator = MagicMock()
+    coordinator._stale_threshold_s = MagicMock(return_value=bad)
+    coordinator.data = {"V": {"target_soc": 80,
+                              "field_carried_since": {"target_soc": since}}}
+    attrs = _attrs(_sensor("target_soc", coordinator))
+    assert attrs["freshness_source"] == "carried"
+    assert "carried_stale" not in attrs
