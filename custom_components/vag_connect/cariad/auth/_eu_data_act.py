@@ -7109,7 +7109,7 @@ class EUDataActConnector:
             allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
             signin_url = str(resp.url)
-            signin_status = resp.status
+            signin_status = getattr(resp, "status", None)
             signin_html = await resp.text(errors="replace")
         # #1848 — a server error before any credential was sent is the
         # portal's side. Parsed as a form it read as "could not parse the
@@ -7164,7 +7164,7 @@ class EUDataActConnector:
                 allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
                 authenticate_url = str(resp.url)
-                identifier_status = resp.status
+                identifier_status = getattr(resp, "status", None)
                 authenticate_html = await resp.text(errors="replace")
             # #1848 — same for the identifier step: a 5xx here read as "no
             # password form returned (check email address ...)".
