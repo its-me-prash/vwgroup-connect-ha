@@ -6202,6 +6202,19 @@ def map_dataset_to_vehicle_data(
 
 # ── The connector ──────────────────────────────────────────────────────────
 
+def _raise_if_server_error(status: object, brand: str) -> None:
+    """#1848 — raise the 5xx class for a server error during the sign-in.
+
+    A server error is not a step the user could take. Raised as a refusal
+    it asked for a new sign-in and was never retried, and on VW and Audi
+    EU it was handed on as the attestation refusal; as
+    ``UpstreamUnavailableError`` it is retried until the portal answers
+    again. Only an int counts, since test doubles may carry anything.
+    """
+    if isinstance(status, int) and not isinstance(status, bool) and status >= 500:
+        raise UpstreamUnavailableError(status, brand=brand)
+
+
 class EUDataActConnector:
     """Cookie-authenticated VW EU Data Act portal client.
 
@@ -6229,6 +6242,10 @@ class EUDataActConnector:
         self._login_gen: int = 0
         self._login_error: BaseException | None = None
         self._session = session
+        # #1848 — the brand as the user knows it, for messages that reach
+        # the UI; ``_state`` below is the portal's country__language__brand
+        # handshake value and reads as noise there.
+        self._brand_label = brand.lower()
         cfg = _EUDA_BRANDS.get(brand.lower())
         if cfg is None:
             # Unknown brand → VW client with a brand-derived state suffix.
@@ -7015,7 +7032,7 @@ class EUDataActConnector:
                 # ONLY connection/timeouts map to transient. asyncio.TimeoutError
                 # is an alias of the builtin TimeoutError on py3.11+, so it is
                 # covered.
-                transient = UpstreamUnavailableError(504, brand=self._state)
+                transient = UpstreamUnavailableError(504, brand=self._brand_label)
                 self._login_error = transient
                 self._login_gen += 1
                 raise transient from exc
@@ -7092,7 +7109,12 @@ class EUDataActConnector:
             allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
             signin_url = str(resp.url)
+            signin_status = resp.status
             signin_html = await resp.text(errors="replace")
+        # #1848 — a server error before any credential was sent is the
+        # portal's side. Parsed as a form it read as "could not parse the
+        # sign-in form", a refusal that is never retried.
+        _raise_if_server_error(signin_status, self._brand_label)
 
         # 2. Read the sign-in page and work out WHICH page it is before
         #    assuming. #1947 — on 2026-10-26 the portal replaced the two-step
@@ -7142,7 +7164,11 @@ class EUDataActConnector:
                 allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
                 authenticate_url = str(resp.url)
+                identifier_status = resp.status
                 authenticate_html = await resp.text(errors="replace")
+            # #1848 — same for the identifier step: a 5xx here read as "no
+            # password form returned (check email address ...)".
+            _raise_if_server_error(identifier_status, self._brand_label)
 
             # 3. POST credentials (password step). The hmac on this page is a
             #    FRESH one bound to the password session.
@@ -7270,6 +7296,10 @@ class EUDataActConnector:
             # both cases this is the genuine credential failure: raise the
             # credential catch-all so the user is told to check the password
             # ONLY here, where we actually believe it.
+            # #1848: a 5xx with no readable reason is the portal's own server
+            # error, also on its sign-in or error page; a wrong password comes
+            # back as a page, not as a server error.
+            _raise_if_server_error(status, self._brand_label)
             if "signin-service" in landing or "/error" in landing:
                 raise AuthenticationError(
                     "EU Data Act portal: login failed — check email and password"
@@ -7278,12 +7308,6 @@ class EUDataActConnector:
             # can't prove it's the password, so surface a NON-credential
             # failure (server-side / unexpected page) rather than blaming
             # the user's credentials.
-            # #1848: a 5xx here is the portal's own server error, not a step
-            # the user could take. As PortalInteractionRequiredError it asked
-            # for a new sign-in at setup and never retried; as the 5xx class
-            # it is retried until the portal answers again.
-            if status >= 500:
-                raise UpstreamUnavailableError(status, brand=self._state)
             if status >= 400:
                 raise PortalInteractionRequiredError(
                     f"login rejected (HTTP {status})"

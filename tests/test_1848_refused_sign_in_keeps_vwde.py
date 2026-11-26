@@ -321,7 +321,8 @@ def _kickoff_coord(refusal):
     coord.entry = MagicMock()
     coord.entry.options = MagicMock()
     coord.entry.options.get = MagicMock(return_value=False)  # auto kickoff off
-    coord.entry.data = {}
+    coord.entry.data = MagicMock()
+    coord.entry.data.get = MagicMock(return_value=None)
     coord._cariad_client = MagicMock()
     coord.primary_refusal_reason = refusal
     return coord
@@ -331,6 +332,16 @@ def test_no_kickoff_while_the_portal_refuses_the_sign_in():
     coord = _kickoff_coord("invalid_credentials")
     asyncio.run(coord._ensure_data_act_custom_request_kickoff())
     coord.entry.options.get.assert_not_called()
+    coord.entry.data.get.assert_not_called()
+
+
+def test_the_manual_button_still_runs_the_kickoff_while_refused():
+    """force=True is the user pressing the button; the guard lets it run."""
+    coord = _kickoff_coord("invalid_credentials")
+    coord._cariad_client._tokens = None
+    asyncio.run(coord._ensure_data_act_custom_request_kickoff(force=True))
+    # the supplementary-portal read comes only after the guard
+    coord.entry.data.get.assert_called()
 
 
 def test_the_kickoff_check_runs_as_before_without_a_refusal():
@@ -433,6 +444,21 @@ def test_no_vehicles_keeps_its_message():
         _failed_setup_entry(None)
 
 
+def test_a_missing_vehicle_list_is_not_called_an_outage():
+    """The same class stands for a 404 or 410 on the portal's vehicle list
+    (#1964); that keeps the no-vehicles text."""
+    from homeassistant.exceptions import ConfigEntryNotReady
+    with pytest.raises(ConfigEntryNotReady, match="No vehicles found"):
+        _failed_setup_entry(exc.UpstreamUnavailableError(404, brand="volkswagen"))
+
+
+def test_a_foreign_failure_text_never_reaches_the_message():
+    from homeassistant.exceptions import ConfigEntryNotReady
+    with pytest.raises(ConfigEntryNotReady, match="No vehicles found") as ei:
+        _failed_setup_entry(RuntimeError("https://x.invalid/?token=abc"))
+    assert "token=abc" not in str(ei.value)
+
+
 # ---------------------------------------------------------------------------
 # Portal login: a 5xx landing is the 5xx class, a 4xx stays an interaction.
 # ---------------------------------------------------------------------------
@@ -469,16 +495,31 @@ class _Resp:
         return self._text
 
 
-class _Session:
-    """Drives the login to a landing page off the sign-in service."""
+_DOWN = "<html><body>Service Unavailable</body></html>"
+_SIGNIN_LANDING = (
+    "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/authenticate"
+    "?relayState=rs1"
+)
 
-    def __init__(self, status: int) -> None:
+
+class _Session:
+    """Drives the login; each step can answer a server error."""
+
+    def __init__(self, status: int = 200, *, signin_status: int = 200,
+                 identifier_status: int = 200,
+                 landing_url: str = "https://gateway.example.invalid/landing",
+                 ) -> None:
         self._status = status
+        self._signin_status = signin_status
+        self._identifier_status = identifier_status
+        self._landing_url = landing_url
 
     def get(self, url: str, **kw: Any) -> _Resp:
         if url.endswith("/") and "vwgroup-datahub" in url:
             return _Resp(url, text="<html>portal</html>")
         if "authorize" in url:
+            if self._signin_status >= 500:
+                return _Resp(url, status=self._signin_status, text=_DOWN)
             return _Resp(
                 "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/"
                 "identifier", text=_SIGNIN_HTML)
@@ -486,24 +527,52 @@ class _Session:
 
     def post(self, url: str, **kw: Any) -> _Resp:
         if url.endswith("/login/identifier"):
+            if self._identifier_status >= 500:
+                return _Resp(url, status=self._identifier_status, text=_DOWN)
             return _Resp(
                 "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/"
                 "authenticate?relayState=rs1", text=_PASSWORD_HTML)
         if "/login/authenticate" in url:
-            return _Resp("https://gateway.example.invalid/landing",
-                         status=self._status,
-                         text="<html><body>Service Unavailable</body></html>")
+            return _Resp(self._landing_url, status=self._status, text=_DOWN)
         raise AssertionError(f"unmatched POST {url}")
 
 
-async def _login(status: int) -> BaseException:
+async def _login(status: int = 200, **session_kw: Any) -> BaseException:
     from custom_components.vag_connect.cariad.auth._eu_data_act import (
         EUDataActConnector,
     )
-    conn = EUDataActConnector(_Session(status))  # type: ignore[arg-type]
+    conn = EUDataActConnector(_Session(status, **session_kw))  # type: ignore[arg-type]
     with pytest.raises(exc.CariadError) as ei:
         await conn.login("user@example.com", "secret")
     return ei.value
+
+
+@pytest.mark.parametrize("step", ["signin_page", "identifier", "signin_landing"])
+async def test_a_5xx_at_any_sign_in_step_is_a_server_error(step):
+    """A 503 before the credentials, after the e-mail step, or on the sign-in
+    service's own landing used to read as a refusal ("could not parse the
+    sign-in form", "no password form returned", "check email and password")."""
+    kw: dict[str, Any] = {
+        "signin_page": {"signin_status": 503},
+        "identifier": {"identifier_status": 503},
+        "signin_landing": {"status": 503, "landing_url": _SIGNIN_LANDING},
+    }[step]
+    err = await _login(**kw)
+    assert type(err) is exc.UpstreamUnavailableError
+    assert err.status == 503
+
+
+async def test_the_server_error_names_the_brand_not_the_portal_state():
+    err = await _login(503)
+    assert "for brand volkswagen" in str(err)
+    assert "__" not in str(err)
+
+
+async def test_a_wrong_password_on_the_sign_in_service_is_still_a_refusal():
+    """GUARD: the credential catch-all stays for a page without a 5xx."""
+    err = await _login(200, landing_url=_SIGNIN_LANDING)
+    assert type(err) is exc.AuthenticationError
+    assert "check email and password" in str(err)
 
 
 @pytest.mark.parametrize("status", [500, 502, 503])
