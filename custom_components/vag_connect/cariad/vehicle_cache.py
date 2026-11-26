@@ -340,6 +340,54 @@ def position_age_seconds(previous: dict[str, Any]) -> float | None:
             return (datetime.now(tz=timezone.utc) - stamp).total_seconds()
     return None
 
+
+# #1917 — carried values that do not change on their own, so a long carry says
+# nothing about them: the tank size, the WLTP rating, the equipment count, and
+# the bookkeeping fields. Every other field in CARRY_FORWARD_FIELDS can be
+# reported as carried too long. Listed by exclusion on purpose: a field added
+# to CARRY_FORWARD_FIELDS later is reported unless someone decides otherwise.
+CARRIED_NEVER_TOO_LONG: frozenset[str] = frozenset({
+    "fuel_tank_capacity_liters", "range_wltp_km", "equipment_count",
+    "last_seen_at", "companion_app_synced_at", "companion_request_state",
+})
+
+
+def carried_too_long(
+    vehicle: dict[str, Any], threshold_s: float, now: datetime | None = None,
+) -> list[str]:
+    """Fields kept from an earlier poll for at least ``threshold_s`` (#1917).
+
+    Sorted data keys from ``field_carried_since`` (set by ``reconcile``),
+    without CARRIED_NEVER_TOO_LONG. Nothing changes a value; this only says
+    which kept values are old. The age is counted from ``carried_since``, the
+    poll in which the value stopped arriving, or from the value's own capture
+    time when that is older: the value was at least that old when it stopped
+    arriving. A capture time borrowed from a neighbouring entry of a portal
+    export (#2096) is not the value's own and is not used, and a capture time
+    in the future can never be the older one, so it cannot hide an old value.
+    """
+    marks = vehicle.get("field_carried_since")
+    if not isinstance(marks, dict) or not marks:
+        return []
+    now = now or datetime.now(tz=timezone.utc)
+    stamps = vehicle.get("field_captured_ts")
+    stamps = stamps if isinstance(stamps, dict) else {}
+    borrowed = vehicle.get("field_captured_inherited")
+    borrowed = borrowed if isinstance(borrowed, dict) else {}
+    out: list[str] = []
+    for key, since in marks.items():
+        if key in CARRIED_NEVER_TOO_LONG:
+            continue
+        anchor = _as_aware_dt(since)
+        if anchor is None:
+            continue
+        own = None if borrowed.get(key) is True else _as_aware_dt(stamps.get(key))
+        if own is not None and own < anchor:
+            anchor = own
+        if (now - anchor).total_seconds() >= threshold_s:
+            out.append(key)
+    return sorted(out)
+
 # Fields that physically only ever increase. A fresh value below the recorded
 # one is a bad reading (the portal occasionally serves a stale / zero odometer)
 # — keep the recorded value so the "km" sensor never jumps backwards.
