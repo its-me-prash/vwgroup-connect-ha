@@ -7278,6 +7278,12 @@ class EUDataActConnector:
             # can't prove it's the password, so surface a NON-credential
             # failure (server-side / unexpected page) rather than blaming
             # the user's credentials.
+            # #1848: a 5xx here is the portal's own server error, not a step
+            # the user could take. As PortalInteractionRequiredError it asked
+            # for a new sign-in at setup and never retried; as the 5xx class
+            # it is retried until the portal answers again.
+            if status >= 500:
+                raise UpstreamUnavailableError(status, brand=self._state)
             if status >= 400:
                 raise PortalInteractionRequiredError(
                     f"login rejected (HTTP {status})"

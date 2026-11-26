@@ -2010,18 +2010,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> bool:
         """Authenticate and fetch initial vehicle data via own CARIAD client."""
+        # #1848 — set when setup went on via volkswagen.de after the main
+        # sign-in was refused; async_setup_entry reports it after setup.
+        self.primary_refusal_reason: str | None = None
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
         from .cariad import CariadClientFactory  # noqa: PLC0415
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             DeviceLoginExpiredError,
-            EmailTwoFactorRequiredError,
-            EuropeAttestationError,
-            PortalInteractionRequiredError,
             PortalSessionExpiredError,
-            TermsAndConditionsError,
-            MarketingConsentError,
-            TwoFactorRequiredError,
             TokenRefreshRetryError,
             RateLimitError,
             UpstreamUnavailableError,
@@ -2684,13 +2681,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     "data_act_portal", "website_authproxy",
                 )
             )
+            # #1848 — a refused main sign-in no longer takes a healthy
+            # volkswagen.de channel down with it, see _may_continue_on_vwde.
+            primary_refusal: AuthenticationError | None = None
             if persisted is None or persisted_is_portal:
-                await self._cariad_client.authenticate()
-                # v2.14.3 — the website-authproxy login rotates the cookie jar;
-                # persist the fresh cookies back so the NEXT setup/restart
-                # resumes the session (and keeps skipping the OTP prompt).
-                # Guarded so it only ever touches website-authproxy entries.
-                self._persist_website_cookies()
+                try:
+                    await self._cariad_client.authenticate()
+                except AuthenticationError as err:
+                    if not self._may_continue_on_vwde(err):
+                        raise
+                    primary_refusal = err
+                else:
+                    # v2.14.3 — the website-authproxy login rotates the cookie
+                    # jar; persist the fresh cookies back so the NEXT
+                    # setup/restart resumes the session (and keeps skipping the
+                    # OTP prompt). Guarded so it only ever touches
+                    # website-authproxy entries.
+                    self._persist_website_cookies()
             else:
                 _LOGGER.debug(
                     "VW Group Connect: using persisted IDK tokens for %s "
@@ -2701,6 +2708,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # AFTER the primary authenticate, so the per-poll merge has it.
             # No-op when none configured; fail-soft (primary unaffected).
             await self._arm_supplementary_channels()
+            refusal_vins: list[str] | None = None
+            if primary_refusal is not None:
+                refusal_vins = await self._vins_kept_after_primary_refusal()
+                if not refusal_vins:
+                    raise primary_refusal
+                self.primary_refusal_reason = self._auth_refusal_reason(
+                    primary_refusal
+                )
+                _LOGGER.warning(
+                    "VW Group Connect: the main sign-in for %s was refused "
+                    "(%s). volkswagen.de still lists the car, so the entry "
+                    "keeps running on it for %d vehicle(s); a new sign-in is "
+                    "requested.",
+                    brand,
+                    self.primary_refusal_reason,
+                    len(refusal_vins),
+                )
             # v2.15.0b7 — pre-warm the EU Data Act dictionary cache OFF the event
             # loop so the Scout report's describe() lookups (which run in-loop)
             # never trigger a blocking 288 KB file read. lru_cached → one warm-up.
@@ -2711,8 +2735,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 pass
             _enum_ok = False
             try:
-                vins = await self._cariad_client.get_vehicles()
-                _enum_ok = True
+                if refusal_vins is not None:
+                    # #1848: the refused main channel cannot list; the cars
+                    # come from the snapshot, and nothing is pruned.
+                    vins = refusal_vins
+                else:
+                    vins = await self._cariad_client.get_vehicles()
+                    _enum_ok = True
             except (AuthenticationError, TokenRefreshRetryError) as _first_err:
                 # v2.21.1 (#875) — persisted IDK/legacy tokens can no longer be
                 # refreshed (VW's device-attestation wall 403s the refresh). We
@@ -3048,26 +3077,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self._start_drivepulse_hold()
             return found > 0
 
-        except TermsAndConditionsError as err:
-            raise ValueError("terms_and_conditions") from err
-        except MarketingConsentError as err:
-            raise ValueError("marketing_consent") from err
-        # v2.2.0 PR #7/20 (#183 follow-on) — Email-OTP subclass MUST be
-        # caught BEFORE the generic TwoFactorRequiredError parent (Python
-        # exception-handler order is first-match).
-        except EmailTwoFactorRequiredError as err:
-            raise ValueError("email_two_factor_required") from err
-        except TwoFactorRequiredError as err:
-            raise ValueError("two_factor_required") from err
         except RateLimitError as err:
             raise ValueError("too_many_requests") from err
-        # v2.15.4 (#527) — a non-credential EU Data Act portal stop
-        # (onboarding/region/soft-block, or a portal error with a real
-        # errorCode). Subclass of AuthenticationError, so it MUST be caught
-        # before the credential catch-all — otherwise valid-credential users
-        # get told to fix their password.
-        except PortalInteractionRequiredError as err:
-            raise ValueError("portal_interaction_required") from err
         except PortalSessionExpiredError as err:
             # b12 (#1340 @cyrano330) — login succeeded but the portal returned 401
             # on enumeration even after a re-login: the password is fine, so raise
@@ -3088,22 +3099,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "The EU Data Act portal signed you in but then refused the "
                 "vehicle list (session not authorised) — see the repair notice."
             ) from err
-        except DeviceLoginExpiredError as err:
-            # #1813 — also a subclass of AuthenticationError, so it MUST sit
-            # above the catch-all for the same reason the two branches above do.
-            # Here the catch-all is not just unhelpful but impossible to act on:
-            # the entry has no password, so a credential form can never fix it.
-            # Its own reason routes to the QR sign-in that config_flow already
-            # offers for this entry shape.
-            raise ValueError("device_login_expired") from err
-        except EuropeAttestationError as err:
-            # #1712 — also a subclass of AuthenticationError, so it MUST sit
-            # above the catch-all: the sign-in worked and only the token
-            # exchange was refused, so "invalid credentials" (and a reauth
-            # prompt for a password that is already right) would be wrong.
-            raise ValueError("eu_signin_attestation") from err
         except AuthenticationError as err:
-            raise ValueError("invalid_credentials") from err
+            # Every other refusal of the sign-in; the subclass decides the
+            # reason, see _auth_refusal_reason (#1848 shares it).
+            raise ValueError(self._auth_refusal_reason(err)) from err
         except Exception as err:  # noqa: BLE001
             # v2.7.2 — never log the raw exception message at ERROR
             # level. aiohttp.InvalidURL and similar carry the full
@@ -3166,6 +3165,99 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _detail,
             )
             return False
+
+    def _may_continue_on_vwde(self, err: Exception) -> bool:
+        """#1848 — may setup go on after the main sign-in refused ``err``?
+
+        Only when volkswagen.de is configured as a supplementary channel and
+        only for a refusal that needs the user anyway (today it ends in a
+        reauth prompt). Not for an expired portal session, which is retried
+        with its own repair, and not for an expired device login, whose
+        notice routes to a QR sign-in the entry may not have. Errors that are
+        not refusals (a 5xx, a timeout) never get here: Home Assistant
+        retries the setup for them and the main channel comes back by itself,
+        while a setup that went on would leave it off until the next restart.
+        """
+        from .cariad.exceptions import (  # noqa: PLC0415
+            DeviceLoginExpiredError,
+            PortalSessionExpiredError,
+        )
+        from .const import CONF_SUPPLEMENTARY_AUTHPROXY  # noqa: PLC0415
+
+        if isinstance(err, (PortalSessionExpiredError, DeviceLoginExpiredError)):
+            return False
+        return bool(self.entry.data.get(CONF_SUPPLEMENTARY_AUTHPROXY))
+
+    async def _vins_kept_after_primary_refusal(self) -> list[str]:
+        """#1848 — the cars to set up on after a refused main sign-in.
+
+        The stored snapshot's cars, and only if the armed volkswagen.de
+        channel lists at least one of them: that shows the channel works for
+        this account. Empty otherwise, and the caller raises the refusal as
+        before. Cars come from the snapshot because the setup read of a car
+        goes through the main channel; a car without a snapshot would not be
+        set up anyway. The poll loop then reads them from volkswagen.de via
+        _revive_after_hard_failure. A car volkswagen.de does not list stays
+        on its stored values and turns unavailable like any car whose reads
+        fail.
+        """
+        web = getattr(self._cariad_client, "_supplementary_authproxy", None)
+        lister = getattr(web, "list_vehicle_vins", None)
+        known = [v for v in self.vehicles if not str(v).startswith("_")]
+        if lister is None or not known:
+            return []
+        try:
+            listed = {str(v).upper() for v in (await lister() or [])}
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "#1848 volkswagen.de vehicle list failed: %s", type(err).__name__
+            )
+            return []
+        if not any(str(v).upper() in listed for v in known):
+            return []
+        return known
+
+    @staticmethod
+    def _auth_refusal_reason(err: Exception) -> str:
+        """The setup reason for a refused sign-in (an AuthenticationError).
+
+        One mapping for the setup error path and for #1848, which keeps an
+        entry up on volkswagen.de and still has to report the same reason.
+        PortalSessionExpiredError is handled before this and never reaches it.
+        The checks run in this order because several classes are subclasses
+        of others:
+
+        - Email-OTP before its TwoFactorRequiredError parent (v2.2.0, #183).
+        - #527: a non-credential EU Data Act portal stop (onboarding, region,
+          soft block, or a portal error with a real errorCode) must not tell
+          a user with a valid password to fix it.
+        - #1813: an expired device login has no password to retry with; its
+          own reason routes to the QR sign-in config_flow offers.
+        - #1712: the sign-in worked and only the token exchange was refused,
+          so "invalid credentials" would ask for a password that is right.
+        """
+        from .cariad.exceptions import (  # noqa: PLC0415
+            DeviceLoginExpiredError,
+            EmailTwoFactorRequiredError,
+            EuropeAttestationError,
+            MarketingConsentError,
+            PortalInteractionRequiredError,
+            TermsAndConditionsError,
+            TwoFactorRequiredError,
+        )
+
+        for cls, reason in (
+            (TermsAndConditionsError, "terms_and_conditions"),
+            (MarketingConsentError, "marketing_consent"),
+            (EmailTwoFactorRequiredError, "email_two_factor_required"),
+            (TwoFactorRequiredError, "two_factor_required"),
+            (PortalInteractionRequiredError, "portal_interaction_required"),
+            (DeviceLoginExpiredError, "device_login_expired"),
+            (EuropeAttestationError, "eu_signin_attestation"),
+        ):
+            if isinstance(err, cls):
+                return reason
+        return "invalid_credentials"
 
     def _entry_auth_dead(self, vins: list[str], results: list[Any]) -> bool:
         """True when EVERY car's read failed authentication on two consecutive

@@ -363,6 +363,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
 
     from .repairs import clear_auth_issues  # noqa: PLC0415
     clear_auth_issues(hass, entry.entry_id)
+    # #1848 — setup went on via volkswagen.de after the main sign-in was
+    # refused. The refusal still needs the user, so it gets the notice and
+    # the reauth prompt a failed setup would have given, here after the
+    # clean-up above, which would otherwise remove the notice again. The
+    # entry stays loaded meanwhile; a completed reauth reloads it.
+    _refusal = getattr(coordinator, "primary_refusal_reason", None)
+    if isinstance(_refusal, str) and _refusal:
+        from .repairs import raise_issue_auth_required  # noqa: PLC0415
+        raise_issue_auth_required(
+            hass, entry.entry_id, _refusal, brand=entry.data.get(CONF_BRAND) or ""
+        )
+        entry.async_start_reauth(hass)
 
     coordinator.async_set_updated_data(dict(coordinator.vehicles))
     entry.runtime_data = coordinator
