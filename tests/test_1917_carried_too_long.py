@@ -261,3 +261,14 @@ def test_a_threshold_that_is_not_a_whole_number_gives_no_verdict(bad):
     attrs = _attrs(_sensor("target_soc", coordinator))
     assert attrs["freshness_source"] == "carried"
     assert "carried_stale" not in attrs
+
+
+def test_a_coordinator_without_the_threshold_method_gives_no_verdict():
+    since = (datetime.now(tz=timezone.utc) - timedelta(hours=80)).isoformat()
+    coordinator = MagicMock(spec=["data"])
+    coordinator.data = {"V": {"target_soc": 80,
+                              "field_carried_since": {"target_soc": since}}}
+    assert not hasattr(coordinator, "_stale_threshold_s")
+    attrs = _attrs(_sensor("target_soc", coordinator))
+    assert attrs["freshness_source"] == "carried"
+    assert "carried_stale" not in attrs
