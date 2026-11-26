@@ -126,6 +126,21 @@ _COMBUSTION_ENGINE_TYPES = ("gasoline", "petrol", "diesel", "cng", "lpg")
 # capability list is known and does not advertise it.
 _BATTERY_HEALTH_CAP: Final = "BATTERY_HEALTH_STATE"
 
+# #2241 — the warning-lights read. In the app (8.19.0) the health screen and
+# card key on VEHICLE_HEALTH_WARNINGS or VEHICLE_HEALTH_WARNINGS_WITH_WAKE_UP
+# and read it when they open, not on a timer; the MySkoda library reads it for
+# a car that lists VEHICLE_HEALTH_INSPECTION, and again only once its last
+# report is older than 6 hours ("avoids triggering battery protection"). A car
+# whose known list has none of the three is not asked. The 6 h are that
+# library's figure; here they count from each attempt, failed ones included,
+# which is stricter than counting from the last report.
+_WARNING_LIGHTS_CAPS: Final = frozenset({
+    "VEHICLE_HEALTH_INSPECTION",
+    "VEHICLE_HEALTH_WARNINGS",
+    "VEHICLE_HEALTH_WARNINGS_WITH_WAKE_UP",
+})
+_WARNING_LIGHTS_EVERY_S: Final = 6 * 3600
+
 
 def _api_key_listing_extras(body: dict[str, Any]) -> dict[str, Any]:
     """Flatten an ``ApiKeysResponseDto`` (MyŠkoda 8.16.0) into derived entries.
@@ -507,6 +522,10 @@ class SkodaClient(CariadBaseClient):
         # the client's lifetime so we stop re-asking a car that never serves it
         # (same cheap-to-relearn memo shape as ``_powertrain`` above).
         self._no_battery_health: set[str] = set()
+        # #2241 — per VIN: (monotonic time of the last warning-lights request,
+        # last payload that came back as a dict or None). In memory only, so
+        # the first poll after a restart asks again.
+        self._warning_lights_seen: dict[str, tuple[float, dict[str, Any] | None]] = {}
 
     def set_official_mode(self, mode: str) -> None:
         """Set the Škoda official-API source mode (CONF_SKODA_OFFICIAL_MODE)."""
@@ -1099,9 +1118,12 @@ class SkodaClient(CariadBaseClient):
         try:
             # We use the parent client's _request with explicit JSON
             # body. The auth Bearer header is injected by base.
+            # ``repeat_on_429=True`` (#2241): this POST only reads, so a 429
+            # keeps the repeats a GET has instead of being raised like a
+            # command.
             resp = await self._request(
                 "POST", url, json=body, headers=headers,
-                timeout=ClientTimeout(total=30),
+                timeout=ClientTimeout(total=30), repeat_on_429=True,
             )
         except Exception as err:  # noqa: BLE001
             # #2077 (@matroeh) — best-effort, but log WHY: a silent empty result
@@ -1502,6 +1524,81 @@ class SkodaClient(CariadBaseClient):
             return None
         return data
 
+    async def get_warning_lights(self, vin: str) -> dict[str, Any] | None:
+        """The warning-lights report, asked at most every 6 hours (#2241).
+
+        ``GET api/v1/vehicle-health-report/warning-lights/{vin}``, the source
+        of ``warning_active``, ``warning_count`` and the per-category flags.
+
+        In @driemeier's log this read answered 429 on all four tries at
+        start-up, and the account lockout that followed refused a flash a
+        minute later. It used to go out on every poll for every car.
+        Now, in line with the app and the MySkoda library (see
+        ``_WARNING_LIGHTS_CAPS``):
+
+        - a car whose capability list is known, not empty and has none of the
+          three ``VEHICLE_HEALTH_*`` ids is not asked; an unknown or empty list
+          still is (an empty one is more likely a list that did not parse);
+        - one request per car per ``_WARNING_LIGHTS_EVERY_S``, counted from
+          each attempt, so a refused read is not asked again on the next poll.
+          The slot is taken before the request, so an overlapping poll of the
+          same car does not ask a second time;
+        - a 429 without ``Retry-After`` is not repeated and does not pause the
+          account (``repeat_on_429=False``). If the whole account were
+          limited, the regular reads of the same poll would get 429 as well
+          and start the pause as before. A 430 or a ``Retry-After`` on this
+          read still start one, as on any other;
+        - between requests, and after one that failed, the last payload that
+          came back is returned, so the warning sensors keep their value.
+          After a restart there is none until the first read succeeds.
+
+        An account lockout that is active, or that comes up while the read is
+        under way, does not count as an attempt: the read is asked again on the
+        first poll after it has ended.
+        """
+        if not hasattr(self, "_warning_lights_seen"):
+            self._warning_lights_seen = {}
+        advertised: set[str] | None = getattr(self, "_capability_ids", {}).get(vin)
+        if advertised and not (advertised & _WARNING_LIGHTS_CAPS):
+            _LOGGER.debug(
+                "Škoda warning-lights: %s advertises none of %s — skipping",
+                vin[-6:], sorted(_WARNING_LIGHTS_CAPS),
+            )
+            return None
+        seen = self._warning_lights_seen.get(vin)
+        payload = seen[1] if seen is not None else None
+        now = time.monotonic()
+        if seen is not None and now - seen[0] < _WARNING_LIGHTS_EVERY_S:
+            return payload
+        if self._rate_lockout_remaining() > 0:
+            return payload
+        self._warning_lights_seen[vin] = (now, payload)
+        try:
+            data = await self._get(
+                f"{_BASE}/api/v1/vehicle-health-report/warning-lights/{vin}",
+                repeat_on_429=False,
+            )
+        except Exception as err:  # noqa: BLE001 — optional read, never sinks the poll
+            if self._rate_lockout_remaining() > 0:
+                # The lockout came up while this read was under way (from
+                # another read, or a 430 / Retry-After on this one): give the
+                # slot back so the read is asked once the lockout has ended.
+                if seen is None:
+                    self._warning_lights_seen.pop(vin, None)
+                else:
+                    self._warning_lights_seen[vin] = seen
+                return payload
+            _LOGGER.debug(
+                "Škoda warning-lights read failed for %s: %s — asked again in 6 h",
+                vin[-6:],
+                f"HTTP {err.status}" if isinstance(err, APIError) else type(err).__name__,
+            )
+            return payload
+        if isinstance(data, dict):
+            payload = data
+            self._warning_lights_seen[vin] = (now, payload)
+        return payload
+
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full status from Škoda API."""
         # v2.12.6 — EU Data Act portal mode (read-only fallback). Route the
@@ -1564,9 +1661,9 @@ class SkodaClient(CariadBaseClient):
             # vehicleHealthWarnings block inside other responses; this
             # is the dedicated source that ships per-category +
             # per-defect data with priorities.
-            self._get(
-                f"{_BASE}/api/v1/vehicle-health-report/warning-lights/{vin}"
-            ),
+            # #2241 — capability-gated, at most every 6 h, sent once on a 429;
+            # see ``get_warning_lights``.
+            self.get_warning_lights(vin),
             # v2.11.0 (myskoda source-verified) - trip statistics
             # endpoint. Lifetime + avg consumption + travel time per
             # myskoda TripStatistics model.

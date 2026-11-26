@@ -11601,8 +11601,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     #: command reaching the car twice. In particular NOT 5xx and NOT the
     #: transient ``APIError(0)``: ``base._request`` already retried those up to
     #: three times, so the POST may have been delivered and only the response
-    #: lost, and 429/430 mean an account-wide lockout where a second channel is
-    #: the last thing that should be touched.
+    #: lost, and a 429 or 430 is the backend limiting this account, where a
+    #: second channel is the last thing that should be touched.
     _SKODA_FALLBACK_STATUSES: frozenset[int] = frozenset({401, 403, 404})
 
     def _skoda_official_command_fallback(
