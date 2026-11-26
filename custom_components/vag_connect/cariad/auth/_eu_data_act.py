@@ -7270,6 +7270,19 @@ class EUDataActConnector:
             or urlparse(landing).netloc != portal_host
         )
         if landed_failed:
+            # #1848 — status first, as at the two steps before. The
+            # classifier below matches short substrings ("2fa", "throttl",
+            # "onboarding") in the URL and the page, so an error page could
+            # pass for a step the user has to take. A 5xx is the portal's own
+            # server error whatever the page says, and not an interaction.
+            if isinstance(status, int) and status >= 500:
+                self.last_login_interaction = ""
+                _LOGGER.warning(
+                    "EU Data Act portal: login did not complete — "
+                    "landing=%s status=%s (server error)",
+                    _safe_url(landing), status,
+                )
+                _raise_if_server_error(status, self._brand_label)
             typed_exc, log_ctx = classify_portal_login_failure(
                 landing, landing_html
             )
@@ -7296,10 +7309,6 @@ class EUDataActConnector:
             # both cases this is the genuine credential failure: raise the
             # credential catch-all so the user is told to check the password
             # ONLY here, where we actually believe it.
-            # #1848: a 5xx with no readable reason is the portal's own server
-            # error, also on its sign-in or error page; a wrong password comes
-            # back as a page, not as a server error.
-            _raise_if_server_error(status, self._brand_label)
             if "signin-service" in landing or "/error" in landing:
                 raise AuthenticationError(
                     "EU Data Act portal: login failed — check email and password"
@@ -7621,7 +7630,7 @@ class EUDataActConnector:
                             or resp.status in outage_statuses
                         ):
                             raise UpstreamUnavailableError(
-                                resp.status, brand=self._state
+                                resp.status, brand=self._brand_label
                             )
                         if resp.status == 401:
                             self._debug_dump_auth_state_on_401(

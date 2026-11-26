@@ -587,3 +587,85 @@ async def test_a_4xx_login_landing_stays_an_interaction(status):
     err = await _login(status)
     assert type(err) is exc.PortalInteractionRequiredError
     assert f"HTTP {status}" in str(err)
+
+
+# ---------------------------------------------------------------------------
+# Fourth review round: status first on the landing, 429, brand label,
+# a failing close, and the int guard.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("status", [None, "503", True, 503.0])
+def test_only_an_int_status_counts_as_a_server_error(status):
+    from custom_components.vag_connect.cariad.auth._eu_data_act import (
+        _raise_if_server_error,
+    )
+    _raise_if_server_error(status, "volkswagen")  # must not raise
+    _raise_if_server_error(MagicMock(), "volkswagen")
+    with pytest.raises(exc.UpstreamUnavailableError):
+        _raise_if_server_error(503, "volkswagen")
+
+
+class _MarkerSession(_Session):
+    """A 503 landing whose page and URL happen to contain classifier markers."""
+
+    def post(self, url: str, **kw: Any) -> _Resp:
+        if "/login/authenticate" in url:
+            return _Resp(
+                "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/"
+                "authenticate?relayState=2fa0throttled",
+                status=503,
+                text="<html><body>2fa onboarding throttled - try later</body></html>",
+            )
+        return super().post(url, **kw)
+
+
+async def test_a_5xx_landing_is_a_server_error_whatever_the_page_says():
+    from custom_components.vag_connect.cariad.auth._eu_data_act import (
+        EUDataActConnector,
+    )
+    conn = EUDataActConnector(_MarkerSession())  # type: ignore[arg-type]
+    conn.last_login_interaction = "stale"
+    with pytest.raises(exc.CariadError) as ei:
+        await conn.login("user@example.com", "secret")
+    assert type(ei.value) is exc.UpstreamUnavailableError
+    assert conn.last_login_interaction == ""
+
+
+def test_a_portal_429_at_setup_gets_the_outage_text():
+    from homeassistant.exceptions import ConfigEntryNotReady
+    with pytest.raises(ConfigEntryNotReady) as ei:
+        _failed_setup_entry(exc.UpstreamUnavailableError(429, brand="volkswagen"))
+    assert "HTTP 429" in str(ei.value)
+    assert "login itself worked" not in str(ei.value)
+
+
+class _DataSession:
+    closed = False
+
+    def __init__(self, status: int) -> None:
+        self._status = status
+
+    def get(self, url: str, **kw: Any) -> _Resp:
+        return _Resp(url, status=self._status, text="{}")
+
+
+async def test_the_portal_data_call_names_the_brand_too():
+    from custom_components.vag_connect.cariad.auth._eu_data_act import (
+        EUDataActConnector,
+    )
+    conn = EUDataActConnector(_DataSession(404))  # type: ignore[arg-type]
+    with pytest.raises(exc.UpstreamUnavailableError) as ei:
+        await conn._get_json("https://eu-data-act.vwgroup-datahub.com/x",
+                             outage_statuses=(404,))
+    assert "for brand volkswagen" in str(ei.value)
+    assert "__" not in str(ei.value)
+
+
+def test_a_failing_close_of_the_armed_channel_keeps_the_refusal():
+    coord = _coord()
+    client = _client(exc.AuthenticationError("login failed"), listed=())
+    client.close_supplementary = AsyncMock(side_effect=RuntimeError("close failed"))
+    with pytest.raises(ValueError, match="^invalid_credentials$"):
+        _run(coord, client)
+    client.close_supplementary.assert_awaited_once()
