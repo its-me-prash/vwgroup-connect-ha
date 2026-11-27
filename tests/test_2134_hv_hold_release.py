@@ -246,7 +246,10 @@ def test_real_datasets_keep_dataset_12_stamp_while_values_stay() -> None:
     assert stamps[0] == "2026-08-18T18:02:45.415000+00:00"
     assert stamps[1] == stamps[0]
     assert stamps[2] == stamps[0]
-    assert stamps[3] == "2026-08-18T18:43:14.337000+00:00"
+    # Dataset 15 carries the HV pair (55 at 18:43:14.337) and the leaf
+    # 506cb83e (55 at 18:43:17 under 72e1ae0b). The newer sample wins, with
+    # its time; the frozen 67 under 7bddd5e7 has no time of its own and loses.
+    assert stamps[3] == "2026-08-18T18:43:17+00:00"
 
 
 def test_never_hv_car_is_untouched() -> None:

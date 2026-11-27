@@ -463,8 +463,8 @@ def merge_channels(
                 captured_ts[f_name] = iso
                 # #2096 — the "borrowed stamp" mark follows its stamp
                 src_inh = getattr(owner_vd, "field_captured_inherited", None)
-                if isinstance(src_inh, dict) and src_inh.get(f_name) is True:
-                    captured_inherited[f_name] = True
+                if isinstance(src_inh, dict) and isinstance(src_inh.get(f_name), bool):
+                    captured_inherited[f_name] = src_inh[f_name]
         # #465 — rebuilt from the surviving owner exactly like the ts above,
         # so a leaf name can never outlive the value it described.
         src_leaf = getattr(owner_vd, "field_source_leaf", None)

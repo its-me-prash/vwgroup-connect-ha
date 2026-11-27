@@ -565,6 +565,17 @@ def _soc_hold_released(
         return None
     held_ts = _as_aware_dt(prev_ts.get("battery_soc"))
     leaf_ts = _as_aware_dt(fresh_ts.get("battery_soc"))
+    # #2096 — a leaf with a capture time of its OWN (paired by key) that is
+    # newer than the held value is the newer sample. A frozen leaf keeps its
+    # old time, so it still loses; a borrowed time is no evidence.
+    if (
+        held_ts is not None and leaf_ts is not None and leaf_ts > held_ts
+        and _soc_ts_is_own(fresh) and _soc_ts_is_own(previous)
+    ):
+        return (
+            f"the leaf has its own capture time {leaf_ts.isoformat()}, after "
+            f"the held value's {held_ts.isoformat()}"
+        )
     odo_ts = (
         None if _odometer_reading_rejected(fresh, previous)
         else _as_aware_dt(fresh_ts.get("odometer_km"))
@@ -578,6 +589,32 @@ def _soc_hold_released(
             "odometer was captured after it"
         )
     return None
+
+
+def _soc_ts_is_own(snapshot: dict[str, Any]) -> bool:
+    """Whether the SoC's recorded capture time is its own, not borrowed (#2096).
+
+    The parser marks an own time with False. A snapshot without the mark (an
+    older version, another channel) gives no evidence, so it returns False.
+    """
+    ts = snapshot.get("field_captured_ts")
+    if not isinstance(ts, dict) or ts.get("battery_soc") is None:
+        return False
+    inherited = snapshot.get("field_captured_inherited")
+    return isinstance(inherited, dict) and inherited.get("battery_soc") is False
+
+
+def _soc_older_than_recorded(fresh: dict[str, Any], previous: dict[str, Any]) -> bool:
+    """Whether the fresh SoC is a sample older than the recorded one (#2096).
+
+    Only own capture times count. The portal sometimes delivers an older
+    snapshot, so a time can step back from one export to the next.
+    """
+    if not (_soc_ts_is_own(fresh) and _soc_ts_is_own(previous)):
+        return False
+    then = _as_aware_dt(previous["field_captured_ts"]["battery_soc"])
+    now = _as_aware_dt(fresh["field_captured_ts"]["battery_soc"])
+    return then is not None and now is not None and now < then
 
 
 _SOC_PROVENANCE_MAPS: tuple[str, ...] = (
@@ -1231,6 +1268,20 @@ def reconcile(
     _prev_from_hv = previous.get("battery_soc_from_hv")
     _released = False
     if (
+        not _fresh_soc_is_live
+        and merged.get("battery_soc") is not None
+        and previous.get("battery_soc") is not None
+        and _soc_older_than_recorded(fresh, previous)
+    ):
+        # #2096 — never replace a sample with an older one.
+        if merged.get("battery_soc") != previous.get("battery_soc"):
+            notes.append(
+                f"battery_soc {merged.get('battery_soc')} is an older sample than "
+                f"the recorded {previous['battery_soc']}; kept the recorded value"
+            )
+        merged["battery_soc"] = previous["battery_soc"]
+        _restore_soc_provenance(merged, previous)
+    elif (
         _prev_from_hv is True
         and _fresh_from_hv is False
         and previous.get("battery_soc") is not None

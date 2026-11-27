@@ -163,8 +163,8 @@ def test_paired_stamps_do_not_depend_on_list_order() -> None:
         seen.add((d.field_captured_ts.get("battery_soc"),
                   d.field_captured_ts.get("odometer_km")))
         # a paired stamp is the value's own: not flagged as borrowed
-        assert "battery_soc" not in d.field_captured_inherited
-        assert "odometer_km" not in d.field_captured_inherited
+        assert d.field_captured_inherited.get("battery_soc") is False
+        assert d.field_captured_inherited.get("odometer_km") is False
     assert len(seen) == 1, f"stamps moved with the list order: {seen}"
     soc_iso, odo_iso = next(iter(seen))
     assert soc_iso is not None and soc_iso.startswith("2026-11-13T06:57:12")
@@ -174,14 +174,14 @@ def test_paired_stamps_do_not_depend_on_list_order() -> None:
 def test_one_key_may_repeat_with_the_same_time() -> None:
     d = _map([*_full(), SOC_STAMP])
     assert d.field_captured_ts["battery_soc"].startswith("2026-11-13T06:57:12")
-    assert "battery_soc" not in d.field_captured_inherited
+    assert d.field_captured_inherited.get("battery_soc") is False
 
 
 def test_only_the_paired_value_gets_its_own_stamp() -> None:
     d = _map([MARKERS[0], SOC_VALUE, SOC_STATE, SOC_STAMP, ODO_VALUE, ODO_STATE,
               *MARKERS[1:]])
     assert d.field_captured_ts["battery_soc"].startswith("2026-11-13T06:57:12")
-    assert "battery_soc" not in d.field_captured_inherited
+    assert d.field_captured_inherited.get("battery_soc") is False
     # no time entry for the odometer: it keeps the stamp it inherited, flagged
     assert d.field_captured_ts["odometer_km"]
     assert d.field_captured_inherited["odometer_km"] is True
@@ -202,7 +202,7 @@ def test_a_point_with_its_own_sibling_stamp_keeps_it() -> None:
               "timestampUtc": "2026-10-03T16:59:46Z"}]
     d = _map(items)
     assert d.field_captured_ts["odometer_km"].startswith("2026-10-03T16:59:46")
-    assert "odometer_km" not in d.field_captured_inherited
+    assert d.field_captured_inherited.get("odometer_km") is False
 
 
 # ── R2: nothing is suppressed; consumers equal the walk without pairing ──────
@@ -372,7 +372,7 @@ def test_an_alias_point_with_its_time_entry_is_shown() -> None:
     point = _p(SOC_UUID, "value", "81")
     d = _map([MARKER_16, point, SOC_STAMP])
     assert d.field_captured_ts["battery_soc"].startswith("2026-11-13T06:57:12")
-    assert "battery_soc" not in d.field_captured_inherited
+    assert d.field_captured_inherited.get("battery_soc") is False
     assert "data_captured_at" in _attrs(_vehicle(d), "battery_soc")
 
 
@@ -401,7 +401,7 @@ def test_the_other_odometer_leaves_with_their_own_stamp_are_shown(leaf: str) -> 
     point = {"dataFieldName": leaf, "value": "5555",
              "timestampUtc": "2026-10-03T16:59:46Z"}
     d = _map([MARKER_16, point])
-    assert "odometer_km" not in d.field_captured_inherited
+    assert d.field_captured_inherited.get("odometer_km") is False
     assert _attrs(_vehicle(d), "odometer_km")["data_captured_at"].startswith(
         "2026-10-03T16:59:46")
 
@@ -541,7 +541,7 @@ def test_one_time_with_two_values_pairs_nothing(
 def test_one_value_repeated_still_pairs() -> None:
     d = _map([*_full(), _p(SOC_UUID, "battery_level_HV.value", "81")])
     assert d.field_captured_ts["battery_soc"].startswith("2026-11-13T06:57:12")
-    assert "battery_soc" not in d.field_captured_inherited
+    assert d.field_captured_inherited.get("battery_soc") is False
 
 
 def test_two_odometer_values_pair_no_odometer() -> None:
