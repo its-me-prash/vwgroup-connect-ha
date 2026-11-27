@@ -190,8 +190,8 @@ _SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({
 # row shows, under any row name (the container-qualified spelling included). So
 # the skip follows the shown value. A row is skipped only when every key it
 # names is one of these two: when another opening point sent the same value, its
-# key stands next to them and the row raises the repair, which is what the line
-# above promises. Until then a plain substring test skipped such a row. A row
+# key stands next to them and the row raises the repair, as the first paragraph
+# above promises. The earlier rule, a plain substring test, skipped it. A row
 # whose annotation cannot be read (cut off by the 80-character mask, or a
 # brand-API finding without one) keeps that substring test. The Scout keeps the
 # first sample of a row until the entry is reloaded or Home Assistant restarts

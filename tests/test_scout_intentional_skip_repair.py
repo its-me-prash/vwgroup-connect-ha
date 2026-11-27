@@ -97,8 +97,12 @@ def test_quoted_single_ownerless_key_is_repair_skipped() -> None:
 def test_a_sample_without_a_readable_annotation_keeps_the_substring_test() -> None:
     """The mask cuts a string at 80 characters, which can cut the annotation;
     then the old substring test still applies."""
-    cut = '"' + "x" * 60 + ' (uuid c0bb1348, dead...'
-    assert _is_scout_repair_skipped(_f("eu_data_act.some_long_field", cut))
+    from custom_components.vag_connect.cariad._unexpected_keys import mask_value
+
+    path = "eu_data_act.some_long_field"
+    cut = mask_value("x" * 60 + " (uuid c0bb1348, deadbeef)", path_hint=path)
+    assert cut.endswith('..."') and "(uuid c0bb1348" in cut  # really cut
+    assert _is_scout_repair_skipped(_f(path, cut))
     assert not _is_scout_repair_skipped(
         _f("eu_data_act.some_long_field", '"' + "x" * 60 + ' (uuid deadbeef, cafe..."')
     )
