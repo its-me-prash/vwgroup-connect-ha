@@ -185,6 +185,14 @@ _SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({
 # value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open
 # PATH) preserves discovery — a genuinely-new opening UUID on the same leaf still
 # raises the repair.
+# #2204 — the annotation names only the keys of the points that sent the value a
+# row shows, under any row name (the container-qualified spelling included). So
+# the skip follows the shown value: a row is skipped when one of the points that
+# sent it has one of these two keys, also when another opening point sent the
+# same value (then that point raises no repair, the gap the line above leaves
+# open); a row whose value came only from other points is not skipped. The
+# Scout keeps the first sample of a row until the entry is reloaded or Home
+# Assistant restarts (coordinator.py, per_vin.setdefault), so that sample decides.
 _SCOUT_REPAIR_SKIP_UUIDS: frozenset[str] = frozenset({"c0bb1348", "d5dc7c87"})
 
 
