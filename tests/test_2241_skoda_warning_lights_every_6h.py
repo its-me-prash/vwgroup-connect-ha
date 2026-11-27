@@ -293,3 +293,39 @@ def test_get_status_skips_it_for_a_car_without_the_capability() -> None:
 
     assert backend.lights == []
     assert d.warning_active is None
+
+
+# ── an unknown count is unknown, not 0 ──────────────────────────────────────
+
+
+def test_get_status_after_a_first_failure_leaves_the_count_unknown() -> None:
+    # 429 on the first read: no payload yet, so warning_active is None and the
+    # count must be None too, not "0 warnings".
+    c, _backend = _client({_PATH: [APIError(429, "https://x", ""), _ENGINE_DEFECT]})
+
+    d = asyncio.run(c.get_status(VIN))
+
+    assert d.warning_active is None
+    assert d.warning_count is None
+
+
+def test_get_status_for_a_car_without_the_capability_leaves_the_count_unknown() -> None:
+    c, _backend = _client({_PATH: _ENGINE_DEFECT})
+    c._capability_ids[VIN] = {"PARKING_POSITION"}
+
+    d = asyncio.run(c.get_status(VIN))
+
+    assert d.warning_count is None
+
+
+def test_get_status_for_a_healthy_car_counts_zero() -> None:
+    healthy = {"warningLights": [
+        {"category": "ENGINE", "defects": []},
+        {"category": "BRAKES", "defects": []},
+    ]}
+    c, _backend = _client({_PATH: healthy})
+
+    d = asyncio.run(c.get_status(VIN))
+
+    assert d.warning_active is False
+    assert d.warning_count == 0

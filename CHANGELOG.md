@@ -104,6 +104,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **An odometer reading the integration throws away no longer releases a held battery level (#2134).** A battery level held from an earlier poll is let go by age when it is at least 24 hours older than the fresh value and the odometer was captured after it. That check ran before the guards that reject an odometer reading which jumps further than the car can have driven (#2054) or is lower than the recorded one, so the capture time of a rejected reading still counted as evidence that the car had been driven. It now counts only when the reading is kept. This applied to the portal's odometer and, since #2249, to the volkswagen.de odometer as well. The release by energy content, the guards themselves and their log notes are unchanged. Found while reviewing #2249. Covered by `tests/test_2134_hv_hold_release.py` and `tests/test_vwde_data_captured_at.py`; not tried on a car.
 
+- **Škoda: the warning count is unknown until the first warning-lights answer, instead of 0 (#2241).** Since the warning-lights read goes out at most every 6 hours and only once on a 429, a car whose first read fails, or which is not asked because its capability list has no vehicle-health entry, has no warning data yet. "Warning active" already said unknown in that case, but the warning count said 0, which reads as "no warnings". It now stays unknown as well, and the sensor appears once the first answer arrives. A healthy car still counts 0, and the other brands are unchanged.
+
+- **A short rate-limit pause no longer cuts a longer one short (#2241).** A request that was already on its way when the server ordered the long pause after HTTP 430 could come back with a 429 and its shorter pause, which replaced the 2-hour one. The longer pause now stands, and the log says that it was kept.
+
 ## [5.6.1] - 2026-11-25 — "New addresses / Neue Adressen"
 
 ### Hinzugefügt / Added

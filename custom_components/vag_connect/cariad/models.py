@@ -503,7 +503,10 @@ class VehicleData:
     # the Cariad-BFF nightly maintenance windows (see #190 for an
     # example backend-hiccup that flipped 17 fields to .error envelope).
     warning_active: bool | None = None
-    warning_count: int = 0
+    # 0 stays the default for the brands that never read warning lights, so
+    # their existing sensor is unchanged; a client that knows the count is
+    # unknown sets None (Škoda before its first warning-lights payload, #2241).
+    warning_count: int | None = 0
     warning_oil: bool | None = None
     warning_engine: bool | None = None
     warning_tyre: bool | None = None
