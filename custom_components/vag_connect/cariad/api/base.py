@@ -1732,8 +1732,22 @@ class CariadBaseClient:
         reporter can paste after a 430 has to say which call tripped it — the
         next question, which endpoint is being rate-limited, otherwise has
         nowhere to start. Masked, because that path can carry the VIN.
+
+        A shorter hold never cuts a longer one short (#2241): a request that
+        was already in flight when a 430 set a long pause can still come back
+        with a 429 and its short hold. The later deadline stands.
         """
-        self._rate_limit_locked_until = time.monotonic() + seconds
+        until = time.monotonic() + seconds
+        held = self._rate_limit_locked_until
+        if held is not None and held >= until:
+            _LOGGER.warning(
+                "Account rate-limit (HTTP %d) on %s from %s while a longer pause"
+                " is active — keeping it, %s left",
+                status, self._brand.name, endpoint,
+                _format_duration(int(held - time.monotonic())),
+            )
+            return
+        self._rate_limit_locked_until = until
         _LOGGER.warning(
             "Account rate-limit lockout (HTTP %d) on %s from %s — pausing all"
             " requests for %s",

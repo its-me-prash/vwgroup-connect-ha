@@ -2715,17 +2715,24 @@ class SkodaClient(CariadBaseClient):
         # when the car is healthy (empty `defects`), so a warning counts
         # only where its own `defects` list is non-empty. See
         # parse_skoda_warning_lights.
-        if isinstance(health_v1, dict):
-            warn = parse_skoda_warning_lights(health_v1.get("warningLights"))
-            if warn:
-                d.warning_active = warn["warning_active"]
-                d.warning_count = warn["warning_count"]
-                d.warning_engine = warn["warning_engine"]
-                d.warning_brakes = warn["warning_brakes"]
-                d.warning_tyre = warn["warning_tyre"]
-                d.warning_oil = warn["warning_oil"]
-                if "warning_messages" in warn:
-                    d.warning_messages = warn["warning_messages"]
+        warn = (
+            parse_skoda_warning_lights(health_v1.get("warningLights"))
+            if isinstance(health_v1, dict) else None
+        )
+        if not warn:
+            # #2241 — no warning-lights payload yet (the first read failed, or
+            # the car is not asked): the count is unknown, like
+            # ``warning_active``, not "0 warnings".
+            d.warning_count = None
+        else:
+            d.warning_active = warn["warning_active"]
+            d.warning_count = warn["warning_count"]
+            d.warning_engine = warn["warning_engine"]
+            d.warning_brakes = warn["warning_brakes"]
+            d.warning_tyre = warn["warning_tyre"]
+            d.warning_oil = warn["warning_oil"]
+            if "warning_messages" in warn:
+                d.warning_messages = warn["warning_messages"]
 
         if isinstance(driving_score, dict):
             # v2.11.0 (myskoda source-verified): the top-level `score`

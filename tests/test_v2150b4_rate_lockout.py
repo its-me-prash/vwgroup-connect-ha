@@ -90,3 +90,27 @@ class TestRequestLockout:
         c, _session, _ = _client_with([_resp(200)])
         asyncio.run(c._request("GET", "https://x/y"))
         assert c._rate_lockout_remaining() == 0
+
+
+class TestShorterHoldKeepsLongerOne:
+    """#2241 — a request already in flight when a 430 set a long pause can
+    still return a 429 with a short hold; the later deadline stands."""
+
+    def test_a_shorter_hold_does_not_cut_a_longer_one(self) -> None:
+        c, _, _ = _client_with([_resp(200)])
+        c._enter_rate_lockout(_LOCKOUT_430_S, 430, "api.example/x")
+        before = c._rate_limit_locked_until
+        c._enter_rate_lockout(60, 429, "api.example/y")
+        assert c._rate_limit_locked_until == before
+
+    def test_a_longer_hold_extends_a_shorter_one(self) -> None:
+        c, _, _ = _client_with([_resp(200)])
+        c._enter_rate_lockout(60, 429, "api.example/x")
+        c._enter_rate_lockout(1800, 430, "api.example/y")
+        assert 1790 < c._rate_lockout_remaining() <= 1800
+
+    def test_an_expired_hold_is_replaced(self) -> None:
+        c, _, _ = _client_with([_resp(200)])
+        c._rate_limit_locked_until = time.monotonic() - 5
+        c._enter_rate_lockout(60, 429, "api.example/x")
+        assert 50 < c._rate_lockout_remaining() <= 60
