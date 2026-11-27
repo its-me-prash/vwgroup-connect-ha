@@ -194,10 +194,12 @@ class TestSensorFreshnessAttributes:
         assert attrs["ambiguous_reading"] is True
 
     def test_absent_for_non_eu_da_sensor(self) -> None:
-        # a vw.de-sourced value is a live read: no freshness attributes at all.
+        # a value from a live channel gets no freshness attributes at all, even
+        # with a stamp beside it. vw.de, whose bodies are the car's last upload,
+        # is the exception: see test_vwde_data_captured_at.py.
         s = self._sensor({
             "vin": "X", "battery_soc": 81,
-            "field_sources": {"battery_soc": "vw_de"},
+            "field_sources": {"battery_soc": "mbb"},
             "field_captured_ts": {"battery_soc": _epoch_or_iso("1000.0")},
         })
         attrs = s.extra_state_attributes or {}

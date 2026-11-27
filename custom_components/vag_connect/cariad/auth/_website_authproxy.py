@@ -368,6 +368,26 @@ def _bump_last_seen(d: VehicleData, raw: Any) -> None:
         d.last_seen_at = raw
 
 
+def _stamp_captured(d: VehicleData, raw: Any, attr: str) -> None:
+    """Record a block's ``carCapturedTimestamp`` as the capture time of *attr*.
+
+    The vw.de bodies are the car's last upload, not a live reading: a parked
+    car answers with the same values and the same stamp on every poll, so the
+    poll time says nothing about how old a value is. ``_bump_last_seen`` keeps
+    only the newest stamp across all blocks for the whole car; this keeps each
+    value's own one in ``field_captured_ts``, which the merge carries for the
+    owning channel and the entity shows as ``data_captured_at``.
+
+    Called right where a mapper sets the value, like ``record_as`` in the
+    portal mapper, so a value another block filled keeps that block's stamp.
+    ISO 8601 in UTC, the form the portal stamps use. An unparseable or missing
+    stamp records nothing.
+    """
+    ts = _parse_captured_ts(raw)
+    if ts is not None:
+        d.field_captured_ts[attr] = ts.astimezone(timezone.utc).isoformat()
+
+
 def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     """Map a ``charging/status`` response onto ``VehicleData``.
 
@@ -385,22 +405,31 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     battery = battery if isinstance(battery, dict) else {}
     charging = charging if isinstance(charging, dict) else {}
     plug = plug if isinstance(plug, dict) else {}
+    # Each block carries its own capture time; the body's is the fallback.
+    body_ts = data.get("carCapturedTimestamp")
+    battery_ts = battery.get("carCapturedTimestamp") or body_ts
+    charging_ts = charging.get("carCapturedTimestamp") or body_ts
+    plug_ts = plug.get("carCapturedTimestamp") or body_ts
 
     soc = _to_int(battery.get("currentSOC_pct"))
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
         d.is_electric = True
+        _stamp_captured(d, battery_ts, "battery_soc")
 
     erange = _to_int(battery.get("cruisingRangeElectric_km"))
     if erange is not None:
         d.electric_range_km = erange
+        _stamp_captured(d, battery_ts, "electric_range_km")
         if d.range_km is None:
             d.range_km = erange
+            _stamp_captured(d, battery_ts, "range_km")
 
     tsoc = _to_int(battery.get("navigationTargetSOC_pct"))
     if tsoc is not None:
         d.target_soc = tsoc
+        _stamp_captured(d, battery_ts, "target_soc")
 
     btemp = _kelvin_to_celsius(battery.get("temperatureHvBattery_K"))
     if btemp is not None:
@@ -426,6 +455,7 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     if isinstance(state, str) and state:
         d.charging_state = state
         d.is_charging = state.lower() in ("charging", "chargepurposereachedandconservation")
+        _stamp_captured(d, charging_ts, "charging_state")
 
     power = _to_float(charging.get("chargePower_kW"))
     if power is not None:
@@ -453,6 +483,7 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     if isinstance(plug_state, str) and plug_state:
         d.plug_state = plug_state
         d.plug_connected = plug_state.lower() == "connected"
+        _stamp_captured(d, plug_ts, "plug_state")
 
     lock_state = plug.get("plugLockState")
     if isinstance(lock_state, str) and lock_state:
@@ -577,18 +608,23 @@ def map_fuel_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     for _engine_id, props in blocks:
         etype = (props.get("engineType") or "").strip().lower()
         rng = _to_int_str(props.get("remainingRange_km"))
+        ts = props.get("carCapturedTimestamp")
         if etype == "electric":
             soc = _to_int_str(props.get("currentSOC_pct"))
             if soc is not None and 0 <= soc <= 100 and d.battery_soc is None:
                 d.battery_soc = soc
+                _stamp_captured(d, ts, "battery_soc")
             if rng is not None and d.electric_range_km is None:
                 d.electric_range_km = rng
+                _stamp_captured(d, ts, "electric_range_km")
         elif etype in _COMBUSTION:
             lvl = _to_int_str(props.get("currentFuelLevel_pct"))
             if lvl is not None and 0 <= lvl <= 100 and d.fuel_level is None:
                 d.fuel_level = lvl
+                _stamp_captured(d, ts, "fuel_level")
             if rng is not None and d.combustion_range_km is None:
                 d.combustion_range_km = rng
+                _stamp_captured(d, ts, "combustion_range_km")
             oil = _to_float_str(props.get("currentOilLevel_pct"))
             if oil is not None and 0 <= oil <= 100 and d.oil_level_pct is None:
                 d.oil_level_pct = int(round(oil))
@@ -618,10 +654,13 @@ def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData
             node = status
     else:
         node = data
+    ts = node.get("carCapturedTimestamp") or data.get("carCapturedTimestamp")
 
     odo = _to_int(node.get("mileage_km"))
     if odo is not None:
         d.odometer_km = drop_odometer_sentinel(odo)
+        if d.odometer_km is not None:
+            _stamp_captured(d, ts, "odometer_km")
 
     insp_km = _to_int(node.get("inspectionDue_km"))
     if insp_km is not None:
@@ -640,7 +679,6 @@ def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData
     # b1 — capture the freshness anchor the real authproxy maintenance body
     # carries (verified live on a Golf GTE: data.carCapturedTimestamp). Feeds
     # the per-poll channel-merge freshness + a future data-age sensor.
-    ts = node.get("carCapturedTimestamp") or data.get("carCapturedTimestamp")
     if isinstance(ts, str) and ts:
         d.maintenance_report_captured_at = ts
 
