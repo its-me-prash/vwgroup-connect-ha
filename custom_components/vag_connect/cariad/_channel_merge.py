@@ -440,10 +440,11 @@ def merge_channels(
     # from scratch each merge exactly like field_sources. For every field, take
     # the entry from the SAME source that OWNS it in ``field_sources`` (computed
     # above, AFTER live-supersede / position / last_seen overrides), so the
-    # timestamp always belongs to the value that actually survived. EU-DA is the
-    # only channel that populates these, so only EU-DA-sourced fields get an
-    # entry; when a live channel supersedes an EU-DA field the ts is correctly
-    # dropped (its owner no longer carries one).
+    # timestamp always belongs to the value that actually survived. EU-DA, a
+    # held push source and the vw.de status mappers record capture times (the
+    # ambiguity notes and leaf names come from EU-DA only); when a live channel
+    # supersedes an EU-DA field, the EU-DA ts goes with it and the field keeps
+    # the live channel's own stamp if that channel recorded one.
     name_to_vd: dict[str, VehicleData] = {}
     for nm, vd in sources:
         name_to_vd.setdefault(nm, vd)

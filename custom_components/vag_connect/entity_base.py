@@ -392,19 +392,32 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         than copied per platform. The gate does the limiting by itself: a
         description without a ``data_key``, or a value from any other channel,
         gets nothing. That is why no platform had to be touched to gain it.
+
+        The volkswagen.de channel is the exception to "every other channel is a
+        live read". Its status bodies are the car's last upload: a parked car
+        answers every poll with the same values and the same
+        ``carCapturedTimestamp``, so a battery level read a minute ago can have
+        been measured hours earlier. Its mappers record that stamp per value
+        (``_stamp_captured``), and such a value shows ``data_captured_at`` and
+        ``freshness_source: point`` like a portal value. A vw.de value without
+        a stamp gets nothing, as before: it has no "dataset" to fall back to.
         """
         desc = getattr(self, "entity_description", None)
         data_key = (getattr(desc, "data_key", "") if desc is not None else "") or ""
         from .cariad._channel_merge import is_held_source  # noqa: PLC0415
 
         source = self._field_source
+        stamped_live = source == "website_authproxy"
         if not data_key or (
             source != "eu_data_act" and not is_held_source(source)
+            and not stamped_live
         ):
             return {}
         attrs: dict[str, Any] = {}
         captured = self._vehicle.get("field_captured_ts")
         iso = captured.get(data_key) if isinstance(captured, dict) else None
+        if stamped_live and not (isinstance(iso, str) and iso):
+            return {}
         # #2096 — a stamp borrowed from a neighbouring capture entry of the export
         # moves with the list order: it stays in the snapshot for the readers that
         # compare ages, but is not shown as THIS value's capture time.

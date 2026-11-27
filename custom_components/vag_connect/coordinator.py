@@ -496,13 +496,18 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
             # ``last_seen_at`` of ~16.3 h from a live channel, so the verdict
             # dated the whole merged vehicle at 82 h.
             #
-            # Why the map is always the batch clock: ``field_captured_ts`` is
-            # WRITTEN in exactly one module, the EU Data Act mapper, and it
-            # records a stamp only for the values that module asks to record
+            # Why the map is mostly the batch clock: ``field_captured_ts`` is
+            # written by the EU Data Act mapper for the values it asks to record
             # (battery level, odometer, range, target charge level, charging
             # and plug state, fuel level, closures and a few more). The climate
             # state and reason are stamped too (#1881) but are left out of the
-            # age verdict above. ``last_seen_at`` is written by eight channels. So a stamp
+            # age verdict above. The vw.de status mappers stamp their values
+            # with the body's ``carCapturedTimestamp`` as well. While that live
+            # channel contributes, the branch below compares those stamps with
+            # the live clock like the others. A value carried forward after it
+            # stopped answering keeps its stamp, which is the car's own capture
+            # time and so never makes the car look fresher than it is.
+            # ``last_seen_at`` is written by eight channels. So a stamp
             # from the map may only override ``last_seen_at`` when that clock is
             # itself batch; where a live channel contributed, the fresher of the
             # two wins. The original portal-only case is untouched, because

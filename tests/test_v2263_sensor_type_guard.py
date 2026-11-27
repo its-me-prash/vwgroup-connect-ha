@@ -34,10 +34,7 @@ def _sensor(desc: VagSensorDescription, raw_value: object) -> VagConnectSensor:
     coord = MagicMock()
     coord.data = {_VIN: {desc.data_key: raw_value}}
     coord.vehicles = coord.data
-    ent = VagConnectSensor(coord, _VIN, desc)
-    # _vehicle is what native_value reads.
-    type(ent)._vehicle = property(lambda self: coord.data[_VIN])  # type: ignore[assignment]
-    return ent
+    return VagConnectSensor(coord, _VIN, desc)
 
 
 _NUMERIC = VagSensorDescription(

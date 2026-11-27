@@ -2083,11 +2083,11 @@ class VehicleData:
     # five days older than every data point beside it, so it is no age at all;
     # 15 minutes is the portal's publish cadence and a different quantity), so
     # an EU-DA sensor can answer "when was THIS number actually measured"
-    # instead of only "when did we last poll". Only populated for EU-DA-sourced
-    # fields; the channel
-    # merge carries it from the owning source and drops it when a live channel
-    # supersedes the EU-DA value. Never merged generically (see _channel_merge
-    # ``_SKIP_FIELDS``).
+    # instead of only "when did we last poll". Populated for EU-DA-sourced
+    # fields and, from the body's ``carCapturedTimestamp``, for the vw.de status
+    # values (``_stamp_captured``); the channel merge carries it from the owning
+    # source, so an EU-DA stamp goes when a live channel supersedes the value.
+    # Never merged generically (see _channel_merge ``_SKIP_FIELDS``).
     field_captured_ts: dict[str, str] = field(default_factory=dict)
     # #2096 — attributes whose stamp in ``field_captured_ts`` was BORROWED from a
     # neighbouring capture entry of the export (order-dependent) rather than being
