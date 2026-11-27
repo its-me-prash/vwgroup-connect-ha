@@ -521,27 +521,87 @@ def _soc_hold_released(
     return None
 
 
-def _restore_soc_provenance(
-    merged: dict[str, Any], previous: dict[str, Any]
+_SOC_PROVENANCE_MAPS: tuple[str, ...] = (
+    "field_captured_ts", "field_source_leaf", "field_captured_inherited",
+)
+
+
+def _restore_provenance(
+    merged: dict[str, Any],
+    previous: dict[str, Any],
+    field: str,
+    maps: tuple[str, ...] = _SOC_PROVENANCE_MAPS,
 ) -> None:
-    """Give a held / carried ``battery_soc`` its own capture time and leaf (#2134).
+    """Give a recorded value kept in place of a fresh one its own entries in
+    *maps*: by default its capture time, leaf and borrowed-time mark (#2134 for
+    ``battery_soc``).
 
     ``merged`` starts as a shallow copy of ``fresh``, so its nested maps are
     copied before writing. A recorded value without a stamp must not wear the
-    fresh leaf's stamp, so that one is dropped.
+    fresh reading's stamp, so that one is dropped.
     """
-    for key in ("field_captured_ts", "field_source_leaf", "field_captured_inherited"):
+    for key in maps:
         mine = merged.get(key)
         if not isinstance(mine, dict):
             mine = {}
         mine = dict(mine)
         theirs = previous.get(key)
-        if isinstance(theirs, dict) and "battery_soc" in theirs:
-            mine["battery_soc"] = theirs["battery_soc"]
+        if isinstance(theirs, dict) and field in theirs:
+            mine[field] = theirs[field]
         else:
-            mine.pop("battery_soc", None)
+            mine.pop(field, None)
         if mine or key in merged:
             merged[key] = mine
+
+
+def _restore_soc_provenance(
+    merged: dict[str, Any], previous: dict[str, Any]
+) -> None:
+    """Give a held / carried ``battery_soc`` its own capture time and leaf (#2134)."""
+    _restore_provenance(merged, previous, "battery_soc")
+
+
+def _keep_recorded_provenance(
+    merged: dict[str, Any], previous: dict[str, Any], field: str
+) -> None:
+    """A recorded value kept in place of a rejected reading (the #2054 odometer
+    jump guard, the monotonic guard) gets back everything that describes it.
+
+    Its capture time, leaf, borrowed-time mark and ambiguity note come from the
+    recorded snapshot; whatever the rejected reading brought is dropped, and an
+    entry the recorded value never had stays empty. Its owner comes back too,
+    but only when the recorded snapshot names one and that channel answered in
+    this poll (it is in ``source_channel``): the connectivity status counts the
+    owners as this poll's contributors (coordinator ``_compute_channel_status``),
+    so a channel that delivered nothing must not own a field. Otherwise, and
+    for a cache without owners, the fresh owner stays rather than leaving a
+    value with none. A value the one-time export filled in (#1780) keeps that
+    mark, which the import branch dropped on the assumption that the fresh
+    reading would win. Found reviewing #2249, where a kept odometer showed the
+    capture time of the reading it rejected.
+    """
+    _restore_provenance(
+        merged, previous, field, _SOC_PROVENANCE_MAPS + ("ambiguous_fields",)
+    )
+    owners = previous.get("field_sources")
+    channel = merged.get("source_channel")
+    answered = set(channel.split("+")) if isinstance(channel, str) else set()
+    if (
+        isinstance(owners, dict)
+        and field in owners
+        and owners[field] in answered
+    ):
+        mine = merged.get("field_sources")
+        mine = dict(mine) if isinstance(mine, dict) else {}
+        mine[field] = owners[field]
+        merged["field_sources"] = mine
+    marked = previous.get("field_imported_from_export")
+    if isinstance(marked, list) and field in marked:
+        kept = merged.get("field_imported_from_export")
+        kept = list(kept) if isinstance(kept, list) else []
+        if field not in kept:
+            kept.append(field)
+        merged["field_imported_from_export"] = kept
 
 
 def _energy_reading_moved(fresh: dict[str, Any], previous: dict[str, Any]) -> bool:
@@ -1375,6 +1435,9 @@ def reconcile(
                     f"{_elapsed_days:.3f} d, ceiling {_ceiling:.0f}); kept {_odo_old} (#2054)"
                 )
                 merged["odometer_km"] = _odo_old
+                # The kept value keeps its own provenance, not that of the
+                # reading just rejected (see _keep_recorded_provenance).
+                _keep_recorded_provenance(merged, previous, "odometer_km")
         elif _jump > _ODOMETER_ABS_JUMP_KM:
             notes.append(
                 f"odometer_km jumped {_odo_old}->{_odo_new} (+{_jump:.0f} km, no usable "
@@ -1382,6 +1445,7 @@ def reconcile(
                 f"kept {_odo_old} (#2054)"
             )
             merged["odometer_km"] = _odo_old
+            _keep_recorded_provenance(merged, previous, "odometer_km")
 
     for field in MONOTONIC_INCREASING_FIELDS:
         new = merged.get(field)
@@ -1395,6 +1459,7 @@ def reconcile(
         ):
             notes.append(f"{field} went backwards {old}->{new}; kept {old}")
             merged[field] = old
+            _keep_recorded_provenance(merged, previous, field)
 
     # #465 (shaarkys) — last_seen_at is the car's OWN data-capture time; it only
     # moves forward. On the EU Data Act portal that timestamp arrives contested (a
