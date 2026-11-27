@@ -30,6 +30,7 @@ from custom_components.vag_connect.cariad.auth._website_authproxy import (
 )
 from custom_components.vag_connect.cariad.exceptions import AuthenticationError
 from custom_components.vag_connect.cariad.models import VehicleData
+from custom_components.vag_connect.cariad.vehicle_cache import reconcile
 
 VIN = "WVWZZZAUZFW000000"
 
@@ -227,6 +228,46 @@ class TestMerge:
         assert merged.battery_soc == 57
         assert merged.field_sources["battery_soc"] == "website_authproxy"
         assert merged.field_captured_ts["battery_soc"] == FUEL_ISO
+
+
+class TestHeldBatteryLevel:
+    """#2134 releases a held portal battery level by age only when the car
+    reported an odometer captured after it. A vw.de odometer now has its own
+    capture time, so on a car whose battery level comes from the portal and
+    whose odometer comes from volkswagen.de, the age check can release it too.
+    """
+
+    HELD_TS = "2026-09-28T07:00:00+00:00"
+    LEAF_TS = "2026-09-30T06:00:00+00:00"
+
+    def _prev(self) -> dict[str, Any]:
+        return {
+            "battery_soc": 55,
+            "battery_soc_from_hv": True,
+            "field_captured_ts": {"battery_soc": self.HELD_TS},
+            "field_sources": {"battery_soc": "eu_data_act"},
+        }
+
+    def _fresh(self, maintenance: dict[str, Any]) -> dict[str, Any]:
+        portal = VehicleData(vin=VIN)
+        portal.battery_soc = 74
+        portal.battery_soc_from_hv = False
+        portal.field_captured_ts = {"battery_soc": self.LEAF_TS}
+        web = map_maintenance_to_vehicle_data(maintenance, VehicleData(vin=VIN))
+        merged = merge_channels([("eu_data_act", portal), ("website_authproxy", web)])
+        return merged.to_dict()
+
+    def test_an_odometer_captured_after_the_held_value_releases_it(self) -> None:
+        merged, notes = reconcile(self._prev(), self._fresh(MAINTENANCE))
+        assert merged["field_sources"]["odometer_km"] == "website_authproxy"
+        assert merged["battery_soc"] == 74
+        assert any("odometer was captured after it" in n for n in notes)
+
+    def test_an_odometer_captured_before_the_held_value_keeps_it(self) -> None:
+        older = {"data": {**MAINTENANCE["data"], "carCapturedTimestamp": "2026-09-27T18:00:00Z"}}
+        merged, notes = reconcile(self._prev(), self._fresh(older))
+        assert merged["battery_soc"] == 55
+        assert any("held recorded 55" in n for n in notes)
 
 
 class TestSensorAttributes:
