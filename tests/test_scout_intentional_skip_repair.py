@@ -113,3 +113,11 @@ def test_the_real_coordinator_sample_of_a_mixed_row_raises_the_repair() -> None:
     assert not _is_scout_repair_skipped(_f(path, mask_value(row, path_hint=path)))
     row_known = "false (uuid c0bb1348)"
     assert _is_scout_repair_skipped(_f(path, mask_value(row_known, path_hint=path)))
+
+
+def test_only_the_annotation_at_the_end_counts() -> None:
+    """A value that itself contains text shaped like an annotation must not
+    decide; the annotation the parser adds is always the last part."""
+    assert not _is_scout_repair_skipped(
+        _f("eu_data_act.some_new_field", '"(uuid c0bb1348) (uuid deadbeef)"')
+    )
