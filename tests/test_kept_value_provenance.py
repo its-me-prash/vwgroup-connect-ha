@@ -43,7 +43,8 @@ def test_jump_over_the_ceiling_keeps_the_recorded_time() -> None:
     fresh = _snap(100663, _T_NEW, "mileage_km", seen=_T_NEW, inherited=True)
     merged, notes = reconcile(prev, fresh)
     assert merged["odometer_km"] == 26374
-    assert any("#2054" in n for n in notes)
+    # the capture-time branch of #2054, not the absolute ceiling
+    assert any("#2054" in n and " d, ceiling" in n for n in notes)
     assert merged["field_captured_ts"]["odometer_km"] == _T_OLD
     assert merged["field_source_leaf"]["odometer_km"] == "mileage.value"
     assert merged["field_captured_inherited"]["odometer_km"] is False
@@ -121,3 +122,52 @@ def test_the_inputs_are_not_modified() -> None:
     reconcile(prev, fresh)
     assert prev == prev_copy
     assert fresh == fresh_copy
+
+
+def test_ambiguity_note_of_the_rejected_reading_is_dropped() -> None:
+    prev = _snap(26374, _T_OLD, "mileage.value", seen=_T_OLD)
+    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW,
+                  ambiguous_fields={"odometer_km": "2 candidates disagree: 26000 vs 26010"})
+    merged, _ = reconcile(prev, fresh)
+    assert merged["odometer_km"] == 26374
+    assert "odometer_km" not in (merged.get("ambiguous_fields") or {})
+
+
+def test_ambiguity_note_of_the_recorded_value_comes_back() -> None:
+    note = "2 candidates disagree: 26374 vs 26380"
+    prev = _snap(26374, _T_OLD, "mileage.value", seen=_T_OLD,
+                 ambiguous_fields={"odometer_km": note})
+    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW)
+    merged, _ = reconcile(prev, fresh)
+    assert merged["ambiguous_fields"]["odometer_km"] == note
+
+
+def test_owner_of_the_recorded_value_comes_back() -> None:
+    prev = _snap(26374, None, "odometer", seen=_T_OLD)
+    prev["field_sources"] = {"odometer_km": "website_authproxy"}
+    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW)
+    merged, _ = reconcile(prev, fresh)
+    assert merged["odometer_km"] == 26374
+    assert merged["field_sources"]["odometer_km"] == "website_authproxy"
+    assert merged["field_source_leaf"]["odometer_km"] == "odometer"
+    assert "odometer_km" not in (merged.get("field_captured_ts") or {})
+
+
+def test_a_cache_without_an_owner_keeps_the_fresh_owner() -> None:
+    prev = _snap(26374, _T_OLD, "mileage.value", seen=_T_OLD)
+    del prev["field_sources"]
+    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW)
+    merged, _ = reconcile(prev, fresh)
+    assert merged["field_sources"]["odometer_km"] == "eu_data_act"
+
+
+def test_value_from_the_one_time_export_keeps_its_mark() -> None:
+    """#1780: the import branch drops the mark because the fresh reading
+    should win; when the guard rejects that reading the mark comes back."""
+    prev = _snap(26374, _T_OLD, "mileage.value", seen=_T_OLD,
+                 field_imported_from_export=["odometer_km"])
+    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW)
+    merged, _ = reconcile(prev, fresh)
+    assert merged["odometer_km"] == 26374
+    assert "odometer_km" in merged["field_imported_from_export"]
+    assert merged["field_captured_ts"]["odometer_km"] == _T_OLD
