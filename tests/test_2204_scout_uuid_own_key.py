@@ -186,14 +186,16 @@ def test_only_the_key_of_the_point_whose_value_won_is_named() -> None:
 
 
 def test_majority_value_names_only_the_points_that_sent_it() -> None:
-    """#1088: 60 twice beats 71 once; the 71 point's key stays out."""
+    """#1088: 60 twice beats 71 once; the 71 point's key stays out. The 71 comes
+    last, so it is the pick before the majority pass and 60 only after it: keys
+    taken before that pass would name the 71 point."""
     third = "cafebabe-0000-4000-8000-000000000000"
     field_uuids: dict[str, set[str]] = {}
     fields = _walk_fields(
         _dataset(
             {"dataFieldName": "some_new_field.reading", "value": "60", "key": _OWN},
-            {"dataFieldName": "some_new_field.reading", "value": "71", "key": _OTHER},
             {"dataFieldName": "some_new_field.reading", "value": "60", "key": third},
+            {"dataFieldName": "some_new_field.reading", "value": "71", "key": _OTHER},
         ),
         {}, {}, {}, field_uuids,
     )
