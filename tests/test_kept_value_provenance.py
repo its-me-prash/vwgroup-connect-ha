@@ -1,12 +1,13 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """A value that reconcile keeps in place of a rejected reading keeps its own
-capture time.
+provenance.
 
 When the odometer jumps too far (#2054) or a monotonic field goes backwards,
 reconcile keeps the recorded value. Until now it left the capture time, the
-source leaf and the borrowed-time mark of the rejected reading in place, so the
-kept value showed a newer capture time than its own. That happened with the
+source leaf, the borrowed-time mark, the ambiguity note and the owner of the
+rejected reading in place, and it dropped the one-time-export mark (#1780), so
+the kept value showed a newer capture time than its own. That happened with the
 portal's odometer, which carries a capture time, and would have happened with
 volkswagen.de once its values carry one (found reviewing #2249).
 """
@@ -116,8 +117,14 @@ def test_charged_energy_that_went_backwards_keeps_its_recorded_time() -> None:
 
 
 def test_the_inputs_are_not_modified() -> None:
-    prev = _snap(26374, _T_OLD, "mileage.value", seen=_T_OLD, inherited=False)
-    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW, inherited=True)
+    prev = _snap(26374, _T_OLD, "mileage.value", seen=_T_OLD, inherited=False,
+                 ambiguous_fields={"odometer_km": "2 candidates disagree: a vs b"},
+                 field_imported_from_export=["odometer_km"],
+                 source_channel="website_authproxy")
+    prev["field_sources"] = {"odometer_km": "website_authproxy"}
+    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW, inherited=True,
+                  ambiguous_fields={"odometer_km": "2 candidates disagree: c vs d"},
+                  source_channel="eu_data_act+website_authproxy")
     prev_copy, fresh_copy = copy.deepcopy(prev), copy.deepcopy(fresh)
     reconcile(prev, fresh)
     assert prev == prev_copy
@@ -143,9 +150,11 @@ def test_ambiguity_note_of_the_recorded_value_comes_back() -> None:
 
 
 def test_owner_of_the_recorded_value_comes_back() -> None:
+    """Both channels answered this poll, so the recorded owner may stand."""
     prev = _snap(26374, None, "odometer", seen=_T_OLD)
     prev["field_sources"] = {"odometer_km": "website_authproxy"}
-    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW)
+    fresh = _snap(26000, _T_NEW, "mileage_km", seen=_T_NEW,
+                  source_channel="eu_data_act+website_authproxy")
     merged, _ = reconcile(prev, fresh)
     assert merged["odometer_km"] == 26374
     assert merged["field_sources"]["odometer_km"] == "website_authproxy"
@@ -170,4 +179,18 @@ def test_value_from_the_one_time_export_keeps_its_mark() -> None:
     merged, _ = reconcile(prev, fresh)
     assert merged["odometer_km"] == 26374
     assert "odometer_km" in merged["field_imported_from_export"]
+    assert merged["field_captured_ts"]["odometer_km"] == _T_OLD
+
+
+def test_owner_that_did_not_answer_this_poll_does_not_come_back() -> None:
+    """The connectivity status counts owners as this poll's contributors; a
+    channel that delivered nothing must not appear as the owner of a field."""
+    prev = _snap(26374, _T_OLD, "mileage.value", seen=_T_OLD)
+    fresh = _snap(26000, _T_NEW, "odometer", seen=_T_NEW,
+                  source_channel="website_authproxy")
+    fresh["field_sources"] = {"odometer_km": "website_authproxy"}
+    merged, _ = reconcile(prev, fresh)
+    assert merged["odometer_km"] == 26374
+    assert merged["field_sources"]["odometer_km"] == "website_authproxy"
+    # the kept value still shows its own capture time
     assert merged["field_captured_ts"]["odometer_km"] == _T_OLD

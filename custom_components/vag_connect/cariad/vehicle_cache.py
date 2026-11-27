@@ -570,17 +570,27 @@ def _keep_recorded_provenance(
     Its capture time, leaf, borrowed-time mark and ambiguity note come from the
     recorded snapshot; whatever the rejected reading brought is dropped, and an
     entry the recorded value never had stays empty. Its owner comes back too,
-    but only when the recorded snapshot names one: a cache without owners keeps
-    the fresh one rather than leaving a value with none. A value the one-time
-    export filled in (#1780) keeps that mark, which the import branch dropped
-    on the assumption that the fresh reading would win. Found reviewing #2249,
-    where a kept odometer showed the capture time of the reading it rejected.
+    but only when the recorded snapshot names one and that channel answered in
+    this poll (it is in ``source_channel``): the connectivity status counts the
+    owners as this poll's contributors (coordinator ``_compute_channel_status``),
+    so a channel that delivered nothing must not own a field. Otherwise, and
+    for a cache without owners, the fresh owner stays rather than leaving a
+    value with none. A value the one-time export filled in (#1780) keeps that
+    mark, which the import branch dropped on the assumption that the fresh
+    reading would win. Found reviewing #2249, where a kept odometer showed the
+    capture time of the reading it rejected.
     """
     _restore_provenance(
         merged, previous, field, _SOC_PROVENANCE_MAPS + ("ambiguous_fields",)
     )
     owners = previous.get("field_sources")
-    if isinstance(owners, dict) and field in owners:
+    channel = merged.get("source_channel")
+    answered = set(channel.split("+")) if isinstance(channel, str) else set()
+    if (
+        isinstance(owners, dict)
+        and field in owners
+        and owners[field] in answered
+    ):
         mine = merged.get("field_sources")
         mine = dict(mine) if isinstance(mine, dict) else {}
         mine[field] = owners[field]
