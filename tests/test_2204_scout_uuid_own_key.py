@@ -32,7 +32,8 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
 )
 from custom_components.vag_connect.cariad.models import VehicleData
 
-# Real dictionary keys, as they appear in the CUPRA Born export on #2096.
+# Real dictionary keys; the first three as they appear in the CUPRA Born export
+# on #2096.
 _RANGE = "0ca40e18-0564-3eda-bcc0-7aee9ef44f04"  # "value", the primary range
 _STATE_A = "0718582b-7259-3c9a-818a-ea848a7365a8"  # a point named "state"
 _OPEN = "c0bb1348-5d0d-3140-9a51-06881db06490"  # ownerless "open"
@@ -163,19 +164,26 @@ def test_point_without_a_usable_value_adds_no_key() -> None:
     assert field_uuids == {"some_new_field.reading": {_OWN}}
 
 
-def test_rejected_point_never_counts_even_when_its_text_matches() -> None:
-    """A point with no value is dropped before its key is recorded. Recorded
-    first, it would land under the text "None" and be named next to a point
-    that really sent the string "None"."""
+@pytest.mark.parametrize(("rejected", "as_text"), [
+    (None, "None"),
+    ({"a": 1}, "{'a': 1}"),
+])
+def test_rejected_point_never_counts_even_when_its_text_matches(
+    rejected: object, as_text: str,
+) -> None:
+    """A point whose value ``add`` rejects (none, or not a scalar) is dropped
+    before its key is recorded. Recorded first, it would land under its text
+    and be named next to a point that really sent that string."""
     field_uuids: dict[str, set[str]] = {}
     fields = _walk_fields(
         _dataset(
-            {"dataFieldName": "some_new_field.reading", "value": "None", "key": _OWN},
-            {"dataFieldName": "some_new_field.reading", "value": None, "key": _OTHER},
+            {"dataFieldName": "some_new_field.reading", "value": as_text, "key": _OWN},
+            {"dataFieldName": "some_new_field.reading", "value": rejected,
+             "key": _OTHER},
         ),
         {}, {}, {}, field_uuids,
     )
-    assert fields["some_new_field.reading"] == "None"
+    assert fields["some_new_field.reading"] == as_text
     assert field_uuids == {"some_new_field.reading": {_OWN}}
 
 
@@ -307,6 +315,7 @@ def test_open_row_whose_value_came_from_another_key_raises_the_repair(
     assert not _is_scout_repair_skipped(_scout_finding("open", row))
 
 
+@pytest.mark.ha_required
 def test_raw_api_fields_sensor_keeps_its_rows_out_of_the_recorder() -> None:
     """The live attribute stays; only its history is not written. Exactly
     ``fields`` is added, and only on this sensor."""
@@ -322,16 +331,24 @@ def test_raw_api_fields_sensor_keeps_its_rows_out_of_the_recorder() -> None:
     assert getattr(VagRawApiFieldsSensor, attr) == base | {"fields"}
 
 
+@pytest.mark.ha_required
 def test_setup_builds_the_raw_api_fields_sensor_with_that_class() -> None:
+    """Only the raw API fields sensor gets the class; a regular sensor built in
+    the same setup keeps the plain one."""
     import asyncio
     from unittest.mock import MagicMock
 
     from custom_components.vag_connect.sensor import (
+        VagConnectSensor,
         VagRawApiFieldsSensor,
         async_setup_entry,
     )
 
-    vehicle = {"vin": "X", "raw_unmapped_fields": {"some_new_field": "42"}}
+    vehicle = {
+        "vin": "X", "has_battery": True, "has_combustion": False,
+        "battery_soc": 55,
+        "raw_unmapped_fields": {"some_new_field": "42"},
+    }
     coord = MagicMock()
     coord.vehicles = {"X": vehicle}
     coord.data = coord.vehicles
@@ -350,3 +367,7 @@ def test_setup_builds_the_raw_api_fields_sensor_with_that_class() -> None:
     assert len(raw) == 1
     assert isinstance(raw[0], VagRawApiFieldsSensor)
     assert raw[0].extra_state_attributes == {"fields": {"some_new_field": "42"}}
+    soc = [e for e in added if e.entity_description.key == "battery_soc"]
+    assert len(soc) == 1 and type(soc[0]) is VagConnectSensor
+    others = [e for e in added if e.entity_description.key != "raw_api_fields"]
+    assert not any(isinstance(e, VagRawApiFieldsSensor) for e in others)
