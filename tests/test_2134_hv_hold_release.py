@@ -254,3 +254,76 @@ def test_never_hv_car_is_untouched() -> None:
     merged, notes = reconcile(prev, _fresh(70))
     assert merged["battery_soc"] == 70
     assert not any("#2134" in n for n in notes)
+
+
+# ── a rejected odometer reading is no evidence ───────────────────────────────
+# The release runs before the #2054 jump guard and the monotonic guard further
+# down in ``reconcile``. The capture time of a reading those guards throw away
+# must not release the held value; before the fix it did.
+def _with_odo(snap: dict, km: float, seen: str | None) -> dict:
+    out = dict(snap)
+    out["odometer_km"] = km
+    if seen is not None:
+        out["last_seen_at"] = seen
+    return out
+
+
+def _prev_odo(km: float = 10_000, seen: str | None = _HELD_TS) -> dict:
+    return _with_odo(_prev(), km, seen)
+
+
+def _fresh_odo(km: float, seen: str | None = _LEAF_TS, **kw: object) -> dict:
+    return _with_odo(_fresh(74, **kw), km, seen)  # type: ignore[arg-type]
+
+
+def test_plausible_newer_reading_still_releases() -> None:
+    merged, notes = reconcile(_prev_odo(), _fresh_odo(10_400))
+    assert merged["battery_soc"] == 74
+    assert merged["odometer_km"] == 10_400
+    assert any("#2134" in n for n in notes)
+
+
+def test_odometer_jump_over_the_ceiling_does_not_release() -> None:
+    # eight days allow 800 + 8 x 1500 = 12,800 km; 30,000 is rejected (#2054)
+    merged, notes = reconcile(_prev_odo(), _fresh_odo(40_000))
+    assert merged["odometer_km"] == 10_000
+    assert any("(#2054)" in n for n in notes)
+    assert merged["battery_soc"] == 55
+    assert merged["battery_soc_from_hv"] is True
+    assert not any("#2134" in n for n in notes)
+
+
+def test_odometer_jump_without_time_delta_does_not_release() -> None:
+    # no usable last_seen_at delta: the absolute 50,000 km ceiling applies
+    merged, notes = reconcile(
+        _prev_odo(seen=None), _fresh_odo(70_001, seen=None)
+    )
+    assert merged["odometer_km"] == 10_000
+    assert any("absolute ceiling" in n for n in notes)
+    assert merged["battery_soc"] == 55
+    assert not any("#2134" in n for n in notes)
+
+
+def test_odometer_going_backwards_does_not_release() -> None:
+    merged, notes = reconcile(_prev_odo(), _fresh_odo(9_000))
+    assert merged["odometer_km"] == 10_000
+    assert any("went backwards" in n for n in notes)
+    assert merged["battery_soc"] == 55
+    assert not any("#2134" in n for n in notes)
+
+
+def test_rejected_odometer_does_not_block_the_energy_release() -> None:
+    # signal A needs no odometer at all; a rejected reading leaves it alone
+    merged, notes = reconcile(
+        _prev_odo(), _fresh_odo(40_000, avail=358.5, cap=523.0)
+    )
+    assert merged["odometer_km"] == 10_000
+    assert merged["battery_soc"] == 74
+    assert any("#2134" in n for n in notes)
+
+
+def test_equal_reading_counts_as_plausible() -> None:
+    # same km, newer stamp: neither guard rejects it, so the stamp still counts
+    merged, notes = reconcile(_prev_odo(), _fresh_odo(10_000))
+    assert merged["battery_soc"] == 74
+    assert any("#2134" in n for n in notes)

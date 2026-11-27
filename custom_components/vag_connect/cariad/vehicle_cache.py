@@ -480,6 +480,59 @@ _SOC_HOLD_RELEASE_MARGIN = 5.0
 _SOC_HOLD_MAX_AGE_S = 24 * 3600
 
 
+def _odometer_jump_note(
+    new: Any, old: Any, fresh: dict[str, Any], previous: dict[str, Any],
+) -> str | None:
+    """The #2054 note when *new* jumps further above the recorded *old* odometer
+    than the car can have driven since, or ``None`` when the reading stands.
+
+    One place for the rule, so the guard in ``reconcile`` and the #2134 hold
+    release judge a reading the same way.
+    """
+    if not (
+        isinstance(new, (int, float)) and not isinstance(new, bool)
+        and isinstance(old, (int, float)) and not isinstance(old, bool)
+        and new > old
+    ):
+        return None
+    jump = new - old
+    t_old = _as_aware_dt(previous.get("last_seen_at"))
+    t_new = _as_aware_dt(fresh.get("last_seen_at"))
+    if t_old is not None and t_new is not None and t_new > t_old:
+        elapsed_days = (t_new - t_old).total_seconds() / 86400.0
+        ceiling = _ODOMETER_BURST_KM + _ODOMETER_RATE_KM_PER_DAY * elapsed_days
+        if jump > ceiling:
+            return (
+                f"odometer_km jumped {old}->{new} (+{jump:.0f} km in "
+                f"{elapsed_days:.3f} d, ceiling {ceiling:.0f}); kept {old} (#2054)"
+            )
+        return None
+    if jump > _ODOMETER_ABS_JUMP_KM:
+        return (
+            f"odometer_km jumped {old}->{new} (+{jump:.0f} km, no usable "
+            f"capture-time delta; absolute ceiling {_ODOMETER_ABS_JUMP_KM:.0f}); "
+            f"kept {old} (#2054)"
+        )
+    return None
+
+
+def _odometer_reading_rejected(
+    fresh: dict[str, Any], previous: dict[str, Any],
+) -> bool:
+    """Whether ``reconcile`` will keep the recorded odometer instead of this
+    poll's: a #2054 jump, or a reading below the recorded one (monotonic guard).
+    """
+    new = fresh.get("odometer_km")
+    old = previous.get("odometer_km")
+    if _odometer_jump_note(new, old, fresh, previous) is not None:
+        return True
+    return (
+        isinstance(new, (int, float)) and not isinstance(new, bool)
+        and isinstance(old, (int, float)) and not isinstance(old, bool)
+        and new < old
+    )
+
+
 def _soc_hold_released(
     fresh: dict[str, Any],
     previous: dict[str, Any],
@@ -490,7 +543,10 @@ def _soc_hold_released(
 
     Returns a short human-readable reason, or ``None`` to keep holding.
     An energy ratio nearer the held value vetoes every release (the frozen-leaf
-    case the hold exists for). Unparseable stamps are no evidence.
+    case the hold exists for). Unparseable stamps are no evidence, and neither
+    is the capture time of an odometer reading that ``reconcile`` rejects
+    further down (a #2054 jump or a backwards reading): the release runs before
+    those guards, so it asks the same rule here.
     """
     ratio = _energy_ratio(fresh)
     if ratio is not None:
@@ -509,7 +565,10 @@ def _soc_hold_released(
         return None
     held_ts = _as_aware_dt(prev_ts.get("battery_soc"))
     leaf_ts = _as_aware_dt(fresh_ts.get("battery_soc"))
-    odo_ts = _as_aware_dt(fresh_ts.get("odometer_km"))
+    odo_ts = (
+        None if _odometer_reading_rejected(fresh, previous)
+        else _as_aware_dt(fresh_ts.get("odometer_km"))
+    )
     if held_ts is None or leaf_ts is None or odo_ts is None:
         return None
     age = (leaf_ts - held_ts).total_seconds()
@@ -1414,38 +1473,16 @@ def reconcile(
     # below can freeze it forever. INGEST-only: this prevents a new car from
     # latching; it does not heal a cache already stuck high (those users reload
     # the integration once). Thresholds + rationale at _ODOMETER_BURST_KM.
-    _odo_new = merged.get("odometer_km")
     _odo_old = previous.get("odometer_km")
-    if (
-        isinstance(_odo_new, (int, float))
-        and not isinstance(_odo_new, bool)
-        and isinstance(_odo_old, (int, float))
-        and not isinstance(_odo_old, bool)
-        and _odo_new > _odo_old
-    ):
-        _jump = _odo_new - _odo_old
-        _t_old = _as_aware_dt(previous.get("last_seen_at"))
-        _t_new = _as_aware_dt(fresh.get("last_seen_at"))
-        if _t_old is not None and _t_new is not None and _t_new > _t_old:
-            _elapsed_days = (_t_new - _t_old).total_seconds() / 86400.0
-            _ceiling = _ODOMETER_BURST_KM + _ODOMETER_RATE_KM_PER_DAY * _elapsed_days
-            if _jump > _ceiling:
-                notes.append(
-                    f"odometer_km jumped {_odo_old}->{_odo_new} (+{_jump:.0f} km in "
-                    f"{_elapsed_days:.3f} d, ceiling {_ceiling:.0f}); kept {_odo_old} (#2054)"
-                )
-                merged["odometer_km"] = _odo_old
-                # The kept value keeps its own provenance, not that of the
-                # reading just rejected (see _keep_recorded_provenance).
-                _keep_recorded_provenance(merged, previous, "odometer_km")
-        elif _jump > _ODOMETER_ABS_JUMP_KM:
-            notes.append(
-                f"odometer_km jumped {_odo_old}->{_odo_new} (+{_jump:.0f} km, no usable "
-                f"capture-time delta; absolute ceiling {_ODOMETER_ABS_JUMP_KM:.0f}); "
-                f"kept {_odo_old} (#2054)"
-            )
-            merged["odometer_km"] = _odo_old
-            _keep_recorded_provenance(merged, previous, "odometer_km")
+    _jump_note = _odometer_jump_note(
+        merged.get("odometer_km"), _odo_old, fresh, previous
+    )
+    if _jump_note is not None:
+        notes.append(_jump_note)
+        merged["odometer_km"] = _odo_old
+        # The kept value keeps its own provenance, not that of the
+        # reading just rejected (see _keep_recorded_provenance).
+        _keep_recorded_provenance(merged, previous, "odometer_km")
 
     for field in MONOTONIC_INCREASING_FIELDS:
         new = merged.get(field)
