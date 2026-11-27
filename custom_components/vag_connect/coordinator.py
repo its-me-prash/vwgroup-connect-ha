@@ -726,7 +726,8 @@ def _is_selfhealing_poll_error(err: object) -> bool:
       with ``status >= 500``), or
     - a status-0 transient NETWORK error — DNS timeout / connection refused /
       mid-stream disconnect — which ``base._request`` tags ``"transient:"`` in the
-      ``APIError`` body AFTER exhausting its own retries. (#814 was exactly a
+      ``APIError`` body after its own retries, or at once for a call that is
+      sent once (a command, #2241). (#814 was exactly a
       "Timeout while contacting DNS servers" on a user's Home Assistant host.)
     - a 429 (#933) — either the backend throttling us or, more often, our OWN
       client-side account cooldown, which ``base._request`` raises as a
@@ -11599,9 +11600,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     #: is treated as "may have executed" and must not be retried on a second
     #: channel — see the b7 note in ``_cariad_cmd`` about a non-idempotent
     #: command reaching the car twice. In particular NOT 5xx and NOT the
-    #: transient ``APIError(0)``: ``base._request`` already retried those up to
-    #: three times, so the POST may have been delivered and only the response
-    #: lost, and a 429 or 430 is the backend limiting this account, where a
+    #: transient ``APIError(0)``: neither shows whether the POST was delivered
+    #: and only the response lost (which is also why ``base._request`` no longer
+    #: sends a command again after one, #2241), and a 429 or 430 is the backend
+    #: limiting this account, where a
     #: second channel is the last thing that should be touched.
     _SKODA_FALLBACK_STATUSES: frozenset[int] = frozenset({401, 403, 404})
 

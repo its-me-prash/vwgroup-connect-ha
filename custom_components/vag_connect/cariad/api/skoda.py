@@ -1118,12 +1118,12 @@ class SkodaClient(CariadBaseClient):
         try:
             # We use the parent client's _request with explicit JSON
             # body. The auth Bearer header is injected by base.
-            # ``repeat_on_429=True`` (#2241): this POST only reads, so a 429
-            # keeps the repeats a GET has instead of being raised like a
-            # command.
+            # ``send_once=False`` (#2241): this POST only reads, so a 429, a
+            # 5xx or a broken connection keeps the repeats a GET has instead
+            # of being raised like a command.
             resp = await self._request(
                 "POST", url, json=body, headers=headers,
-                timeout=ClientTimeout(total=30), repeat_on_429=True,
+                timeout=ClientTimeout(total=30), send_once=False,
             )
         except Exception as err:  # noqa: BLE001
             # #2077 (@matroeh) — best-effort, but log WHY: a silent empty result
@@ -1543,11 +1543,12 @@ class SkodaClient(CariadBaseClient):
           each attempt, so a refused read is not asked again on the next poll.
           The slot is taken before the request, so an overlapping poll of the
           same car does not ask a second time;
-        - a 429 without ``Retry-After`` is not repeated and does not pause the
-          account (``repeat_on_429=False``). If the whole account were
-          limited, the regular reads of the same poll would get 429 as well
-          and start the pause as before. A 430 or a ``Retry-After`` on this
-          read still start one, as on any other;
+        - it is sent once (``send_once=True``): a 429 without ``Retry-After``,
+          a 5xx or a broken connection is not repeated, and the 429 does not
+          pause the account. If the whole account were limited, the regular
+          reads of the same poll would get 429 as well and start the pause as
+          before. A 430 or a ``Retry-After`` on this read still start one, as
+          on any other;
         - between requests, and after one that failed, the last payload that
           came back is returned, so the warning sensors keep their value.
           After a restart there is none until the first read succeeds.
@@ -1576,7 +1577,7 @@ class SkodaClient(CariadBaseClient):
         try:
             data = await self._get(
                 f"{_BASE}/api/v1/vehicle-health-report/warning-lights/{vin}",
-                repeat_on_429=False,
+                send_once=True,
             )
         except Exception as err:  # noqa: BLE001 — optional read, never sinks the poll
             if self._rate_lockout_remaining() > 0:
@@ -1661,7 +1662,7 @@ class SkodaClient(CariadBaseClient):
             # vehicleHealthWarnings block inside other responses; this
             # is the dedicated source that ships per-category +
             # per-defect data with priorities.
-            # #2241 — capability-gated, at most every 6 h, sent once on a 429;
+            # #2241 — capability-gated, at most every 6 h, sent once;
             # see ``get_warning_lights``.
             self.get_warning_lights(vin),
             # v2.11.0 (myskoda source-verified) - trip statistics

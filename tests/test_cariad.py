@@ -1286,7 +1286,8 @@ class TestVWEUCommands:
 
         assert err.value.status == 502
         assert extract_safe_error_code(err.value.body) == "2105"
-        assert len(sent) == 4
+        # #2241 — a command is sent once on a 5xx (it used to go out 4 times).
+        assert len(sent) == 1
         assert all("userPosition" in body for body in sent)
 
     def test_command_flash_request_incorrect_without_coords_keeps_the_error(self):
@@ -1304,7 +1305,8 @@ class TestVWEUCommands:
 
         assert err.value.status == 502
         assert extract_safe_error_code(err.value.body) == "2105"
-        assert len(sent) == 4
+        # #2241 — a command is sent once on a 5xx (it used to go out 4 times).
+        assert len(sent) == 1
 
     def test_command_wake(self):
         client = self._client()

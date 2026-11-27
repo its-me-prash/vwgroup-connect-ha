@@ -145,14 +145,16 @@ _PROBE_CB_THRESHOLD  = 3
 _RETRY_AFTER_MIN_S = 30
 _LOCKOUT_429_S = 1800   # 30 min once 429 retries are exhausted
 _LOCKOUT_430_S = 7200   # 2 h on a hard 430 (explicit lockout signal)
-#: #2241 — methods that change something at the backend. On a 429 without
-#: ``Retry-After`` a request with one of these is not sent again: on this
-#: shared path such a call is a remote command (lock, flash, climate, charging,
-#: a setting) or another write, and one press has to reach the backend once.
-#: A call can override this with ``repeat_on_429`` (see ``_request``). Keyed
-#: on the method, not on a marker at each command, so a command added later
-#: cannot keep the repeats by being missed; a read that is missed loses its
-#: three repeats, which is the cheaper mistake.
+#: #2241 — methods that change something at the backend. A request with one of
+#: these is sent once: not again after a 429 without ``Retry-After``, a server
+#: error (5xx) or a broken connection. On this shared path such a call is a
+#: remote command (lock, flash, climate, charging, a setting) or another write,
+#: one press has to reach the backend once, and after a 5xx or a broken
+#: connection nobody can tell whether the first one already reached the car.
+#: A call can override this with ``send_once`` (see ``_request``). Keyed on the
+#: method, not on a marker at each command, so a command added later cannot
+#: keep the repeats by being missed; a read that is missed loses its repeats,
+#: which is the cheaper mistake.
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # #1973 — a URL that spent its ENTIRE 5xx retry budget without once succeeding
 # does not get that budget again on the next poll. Measured by @indigomejor on a
@@ -1740,17 +1742,19 @@ class CariadBaseClient:
 
     async def _request(
         self, method: str, url: str, retry: bool = True, _attempt: int = 0,
-        *, repeat_on_429: bool | None = None, **kwargs: Any,
+        *, send_once: bool | None = None, **kwargs: Any,
     ) -> Any:
         """Execute an authenticated request with retry for transient errors.
 
-        ``repeat_on_429`` decides what a 429 without ``Retry-After`` does
-        (#2241). ``None`` (the default) repeats a read and sends a
-        ``_WRITE_METHODS`` call, i.e. a command, once. ``True`` repeats it
-        anyway (a POST that only reads, the Škoda charging statistics).
-        ``False`` sends it once although it is a read (an optional read that
-        is asked rarely, the Škoda warning lights). A call that is sent once
-        raises the 429 at once and starts no account lockout.
+        ``send_once`` decides whether a failed call is sent again (#2241).
+        ``None`` (the default) decides by method: a read is repeated, a
+        ``_WRITE_METHODS`` call, i.e. a command, is sent once. ``True`` sends a
+        read once as well (an optional read that is asked rarely, the Škoda
+        warning lights); ``False`` repeats a write-method call that only reads
+        (the Škoda charging statistics POST). A call that is sent once raises a
+        429 without ``Retry-After``, a 5xx or a transient network error at once,
+        and the 429 starts no account lockout. The 401 refresh and its one
+        retry apply to every call: a 401 means the request was not processed.
 
         Retry behaviour (v1.8.7 hardening):
 
@@ -1762,15 +1766,16 @@ class CariadBaseClient:
           becomes a 430 (#1850).
         - HTTP 429 without it → exponential backoff up to 3 attempts
           (5s/10s/20s), then the account lockout. A call that is sent once
-          (see ``repeat_on_429``) raises it at once instead, with no account
+          (see ``send_once``) raises it at once instead, with no account
           lockout (#2241).
         - HTTP 500/502/503/504 → exponential backoff up to 3 attempts
           (3s/6s/12s). 504 added in v1.8.7 — Gateway Timeouts from the
           CARIAD BFF are routine on weekends and were previously surfaced
-          as fatal API errors.
+          as fatal API errors. A call that is sent once raises it at once.
         - Transient network errors (DNS / connection refused / mid-stream
           disconnects / asyncio timeouts) → same backoff as server errors.
-          Verified pattern from we_connect_id #166 and myskoda #731.
+          Verified pattern from we_connect_id #166 and myskoda #731. A call
+          that is sent once raises ``APIError(0)`` at once.
         - HTTP 430 / repeated 429 → account-scoped lockout (B4): stop sending
           on this client for a cool-down window so a rate-limited account does
           not get hammered into a multi-hour lock.
@@ -1781,6 +1786,9 @@ class CariadBaseClient:
                 429, url,
                 f"rate-limit lockout active — {locked}s remaining (account cooldown)",
             )
+        _send_once = (
+            method.upper() in _WRITE_METHODS if send_once is None else send_once
+        )
         # VW EU Two-Way (#1217) — re-mint the ~1 h device-grant Bearer BEFORE it
         # expires so no request rides an expired token. The reactive 401-retry
         # below cannot be relied on alone: an expired bearer can come back 403
@@ -1843,7 +1851,7 @@ class CariadBaseClient:
                 if resp.status == 401 and retry:
                     await self._refresh_tokens(stale_access_token=token_used)
                     return await self._request(
-                        method, url, retry=False, repeat_on_429=repeat_on_429,
+                        method, url, retry=False, send_once=send_once,
                         headers=_caller_headers, timeout=_timeout, **kwargs,
                     )
                 if resp.status in (429, 430):
@@ -1884,11 +1892,8 @@ class CariadBaseClient:
                             _redact_url(url), _retry_after, _hold,
                         )
                         self._enter_rate_lockout(_hold, 429, _redact_url(url))
-                    elif not (
-                        method.upper() not in _WRITE_METHODS
-                        if repeat_on_429 is None else repeat_on_429
-                    ):
-                        # #2241 (@driemeier) — sent once. A refused command
+                    elif _send_once:
+                        # #2241 (@driemeier) — sent once (see ``send_once``). A refused command
                         # went out up to four times (5/10/20 s), and four
                         # refusals paused every request of the account for 30
                         # minutes, the reads included. In that report the same
@@ -1918,7 +1923,7 @@ class CariadBaseClient:
                         await asyncio.sleep(wait)
                         return await self._request(
                             method, url, retry=retry, _attempt=_attempt + 1,
-                            repeat_on_429=repeat_on_429,
+                            send_once=send_once,
                             headers=_caller_headers, timeout=_timeout, **kwargs,
                         )
                     else:
@@ -1927,7 +1932,18 @@ class CariadBaseClient:
                 if resp.status == 430:
                     # explicit hard lockout signal — long account-scoped hold (B4)
                     self._enter_rate_lockout(_LOCKOUT_430_S, 430, _redact_url(url))
-                if resp.status in (500, 502, 503, 504):
+                if resp.status in (500, 502, 503, 504) and _send_once:
+                    # #2241 — a command is not sent again after a server error.
+                    # The backend accepts a command and runs it on the car
+                    # later, so a 5xx does not show whether this one already
+                    # reached the car; a repeat 3, 6 and 12 s later could flash,
+                    # honk or wake it a second time. The error is raised below
+                    # and the caller decides.
+                    _LOGGER.debug(
+                        "Server error %d from %s on a %s — not sending it again",
+                        resp.status, _redact_url(url), method.upper(),
+                    )
+                elif resp.status in (500, 502, 503, 504):
                     # #1973 — see ``_5XX_SUPPRESS_RETRIES_AFTER``. One attempt
                     # always goes out; only the RETRIES are withheld, and only
                     # from a URL that already spent the whole budget for nothing.
@@ -1957,7 +1973,7 @@ class CariadBaseClient:
                         await asyncio.sleep(wait)
                         return await self._request(
                             method, url, retry=retry, _attempt=_attempt + 1,
-                            repeat_on_429=repeat_on_429,
+                            send_once=send_once,
                             headers=_caller_headers, timeout=_timeout, **kwargs,
                         )
                 elif resp.status in (200, 201, 202, 204, 207):
@@ -1980,7 +1996,17 @@ class CariadBaseClient:
                     return await resp.json()
                 return await resp.text()
         except _TRANSIENT_NET_ERRORS as err:
-            if _attempt < 3:
+            if _send_once:
+                # #2241 — the same for a broken connection: a timeout, a
+                # dropped connection or a broken answer can come after the
+                # command was delivered. A failed connect could not have, but
+                # its repeat would run the command up to 21 s after the press,
+                # possibly next to a second press, so it is not repeated either.
+                _LOGGER.debug(
+                    "Transient network error (%s) on a %s — not sending it again",
+                    type(err).__name__, method.upper(),
+                )
+            elif _attempt < 3:
                 wait = (2 ** _attempt) * 3
                 _LOGGER.debug(
                     "Transient network error (%s) — retrying in %ds",
@@ -1990,7 +2016,7 @@ class CariadBaseClient:
                 await asyncio.sleep(wait)
                 return await self._request(
                     method, url, retry=retry, _attempt=_attempt + 1,
-                    repeat_on_429=repeat_on_429,
+                    send_once=send_once,
                     headers=_caller_headers, timeout=_timeout, **kwargs,
                 )
             # drop the raw {err} — it would sit in self.body; class name suffices.
