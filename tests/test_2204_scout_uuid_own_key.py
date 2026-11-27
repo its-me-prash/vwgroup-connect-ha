@@ -11,7 +11,9 @@ the key of the battery field. ``battery_level.state`` got the keys of every
 point named ``state`` the same way.
 
 Keys are now recorded under the exact name a value is stored under, for every
-named point, and looked up by that name only.
+named point, and looked up by that name only. A row names only the keys of the
+points that sent the value it shows: a point whose value lost, by time or by the
+#1088 majority, and a sibling attribute of the same name lend it nothing.
 """
 from __future__ import annotations
 
@@ -149,8 +151,8 @@ def test_point_without_a_usable_value_adds_no_key() -> None:
     assert field_uuids == {"some_new_field.reading": {_OWN}}
 
 
-def test_several_points_on_one_name_list_all_their_keys() -> None:
-    """Same rule as for a generic name: the row came from one of these."""
+def test_points_that_sent_the_same_value_are_all_named() -> None:
+    """Both points sent the shown value, so the row came from one of these."""
     d, _ = _parse(_dataset(
         {"dataFieldName": "some_new_field.reading", "value": "1", "key": _OWN},
         {"dataFieldName": "some_new_field.reading", "value": "1", "key": _OTHER},
@@ -158,3 +160,149 @@ def test_several_points_on_one_name_list_all_their_keys() -> None:
     assert (d.raw_unmapped_fields or {}).get("some_new_field.reading") == (
         "1 (uuid deadbeef, feedface)"
     )
+
+
+def test_newer_point_without_a_key_does_not_borrow_the_older_points_key() -> None:
+    """The exact #2204 failure through a shared name instead of a suffix."""
+    d, _ = _parse(_dataset(
+        {"dataFieldName": "some_new_field.reading", "value": "50", "key": _OWN,
+         "timestamp": "2026-10-01T10:00:00Z"},
+        {"dataFieldName": "some_new_field.reading", "value": "80",
+         "timestamp": "2026-11-01T10:00:00Z"},
+    ))
+    assert (d.raw_unmapped_fields or {}).get("some_new_field.reading") == "80"
+
+
+def test_only_the_key_of_the_point_whose_value_won_is_named() -> None:
+    d, _ = _parse(_dataset(
+        {"dataFieldName": "some_new_field.reading", "value": "50", "key": _OTHER,
+         "timestamp": "2026-10-01T10:00:00Z"},
+        {"dataFieldName": "some_new_field.reading", "value": "80", "key": _OWN,
+         "timestamp": "2026-11-01T10:00:00Z"},
+    ))
+    assert (d.raw_unmapped_fields or {}).get("some_new_field.reading") == (
+        "80 (uuid deadbeef)"
+    )
+
+
+def test_majority_value_names_only_the_points_that_sent_it() -> None:
+    """#1088: 60 twice beats 71 once; the 71 point's key stays out."""
+    third = "cafebabe-0000-4000-8000-000000000000"
+    field_uuids: dict[str, set[str]] = {}
+    fields = _walk_fields(
+        _dataset(
+            {"dataFieldName": "some_new_field.reading", "value": "60", "key": _OWN},
+            {"dataFieldName": "some_new_field.reading", "value": "71", "key": _OTHER},
+            {"dataFieldName": "some_new_field.reading", "value": "60", "key": third},
+        ),
+        {}, {}, {}, field_uuids,
+    )
+    assert fields["some_new_field.reading"] == "60"
+    assert field_uuids["some_new_field.reading"] == {_OWN, third}
+
+
+def test_sibling_attribute_of_the_same_name_lends_no_key() -> None:
+    """A top-level list emits sibling attributes under their bare name; the
+    sibling's value wins here and was not sent by the keyed point."""
+    field_uuids: dict[str, set[str]] = {}
+    fields = _walk_fields(
+        [{"dataFieldName": "some_new_field", "value": "1", "key": _OWN,
+          "some_new_field": "2"}],
+        {}, {}, {}, field_uuids,
+    )
+    assert fields["some_new_field"] == "2"
+    assert "some_new_field" not in field_uuids
+
+
+def test_container_path_named_like_another_point_keeps_the_keys_apart() -> None:
+    field_uuids: dict[str, set[str]] = {}
+    fields = _walk_fields(
+        {
+            "some_box": {"dataFieldName": "inner", "value": "3", "key": _OTHER,
+                         "timestamp": "2026-10-01T10:00:00Z"},
+            "data": [{"dataFieldName": "some_box", "value": "9", "key": _OWN,
+                      "timestamp": "2026-11-01T10:00:00Z"}],
+        },
+        {}, {}, {}, field_uuids,
+    )
+    assert fields["some_box"] == "9"
+    assert field_uuids["some_box"] == {_OWN}
+    assert field_uuids["inner"] == {_OTHER}
+
+
+def test_float_value_names_its_key() -> None:
+    d, _ = _parse(_dataset(
+        {"dataFieldName": "some_new_field.reading", "value": 12.5, "key": _OWN},
+    ))
+    assert (d.raw_unmapped_fields or {}).get("some_new_field.reading") == (
+        "12.5 (uuid deadbeef)"
+    )
+
+
+def test_upper_case_or_padded_key_is_normalised() -> None:
+    d, _ = _parse(_dataset(
+        {"dataFieldName": "some_new_field", "value": "42",
+         "key": f"  {_OWN.upper()} "},
+    ))
+    assert (d.raw_unmapped_fields or {}).get("some_new_field") == (
+        "42 (uuid deadbeef)"
+    )
+
+
+def test_generic_name_with_a_key_that_is_not_a_uuid_shows_no_key() -> None:
+    d, _ = _parse(_dataset(
+        {"dataFieldName": "open", "value": "true", "key": "driver"},
+    ))
+    assert (d.raw_unmapped_fields or {}).get("open") == "true"
+
+
+def test_open_row_whose_value_came_from_another_key_raises_the_repair() -> None:
+    """The skip keys on c0bb1348 in the sample. When the shown value came from
+    a different opening point, that point is what the repair is there for."""
+    d, _ = _parse(_dataset(
+        {"dataFieldName": "open", "value": "true", "key": _OPEN,
+         "timestamp": "2026-10-01T10:00:00Z"},
+        {"dataFieldName": "open", "value": "false", "key": _OWN,
+         "timestamp": "2026-11-01T10:00:00Z"},
+    ))
+    row = (d.raw_unmapped_fields or {})["open"]
+    assert row == "false (uuid deadbeef)"
+    assert not _is_scout_repair_skipped(_scout_finding("open", row))
+
+
+def test_raw_api_fields_sensor_keeps_its_rows_out_of_the_recorder() -> None:
+    """The live attribute stays; only its history is not written."""
+    from custom_components.vag_connect.sensor import VagRawApiFieldsSensor
+
+    combined = VagRawApiFieldsSensor._Entity__combined_unrecorded_attributes  # type: ignore[attr-defined]
+    assert "fields" in combined
+
+
+def test_setup_builds_the_raw_api_fields_sensor_with_that_class() -> None:
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from custom_components.vag_connect.sensor import (
+        VagRawApiFieldsSensor,
+        async_setup_entry,
+    )
+
+    vehicle = {"vin": "X", "raw_unmapped_fields": {"some_new_field": "42"}}
+    coord = MagicMock()
+    coord.vehicles = {"X": vehicle}
+    coord.data = coord.vehicles
+    coord.is_read_only = MagicMock(return_value=False)
+    coord.last_update_success = True
+    coord.command_capability_supported = MagicMock(return_value=None)
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+    entry = MagicMock()
+    entry.runtime_data = coord
+    entry.options = {"hide_empty_entities": True}
+    entry.data = {"brand": "skoda"}
+    entry.async_on_unload = lambda x: None
+    added: list = []
+    asyncio.run(async_setup_entry(MagicMock(), entry, lambda e: added.extend(e)))
+    raw = [e for e in added if e.entity_description.key == "raw_api_fields"]
+    assert len(raw) == 1
+    assert isinstance(raw[0], VagRawApiFieldsSensor)
+    assert raw[0].extra_state_attributes == {"fields": {"some_new_field": "42"}}

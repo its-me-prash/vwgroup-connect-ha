@@ -5631,6 +5631,8 @@ async def async_setup_entry(
                     continue
             if desc.key in _REPORTER_KEYS:
                 entities.append(ReporterSensor(coordinator, vin, desc))
+            elif desc.key == "raw_api_fields":
+                entities.append(VagRawApiFieldsSensor(coordinator, vin, desc))
             else:
                 entities.append(VagConnectSensor(coordinator, vin, desc))
 
@@ -6010,6 +6012,23 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             return coerced
 
         return val
+
+
+class VagRawApiFieldsSensor(VagConnectSensor):
+    """#2204 — the raw API fields sensor, without its ``fields`` in the recorder.
+
+    The ``fields`` attribute holds up to 250 discovery rows (``_RAW_FIELD_CAP``),
+    and since #2204 a row of a point with a content UUID carries that UUID. For
+    two portal exports attached to issues, both at 250 rows, the attribute as
+    compact JSON grew from 11 684 and 13 888 bytes to 16 784 and 17 888, over
+    the recorder's limit of 16 384 bytes for a state's attributes
+    (``MAX_STATE_ATTRS_BYTES``). Above it Home Assistant logs a warning on every
+    state write and stores none of the state's attributes. The live attribute
+    is unchanged; only its history is no longer written, so the state's other
+    attributes stay recorded.
+    """
+
+    _unrecorded_attributes = frozenset({"fields"})
 
 
 class ReporterSensor(VagConnectSensor):

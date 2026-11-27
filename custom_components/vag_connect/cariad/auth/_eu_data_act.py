@@ -1358,6 +1358,12 @@ def _walk_fields(
     # majority (the same reading repeated) can be resolved by mode instead of
     # left ambiguous. Only consulted for names that end up contested.
     counts: dict[str, dict[str, int]] = {}
+    # #2204 — per name and per value, the content UUIDs of the points that
+    # delivered that value under that name. A Scout row shows the winning value,
+    # so it may name only the keys of the points that sent THAT value: a point
+    # whose value lost (older, or outvoted by #1088) and a sibling attribute of
+    # the same name never lend their key to the row.
+    value_uuids: dict[str, dict[str, set[str]]] = {}
     dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
     paired_ts = _collect_paired_ts(payload)  # #2096: key-paired capture times
 
@@ -1368,6 +1374,7 @@ def _walk_fields(
         ts_real: bool,
         ts_inherited: bool = False,
         ts_shown_inherited: bool | None = None,
+        point_uuid: str = "",
     ) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
@@ -1375,6 +1382,10 @@ def _walk_fields(
             return
         vc = counts.setdefault(name, {})
         vc[str(value)] = vc.get(str(value), 0) + 1
+        if point_uuid:
+            value_uuids.setdefault(name, {}).setdefault(str(value), set()).add(
+                point_uuid
+            )
         # NO-SUPPRESSION (hard rule): sentinels ("no reading" / uint-max) must
         # NOT be dropped from the flattened surface here — that removed the
         # field from raw_unmapped (Scout) entirely, even for fields we never
@@ -1513,14 +1524,7 @@ def _walk_fields(
                 elif own_ts:
                     _delivery_out.setdefault("valueless", set()).add(fname.strip())
             if fname is not None and "value" in node:
-                add(fname, node.get("value"), ts, ts_real, ts_inh)
-                # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
-                # by the per-point ``key`` UUID so points that collide on a bare
-                # name (many "value" points on MEB/ID.x) don't collapse and first()
-                # can resolve them by UUID (e.g. 0ca40e18 → primary range). Only
-                # UUIDs we actually MAP are aliased (_MAPPED_UUIDS) — aliasing every
-                # generic point flooded the Scout with unmapped UUID rows (2.17.4
-                # regression). Lowercased to match the dictionary + mapping forms.
+                # Lowercased to match the dictionary + mapping forms.
                 pkey = node.get("key")
                 pkey_l = pkey.strip().lower() if isinstance(pkey, str) else ""
                 # #1100-#1117 — record which content-UUID a data point came
@@ -1534,24 +1538,27 @@ def _walk_fields(
                 # piece of information that makes the row actionable.
                 #
                 # #2204 — recorded for every named point, under exactly the
-                # name its value is stored under (and under the container path
-                # below), not only for the generic names. The Scout looked any
-                # other name up by its last segment, so ``battery_level.value``
-                # on a CUPRA Raval was shown with the UUID of the range point,
-                # the one point there named just ``value``, and the reporter
-                # read it as the field's own. Only a UUID-shaped key counts,
-                # because the report labels it ``uuid``, and only a point whose
-                # value ``add`` accepts, because a point that stored nothing is
-                # not where the shown value came from.
-                _point_uuid = (
-                    pkey_l
-                    if isinstance(fname, str)
-                    and _ENVELOPE_UUID_RE.match(pkey_l)
-                    and isinstance(node.get("value"), (str, int, float, bool))
-                    else ""
+                # names its value is stored under (the name here, the container
+                # path below), not only for the generic names, and handed to
+                # ``add`` with the value so that only the keys of the points
+                # that sent the shown value reach the row (``value_uuids``). The
+                # Scout looked any other name up by its last segment, so
+                # ``battery_level.value`` on a CUPRA Raval was shown with the
+                # UUID of the range point, the one point there named just
+                # ``value``, and the reporter read it as the field's own. Only a
+                # UUID-shaped key counts, because the report labels it ``uuid``.
+                _point_uuid = pkey_l if _ENVELOPE_UUID_RE.match(pkey_l) else ""
+                add(
+                    fname, node.get("value"), ts, ts_real, ts_inh,
+                    point_uuid=_point_uuid,
                 )
-                if _uuid_out is not None and _point_uuid:
-                    _uuid_out.setdefault(fname, set()).add(_point_uuid)
+                # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
+                # by the per-point ``key`` UUID so points that collide on a bare
+                # name (many "value" points on MEB/ID.x) don't collapse and first()
+                # can resolve them by UUID (e.g. 0ca40e18 → primary range). Only
+                # UUIDs we actually MAP are aliased (_MAPPED_UUIDS) — aliasing every
+                # generic point flooded the Scout with unmapped UUID rows (2.17.4
+                # regression).
                 # Alias by UUID for (a) generic-leaf points whose UUID we map, OR
                 # (b) the charge power / charge rate encoding UUIDs regardless of
                 # leaf name: the SAME dataFieldName (battery_state_report.charge_power
@@ -1593,11 +1600,12 @@ def _walk_fields(
                 # synonym is reclaimed by first()'s synonym-collapse so it does not
                 # become a new chronic raw_unmapped re-reporter.
                 if prefix and not in_array:
-                    add(prefix, node.get("value"), ts, ts_real, ts_inh)
                     # #2204 — the qualified key carries the same point's UUID,
                     # so the Scout names it when this spelling is the row shown.
-                    if _uuid_out is not None and _point_uuid:
-                        _uuid_out.setdefault(prefix, set()).add(_point_uuid)
+                    add(
+                        prefix, node.get("value"), ts, ts_real, ts_inh,
+                        point_uuid=_point_uuid,
+                    )
                     # Record the bare/qualified pair as EXPLICIT synonyms of each
                     # other (bidirectional). They come from THIS one physical node,
                     # so first()'s synonym-collapse is precise: it never touches a
@@ -1673,6 +1681,13 @@ def _walk_fields(
                 if prev is not None:
                     best[name] = (winner, prev[1], prev[2], prev[3], prev[4])
                 del _contested_out[name]
+    if _uuid_out is not None:
+        # #2204 — only the keys of the points that sent the value the row shows,
+        # taken after the #1088 mode pass above, which can change that value.
+        for name, entry in best.items():
+            keys = value_uuids.get(name, {}).get(entry[0])
+            if keys:
+                _uuid_out.setdefault(name, set()).update(keys)
     if _ts_out is not None:
         # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
         # (-inf) carry no snapshot identity and must not constrain last_seen.
