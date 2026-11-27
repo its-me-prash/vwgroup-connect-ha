@@ -215,6 +215,21 @@ class TestMaintenanceStatus:
         d = map_maintenance_to_vehicle_data(body, VehicleData(vin=VIN))
         assert d.field_captured_ts == {}
 
+    def test_a_placeholder_mileage_gets_no_value_and_no_stamp(self) -> None:
+        # drop_odometer_sentinel: negative or 2,000,000 km and up means "no
+        # value" (#1122), and a value that is not there has no capture time.
+        for km in (2_000_000, 429_496_729, 4_294_967_295, -1, "4294967295"):
+            body = {"data": {**MAINTENANCE["data"], "mileage_km": km}}
+            d = map_maintenance_to_vehicle_data(body, VehicleData(vin=VIN))
+            assert d.odometer_km is None, km
+            assert d.field_captured_ts == {}, km
+
+    def test_the_highest_real_mileage_keeps_value_and_stamp(self) -> None:
+        body = {"data": {**MAINTENANCE["data"], "mileage_km": 1_999_999}}
+        d = map_maintenance_to_vehicle_data(body, VehicleData(vin=VIN))
+        assert d.odometer_km == 1_999_999
+        assert d.field_captured_ts == {"odometer_km": MAINT_ISO}
+
 
 class TestMerge:
     def test_the_live_value_brings_its_own_stamp(self) -> None:
@@ -268,6 +283,19 @@ class TestHeldBatteryLevel:
         merged, notes = reconcile(self._prev(), self._fresh(older))
         assert merged["battery_soc"] == 55
         assert any("held recorded 55" in n for n in notes)
+
+    def test_a_rejected_vwde_odometer_does_not_release_it(self) -> None:
+        # the stamp is newer than the held value, but reconcile throws the
+        # reading away further down: a jump over the #2054 ceiling (no usable
+        # last_seen_at delta here, so the absolute 50,000 km) or a backwards
+        # reading. Its capture time is then no evidence either.
+        for recorded, why in ((5_000, "(#2054)"), (70_000, "went backwards")):
+            prev = {**self._prev(), "odometer_km": recorded}
+            merged, notes = reconcile(prev, self._fresh(MAINTENANCE))
+            assert merged["odometer_km"] == recorded, why
+            assert any(why in n for n in notes), why
+            assert merged["battery_soc"] == 55, why
+            assert not any("#2134" in n for n in notes), why
 
 
 class TestSensorAttributes:

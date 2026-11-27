@@ -353,15 +353,17 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
 
     def _eu_da_freshness_attributes(self) -> dict[str, Any]:
         """v4.7.11 (#465/#529/#1218 parity ADOPT) — per-value freshness for an
-        entity whose value THIS poll came from the EU Data Act portal.
+        entity whose value THIS poll came from the EU Data Act portal or a held
+        push source, or is a stamped volkswagen.de value.
 
         Portal readers expose per-value freshness; ours names it per entity. Only
-        for EU-DA-sourced values (``field_sources[data_key] == "eu_data_act"``)
-        and for values of a held push source (``_HELD_PUSH_SOURCES``): that
+        for EU-DA-sourced values (``field_sources[data_key] == "eu_data_act"``),
+        for values of a held push source (``_HELD_PUSH_SOURCES``): that
         class is an event snapshot that can be days old and carries a real
-        capture time in ``field_captured_ts``, so it is not a live read either.
-        Every other channel is a live read and the poll time is already the
-        capture time. Adds ``data_captured_at`` (ISO, only when a genuine
+        capture time in ``field_captured_ts``, so it is not a live read either;
+        and for stamped volkswagen.de values (last paragraph). Every other
+        channel is a live read and the poll time is already the capture time.
+        Adds ``data_captured_at`` (ISO, only when a genuine
         per-point timestamp survived onto this field), ``freshness_source``
         ("point" when it did, else "dataset") and ``ambiguous_reading`` (True
         only when the source shipped disagreeing candidates under one capture
@@ -390,8 +392,8 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         from hours ago looks identical to a fresh one. It is the same question
         and the same answer for every platform, so it belongs here, once, rather
         than copied per platform. The gate does the limiting by itself: a
-        description without a ``data_key``, or a value from any other channel,
-        gets nothing. That is why no platform had to be touched to gain it.
+        description without a ``data_key``, a value from a channel not named
+        above, or a volkswagen.de value without a stamp, gets nothing. That is why no platform had to be touched to gain it.
 
         The volkswagen.de channel is the exception to "every other channel is a
         live read". Its status bodies are the car's last upload: a parked car
