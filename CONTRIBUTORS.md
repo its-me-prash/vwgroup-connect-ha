@@ -218,6 +218,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @Drachendiadem
 - @drakarr1
 - @Drew-Pinion
+- @driemeier
 - @dtech77pl
 - @dtmaniac
 - @Dulcow
@@ -685,6 +686,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @PatrikWalde
 - @pauldiee
 - @pbzh
+- @pebsi
 - @peepprr
 - @peikingd
 - @pergolafabio
@@ -868,6 +870,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @sxiza84
 - @sycorix
 - @sysrun
+- @tadasburovas
 - @tader
 - @Takymetri
 - @tasador
