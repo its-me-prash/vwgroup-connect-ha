@@ -17,6 +17,8 @@ points that sent the value it shows: a point whose value lost, by time or by the
 """
 from __future__ import annotations
 
+import pytest
+
 from custom_components.vag_connect.cariad._reporter_pipeline import (
     _is_scout_repair_skipped,
 )
@@ -34,6 +36,7 @@ from custom_components.vag_connect.cariad.models import VehicleData
 _RANGE = "0ca40e18-0564-3eda-bcc0-7aee9ef44f04"  # "value", the primary range
 _STATE_A = "0718582b-7259-3c9a-818a-ea848a7365a8"  # a point named "state"
 _OPEN = "c0bb1348-5d0d-3140-9a51-06881db06490"  # ownerless "open"
+_OPEN_B = "d5dc7c87-5051-34db-ae99-0bd2cf987c45"  # the other ownerless "open"
 # Made up: battery_level.value has no dictionary entry, so no real key is known.
 _OWN = "deadbeef-0000-4000-8000-000000000000"
 _OTHER = "feedface-0000-4000-8000-000000000000"
@@ -102,11 +105,13 @@ def test_range_is_still_read_from_its_key() -> None:
     assert d.range_km == 386
 
 
-def test_borrowed_ownerless_key_no_longer_skips_the_repair() -> None:
-    """The repair skip looks for c0bb1348 in the sample. A borrowed key would
-    have silenced the repair for an unrelated field ending in ``.open``."""
+@pytest.mark.parametrize("ownerless", [_OPEN, _OPEN_B])
+def test_borrowed_ownerless_key_no_longer_skips_the_repair(ownerless: str) -> None:
+    """The repair skip looks for c0bb1348 or d5dc7c87 in the sample. A borrowed
+    key would have silenced the repair for an unrelated field ending in
+    ``.open``."""
     d, _ = _parse(_dataset(
-        {"dataFieldName": "open", "value": "true", "key": _OPEN},
+        {"dataFieldName": "open", "value": "true", "key": ownerless},
         {"dataFieldName": "some_new_opening.open", "value": "true"},
     ))
     rows = d.raw_unmapped_fields or {}
@@ -129,9 +134,16 @@ def test_container_qualified_key_carries_the_same_uuid() -> None:
     assert field_uuids.get("slope.ascent") == {_OWN}
 
 
-def test_key_that_is_not_a_uuid_is_not_shown() -> None:
+@pytest.mark.parametrize("key", [
+    "driver",
+    "deadbeef",  # hex, but only the short form
+    "deadbeef000040008000000000000000",  # 32 hex digits without dashes
+    "deadbeef0-000-4000-8000-000000000000",  # 36 characters, wrong groups
+    "deadbeef-0000-4000-8000-00000000000g",  # UUID groups, one non-hex digit
+])
+def test_key_that_is_not_a_uuid_is_not_shown(key: str) -> None:
     d, field_uuids = _parse(_dataset(
-        {"dataFieldName": "some_new_field", "value": "42", "key": "driver"},
+        {"dataFieldName": "some_new_field", "value": "42", "key": key},
     ))
     assert (d.raw_unmapped_fields or {}).get("some_new_field") == "42"
     assert field_uuids == {}
@@ -151,6 +163,22 @@ def test_point_without_a_usable_value_adds_no_key() -> None:
     assert field_uuids == {"some_new_field.reading": {_OWN}}
 
 
+def test_rejected_point_never_counts_even_when_its_text_matches() -> None:
+    """A point with no value is dropped before its key is recorded. Recorded
+    first, it would land under the text "None" and be named next to a point
+    that really sent the string "None"."""
+    field_uuids: dict[str, set[str]] = {}
+    fields = _walk_fields(
+        _dataset(
+            {"dataFieldName": "some_new_field.reading", "value": "None", "key": _OWN},
+            {"dataFieldName": "some_new_field.reading", "value": None, "key": _OTHER},
+        ),
+        {}, {}, {}, field_uuids,
+    )
+    assert fields["some_new_field.reading"] == "None"
+    assert field_uuids == {"some_new_field.reading": {_OWN}}
+
+
 def test_points_that_sent_the_same_value_are_all_named() -> None:
     """Both points sent the shown value, so the row came from one of these."""
     d, _ = _parse(_dataset(
@@ -163,7 +191,10 @@ def test_points_that_sent_the_same_value_are_all_named() -> None:
 
 
 def test_newer_point_without_a_key_does_not_borrow_the_older_points_key() -> None:
-    """The exact #2204 failure through a shared name instead of a suffix."""
+    """The #2204 kind of failure (a value shown next to another point's key),
+    reached through a shared name instead of a suffix. It also passes on the
+    code before #2204, which recorded no key for such a name; it guards against
+    a fix that records keys without asking whose value is shown."""
     d, _ = _parse(_dataset(
         {"dataFieldName": "some_new_field.reading", "value": "50", "key": _OWN,
          "timestamp": "2026-10-01T10:00:00Z"},
@@ -258,11 +289,15 @@ def test_generic_name_with_a_key_that_is_not_a_uuid_shows_no_key() -> None:
     assert (d.raw_unmapped_fields or {}).get("open") == "true"
 
 
-def test_open_row_whose_value_came_from_another_key_raises_the_repair() -> None:
-    """The skip keys on c0bb1348 in the sample. When the shown value came from
-    a different opening point, that point is what the repair is there for."""
+@pytest.mark.parametrize("ownerless", [_OPEN, _OPEN_B])
+def test_open_row_whose_value_came_from_another_key_raises_the_repair(
+    ownerless: str,
+) -> None:
+    """The skip keys on c0bb1348 or d5dc7c87 in the sample. When the shown
+    value came from a different opening point, that point is what the repair is
+    there for. Whether the row is skipped therefore follows the shown value."""
     d, _ = _parse(_dataset(
-        {"dataFieldName": "open", "value": "true", "key": _OPEN,
+        {"dataFieldName": "open", "value": "true", "key": ownerless,
          "timestamp": "2026-10-01T10:00:00Z"},
         {"dataFieldName": "open", "value": "false", "key": _OWN,
          "timestamp": "2026-11-01T10:00:00Z"},
@@ -273,11 +308,18 @@ def test_open_row_whose_value_came_from_another_key_raises_the_repair() -> None:
 
 
 def test_raw_api_fields_sensor_keeps_its_rows_out_of_the_recorder() -> None:
-    """The live attribute stays; only its history is not written."""
-    from custom_components.vag_connect.sensor import VagRawApiFieldsSensor
+    """The live attribute stays; only its history is not written. Exactly
+    ``fields`` is added, and only on this sensor."""
+    from custom_components.vag_connect.sensor import (
+        VagConnectSensor,
+        VagRawApiFieldsSensor,
+    )
 
-    combined = VagRawApiFieldsSensor._Entity__combined_unrecorded_attributes  # type: ignore[attr-defined]
-    assert "fields" in combined
+    # The set Home Assistant hands to the recorder (helpers/entity.py).
+    attr = "_Entity__combined_unrecorded_attributes"
+    base = getattr(VagConnectSensor, attr)
+    assert "fields" not in base
+    assert getattr(VagRawApiFieldsSensor, attr) == base | {"fields"}
 
 
 def test_setup_builds_the_raw_api_fields_sensor_with_that_class() -> None:

@@ -6018,7 +6018,8 @@ class VagRawApiFieldsSensor(VagConnectSensor):
     """#2204 — the raw API fields sensor, without its ``fields`` in the recorder.
 
     The ``fields`` attribute holds up to 250 discovery rows (``_RAW_FIELD_CAP``),
-    and since #2204 a row of a point with a content UUID carries that UUID. For
+    and since #2204 the rows of all named points with a content UUID carry it,
+    not only those of the generic names. For
     two portal exports attached to issues, both at 250 rows, the attribute as
     compact JSON grew from 11 684 and 13 888 bytes to 16 784 and 17 888, over
     the recorder's limit of 16 384 bytes for a state's attributes
