@@ -37,8 +37,13 @@ def _parse(name: str) -> dict:
     fsyn: dict = {}
     cont: dict = {}
     fuu: dict = {}
-    fields = _walk_fields(payload, fts, fsyn, cont, fuu)
-    return map_dataset_to_vehicle_data(fields, d, fts, fsyn, cont, fuu).to_dict()
+    inh: set = set()
+    paired: set = set()
+    # Same arguments as the production parse (_eu_data_act.parse_export_zip).
+    fields = _walk_fields(payload, fts, fsyn, cont, fuu, None, inh, paired)
+    return map_dataset_to_vehicle_data(
+        fields, d, fts, fsyn, cont, fuu, inh, paired
+    ).to_dict()
 
 
 # ── the real-data sequence ────────────────────────────────────────────────────

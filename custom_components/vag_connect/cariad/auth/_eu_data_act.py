@@ -1285,6 +1285,7 @@ def _walk_fields(
     _uuid_out: dict[str, set[str]] | None = None,
     _delivery_out: dict[str, set[str]] | None = None,
     _inherited_out: set[str] | None = None,
+    _paired_out: set[str] | None = None,
 ) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -1430,6 +1431,11 @@ def _walk_fields(
         if paired and name not in paired_best and (prev[3] or not prev[2]):
             best[name] = (str(value), cand, True, False, False)
             paired_best.add(name)
+            # A contest between the borrowed candidates before it is void: the
+            # #1088 majority step would otherwise put one of their values next
+            # to this paired time.
+            if _contested_out is not None:
+                _contested_out.pop(name, None)
             return
         if not paired and name in paired_best and (cand_inh or not cand_real):
             return
@@ -1730,6 +1736,8 @@ def _walk_fields(
                 _ts_out[k] = ts_v
                 if shown_v and _inherited_out is not None:
                     _inherited_out.add(k)
+                if k in paired_best and _paired_out is not None:
+                    _paired_out.add(k)  # #2096: the time came from a key pair
     return {k: v[0] for k, v in best.items()}
 
 
@@ -2442,6 +2450,7 @@ def map_dataset_to_vehicle_data(
     contested: dict[str, set[str]] | None = None,
     field_uuids: dict[str, set[str]] | None = None,
     field_ts_inherited: set[str] | None = None,
+    field_ts_paired: set[str] | None = None,
 ) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -2805,6 +2814,7 @@ def map_dataset_to_vehicle_data(
         _leaf_soc = None
     _leaf_soc_src = _matched[0]
     soc = _hv_soc if _hv_soc is not None else _leaf_soc
+    _soc_from_hv = _hv_soc is not None
     if _hv_soc is not None:
         # #2096 — the VALID HV pair and the leaf are two samples of one series,
         # taken at different times. When both carry a time of their OWN (paired
@@ -2820,12 +2830,19 @@ def map_dataset_to_vehicle_data(
             return (field_ts or {}).get(name)
 
         _hv_ts = next((t for t in map(_own_ts, _hv_names) if t is not None), None)
-        _leaf_ts = None if _leaf_soc_src in _hv_names else _own_ts(_leaf_soc_src)
+        # The leaf's time counts only when it came from its key pair (72e1ae0b).
+        _leaf_ts = (
+            _own_ts(_leaf_soc_src)
+            if _leaf_soc_src not in _hv_names
+            and _leaf_soc_src in (field_ts_paired or ())
+            else None
+        )
         if (
             _leaf_soc is not None and _hv_ts is not None and _leaf_ts is not None
             and _leaf_ts > _hv_ts
         ):
             soc = _leaf_soc
+            _soc_from_hv = False
         elif _leaf_soc_src not in _hv_names:
             d.field_captured_ts.pop("battery_soc", None)
             d.field_source_leaf.pop("battery_soc", None)
@@ -2839,7 +2856,7 @@ def map_dataset_to_vehicle_data(
         # only the battery_state_report.soc leaf, so reconcile can hold the
         # recorded value when a partial poll drops the HV pair and leaves only the
         # frozen leaf (soulriding's CUPRA Born datasets 11/13/14; #465 Arno-MA-73).
-        d.battery_soc_from_hv = _hv_soc is not None
+        d.battery_soc_from_hv = _soc_from_hv
 
     # #1403 (@placidcasual98, Audi A6 e-tron Avant, PPE) — the one-time export
     # spells the traction SoC differently from the 15-minute feed, and every
@@ -8167,9 +8184,10 @@ class EUDataActConnector:
         field_uuids: dict[str, set[str]] = {}  # field name -> its points' content UUID(s)
         delivery: dict[str, set[str]] = {}  # #465: valued vs value-less names
         ts_inherited: set[str] = set()  # #2096: stamps borrowed from a neighbour
+        ts_paired: set[str] = set()  # #2096: stamps paired by key
         fields = _walk_fields(
             payload, field_ts, field_syn, contested, field_uuids, delivery,
-            ts_inherited,
+            ts_inherited, ts_paired,
         )
         # #465 BooM80 — record the value/value-less split BEFORE the empty-dataset
         # early return, so the diagnostic reflects THIS parse even when VW shipped
@@ -8203,7 +8221,8 @@ class EUDataActConnector:
             except Exception:  # noqa: BLE001  # pragma: no cover - defensive
                 _LOGGER.debug("EU Data Act: raw-dataset archive hook failed")
         return map_dataset_to_vehicle_data(
-        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited
+        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited,
+        ts_paired,
     )
 
     async def get_relation_nickname(self, vin: str) -> str | None:
@@ -8284,12 +8303,15 @@ def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleD
     contested: dict[str, set[str]] = {}  # #1088 — same as get_vehicle_data
     field_uuids: dict[str, set[str]] = {}  # field name -> its points' content UUID(s)
     ts_inherited: set[str] = set()  # #2096
+    ts_paired: set[str] = set()  # #2096
     fields = _walk_fields(
-        payload, field_ts, field_syn, contested, field_uuids, None, ts_inherited
+        payload, field_ts, field_syn, contested, field_uuids, None, ts_inherited,
+        ts_paired,
     )
     if not fields:
         return d
     d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
     return map_dataset_to_vehicle_data(
-        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited
+        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited,
+        ts_paired,
     )

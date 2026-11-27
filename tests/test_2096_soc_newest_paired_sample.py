@@ -17,7 +17,7 @@ cover:
 from __future__ import annotations
 
 import random
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from custom_components.vag_connect.cariad.vehicle_cache import reconcile
 from tests.test_2096_pair_capture_times import (
@@ -28,6 +28,7 @@ from tests.test_2096_pair_capture_times import (
     _p,
     _vehicle,
     _walk,
+    _walk_all,
 )
 
 LEAF_KEY = "506cb83e-f99f-3af3-bbeb-0429b69a78d9"
@@ -98,17 +99,57 @@ def test_paired_leaf_beats_a_frozen_twin_in_any_order() -> None:
         assert "battery_state_report.soc" not in contested
 
 
+def test_paired_leaf_voids_a_contest_between_borrowed_twins() -> None:
+    # 76, 76 and 50 under keys of their own, without times of their own; then
+    # the paired 55. The #1088 majority step must not put 76 next to 55's time.
+    marker = _p("33333333-0000-0000-0000-000000000001",
+                "car_captured_utc_timestamp", "2026-11-14T00:00:00Z")
+    twins = [_p(f"7bddd5e7-0000-0000-0000-00000000000{i}",
+                "battery_state_report.soc", v)
+             for i, v in enumerate(("76", "76", "50"), start=1)]
+    base = [marker, *twins, *_leaf("55", LATER)]
+    rng = random.Random(2248)
+    orders = [base, [*_leaf("55", LATER), marker, *twins]]
+    for _ in range(100):
+        items = base[:]
+        rng.shuffle(items)
+        orders.append(items)
+    for items in orders:
+        flat, ts, _syn, contested, _uuids, inh = _walk(items)
+        assert flat["battery_state_report.soc"] == "55", items
+        assert ts["battery_state_report.soc"] == LATER_EPOCH
+        assert "battery_state_report.soc" not in inh
+        assert "battery_state_report.soc" not in contested
+
+
 # ── the newer paired sample wins ─────────────────────────────────────────────
 def test_newer_leaf_wins_with_its_value_and_time() -> None:
     soc, ts, leaf, inh = _soc([*_hv("32"), *_leaf("31", LATER)])
     assert (soc, ts, leaf, inh) == (31, LATER_ISO, "battery_state_report.soc", False)
-    attrs = _vehicle(_map([*_hv("32"), *_leaf("31", LATER)]))
+    d = _map([*_hv("32"), *_leaf("31", LATER)])
+    # the flag says where the value came from: the leaf, not the HV pair
+    assert d.battery_soc_from_hv is False
+    attrs = _vehicle(d)
     assert attrs["field_captured_inherited"]["battery_soc"] is False
 
 
 def test_newer_hv_wins_with_the_hv_time() -> None:
     soc, ts, leaf, inh = _soc([*_hv("32"), *_leaf("35", EARLIER)])
     assert (soc, ts, leaf, inh) == (32, SOC_ISO, "battery_level_HV.value", False)
+    assert _map([*_hv("32"), *_leaf("35", EARLIER)]).battery_soc_from_hv is True
+
+
+def test_an_own_time_without_the_pair_is_no_leaf_evidence() -> None:
+    # same name, another key, a timestamp entry in its own record: not the pair
+    other = {"key": FROZEN_KEY, "dataFieldName": "battery_state_report.soc",
+             "value": "31", "timestamp": LATER}
+    _flat, ts, _syn, _cont, _uuids, inh, paired = _walk_all([other])
+    assert ts["battery_state_report.soc"] == LATER_EPOCH
+    assert "battery_state_report.soc" not in inh
+    assert "battery_state_report.soc" not in paired
+    d = _map([*_hv("32"), other])
+    assert (d.battery_soc, d.battery_soc_from_hv) == (32, True)
+    assert d.field_captured_ts["battery_soc"] == SOC_ISO
 
 
 def test_equal_times_keep_the_hv_pair() -> None:
@@ -166,6 +207,33 @@ def test_an_unmarked_snapshot_is_no_evidence() -> None:
 def test_a_borrowed_time_is_no_evidence() -> None:
     merged, _ = reconcile(_snap(31, LATER_ISO), _snap(32, SOC_ISO, own=False))
     assert merged["battery_soc"] == 32
+
+
+def test_a_recorded_time_in_the_future_is_no_evidence() -> None:
+    # a car clock that jumped ahead once must not block every later reading
+    ahead = (datetime.now(tz=timezone.utc) + timedelta(days=2)).isoformat()
+    merged, notes = reconcile(_snap(32, ahead), _snap(31, LATER_ISO))
+    assert merged["battery_soc"] == 31
+    assert merged["field_captured_ts"]["battery_soc"] == LATER_ISO
+    assert not any("older sample" in n for n in notes)
+
+
+def test_a_recorded_time_just_ahead_still_counts() -> None:
+    # inside the margin: a small clock skew is still a real, newer sample
+    soon = (datetime.now(tz=timezone.utc) + timedelta(minutes=2)).isoformat()
+    merged, _ = reconcile(_snap(32, soon), _snap(31, LATER_ISO))
+    assert merged["battery_soc"] == 32
+
+
+def test_a_kept_sample_keeps_its_source_flag() -> None:
+    # the recorded value came from the leaf; an older HV sample does not
+    # replace it, and the flag must not claim the kept value is from HV
+    merged, notes = reconcile(
+        _snap(31, LATER_ISO, from_hv=False), _snap(32, SOC_ISO)
+    )
+    assert merged["battery_soc"] == 31
+    assert merged["battery_soc_from_hv"] is False
+    assert any("older sample" in n for n in notes)
 
 
 def test_hold_releases_on_a_newer_own_leaf_time() -> None:

@@ -72,20 +72,27 @@ MARKER_16 = _p("33333333-0000-0000-0000-000000000009", "car_captured_utc_timesta
                "2026-11-16T10:00:00Z")
 
 
-def _walk(items: list[dict[str, str]]) -> tuple[Any, ...]:
+def _walk_all(items: list[dict[str, str]]) -> tuple[Any, ...]:
     ts: dict[str, float] = {}
     syn: dict[str, set[str]] = {}
     contested: dict[str, set[str]] = {}
     uuids: dict[str, set[str]] = {}
     inh: set[str] = set()
-    flat = _walk_fields({"data": items}, ts, syn, contested, uuids, None, inh)
-    return flat, ts, syn, contested, uuids, inh
+    paired: set[str] = set()
+    flat = _walk_fields(
+        {"data": items}, ts, syn, contested, uuids, None, inh, paired
+    )
+    return flat, ts, syn, contested, uuids, inh, paired
+
+
+def _walk(items: list[dict[str, str]]) -> tuple[Any, ...]:
+    return _walk_all(items)[:6]
 
 
 def _map(items: list[dict[str, str]]) -> VehicleData:
-    flat, ts, syn, contested, uuids, inh = _walk(items)
+    flat, ts, syn, contested, uuids, inh, paired = _walk_all(items)
     return map_dataset_to_vehicle_data(
-        flat, VehicleData(vin="X"), ts, syn, contested, uuids, inh
+        flat, VehicleData(vin="X"), ts, syn, contested, uuids, inh, paired
     )
 
 

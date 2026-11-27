@@ -478,6 +478,10 @@ def _energy_ratio(fresh: dict[str, Any]) -> float | None:
 #     value, is released. Only the stamp is compared, not the odometer value.
 _SOC_HOLD_RELEASE_MARGIN = 5.0
 _SOC_HOLD_MAX_AGE_S = 24 * 3600
+# #2096 — an own SoC capture time later than the poll by more than this is no
+# evidence (a car clock that jumped ahead). Without the limit, one such time in
+# the cache would refuse every later reading until the real time passed it.
+_SOC_TS_FUTURE_MARGIN_S = 10 * 60
 
 
 def _odometer_jump_note(
@@ -568,13 +572,13 @@ def _soc_hold_released(
     # #2096 — a leaf with a capture time of its OWN (paired by key) that is
     # newer than the held value is the newer sample. A frozen leaf keeps its
     # old time, so it still loses; a borrowed time is no evidence.
-    if (
-        held_ts is not None and leaf_ts is not None and leaf_ts > held_ts
-        and _soc_ts_is_own(fresh) and _soc_ts_is_own(previous)
-    ):
+    _now = datetime.now(tz=timezone.utc)
+    held_own = _soc_own_ts(previous, _now)
+    leaf_own = _soc_own_ts(fresh, _now)
+    if held_own is not None and leaf_own is not None and leaf_own > held_own:
         return (
-            f"the leaf has its own capture time {leaf_ts.isoformat()}, after "
-            f"the held value's {held_ts.isoformat()}"
+            f"the leaf has its own capture time {leaf_own.isoformat()}, after "
+            f"the held value's {held_own.isoformat()}"
         )
     odo_ts = (
         None if _odometer_reading_rejected(fresh, previous)
@@ -591,30 +595,36 @@ def _soc_hold_released(
     return None
 
 
-def _soc_ts_is_own(snapshot: dict[str, Any]) -> bool:
-    """Whether the SoC's recorded capture time is its own, not borrowed (#2096).
+def _soc_own_ts(snapshot: dict[str, Any], now: datetime) -> datetime | None:
+    """The SoC's own capture time, or None when it is no evidence (#2096).
 
     The parser marks an own time with False. A snapshot without the mark (an
-    older version, another channel) gives no evidence, so it returns False.
+    older version, another channel) gives no evidence, and neither does a time
+    later than ``now`` plus ``_SOC_TS_FUTURE_MARGIN_S``.
     """
     ts = snapshot.get("field_captured_ts")
-    if not isinstance(ts, dict) or ts.get("battery_soc") is None:
-        return False
     inherited = snapshot.get("field_captured_inherited")
-    return isinstance(inherited, dict) and inherited.get("battery_soc") is False
+    if not isinstance(ts, dict) or not isinstance(inherited, dict):
+        return None
+    if inherited.get("battery_soc") is not False:
+        return None
+    at = _as_aware_dt(ts.get("battery_soc"))
+    if at is None or (at - now).total_seconds() > _SOC_TS_FUTURE_MARGIN_S:
+        return None
+    return at
 
 
-def _soc_older_than_recorded(fresh: dict[str, Any], previous: dict[str, Any]) -> bool:
+def _soc_older_than_recorded(
+    fresh: dict[str, Any], previous: dict[str, Any], now: datetime,
+) -> bool:
     """Whether the fresh SoC is a sample older than the recorded one (#2096).
 
     Only own capture times count. The portal sometimes delivers an older
     snapshot, so a time can step back from one export to the next.
     """
-    if not (_soc_ts_is_own(fresh) and _soc_ts_is_own(previous)):
-        return False
-    then = _as_aware_dt(previous["field_captured_ts"]["battery_soc"])
-    now = _as_aware_dt(fresh["field_captured_ts"]["battery_soc"])
-    return then is not None and now is not None and now < then
+    then = _soc_own_ts(previous, now)
+    sample = _soc_own_ts(fresh, now)
+    return then is not None and sample is not None and sample < then
 
 
 _SOC_PROVENANCE_MAPS: tuple[str, ...] = (
@@ -1271,9 +1281,12 @@ def reconcile(
         not _fresh_soc_is_live
         and merged.get("battery_soc") is not None
         and previous.get("battery_soc") is not None
-        and _soc_older_than_recorded(fresh, previous)
+        and _soc_older_than_recorded(
+            fresh, previous, datetime.now(tz=timezone.utc)
+        )
     ):
-        # #2096 — never replace a sample with an older one.
+        # #2096 — never replace a sample with an older one. The recorded value
+        # keeps its own source flag, so that the flag says where it came from.
         if merged.get("battery_soc") != previous.get("battery_soc"):
             notes.append(
                 f"battery_soc {merged.get('battery_soc')} is an older sample than "
@@ -1281,6 +1294,11 @@ def reconcile(
             )
         merged["battery_soc"] = previous["battery_soc"]
         _restore_soc_provenance(merged, previous)
+        _fresh_from_hv = _prev_from_hv
+        if _prev_from_hv is None:
+            merged.pop("battery_soc_from_hv", None)
+        else:
+            merged["battery_soc_from_hv"] = _prev_from_hv
     elif (
         _prev_from_hv is True
         and _fresh_from_hv is False
