@@ -118,7 +118,17 @@ class TestFuelStatus:
             "combustion_range_km": FUEL_ISO,
         }
 
-    def test_the_dict_form_has_no_stamp_and_records_none(self) -> None:
+    def test_a_dict_form_node_with_a_stamp_dates_its_values(self) -> None:
+        body = {"primaryEngine": {
+            "carCapturedTimestamp": FUEL_TS,
+            "engineType": "electric",
+            "currentSOC_pct": "57",
+        }}
+        d = map_fuel_to_vehicle_data(body, VehicleData(vin=VIN))
+        assert d.battery_soc == 57
+        assert d.field_captured_ts == {"battery_soc": FUEL_ISO}
+
+    def test_a_dict_form_node_without_a_stamp_records_none(self) -> None:
         body = {"primaryEngine": {"engineType": "electric", "currentSOC_pct": "57"}}
         d = map_fuel_to_vehicle_data(body, VehicleData(vin=VIN))
         assert d.battery_soc == 57
