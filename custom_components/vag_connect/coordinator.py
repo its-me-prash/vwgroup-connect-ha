@@ -502,9 +502,11 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
             # and plug state, fuel level, closures and a few more). The climate
             # state and reason are stamped too (#1881) but are left out of the
             # age verdict above. The vw.de status mappers stamp their values
-            # with the body's ``carCapturedTimestamp`` as well; those stamps
-            # exist only when that live channel contributed, so the branch
-            # below compares them with the live clock like the others.
+            # with the body's ``carCapturedTimestamp`` as well. While that live
+            # channel contributes, the branch below compares those stamps with
+            # the live clock like the others. A value carried forward after it
+            # stopped answering keeps its stamp, which is the car's own capture
+            # time and so never makes the car look fresher than it is.
             # ``last_seen_at`` is written by eight channels. So a stamp
             # from the map may only override ``last_seen_at`` when that clock is
             # itself batch; where a live channel contributed, the fresher of the
