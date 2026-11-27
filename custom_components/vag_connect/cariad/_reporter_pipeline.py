@@ -35,6 +35,7 @@ ever change that, audit the call sites first.
 
 from __future__ import annotations
 
+import re
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Iterable
@@ -185,7 +186,20 @@ _SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({
 # value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open
 # PATH) preserves discovery — a genuinely-new opening UUID on the same leaf still
 # raises the repair.
+# #2204 — the annotation names only the keys of the points that sent the value a
+# row shows, under any row name (the container-qualified spelling included). So
+# the skip follows the shown value. A row is skipped only when every key it
+# names is one of these two: when another opening point sent the same value, its
+# key stands next to them and the row raises the repair, as the first paragraph
+# above promises. The earlier rule, a plain substring test, skipped it. A row
+# whose annotation cannot be read (cut off by the 80-character mask, or a
+# brand-API finding without one) keeps that substring test. The Scout keeps the
+# first sample of a row until the entry is reloaded or Home Assistant restarts
+# (coordinator.py, per_vin.setdefault), so that sample decides.
 _SCOUT_REPAIR_SKIP_UUIDS: frozenset[str] = frozenset({"c0bb1348", "d5dc7c87"})
+# The keys of the annotation at the end of a masked sample: ``"false (uuid
+# c0bb1348, deadbeef)"`` (mask_value wraps a string in quotes).
+_ANNOTATION_KEYS_RE = re.compile(r"\(uuid ([0-9a-f]{8}(?:, [0-9a-f]{8})*)\)\"?$")
 
 
 def _is_scout_repair_skipped(f: UnexpectedField) -> bool:
@@ -200,6 +214,9 @@ def _is_scout_repair_skipped(f: UnexpectedField) -> bool:
     if f.path.rsplit(".", 1)[-1].lower() in _SCOUT_REPAIR_SKIP_LEAVES:
         return True
     sample = f.sample_masked or ""
+    named = _ANNOTATION_KEYS_RE.search(sample)
+    if named:
+        return set(named.group(1).split(", ")) <= _SCOUT_REPAIR_SKIP_UUIDS
     return any(u in sample for u in _SCOUT_REPAIR_SKIP_UUIDS)
 
 
