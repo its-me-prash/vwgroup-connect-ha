@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Passa solo a Volkswagen.de",
-        "description": "Questa voce leggerà solo da volkswagen.de, con l'accesso a volkswagen.de salvato. Gli altri canali, come il portale EU Data Act, vengono disattivati. La voce diventa di sola lettura: i comandi a distanza non sono più disponibili. Veicoli ed entità restano uguali.\n\nQui non si può annullare. Per tornare indietro, aggiungi di nuovo il canale del portale o configura di nuovo la voce."
+        "description": "Questa voce leggerà solo da volkswagen.de, con l'accesso a volkswagen.de salvato. Gli altri canali, come il portale EU Data Act, vengono disattivati. La voce diventa di sola lettura: i comandi a distanza non sono più disponibili. Veicoli ed entità restano uguali.\n\nQui non si può annullare. Per tornare indietro, aggiungi di nuovo il canale del portale o configura di nuovo la voce. Questa scelta non si può annullare qui: per tornare al portale EU Data Act come canale principale, occorre aggiungere di nuovo la voce."
       }
     },
     "error": {

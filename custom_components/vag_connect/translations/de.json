@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Nur noch Volkswagen.de verwenden",
-        "description": "Dieser Eintrag liest danach nur noch von volkswagen.de, mit dem gespeicherten volkswagen.de-Login. Die anderen Kanäle, zum Beispiel das EU-Data-Act-Portal, werden abgeschaltet. Der Eintrag ist dann schreibgeschützt: Fernbefehle sind nicht mehr verfügbar. Fahrzeuge und Entitäten bleiben gleich.\n\nHier lässt sich das nicht rückgängig machen. Um zurückzugehen, fügst du den Portal-Kanal erneut hinzu oder richtest den Eintrag neu ein."
+        "description": "Dieser Eintrag liest danach nur noch von volkswagen.de, mit dem gespeicherten volkswagen.de-Login. Die anderen Kanäle, zum Beispiel das EU-Data-Act-Portal, werden abgeschaltet. Der Eintrag ist dann schreibgeschützt: Fernbefehle sind nicht mehr verfügbar. Fahrzeuge und Entitäten bleiben gleich.\n\nHier lässt sich das nicht rückgängig machen. Um zurückzugehen, fügst du den Portal-Kanal erneut hinzu oder richtest den Eintrag neu ein. Das lässt sich hier nicht rückgängig machen: Um wieder das EU-Data-Act-Portal als Hauptkanal zu nutzen, füge den Eintrag neu hinzu."
       }
     },
     "error": {

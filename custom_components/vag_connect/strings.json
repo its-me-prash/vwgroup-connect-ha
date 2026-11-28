@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Switch to Volkswagen.de only",
-        "description": "This entry will read only from volkswagen.de, using the saved volkswagen.de login. The other channels, such as the EU Data Act portal, are switched off. The entry becomes read-only: remote commands are no longer available. Your cars and entities stay the same.\n\nThis cannot be undone here. To go back, add the portal channel again or set the entry up again."
+        "description": "This entry will read only from volkswagen.de, using the saved volkswagen.de login. The other channels, such as the EU Data Act portal, are switched off. The entry becomes read-only: remote commands are no longer available. Your cars and entities stay the same.\n\nThis cannot be undone here. To go back, add the portal channel again or set the entry up again. This cannot be undone here: to go back to the EU Data Act portal as the main channel, add the entry again."
       }
     },
     "error": {

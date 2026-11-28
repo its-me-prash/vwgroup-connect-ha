@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Alleen Volkswagen.de gebruiken",
-        "description": "Deze invoer leest voortaan alleen van volkswagen.de, met de opgeslagen volkswagen.de-login. De andere kanalen, zoals het EU Data Act-portaal, worden uitgeschakeld. De invoer is dan alleen-lezen: commando's op afstand zijn niet meer beschikbaar. Je voertuigen en entiteiten blijven gelijk.\n\nHier kun je dit niet ongedaan maken. Om terug te gaan voeg je het portaalkanaal opnieuw toe of stel je de invoer opnieuw in."
+        "description": "Deze invoer leest voortaan alleen van volkswagen.de, met de opgeslagen volkswagen.de-login. De andere kanalen, zoals het EU Data Act-portaal, worden uitgeschakeld. De invoer is dan alleen-lezen: commando's op afstand zijn niet meer beschikbaar. Je voertuigen en entiteiten blijven gelijk.\n\nHier kun je dit niet ongedaan maken. Om terug te gaan voeg je het portaalkanaal opnieuw toe of stel je de invoer opnieuw in. Dit kan hier niet ongedaan worden gemaakt: om terug te gaan naar het EU Data Act-portaal als hoofdkanaal, moet de invoer opnieuw worden toegevoegd."
       }
     },
     "error": {

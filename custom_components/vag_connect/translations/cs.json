@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Přepnout jen na Volkswagen.de",
-        "description": "Tento záznam bude číst pouze z volkswagen.de s uloženým přihlášením k volkswagen.de. Ostatní kanály, například portál EU Data Act, se vypnou. Záznam bude jen pro čtení: vzdálené příkazy už nebudou dostupné. Vozidla a entity zůstanou stejné.\n\nZde to nejde vrátit zpět. Chcete-li se vrátit, znovu přidejte kanál portálu nebo záznam nastavte znovu."
+        "description": "Tento záznam bude číst pouze z volkswagen.de s uloženým přihlášením k volkswagen.de. Ostatní kanály, například portál EU Data Act, se vypnou. Záznam bude jen pro čtení: vzdálené příkazy už nebudou dostupné. Vozidla a entity zůstanou stejné.\n\nZde to nejde vrátit zpět. Chcete-li se vrátit, znovu přidejte kanál portálu nebo záznam nastavte znovu. Tuto změnu zde nelze vrátit: pro návrat k portálu EU Data Act jako hlavnímu kanálu je třeba záznam přidat znovu."
       }
     },
     "error": {

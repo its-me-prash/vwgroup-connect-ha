@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Vaihda vain Volkswagen.de:hen",
-        "description": "Tämä merkintä lukee jatkossa vain volkswagen.de:stä tallennetulla volkswagen.de-kirjautumisella. Muut kanavat, kuten EU Data Act -portaali, kytketään pois. Merkintä muuttuu vain luku -tilaan: etäkomennot eivät ole enää käytettävissä. Autot ja entiteetit pysyvät ennallaan.\n\nTätä ei voi perua täällä. Palataksesi lisää portaalikanava uudelleen tai ota merkintä uudelleen käyttöön."
+        "description": "Tämä merkintä lukee jatkossa vain volkswagen.de:stä tallennetulla volkswagen.de-kirjautumisella. Muut kanavat, kuten EU Data Act -portaali, kytketään pois. Merkintä muuttuu vain luku -tilaan: etäkomennot eivät ole enää käytettävissä. Autot ja entiteetit pysyvät ennallaan.\n\nTätä ei voi perua täällä. Palataksesi lisää portaalikanava uudelleen tai ota merkintä uudelleen käyttöön. Tätä ei voi perua täällä: jos haluat palata EU Data Act -portaaliin pääkanavana, merkintä on lisättävä uudelleen."
       }
     },
     "error": {

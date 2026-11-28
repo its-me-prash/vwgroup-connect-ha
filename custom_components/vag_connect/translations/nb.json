@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Bytt til bare Volkswagen.de",
-        "description": "Denne oppføringen leser heretter bare fra volkswagen.de, med den lagrede volkswagen.de-innloggingen. De andre kanalene, for eksempel EU Data Act-portalen, slås av. Oppføringen blir skrivebeskyttet: fjernkommandoer er ikke lenger tilgjengelige. Bilene og enhetene dine forblir de samme.\n\nDette kan ikke angres her. For å gå tilbake legger du til portalkanalen på nytt eller setter opp oppføringen på nytt."
+        "description": "Denne oppføringen leser heretter bare fra volkswagen.de, med den lagrede volkswagen.de-innloggingen. De andre kanalene, for eksempel EU Data Act-portalen, slås av. Oppføringen blir skrivebeskyttet: fjernkommandoer er ikke lenger tilgjengelige. Bilene og enhetene dine forblir de samme.\n\nDette kan ikke angres her. For å gå tilbake legger du til portalkanalen på nytt eller setter opp oppføringen på nytt. Dette kan ikke angres her: for å gå tilbake til EU Data Act-portalen som hovedkanal må oppføringen legges til på nytt."
       }
     },
     "error": {

@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Cambiar solo a Volkswagen.de",
-        "description": "Esta entrada leerá solo desde volkswagen.de, con el inicio de sesión de volkswagen.de guardado. Los demás canales, como el portal EU Data Act, se desactivan. La entrada pasa a solo lectura: los comandos remotos dejan de estar disponibles. Tus vehículos y entidades siguen igual.\n\nAquí no se puede deshacer. Para volver atrás, añade de nuevo el canal del portal o configura la entrada otra vez."
+        "description": "Esta entrada leerá solo desde volkswagen.de, con el inicio de sesión de volkswagen.de guardado. Los demás canales, como el portal EU Data Act, se desactivan. La entrada pasa a solo lectura: los comandos remotos dejan de estar disponibles. Tus vehículos y entidades siguen igual.\n\nAquí no se puede deshacer. Para volver atrás, añade de nuevo el canal del portal o configura la entrada otra vez. Esto no se puede deshacer aquí: para volver al portal EU Data Act como canal principal, hay que añadir la entrada de nuevo."
       }
     },
     "error": {

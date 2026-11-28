@@ -405,7 +405,7 @@
       },
       "switch_vwde_only": {
         "title": "Skift til kun Volkswagen.de",
-        "description": "Denne post læser herefter kun fra volkswagen.de med det gemte volkswagen.de-login. De andre kanaler, f.eks. EU Data Act-portalen, slås fra. Posten bliver skrivebeskyttet: fjernkommandoer er ikke længere tilgængelige. Dine biler og entiteter forbliver de samme.\n\nDet kan ikke fortrydes her. For at gå tilbage skal du tilføje portalkanalen igen eller oprette posten igen."
+        "description": "Denne post læser herefter kun fra volkswagen.de med det gemte volkswagen.de-login. De andre kanaler, f.eks. EU Data Act-portalen, slås fra. Posten bliver skrivebeskyttet: fjernkommandoer er ikke længere tilgængelige. Dine biler og entiteter forbliver de samme.\n\nDet kan ikke fortrydes her. For at gå tilbage skal du tilføje portalkanalen igen eller oprette posten igen. Det kan ikke fortrydes her: for at gå tilbage til EU Data Act-portalen som hovedkanal skal posten tilføjes igen."
       }
     },
     "error": {
