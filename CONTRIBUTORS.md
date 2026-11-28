@@ -80,6 +80,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @begga77
 - @benbrummer
 - @Bendeguz93-HA
+- @benderbender2025
 - @BengtKR79
 - @BennoJinx
 - @BentChr
@@ -260,6 +261,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @fajabird
 - @fakerli
 - @falkru
+- @fammoos
 - @farmer1969
 - @fefe-home
 - @fekici

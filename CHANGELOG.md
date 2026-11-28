@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-11-28 — "One channel / Ein Kanal"
+
 ### Hinzugefügt / Added
 
 - **An existing entry can now be switched to the volkswagen.de-only mode in the options (#2138).** A Volkswagen entry that reads the EU Data Act portal and also has the volkswagen.de read channel can be switched in place, so you no longer have to edit the entry data by hand. In the options, tick "Switch this entry to Volkswagen.de only", confirm, and the entry reloads. It keeps your cars, entities, login and update interval, reuses the saved volkswagen.de session, and switches off the portal and the other extra channels. The option only appears on Volkswagen entries that already have the volkswagen.de read channel with a saved session. It is one-way: to go back, add the portal channel again or set the entry up again. The entry becomes read-only, so remote commands are not available in this mode. Covered by `tests/test_2138_vwde_only_switch.py`; not tried with a real account.
