@@ -449,17 +449,31 @@ class VehicleImageFetcher:
         """
         if not image_urls:
             return None
+        # #2256 — an interior view is never the hero while another view is
+        # there. Škoda keys its composite renders by view point in the order
+        # the API lists them (``interior_side`` can come before
+        # ``exterior_side``), so "first key with 'side'" put the rear seats
+        # on the map. Interior keys are tried last, by the same tiers.
+        outside = {k: v for k, v in image_urls.items() if "interior" not in k.lower()}
         # tier 1 (side/profile) then tier 2 (¾-angle/front) — substring over the
-        # vw.de view-direction keys; first key matching the tier wins.
+        # view-direction keys; first key matching the tier wins.
         for needles in (("side", "profile", "seiten"), ("3_4", "angle", "front")):
-            for key, val in image_urls.items():
+            for key, val in outside.items():
                 if val and any(n in key.lower() for n in needles):
                     return val
         # tier 3 — curated vgql media-id order (Audi/VW connected backend).
         for mt in _PREFERRED_ORDER:
-            url = image_urls.get(mt)
+            url = outside.get(mt)
             if url:
                 return url
+        # tier 4 — any other outside view, then the interior views by tier.
+        rest = next((v for v in outside.values() if v), None)
+        if rest:
+            return rest
+        for needles in (("side", "profile", "seiten"), ("3_4", "angle", "front")):
+            for key, val in image_urls.items():
+                if val and any(n in key.lower() for n in needles):
+                    return val
         # tier 4 — anything present.
         return next(iter(image_urls.values()), None)
 
