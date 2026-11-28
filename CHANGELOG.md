@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Behoben / Fixed
+
+- **The map marker and the shared `image_url` attribute no longer show an interior view while an exterior one is there (#2256).** The integration picks one picture of the car for the device tracker on the map and for the `image_url` attribute that its entities share, preferring a side view. Škoda delivers its renders as a list of view points, and on a Škoda Octavia the interior side view came before the exterior side view, so the first view with "side" in its name was the interior and the map showed the rear seats; a Karoq in the same installation listed the exterior first and was fine. Interior views now come last: first a side or profile view from outside, then a front or three-quarter view from outside, then the curated media types, then any other outside view, and only then an interior view. The image entities themselves are unchanged, and each still names its own picture in `source_url`; `image_url` stays the one picture of the car that dashboard cards read. Covered by `tests/test_2256_hero_image_not_interior.py`; not tried on a car. Thanks to @driemeier for the report.
+
 ## [5.7.0] - 2026-11-28 — "Sent once / Einmal gesendet"
 
 ### Hinzugefügt / Added
