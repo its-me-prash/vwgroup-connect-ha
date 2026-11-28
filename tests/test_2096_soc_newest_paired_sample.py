@@ -10,9 +10,11 @@ cover:
 * a paired time beats a borrowed one for the same name, whatever the times;
 * the newer paired sample gives both value and time; on a tie, or when one
   side has no time of its own, the HV pair wins (#1088) with the HV time;
-* ``reconcile`` refuses a sample older than the recorded one;
-* the #1195 hold releases on a leaf with an own time newer than the held one,
-  and still holds when the time is borrowed, older, or unmarked.
+* ``reconcile`` refuses a sample older than the recorded one, except in the
+  #1195 hold case, which the hold and its #2134 release decide;
+* in the #1195 hold, a leaf with an own time newer than the held one gives
+  that one sample, and the hold stays for the next poll; the hold keeps the
+  held value when the time is borrowed, older, or unmarked.
 """
 from __future__ import annotations
 
@@ -274,6 +276,43 @@ def test_hold_stays_on_an_older_own_leaf_time() -> None:
     merged, _ = reconcile(_snap(44, LATER_ISO), _snap(50, SOC_ISO, from_hv=False))
     assert merged["battery_soc"] == 44
     assert merged["field_captured_ts"]["battery_soc"] == LATER_ISO
+
+
+def test_an_older_leaf_in_the_hold_case_still_releases_on_energy() -> None:
+    # the recorded HV 80 (12:00) against a leaf-only poll with an older paired
+    # time (06:57), a parked car and energy figures near 40 % that moved since
+    # the recorded poll. This is the #1195 hold case, not an older delivery:
+    # the #2134 energy release must stay reachable, as on main
+    prev = _energy(_snap(80, LATER_ISO), 62.8, 78.5)
+    fresh = _energy(_snap(40, SOC_ISO, from_hv=False), 31.4, 78.5)
+    merged, notes = reconcile(prev, fresh)
+    assert merged["battery_soc"] == 40
+    assert any("hold released" in n for n in notes)
+    assert not any("older sample" in n for n in notes)
+
+
+def test_an_older_leaf_in_the_hold_case_is_held_without_evidence() -> None:
+    # the same poll without energy figures: the hold keeps the recorded 80
+    # with its own time, and the refusal of an older delivery does not run
+    merged, notes = reconcile(_snap(80, LATER_ISO), _snap(40, SOC_ISO, from_hv=False))
+    assert merged["battery_soc"] == 80
+    assert merged["field_captured_ts"]["battery_soc"] == LATER_ISO
+    assert merged["battery_soc_from_hv"] is True
+    assert not any("older sample" in n for n in notes)
+
+
+def test_a_frozen_older_leaf_in_the_hold_case_meets_the_energy_check() -> None:
+    # the recorded HV 80 (12:00) against a leaf-only poll that repeats 80
+    # with an older paired time (06:57). The energy figures moved to 40 %
+    # on a parked car. The hold keeps 80, and the energy check corrects
+    # it, as on main; the older-sample refusal does not run
+    prev = _energy(_snap(80, LATER_ISO), 80.0, 100.0)
+    fresh = _energy(_snap(80, SOC_ISO, from_hv=False), 40.0, 100.0)
+    merged, notes = reconcile(prev, fresh)
+    assert merged["battery_soc"] == 40
+    assert any("energy-derived" in n for n in notes)
+    assert not any("older sample" in n for n in notes)
+    assert "battery_soc_ts_paired" not in merged
 
 
 def test_hold_stays_on_a_borrowed_leaf_time() -> None:
@@ -686,8 +725,8 @@ def test_a_paired_time_never_goes_out_with_another_value() -> None:
         orders.append(items)
     for items in orders:
         flat, _ts, _syn, _cont, _uuids, _inh, paired = _walk_all(items)
-        if "battery_state_report.soc" in paired:
-            assert flat["battery_state_report.soc"] == "60", items
+        assert "battery_state_report.soc" in paired, items
+        assert flat["battery_state_report.soc"] == "60", items
 
 
 def test_an_export_without_the_pair_does_not_clear_the_hv_flag() -> None:

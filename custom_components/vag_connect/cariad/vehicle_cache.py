@@ -1311,8 +1311,19 @@ def reconcile(
     # A leaf released on a newer own time is a dated sample, like a leaf that
     # beat the VALID pair in the parser (#2096).
     _soc_newer_sample = False
+    # A leaf-only poll after a recorded HV value is the #1195 hold case. The
+    # hold already keeps the recorded value, and only the hold can release it
+    # on the energy figures (#2134). So the older-sample refusal leaves that
+    # case to the hold.
+    _soc_hold_case = (
+        _prev_from_hv is True
+        and _fresh_from_hv is False
+        and previous.get("battery_soc") is not None
+        and not _fresh_soc_is_live
+    )
     if (
         not _fresh_soc_is_live
+        and not _soc_hold_case
         and merged.get("battery_soc") is not None
         and previous.get("battery_soc") is not None
         and _soc_older_than_recorded(
@@ -1339,12 +1350,7 @@ def reconcile(
             merged["battery_soc_from_hv"] = previous["battery_soc_from_hv"]
         _soc_kept = True
         _soc_from_older_poll = True
-    elif (
-        _prev_from_hv is True
-        and _fresh_from_hv is False
-        and previous.get("battery_soc") is not None
-        and not _fresh_soc_is_live
-    ):
+    elif _soc_hold_case:
         # #2134 — the hold used to be permanent: a car whose HV pair stopped
         # arriving kept the recorded value for days, re-stamped with the
         # leaf's capture time. Release on evidence the leaf is the newer truth.

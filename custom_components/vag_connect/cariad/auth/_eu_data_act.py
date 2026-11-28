@@ -1001,10 +1001,9 @@ _CAPTURED_NAME_HINTS: tuple[str, ...] = (
 # before the value" is an accident of list order. Two values can be tied to
 # their own capture time by KEY instead: the portal ships a ``timestamp`` entry
 # under a fixed key beside each of them. The pairs rest on behaviour, not on a
-# published description: in 572 ID.7 exports (2026-11-17 to 11-27) the value
-# and its time key are nearly always present together (the HV level in 506
-# exports, its time key in 507), and the time changes every time the value
-# changes. The same keys appear in CUPRA Born exports. The guard in
+# published description: in the ID.7 exports of #2096 the value and its time
+# key are nearly always present together, and the time changes every time the
+# value changes. The same keys appear in CUPRA Born exports. The guard in
 # _collect_paired_ts drops a pair that is not unique in an export. Value key ->
 # key of its time entry. The value NAMES pair the same way (the UUIDs are the
 # stable half, the names cover exports that carry no ``key``), except the leaf,
@@ -2828,7 +2827,6 @@ def map_dataset_to_vehicle_data(
             "EU Data Act: implausible SoC %s dropped (outside 0-100)", _leaf_soc,
         )
         _leaf_soc = None
-    _leaf_soc_src = _matched[0]
     soc = _hv_soc if _hv_soc is not None else _leaf_soc
     _soc_from_hv = _hv_soc is not None
     if _hv_soc is not None:
