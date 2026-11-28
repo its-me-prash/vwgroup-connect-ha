@@ -2515,6 +2515,12 @@ class CariadBaseClient:
         ``CIMultiDict`` handles that already.
         """
         remaining = headers.get("X-RateLimit-Remaining")
+        if remaining is None:
+            # The Audi BFF reports its daily budget as ``Vcf-Remaining-Calls``
+            # instead (read by the long-standing Audi integration for its
+            # remaining-requests sensor); without it the sensor and the probe
+            # guard stayed empty on Audi accounts.
+            remaining = headers.get("Vcf-Remaining-Calls")
         if remaining is not None:
             try:
                 self.last_rate_limit_remaining = int(remaining)
