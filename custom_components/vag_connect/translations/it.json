@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "Rimuovi VW EU Two-Way (torna al canale precedente)",
           "skoda_official_api_key": "Chiave API ufficiale Škoda — aggiunge l'API ufficiale del costruttore come fonte dati in tempo reale (e failover)",
           "clear_skoda_official_key": "Cancella la chiave API ufficiale Škoda memorizzata (ne viene creata una nuova automaticamente se il tuo accesso lo consente)",
-          "skoda_official_mode": "Modalità sorgente API ufficiale Škoda"
+          "skoda_official_mode": "Modalità sorgente API ufficiale Škoda",
+          "switch_vwde_only": "Passa questa voce solo a Volkswagen.de (irreversibile, sola lettura)"
         },
         "data_description": {
           "stale_threshold_hours": "Quanto può invecchiare l'orario di rilevazione del veicolo prima che si attivino \"Dati obsoleti\" e lo stato del portale \"Obsoleto\". Predefinito 72 ore, da 1 a 168. Mai meno di 8 intervalli di aggiornamento. La riparazione per dati obsoleti mantiene un proprio minimo di 72 ore, quindi un valore più basso non la anticipa.",
@@ -401,6 +402,10 @@
           "username": "L'email del tuo account Volkswagen ID / myVolkswagen.",
           "password": "La password del tuo Volkswagen ID. Usata solo per rinnovare il token di accesso di 1 ora sul server di login di Volkswagen; mai registrata nei log e oscurata dalla diagnostica."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Passa solo a Volkswagen.de",
+        "description": "Questa voce leggerà solo da volkswagen.de, con l'accesso a volkswagen.de salvato. Gli altri canali, come il portale EU Data Act, vengono disattivati. La voce diventa di sola lettura: i comandi a distanza non sono più disponibili. Veicoli ed entità restano uguali.\n\nQui non si può annullare. Per tornare indietro, aggiungi di nuovo il canale del portale o configura di nuovo la voce."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Questo canale è disponibile solo per Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen ha disattivato il login usato da questo canale il 18/08/2026, quindi non può più essere configurato. Le letture in tempo reale continuano a funzionare tramite il portale EU Data Act, e un canale di comandi durevole tramite il backend classico Car-Net è in beta — vedi la issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen ha disattivato il login usato da questo canale il 18/08/2026, quindi non può più essere configurato. Le letture in tempo reale continuano a funzionare tramite il portale EU Data Act, e un canale di comandi durevole tramite il backend classico Car-Net è in beta — vedi la issue #584.",
+      "vwde_only_switch_unavailable": "Questa voce non può essere cambiata: serve un canale di lettura Volkswagen.de salvato."
     }
   },
   "entity": {

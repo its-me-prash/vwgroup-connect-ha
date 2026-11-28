@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)",
           "skoda_official_api_key": "Škoda official API key — adds the official manufacturer API as a live data source (and failover)",
           "clear_skoda_official_key": "Clear the stored Škoda official API key (a fresh one is created automatically if your login supports it)",
-          "skoda_official_mode": "Škoda official-API source mode"
+          "skoda_official_mode": "Škoda official-API source mode",
+          "switch_vwde_only": "Switch this entry to Volkswagen.de only (one-way, read-only)"
         },
         "data_description": {
           "stale_threshold_hours": "How old the car's own capture time may get before \"Data stale\" and the portal health state \"Stale\" switch on. Default 72 hours, range 1 to 168. It never drops below 8 update intervals. The stale-data repair keeps its own 72-hour floor, so a lower value does not raise it earlier.",
@@ -401,6 +402,10 @@
           "vehicle": "Car",
           "obd_device": "OBD device"
         }
+      },
+      "switch_vwde_only": {
+        "title": "Switch to Volkswagen.de only",
+        "description": "This entry will read only from volkswagen.de, using the saved volkswagen.de login. The other channels, such as the EU Data Act portal, are switched off. The entry becomes read-only: remote commands are no longer available. Your cars and entities stay the same.\n\nThis cannot be undone here. To go back, add the portal channel again or set the entry up again."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "This channel is only available for Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen disabled the login this channel used on 2026-08-18, so it can no longer be set up. Live reads keep working through the EU Data Act portal, and a durable command channel via the classic Car-Net backend is in beta — see issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen disabled the login this channel used on 2026-08-18, so it can no longer be set up. Live reads keep working through the EU Data Act portal, and a durable command channel via the classic Car-Net backend is in beta — see issue #584.",
+      "vwde_only_switch_unavailable": "This entry cannot be switched: it needs a saved Volkswagen.de read channel."
     }
   },
   "entity": {

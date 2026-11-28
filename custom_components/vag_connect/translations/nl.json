@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "VW EU Two-Way verwijderen (terug naar het vorige kanaal)",
           "skoda_official_api_key": "Officiële Škoda API-sleutel — voegt de officiële fabrikant-API toe als live databron (en failover)",
           "clear_skoda_official_key": "Wis de opgeslagen officiële Škoda API-sleutel (er wordt automatisch een nieuwe aangemaakt als je login dit ondersteunt)",
-          "skoda_official_mode": "Škoda officiële-API-bronmodus"
+          "skoda_official_mode": "Škoda officiële-API-bronmodus",
+          "switch_vwde_only": "Deze invoer alleen op Volkswagen.de zetten (niet terug te draaien, alleen lezen)"
         },
         "data_description": {
           "stale_threshold_hours": "Hoe oud het eigen opnametijdstip van de auto mag worden voordat \"Gegevens verouderd\" en de portaalstatus \"Verouderd\" worden ingeschakeld. Standaard 72 uur, bereik 1 tot 168. Nooit minder dan 8 update-intervallen. De reparatiemelding voor verouderde gegevens houdt een eigen ondergrens van 72 uur aan, dus een lagere waarde activeert die niet eerder.",
@@ -401,6 +402,10 @@
           "username": "Het e-mailadres van je Volkswagen ID / myVolkswagen-account.",
           "password": "Je Volkswagen ID-wachtwoord. Wordt alleen gebruikt om het toegangstoken van 1 uur te vernieuwen bij de loginserver van Volkswagen; wordt nooit gelogd en uit diagnose weggelaten."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Alleen Volkswagen.de gebruiken",
+        "description": "Deze invoer leest voortaan alleen van volkswagen.de, met de opgeslagen volkswagen.de-login. De andere kanalen, zoals het EU Data Act-portaal, worden uitgeschakeld. De invoer is dan alleen-lezen: commando's op afstand zijn niet meer beschikbaar. Je voertuigen en entiteiten blijven gelijk.\n\nHier kun je dit niet ongedaan maken. Om terug te gaan voeg je het portaalkanaal opnieuw toe of stel je de invoer opnieuw in."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Dit kanaal is alleen beschikbaar voor Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen heeft de login die dit kanaal gebruikte op 2026-08-18 uitgeschakeld, dus het kan niet meer worden ingesteld. Live uitlezingen blijven werken via het EU Data Act-portaal en een duurzaam commandokanaal via de klassieke Car-Net-backend is in bèta — zie issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen heeft de login die dit kanaal gebruikte op 2026-08-18 uitgeschakeld, dus het kan niet meer worden ingesteld. Live uitlezingen blijven werken via het EU Data Act-portaal en een duurzaam commandokanaal via de klassieke Car-Net-backend is in bèta — zie issue #584.",
+      "vwde_only_switch_unavailable": "Deze invoer kan niet worden omgezet: er is een opgeslagen Volkswagen.de-leeskanaal nodig."
     }
   },
   "entity": {

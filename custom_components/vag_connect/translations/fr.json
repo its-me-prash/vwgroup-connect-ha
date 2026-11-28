@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "Supprimer VW EU bidirectionnel (revenir au canal précédent)",
           "skoda_official_api_key": "Clé API officielle Škoda — ajoute l'API officielle du constructeur comme source de données en direct (et bascule)",
           "clear_skoda_official_key": "Effacer la clé API officielle Škoda enregistrée (une nouvelle est créée automatiquement si votre connexion le permet)",
-          "skoda_official_mode": "Mode de source de l'API officielle Škoda"
+          "skoda_official_mode": "Mode de source de l'API officielle Škoda",
+          "switch_vwde_only": "Passer cette entrée à Volkswagen.de seul (irréversible, lecture seule)"
         },
         "data_description": {
           "stale_threshold_hours": "Âge maximal de l'horodatage de saisie du véhicule avant que « Données périmées » et l'état du portail « Périmé » ne s'activent. Par défaut 72 heures, de 1 à 168. Jamais moins de 8 intervalles de mise à jour. La réparation pour données périmées garde son propre seuil minimal de 72 heures : une valeur plus basse ne la déclenche donc pas plus tôt.",
@@ -401,6 +402,10 @@
           "username": "L'e-mail de votre compte Volkswagen ID / myVolkswagen.",
           "password": "Le mot de passe de votre Volkswagen ID. Utilisé uniquement pour renouveler le jeton d'accès d'une heure auprès du serveur de connexion de Volkswagen ; jamais journalisé et expurgé des diagnostics."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Passer à Volkswagen.de seul",
+        "description": "Cette entrée lira désormais uniquement depuis volkswagen.de, avec la connexion volkswagen.de enregistrée. Les autres canaux, comme le portail EU Data Act, sont désactivés. L'entrée passe en lecture seule : les commandes à distance ne sont plus disponibles. Vos véhicules et entités restent les mêmes.\n\nIl n'est pas possible d'annuler ici. Pour revenir en arrière, ajoutez à nouveau le canal du portail ou recréez l'entrée."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Ce canal est disponible uniquement pour Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen a désactivé le 18 août 2026 la connexion qu'utilisait ce canal ; il n'est donc plus possible de le configurer. Les lectures en direct continuent de fonctionner via le portail EU Data Act, et un canal de commandes durable via l'ancien backend Car-Net est en bêta — voir le ticket #584."
+      "vweu_twoway_vw_disabled": "Volkswagen a désactivé le 18 août 2026 la connexion qu'utilisait ce canal ; il n'est donc plus possible de le configurer. Les lectures en direct continuent de fonctionner via le portail EU Data Act, et un canal de commandes durable via l'ancien backend Car-Net est en bêta — voir le ticket #584.",
+      "vwde_only_switch_unavailable": "Cette entrée ne peut pas être modifiée : il lui faut un canal de lecture Volkswagen.de enregistré."
     }
   },
   "entity": {

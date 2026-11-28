@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "Odebrat VW EU Two-Way (návrat k předchozímu kanálu)",
           "skoda_official_api_key": "Oficiální klíč API Škoda — přidá oficiální API výrobce jako živý zdroj dat (a zálohu)",
           "clear_skoda_official_key": "Vymazat uložený oficiální klíč API Škoda (nový se vytvoří automaticky, pokud to vaše přihlášení podporuje)",
-          "skoda_official_mode": "Režim zdroje oficiálního API Škoda"
+          "skoda_official_mode": "Režim zdroje oficiálního API Škoda",
+          "switch_vwde_only": "Přepnout tento záznam jen na Volkswagen.de (nevratné, jen čtení)"
         },
         "data_description": {
           "stale_threshold_hours": "Jak staré smí být vlastní časové razítko záznamu vozidla, než se zapne \"Data zastarala\" a stav portálu \"Zastaralé\". Výchozí hodnota je 72 hodin, rozsah 1 až 168. Nikdy méně než 8 intervalů aktualizace. Oprava pro zastaralá data si ponechává vlastní spodní mez 72 hodin, nižší hodnota ji tedy nespustí dříve.",
@@ -401,6 +402,10 @@
           "username": "E-mail vašeho účtu Volkswagen ID / myVolkswagen.",
           "password": "Heslo k vašemu Volkswagen ID. Používá se pouze k obnovení hodinového přístupového tokenu vůči přihlašovacímu serveru Volkswagenu; nikdy se neloguje a z diagnostiky je odstraněno."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Přepnout jen na Volkswagen.de",
+        "description": "Tento záznam bude číst pouze z volkswagen.de s uloženým přihlášením k volkswagen.de. Ostatní kanály, například portál EU Data Act, se vypnou. Záznam bude jen pro čtení: vzdálené příkazy už nebudou dostupné. Vozidla a entity zůstanou stejné.\n\nZde to nejde vrátit zpět. Chcete-li se vrátit, znovu přidejte kanál portálu nebo záznam nastavte znovu."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Tento kanál je dostupný pouze pro Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen dne 18. 8. 2026 vypnul přihlášení, které tento kanál používal, takže jej už nelze nastavit. Živé čtení dat dál funguje přes portál EU Data Act a trvalý příkazový kanál přes klasický backend Car-Net je v betě — viz issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen dne 18. 8. 2026 vypnul přihlášení, které tento kanál používal, takže jej už nelze nastavit. Živé čtení dat dál funguje přes portál EU Data Act a trvalý příkazový kanál přes klasický backend Car-Net je v betě — viz issue #584.",
+      "vwde_only_switch_unavailable": "Tento záznam nelze přepnout: potřebuje uložený čtecí kanál Volkswagen.de."
     }
   },
   "entity": {

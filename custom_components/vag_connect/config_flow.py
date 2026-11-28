@@ -123,6 +123,10 @@ def _brand_label(brand: str) -> str:
 #: correct in all twelve languages: both members are Volkswagen.
 _VWDE_BRANDS = frozenset({"volkswagen", "volkswagen_commercial"})
 
+#: #2138 — options-form switch (never stored) that starts the one-way change of
+#: an existing entry to the volkswagen.de-only mode.
+CONF_SWITCH_VWDE_ONLY = "switch_vwde_only"
+
 # ── Brand selector options with icons ────────────────────────────────────────
 # HA renders these as a visual select list (not a plain dropdown)
 _BRAND_OPTIONS: list[SelectOptionDict] = [
@@ -3638,6 +3642,8 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
         self._otib_state: str = ""
         # Options stashed while the "link a local OBD source" sub-step runs.
         self._oobd_pending_options: dict[str, Any] = {}
+        # Options stashed while the "switch to volkswagen.de only" confirm step runs.
+        self._ovo_pending_options: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -3795,6 +3801,15 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
                         self._config_entry.entry_id
                     )
                 )
+            # #2138 — switch this entry in place to the volkswagen.de-only mode.
+            # Popped unconditionally so the switch is never stored as an option;
+            # only honoured while the entry still qualifies (the form shows it
+            # on that condition alone, this guards a stale submit).
+            if user_input.pop(CONF_SWITCH_VWDE_ONLY, False) and (
+                self._vwde_only_switch_cookies()
+            ):
+                self._ovo_pending_options = dict(user_input)
+                return await self.async_step_switch_vwde_only()
             # b1/C1 — if the user ticked "add vw.de read channel", branch into
             # the login sub-flow; the remaining options are saved when it
             # completes. Default-False so untouched submits behave exactly as
@@ -4160,6 +4175,11 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
             schema[vol.Optional(
                 "remove_supplementary_tibber", default=False,
             )] = _BOOL_SELECTOR
+        # #2138 — one-way switch to the volkswagen.de-only mode, offered only
+        # when this Volkswagen entry already reads volkswagen.de as an extra
+        # channel with saved session cookies.
+        if self._vwde_only_switch_cookies():
+            schema[vol.Optional(CONF_SWITCH_VWDE_ONLY, default=False)] = _BOOL_SELECTOR
         # Local OBD source: the link switch is offered once there is something
         # to link (a DrivePulse device and a car of this entry), because the
         # step behind it could not be completed otherwise. The remove switch
@@ -4390,6 +4410,94 @@ class VagConnectOptionsFlow(VwDeReauthMixin, config_entries.OptionsFlow):
             data_schema=vol.Schema(schema),
             errors=errors,
         )
+
+    # ── #2138: switch an existing entry to the volkswagen.de-only mode ─────
+
+    def _vwde_only_switch_cookies(self) -> list[dict[str, Any]]:
+        """Saved vw.de session cookies when this entry may switch, else ``[]``.
+
+        Eligible: a Volkswagen entry that is not already volkswagen.de-only, is
+        not a companion entry, has the supplementary vw.de channel on, and holds
+        its saved cookies. Options first, then data (the options-trap: the update
+        listener folds options into data and blanks them).
+        """
+        from .const import is_companion_entry_data  # noqa: PLC0415
+
+        data = self._config_entry.data
+        options = self._config_entry.options or {}
+
+        def _get(key: str) -> Any:
+            return options.get(key, data.get(key))
+
+        if (
+            _get(CONF_BRAND) != "volkswagen"
+            or _get(CONF_WEBSITE_AUTHPROXY)
+            or is_companion_entry_data(data)
+            or not _get(CONF_SUPPLEMENTARY_AUTHPROXY)
+        ):
+            return []
+        cookies = _get(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES)
+        return list(cookies) if isinstance(cookies, list) and cookies else []
+
+    async def async_step_switch_vwde_only(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Confirm, then rewrite the entry into the volkswagen.de-only shape."""
+        from .const import (  # noqa: PLC0415
+            CONF_VWEU_DEVICE_GRANT,
+            CONF_VWEU_TWOWAY_ADDED_EU_PORTAL,
+            CONF_VWEU_TWOWAY_COOKIES,
+            CONF_VWEU_TWOWAY_EMAIL,
+            CONF_VWEU_TWOWAY_PASSWORD,
+            CONF_VWEU_TWOWAY_STORE_PASSWORD,
+            CONF_VWEU_TWOWAY_TOKENS,
+        )
+
+        cookies = self._vwde_only_switch_cookies()
+        if not cookies:
+            return self.async_abort(reason="vwde_only_switch_unavailable")
+        if user_input is None:
+            return self.async_show_form(
+                step_id="switch_vwde_only", data_schema=vol.Schema({}),
+            )
+        data = self._config_entry.data
+        options = self._config_entry.options or {}
+        # Settings picked in the same submit (never the switches), over the
+        # stored values, so scan interval and the other options carry over.
+        pending = {
+            k: v for k, v in self._ovo_pending_options.items()
+            if not k.startswith("remove_")
+        }
+        merged = {**data, **options, **pending}
+        new_data = {
+            **merged,
+            **VagConnectConfigFlow._build_website_entry_data(
+                str(merged.get(CONF_USERNAME, "")), merged, cookies,
+            ),
+        }
+        for _k in (
+            CONF_SUPPLEMENTARY_AUTHPROXY,
+            CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+            CONF_SUPPLEMENTARY_EU_PORTAL,
+            CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
+            CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
+            CONF_VWEU_DEVICE_GRANT,
+            CONF_VWEU_TWOWAY_ADDED_EU_PORTAL,
+            CONF_VWEU_TWOWAY_COOKIES,
+            CONF_VWEU_TWOWAY_EMAIL,
+            CONF_VWEU_TWOWAY_PASSWORD,
+            CONF_VWEU_TWOWAY_STORE_PASSWORD,
+            CONF_VWEU_TWOWAY_TOKENS,
+            "dag_initial_tokens",
+        ):
+            new_data.pop(_k, None)
+        self.hass.config_entries.async_update_entry(
+            self._config_entry, data=new_data,
+        )
+        self.hass.async_create_task(
+            self.hass.config_entries.async_reload(self._config_entry.entry_id)
+        )
+        return self.async_create_entry(title="", data={})
 
     # ── b8/C1: supplementary EU Data Act portal read-channel sub-flow ───────
 
