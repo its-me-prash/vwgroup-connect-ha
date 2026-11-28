@@ -14,6 +14,12 @@ from urllib.parse import urlsplit
 
 _LOGGER = logging.getLogger(__name__)
 
+# #2096 — an own SoC capture time later than the poll by more than this is no
+# evidence (a car clock that jumped ahead). Without the limit, one such time in
+# the cache would refuse every later reading until the real time passed it.
+# Shared by the EU Data Act parser and vehicle_cache.reconcile.
+SOC_TS_FUTURE_MARGIN_S = 10 * 60
+
 
 def host_in_domains(host: str | None, *domains: str) -> bool:
     """True iff ``host`` IS one of ``domains`` or a true subdomain of one.

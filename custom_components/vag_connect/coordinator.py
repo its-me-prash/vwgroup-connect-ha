@@ -202,6 +202,11 @@ def _release_held(data: dict[str, Any], keys: list[str]) -> None:
         ) or None
 
 
+_SOC_FLAGS = frozenset(
+    {"battery_soc_from_hv", "battery_soc_ts_paired"}
+)
+
+
 def _gap_fill_from_export(
     current: dict[str, Any], hist: dict[str, Any]
 ) -> list[str]:
@@ -243,7 +248,7 @@ def _gap_fill_from_export(
     filled: list[str] = []
     released: list[str] = []
     for key, val in hist.items():
-        if val is None or key in _PROVENANCE_MAPS:
+        if val is None or key in _PROVENANCE_MAPS or key in _SOC_FLAGS:
             continue
         if key in held_owned:
             current[key] = val
@@ -252,6 +257,18 @@ def _gap_fill_from_export(
         elif current.get(key) is None:  # never clobber a live value
             current[key] = val
             filled.append(key)
+    # #2096 — the SoC flags describe the export's SoC: they go with it, and
+    # never next to a live SoC. They get no import mark, because reconcile
+    # carries them with the SoC itself. ``battery_soc_from_hv`` is sticky in
+    # reconcile (the car sends the HV pair), so an export can set it but
+    # never clear it.
+    if "battery_soc" in filled:
+        if hist.get("battery_soc_ts_paired") is True:
+            current["battery_soc_ts_paired"] = True
+        else:
+            current.pop("battery_soc_ts_paired", None)
+        if hist.get("battery_soc_from_hv") is True:
+            current["battery_soc_from_hv"] = True
     if released:
         _release_held(current, released)
     for name in _PROVENANCE_MAPS:

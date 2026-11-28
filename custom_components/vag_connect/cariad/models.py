@@ -548,7 +548,13 @@ class VehicleData:
     # fell back to the ``battery_state_report.soc`` leaf. A poll that omits the HV
     # pair carries only the frozen leaf, so on a car that normally reports HV the
     # reconcile holds the recorded value instead of publishing the stale leaf.
+    # #2096 — True also when a newer paired leaf gave the value: it says that
+    # the VALID pair was in the export. ``field_source_leaf`` names the leaf.
     battery_soc_from_hv: bool | None = None
+    # #2096 — True when the recorded ``battery_soc`` capture time came from a
+    # key pair (the HV pair's or the leaf's). ``reconcile`` compares two SoC
+    # samples by time only then. It travels with a held or carried value.
+    battery_soc_ts_paired: bool | None = None
     battery_available_kwh: float | None = None
     battery_cap_kwh: float | None = None
     # Battery State of Health (%). Only computed when the user supplied the car's
