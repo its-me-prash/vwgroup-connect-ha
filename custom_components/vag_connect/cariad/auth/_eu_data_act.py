@@ -37,6 +37,7 @@ import logging
 import math
 import os
 import re
+import time
 import uuid
 import zipfile
 from collections.abc import Callable
@@ -47,6 +48,7 @@ from urllib.parse import parse_qs, urljoin, urlparse
 from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
 
 from .._util import (
+    SOC_TS_FUTURE_MARGIN_S,
     drop_charge_sentinel,
     drop_odometer_sentinel,
     is_https_on_domains,
@@ -998,18 +1000,27 @@ _CAPTURED_NAME_HINTS: tuple[str, ...] = (
 # #2096 — a flat export is an unordered event log, so the "nearest capture entry
 # before the value" is an accident of list order. Two values can be tied to
 # their own capture time by KEY instead: the portal ships a ``timestamp`` entry
-# under a fixed key beside each of them, present in exactly the same exports as
-# the value (47 ID.7 exports, 2026-11; the same keys appear in a CUPRA Born
-# export). Value key -> key of its ``timestamp`` entry. The value NAMES pair the
-# same way (the UUIDs are the stable half, the names cover exports that carry
-# no ``key``).
+# under a fixed key beside each of them. The pairs rest on behaviour, not on a
+# published description: in the ID.7 exports of #2096 the value and its time
+# key are nearly always present together, and the time changes every time the
+# value changes. The same keys appear in CUPRA Born exports. The guard in
+# _collect_paired_ts drops a pair that is not unique in an export. Value key ->
+# key of its time entry. The value NAMES pair the same way (the UUIDs are the
+# stable half, the names cover exports that carry no ``key``), except the leaf,
+# which pairs by key only.
 _SOC_TS_KEY = "3f5a294b-b672-3963-83d8-bfb54e5b943d"
 _ODO_TS_KEY = "067f539c-85fe-3067-9c29-d63e177e3712"
+# The battery_state_report.soc leaf has a time of its own too: the
+# car_captured_time entry under this key. Paired by KEY only, never by name:
+# other points share the name battery_state_report.soc (#1195).
+_LEAF_SOC_KEY = "506cb83e-f99f-3af3-bbeb-0429b69a78d9"
+_LEAF_SOC_TS_KEY = "72e1ae0b-580f-371a-b3b7-730a66df681e"
 _PAIRED_TS_BY_VALUE_KEY: dict[str, str] = {
     "ac1108b1-b8cc-3db9-a663-03d387e42223": _SOC_TS_KEY,  # battery_level_HV.value
     "2a9de7f7-a846-3d18-9883-650de9c4e4e1": _SOC_TS_KEY,  # battery_level_HV.state
     "30cc36fd-71ca-3c09-9296-e94ebd47bd2b": _ODO_TS_KEY,  # mileage.value
     "a04d086d-70bb-30c2-8361-68da66b4fd97": _ODO_TS_KEY,  # mileage.state
+    _LEAF_SOC_KEY: _LEAF_SOC_TS_KEY,  # battery_state_report.soc
 }
 _PAIRED_TS_BY_NAME: dict[str, str] = {
     "battery_level_hv.value": _SOC_TS_KEY,
@@ -1020,6 +1031,7 @@ _PAIRED_TS_BY_NAME: dict[str, str] = {
 _PAIRED_VALUE_UUIDS: frozenset[str] = frozenset({
     "ac1108b1-b8cc-3db9-a663-03d387e42223",  # battery_level_HV.value
     "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",  # mileage.value
+    _LEAF_SOC_KEY,  # battery_state_report.soc
 })
 # Targets whose ``data_captured_at`` is shown only when the stamp is the value's
 # OWN (paired, or a real per-point stamp), never when it was borrowed from a
@@ -1035,7 +1047,7 @@ def _collect_paired_ts(payload: Any) -> dict[str, float]:
     depend on where in the list an entry sits. A key is returned only when the
     file holds exactly one distinct time under it AND exactly one distinct
     value under the paired value entries (``.value``, not ``.state``)."""
-    wanted = {_SOC_TS_KEY, _ODO_TS_KEY}
+    wanted = set(_PAIRED_TS_BY_VALUE_KEY.values())
     seen: dict[str, set[float]] = {}
     values: dict[str, set[str]] = {}
     stack: list[Any] = [payload]
@@ -1274,6 +1286,7 @@ def _walk_fields(
     _uuid_out: dict[str, set[str]] | None = None,
     _delivery_out: dict[str, set[str]] | None = None,
     _inherited_out: set[str] | None = None,
+    _paired_out: set[str] | None = None,
 ) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -1366,6 +1379,8 @@ def _walk_fields(
     value_uuids: dict[str, dict[str, set[str]]] = {}
     dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
     paired_ts = _collect_paired_ts(payload)  # #2096: key-paired capture times
+    # #2096 — names whose current best candidate has a key-paired time.
+    paired_best: set[str] = set()
 
     def add(
         name: Any,
@@ -1375,6 +1390,7 @@ def _walk_fields(
         ts_inherited: bool = False,
         ts_shown_inherited: bool | None = None,
         point_uuid: str = "",
+        paired: bool = False,
     ) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
@@ -1405,6 +1421,28 @@ def _walk_fields(
         prev = best.get(name)
         if prev is None:
             best[name] = (str(value), cand, cand_real, cand_inh, cand_shown)
+            if paired:
+                paired_best.add(name)
+            return
+        # #2096 — several points can share one name (#1195: a frozen
+        # battery_state_report.soc under another key). A time paired by key is
+        # evidence; a time borrowed from the list order is not. So a paired
+        # candidate beats a borrowed one whatever the two times are, and the
+        # pair is not recorded as contested.
+        if paired and name not in paired_best and (prev[3] or not prev[2]):
+            best[name] = (str(value), cand, True, False, False)
+            paired_best.add(name)
+            # A contest between the borrowed candidates before it is void: the
+            # #1088 majority step would otherwise put one of their values next
+            # to this paired time.
+            if _contested_out is not None:
+                _contested_out.pop(name, None)
+            return
+        # On an equal time the paired candidate stays, so that the list order
+        # does not decide between the two.
+        if not paired and name in paired_best and (
+            cand_inh or not cand_real or cand == prev[1]
+        ):
             return
         # #529: ALL fields (incl. monotonic odometer/mileage) resolve by genuine
         # freshness so they come from the same snapshot. Cross-poll monotonic
@@ -1454,6 +1492,16 @@ def _walk_fields(
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
             best[name] = (str(value), cand, False, False, False)
         # else: incumbent is real and candidate is not → keep the real one.
+        if best[name] is not prev:
+            if paired:
+                paired_best.add(name)
+                # #2096 — as on the early return above: the paired time must not
+                # go out with a value that the #1088 majority step picks from
+                # the contest before it.
+                if _contested_out is not None:
+                    _contested_out.pop(name, None)
+            else:
+                paired_best.discard(name)
 
     def walk(
         node: Any,
@@ -1486,10 +1534,12 @@ def _walk_fields(
             ) or _PAIRED_TS_BY_NAME.get(
                 fname.strip().lower() if isinstance(fname, str) else ""
             )
+            _paired = False
             if _pair_uuid is not None and "value" in node and not own_ts:
                 _pt = paired_ts.get(_pair_uuid)
                 if _pt is not None:
                     ts, ts_real, ts_inh = _pt, True, False
+                    _paired = True
             # #1195 — a battery_state_report.soc point keyed by a known
             # "SoC at charge start" UUID must NOT feed the live-SoC pool (its stale
             # value is re-stamped fresh at charge start and would out-freshen the
@@ -1548,9 +1598,13 @@ def _walk_fields(
                 # ``value``, and the reporter read it as the field's own. Only a
                 # UUID-shaped key counts, because the report labels it ``uuid``.
                 _point_uuid = pkey_l if _ENVELOPE_UUID_RE.match(pkey_l) else ""
+                # #2096 — a generic name ("value") is shared by many points: the
+                # pair goes to the UUID alias below, not to the shared name.
+                _generic = (isinstance(fname, str)
+                            and fname.strip().lower() in _GENERIC_FIELD_NAMES)
                 add(
                     fname, node.get("value"), ts, ts_real, ts_inh,
-                    point_uuid=_point_uuid,
+                    point_uuid=_point_uuid, paired=_paired and not _generic,
                 )
                 # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
                 # by the per-point ``key`` UUID so points that collide on a bare
@@ -1573,7 +1627,7 @@ def _walk_fields(
                     or pkey_l in _SCALE_ENCODING_UUIDS
                 ):
                     add(pkey_l, node.get("value"), ts, ts_real,
-                        ts_shown_inherited=ts_inh)
+                        ts_shown_inherited=ts_inh, paired=_paired)
                     # v2.24.2 (#959, #960, #961) — record the pair as synonyms,
                     # exactly like the container-qualified branch below already
                     # did. Without it the bare generic leaf was never reclaimed
@@ -1604,7 +1658,7 @@ def _walk_fields(
                     # so the Scout names it when this spelling is the row shown.
                     add(
                         prefix, node.get("value"), ts, ts_real, ts_inh,
-                        point_uuid=_point_uuid,
+                        point_uuid=_point_uuid, paired=_paired,
                     )
                     # Record the bare/qualified pair as EXPLICIT synonyms of each
                     # other (bidirectional). They come from THIS one physical node,
@@ -1696,6 +1750,8 @@ def _walk_fields(
                 _ts_out[k] = ts_v
                 if shown_v and _inherited_out is not None:
                     _inherited_out.add(k)
+                if k in paired_best and _paired_out is not None:
+                    _paired_out.add(k)  # #2096: the time came from a key pair
     return {k: v[0] for k, v in best.items()}
 
 
@@ -2408,6 +2464,7 @@ def map_dataset_to_vehicle_data(
     contested: dict[str, set[str]] | None = None,
     field_uuids: dict[str, set[str]] | None = None,
     field_ts_inherited: set[str] | None = None,
+    field_ts_paired: set[str] | None = None,
 ) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -2466,12 +2523,13 @@ def map_dataset_to_vehicle_data(
                 if iso:
                     d.field_captured_ts[attr] = iso
                     # #2096 — recorded as before; the display alone leaves out
-                    # a stamp borrowed from a neighbouring list entry.
+                    # a stamp borrowed from a neighbouring list entry. False
+                    # says that the stamp is the value's own, so that
+                    # reconcile can compare two samples by time.
                     if attr in _DISPLAY_OWN_STAMP_TARGETS:
-                        if chosen in (field_ts_inherited or ()):
-                            d.field_captured_inherited[attr] = True
-                        else:
-                            d.field_captured_inherited.pop(attr, None)
+                        d.field_captured_inherited[attr] = (
+                            chosen in (field_ts_inherited or ())
+                        )
         for cand in [c for c in (chosen, *names) if c]:
             vals = (contested or {}).get(cand)
             if vals and len(vals) > 1:
@@ -2676,6 +2734,7 @@ def map_dataset_to_vehicle_data(
     _hv_state = first("battery_level_HV.state")
     _hv_val = _to_int(first("battery_level_HV.value",
                             "battery_level_HV.battery_level_HV.value"))
+    _hv_val_src = _matched[0]  # #2096: the time and leaf go with this entry
     _hv_soc = (
         _hv_val
         if (isinstance(_hv_state, str) and _hv_state.strip().upper() == "VALID"
@@ -2691,7 +2750,7 @@ def map_dataset_to_vehicle_data(
 
     # #465 — SoC is the one field observed to ship under disagreeing aliases
     # (a stale 57 vs the fresh 81); resolve it by capture time, not list order.
-    _leaf_soc = _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
+    _soc_names = ("battery_state_report.soc", "soc", "stateOfChargeInPercent",
                         "state_of_charge",
                         # self-audit (Enyaq / MEB-Entry, e-up): these cars ship the
                         # traction SoC under a bespoke leaf "currentSoc" whose
@@ -2739,8 +2798,8 @@ def map_dataset_to_vehicle_data(
                         "ac1108b1-b8cc-3db9-a663-03d387e42223",
                         "0a18a053-b4b0-3db1-be44-a6c5dba629b1",
                         "f89ed652-d104-3fa6-b7e2-ab7543309e7b",
-                        "506cb83e-f99f-3af3-bbeb-0429b69a78d9",
-                        record_as="battery_soc"))
+                        "506cb83e-f99f-3af3-bbeb-0429b69a78d9")
+    _leaf_soc = _to_int(first_freshest(*_soc_names, record_as="battery_soc"))
     # #1179-1183 — evaluate first_freshest() UNCONDITIONALLY so every SoC alias
     # present in the dataset is consumed into ``used`` (and thus leaves
     # raw_unmapped_fields / the Scout), even when the VALID-gated HV level below
@@ -2769,6 +2828,60 @@ def map_dataset_to_vehicle_data(
         )
         _leaf_soc = None
     soc = _hv_soc if _hv_soc is not None else _leaf_soc
+    _soc_from_hv = _hv_soc is not None
+    if _hv_soc is not None:
+        # #2096 — the VALID HV pair and the leaf are two samples of one series,
+        # taken at different times. When both carry a time of their OWN (paired
+        # by key, not borrowed from a neighbour), the newer sample wins, with its
+        # value and its time together. Otherwise the HV pair wins (#1088), and
+        # the recorded time must then be the HV pair's own, not the leaf's.
+        _hv_names = ("battery_level_HV.value", "battery_level_HV.battery_level_HV.value",
+                     "ac1108b1-b8cc-3db9-a663-03d387e42223")
+
+        def _own_ts(name: str | None) -> float | None:
+            if name is None or name in (field_ts_inherited or ()):
+                return None
+            return (field_ts or {}).get(name)
+
+        _hv_ts = (
+            _own_ts(_hv_val_src)
+            if _hv_val_src in (field_ts_paired or ()) else None
+        )
+        # The leaf's time counts only when it came from its key pair (72e1ae0b).
+        # The pair is looked up by its own name: first_freshest can pick another
+        # SoC name with a newer borrowed time, and that one has no pair.
+        _pair_src: str | None = None
+        _pair_val: int | None = None
+        _leaf_ts: float | None = None
+        for _pn in _soc_names:
+            if _pn in _hv_names or _pn not in (field_ts_paired or ()) or _pn not in fields:
+                continue
+            _pv = None if _is_sentinel(_pn, fields[_pn]) else _to_int(fields[_pn])
+            _pt = _own_ts(_pn)
+            # #2096 — a car clock that jumped ahead is no newer sample
+            if _pt is not None and _pt > time.time() + SOC_TS_FUTURE_MARGIN_S:
+                _pt = None
+            if _pv is not None and 0 <= _pv <= 100 and _pt is not None:
+                _pair_src, _pair_val, _leaf_ts = _pn, _pv, _pt
+                break
+        if (
+            _pair_val is not None and _hv_ts is not None and _leaf_ts is not None
+            and _leaf_ts > _hv_ts
+        ):
+            soc = _pair_val
+            # the recorded time, leaf and ambiguity go with the paired value;
+            # a contest of the other SoC names is not about it
+            d.field_captured_ts.pop("battery_soc", None)
+            d.field_source_leaf.pop("battery_soc", None)
+            d.field_captured_inherited.pop("battery_soc", None)
+            d.ambiguous_fields.pop("battery_soc", None)
+            _record("battery_soc", _pair_src, ())
+        else:
+            d.field_captured_ts.pop("battery_soc", None)
+            d.field_source_leaf.pop("battery_soc", None)
+            d.field_captured_inherited.pop("battery_soc", None)
+            d.ambiguous_fields.pop("battery_soc", None)  # the leaves' contest
+            _record("battery_soc", _hv_val_src, ())
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
@@ -2776,7 +2889,22 @@ def map_dataset_to_vehicle_data(
         # only the battery_state_report.soc leaf, so reconcile can hold the
         # recorded value when a partial poll drops the HV pair and leaves only the
         # frozen leaf (soulriding's CUPRA Born datasets 11/13/14; #465 Arno-MA-73).
-        d.battery_soc_from_hv = _hv_soc is not None
+        # #2096 — True also when a newer paired leaf gave the value: the flag
+        # says that the VALID pair was in the export, not where the value came
+        # from (that is in ``field_source_leaf``).
+        d.battery_soc_from_hv = _soc_from_hv
+        # #2096 — reconcile compares two SoC samples by time only when the time
+        # came from a key pair; any other own stamp is no evidence there, and
+        # neither is a time ahead of the clock when it is recorded.
+        _soc_src = d.field_source_leaf.get("battery_soc")
+        _soc_pt = (field_ts or {}).get(_soc_src) if _soc_src else None
+        if (
+            "battery_soc" in d.field_captured_ts
+            and _soc_src in (field_ts_paired or ())
+            and _soc_pt is not None
+            and _soc_pt <= time.time() + SOC_TS_FUTURE_MARGIN_S
+        ):
+            d.battery_soc_ts_paired = True
 
     # #1403 (@placidcasual98, Audi A6 e-tron Avant, PPE) — the one-time export
     # spells the traction SoC differently from the 15-minute feed, and every
@@ -8104,9 +8232,10 @@ class EUDataActConnector:
         field_uuids: dict[str, set[str]] = {}  # field name -> its points' content UUID(s)
         delivery: dict[str, set[str]] = {}  # #465: valued vs value-less names
         ts_inherited: set[str] = set()  # #2096: stamps borrowed from a neighbour
+        ts_paired: set[str] = set()  # #2096: stamps paired by key
         fields = _walk_fields(
             payload, field_ts, field_syn, contested, field_uuids, delivery,
-            ts_inherited,
+            ts_inherited, ts_paired,
         )
         # #465 BooM80 — record the value/value-less split BEFORE the empty-dataset
         # early return, so the diagnostic reflects THIS parse even when VW shipped
@@ -8140,7 +8269,8 @@ class EUDataActConnector:
             except Exception:  # noqa: BLE001  # pragma: no cover - defensive
                 _LOGGER.debug("EU Data Act: raw-dataset archive hook failed")
         return map_dataset_to_vehicle_data(
-        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited
+        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited,
+        ts_paired,
     )
 
     async def get_relation_nickname(self, vin: str) -> str | None:
@@ -8221,12 +8351,15 @@ def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleD
     contested: dict[str, set[str]] = {}  # #1088 — same as get_vehicle_data
     field_uuids: dict[str, set[str]] = {}  # field name -> its points' content UUID(s)
     ts_inherited: set[str] = set()  # #2096
+    ts_paired: set[str] = set()  # #2096
     fields = _walk_fields(
-        payload, field_ts, field_syn, contested, field_uuids, None, ts_inherited
+        payload, field_ts, field_syn, contested, field_uuids, None, ts_inherited,
+        ts_paired,
     )
     if not fields:
         return d
     d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
     return map_dataset_to_vehicle_data(
-        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited
+        fields, d, field_ts, field_syn, contested, field_uuids, ts_inherited,
+        ts_paired,
     )

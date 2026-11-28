@@ -17,7 +17,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any
 
-from ._util import drop_odometer_sentinel
+from ._util import SOC_TS_FUTURE_MARGIN_S, drop_odometer_sentinel
 
 VEHICLE_CACHE_VERSION = 1
 
@@ -538,15 +538,18 @@ def _soc_hold_released(
     previous: dict[str, Any],
     leaf: float,
     held: float,
-) -> str | None:
+) -> tuple[str, bool] | None:
     """Evidence that the leaf-only SoC should replace the held HV value (#2134).
 
-    Returns a short human-readable reason, or ``None`` to keep holding.
-    An energy ratio nearer the held value vetoes every release (the frozen-leaf
-    case the hold exists for). Unparseable stamps are no evidence, and neither
-    is the capture time of an odometer reading that ``reconcile`` rejects
-    further down (a #2054 jump or a backwards reading): the release runs before
-    those guards, so it asks the same rule here.
+    Returns a short human-readable reason and whether the release ends the
+    hold for good, or ``None`` to keep holding. A newer own leaf time proves
+    only that this one sample is newer, not that the HV pair stopped, so it
+    does not end the hold (#2096). An energy ratio nearer the held value vetoes
+    every release (the frozen-leaf case the hold exists for). Unparseable
+    stamps are no evidence, and neither is the capture time of an odometer
+    reading that ``reconcile`` rejects further down (a #2054 jump or a
+    backwards reading): the release runs before those guards, so it asks the
+    same rule here.
     """
     ratio = _energy_ratio(fresh)
     if ratio is not None:
@@ -557,7 +560,8 @@ def _soc_hold_released(
         if held_far - leaf_far >= _SOC_HOLD_RELEASE_MARGIN:
             return (
                 f"energy content {ratio:.1f} % sits nearer the leaf {leaf:g} "
-                f"than the held {held:g}"
+                f"than the held {held:g}",
+                True,
             )
     prev_ts = previous.get("field_captured_ts")
     fresh_ts = fresh.get("field_captured_ts")
@@ -569,15 +573,64 @@ def _soc_hold_released(
         None if _odometer_reading_rejected(fresh, previous)
         else _as_aware_dt(fresh_ts.get("odometer_km"))
     )
-    if held_ts is None or leaf_ts is None or odo_ts is None:
-        return None
-    age = (leaf_ts - held_ts).total_seconds()
-    if age >= _SOC_HOLD_MAX_AGE_S and odo_ts > held_ts:
+    if held_ts is not None and leaf_ts is not None and odo_ts is not None:
+        age = (leaf_ts - held_ts).total_seconds()
+        if age >= _SOC_HOLD_MAX_AGE_S and odo_ts > held_ts:
+            return (
+                f"held value is {age / 3600:.0f} h older than the leaf and the "
+                "odometer was captured after it",
+                True,
+            )
+    # #2096 — a leaf with a capture time of its OWN (paired by key) that is
+    # newer than the held value is the newer sample. A frozen leaf keeps its
+    # old time, so it still loses; a borrowed time is no evidence. Checked
+    # after the age release, which ends the hold for good.
+    _now = datetime.now(tz=timezone.utc)
+    held_own = _soc_own_ts(previous, _now)
+    leaf_own = _soc_own_ts(fresh, _now)
+    if held_own is not None and leaf_own is not None and leaf_own > held_own:
         return (
-            f"held value is {age / 3600:.0f} h older than the leaf and the "
-            "odometer was captured after it"
+            f"the leaf has its own capture time {leaf_own.isoformat()}, after "
+            f"the held value's {held_own.isoformat()}",
+            False,
         )
     return None
+
+
+def _soc_own_ts(snapshot: dict[str, Any], now: datetime) -> datetime | None:
+    """The SoC's own capture time, or None when it is no evidence (#2096).
+
+    The parser marks an own time with False, and a time from a key pair with
+    ``battery_soc_ts_paired``. Only a paired time counts: another own stamp
+    can belong to a frozen leaf (#1195). A snapshot without the marks (an
+    older version, another channel) gives no evidence, and neither does a time
+    later than ``now`` plus ``SOC_TS_FUTURE_MARGIN_S``.
+    """
+    if snapshot.get("battery_soc_ts_paired") is not True:
+        return None
+    ts = snapshot.get("field_captured_ts")
+    inherited = snapshot.get("field_captured_inherited")
+    if not isinstance(ts, dict) or not isinstance(inherited, dict):
+        return None
+    if inherited.get("battery_soc") is not False:
+        return None
+    at = _as_aware_dt(ts.get("battery_soc"))
+    if at is None or (at - now).total_seconds() > SOC_TS_FUTURE_MARGIN_S:
+        return None
+    return at
+
+
+def _soc_older_than_recorded(
+    fresh: dict[str, Any], previous: dict[str, Any], now: datetime,
+) -> bool:
+    """Whether the fresh SoC is a sample older than the recorded one (#2096).
+
+    Only own capture times count. The portal sometimes delivers an older
+    snapshot, so a time can step back from one export to the next.
+    """
+    then = _soc_own_ts(previous, now)
+    sample = _soc_own_ts(fresh, now)
+    return then is not None and sample is not None and sample < then
 
 
 _SOC_PROVENANCE_MAPS: tuple[str, ...] = (
@@ -616,7 +669,12 @@ def _restore_provenance(
 def _restore_soc_provenance(
     merged: dict[str, Any], previous: dict[str, Any]
 ) -> None:
-    """Give a held / carried ``battery_soc`` its own capture time and leaf (#2134)."""
+    """Give a held / carried ``battery_soc`` its own capture time and leaf (#2134),
+    and its key-pair mark (#2096)."""
+    if previous.get("battery_soc_ts_paired") is True:
+        merged["battery_soc_ts_paired"] = True
+    else:
+        merged.pop("battery_soc_ts_paired", None)
     _restore_provenance(merged, previous, "battery_soc")
 
 
@@ -661,6 +719,15 @@ def _keep_recorded_provenance(
         if field not in kept:
             kept.append(field)
         merged["field_imported_from_export"] = kept
+
+
+def _drop_soc_ambiguity(merged: dict[str, Any]) -> None:
+    """Remove this poll's ``ambiguous_fields`` entry for a recorded SoC (#2096)."""
+    amb = merged.get("ambiguous_fields")
+    if isinstance(amb, dict) and "battery_soc" in amb:
+        amb = dict(amb)
+        amb.pop("battery_soc", None)
+        merged["ambiguous_fields"] = amb
 
 
 def _energy_reading_moved(fresh: dict[str, Any], previous: dict[str, Any]) -> bool:
@@ -1151,9 +1218,11 @@ def reconcile(
                 carried_ts[key] = prev_ts[key]
                 changed_ts = True
                 prev_inh = previous.get("field_captured_inherited")
-                if (isinstance(prev_inh, dict) and prev_inh.get(key) is True
+                # #2096 — False (an own time) is a mark too
+                if (isinstance(prev_inh, dict)
+                        and isinstance(prev_inh.get(key), bool)
                         and key not in carried_inh):
-                    carried_inh[key] = True
+                    carried_inh[key] = prev_inh[key]
                     changed_inh = True
             still_imported.append(key)
         if changed_src:
@@ -1229,31 +1298,80 @@ def reconcile(
     )
     _fresh_from_hv = merged.get("battery_soc_from_hv")
     _prev_from_hv = previous.get("battery_soc_from_hv")
+    # #2096 — ``battery_soc_from_hv`` says that the export carried a VALID HV
+    # pair, also when a newer paired leaf gave the value; which leaf gave it is
+    # in ``field_source_leaf``. So a leaf win beside the pair does not end the
+    # #1195 hold for the next leaf-only poll.
     _released = False
-    if (
+    # The recorded value is shown again: this poll's contested candidates
+    # are not about it.
+    _soc_kept = False
+    # Kept because this delivery is an older snapshot (not a #1195 hold).
+    _soc_from_older_poll = False
+    # A leaf released on a newer own time is a dated sample, like a leaf that
+    # beat the VALID pair in the parser (#2096).
+    _soc_newer_sample = False
+    # A leaf-only poll after a recorded HV value is the #1195 hold case. The
+    # hold already keeps the recorded value, and only the hold can release it
+    # on the energy figures (#2134). So the older-sample refusal leaves that
+    # case to the hold.
+    _soc_hold_case = (
         _prev_from_hv is True
         and _fresh_from_hv is False
         and previous.get("battery_soc") is not None
         and not _fresh_soc_is_live
+    )
+    if (
+        not _fresh_soc_is_live
+        and not _soc_hold_case
+        and merged.get("battery_soc") is not None
+        and previous.get("battery_soc") is not None
+        and _soc_older_than_recorded(
+            fresh, previous, datetime.now(tz=timezone.utc)
+        )
     ):
+        # #2096 — never replace a sample with an older one. The recorded value
+        # keeps its own source flag, so that the flag says where it came from.
+        if merged.get("battery_soc") != previous.get("battery_soc"):
+            notes.append(
+                f"battery_soc {merged.get('battery_soc')} is an older sample than "
+                f"the recorded {previous['battery_soc']}; kept the recorded value"
+            )
+        merged["battery_soc"] = previous["battery_soc"]
+        # the kept value gets back its key-pair mark, and with #2252 its own
+        # time, leaf, ambiguity note, owner and export mark
+        _restore_soc_provenance(merged, previous)
+        _keep_recorded_provenance(merged, previous, "battery_soc")
+        # the kept value keeps its own HV flag too: a VALID pair in the refused
+        # delivery says nothing about the newer recorded value
+        if previous.get("battery_soc_from_hv") is None:
+            merged.pop("battery_soc_from_hv", None)
+        else:
+            merged["battery_soc_from_hv"] = previous["battery_soc_from_hv"]
+        _soc_kept = True
+        _soc_from_older_poll = True
+    elif _soc_hold_case:
         # #2134 — the hold used to be permanent: a car whose HV pair stopped
         # arriving kept the recorded value for days, re-stamped with the
         # leaf's capture time. Release on evidence the leaf is the newer truth.
         _leaf_v = merged.get("battery_soc")
         _held_v = previous.get("battery_soc")
-        _release_why: str | None = None
+        _release: tuple[str, bool] | None = None
         if (
             isinstance(_leaf_v, (int, float)) and not isinstance(_leaf_v, bool)
             and isinstance(_held_v, (int, float)) and not isinstance(_held_v, bool)
         ):
-            _release_why = _soc_hold_released(
+            _release = _soc_hold_released(
                 fresh, previous, float(_leaf_v), float(_held_v)
             )
-        if _release_why is not None:
-            _released = True
+        if _release is not None:
+            _release_why, _released = _release
+            _soc_newer_sample = not _released
             notes.append(
                 f"battery_soc {_leaf_v} from the leaf replaces the held "
-                f"{_held_v}: {_release_why} (hold released, #2134)"
+                f"{_held_v}: {_release_why} "
+                + ("(hold released, #2134)" if _released
+                   else "(newer sample; hold kept for the next poll, #2134)")
             )
         else:
             if merged.get("battery_soc") != previous.get("battery_soc"):
@@ -1263,13 +1381,11 @@ def reconcile(
                     f"{previous['battery_soc']} (partial dataset, #1195)"
                 )
             merged["battery_soc"] = previous["battery_soc"]
-            # the held value keeps its own capture time, leaf and ambiguity
+            # the held value keeps its own capture time, leaf and ambiguity,
+            # whatever its source (#2096: a newer paired leaf)
             _restore_soc_provenance(merged, previous)
-            _amb = merged.get("ambiguous_fields")
-            if isinstance(_amb, dict) and "battery_soc" in _amb:
-                _amb = dict(_amb)
-                _amb.pop("battery_soc", None)
-                merged["ambiguous_fields"] = _amb
+            _drop_soc_ambiguity(merged)
+            _soc_kept = True
     elif (
         fresh.get("battery_soc") is None
         and previous.get("battery_soc") is not None
@@ -1279,9 +1395,14 @@ def reconcile(
         _restore_soc_provenance(merged, previous)
     # Provenance is sticky-True: a car that ever shipped a VALID HV pair reports
     # it normally, so remember that across partial polls (and across the carry-
-    # forward above, where the fresh poll had no SoC at all). A released car
-    # (#2134) follows the leaf from here on.
-    if (_prev_from_hv is True and not _released) or _fresh_from_hv is True:
+    # forward above, where the fresh poll had no SoC at all). Only a #2134
+    # release on energy or age ends it: the released car follows the leaf from
+    # here on. A release on a newer own leaf time does not (#2096). A refused
+    # older delivery does not set the flag: its VALID pair would otherwise
+    # start the #1195 hold again after a #2134 release (#2096).
+    if (_prev_from_hv is True and not _released) or (
+        _fresh_from_hv is True and not _soc_from_older_poll
+    ):
         merged["battery_soc_from_hv"] = True
     # Position — carried as ONE group and only when the fresh poll has no
     # coordinates at all. Topping a fresh position up with the previous
@@ -1355,7 +1476,16 @@ def reconcile(
                 # value — the very clobber this whole family guards against. The
                 # energy-sanity guard below is _fresh_soc_is_live-gated too, so a
                 # live SoC stands untouched on both branches.
-                if merged.get("battery_soc_from_hv") is True or _fresh_soc_is_live:
+                # #2096 — likewise for a recorded value shown again, and for a
+                # poll whose VALID pair lost to a newer paired leaf: that leaf
+                # is a dated sample too, and its contest is already void.
+                if (
+                    merged.get("battery_soc_from_hv") is True
+                    or _fresh_soc_is_live
+                    or _soc_kept
+                    or _soc_newer_sample
+                    or fresh.get("battery_soc_ts_paired") is True
+                ):
                     continue
                 soc_was_contested = True
                 # break a stuck-on-stale SoC latch with live evidence (energy-
@@ -1427,17 +1557,25 @@ def reconcile(
     #     payload: Fishermanjb's ID.4, #1195, diagnostic of 2026-08-20). A
     #     dongle-held value is never this poll's pair, whatever the flag says,
     #     and keeps its own handling below.
+    #     A paired leaf that beat this poll's VALID pair, or a leaf released
+    #     on a newer own time, is a dated sample like the pair, so it stands
+    #     the same way; a recorded value counts
+    #     on a car that sends the pair (#2096), whatever its source.
     _soc_is_fresh_hv = (
-        _fresh_from_hv is True
+        (_fresh_from_hv is True or _soc_newer_sample)
         and fresh.get("battery_soc") is not None
         and not _fresh_soc_is_held
+        and not _soc_kept
     )
     _soc_is_recorded_hv = (
         _prev_from_hv is True
         and not _soc_is_fresh_hv
         and merged.get("battery_soc") == previous.get("battery_soc")
     )
-    _hv_reading_stands = _soc_is_fresh_hv or (
+    # #2096 — a value kept against an older snapshot stands: the energy
+    # figures come in that same older delivery, so they are no evidence
+    # against the newer recorded reading.
+    _hv_reading_stands = _soc_is_fresh_hv or _soc_from_older_poll or (
         _soc_is_recorded_hv and not _energy_reading_moved(fresh, previous)
     )
     if not soc_was_contested and not _fresh_soc_is_live and not _hv_reading_stands:
@@ -1468,6 +1606,8 @@ def reconcile(
                     f"energy-derived {round(_sr)}"
                 )
                 merged["battery_soc"] = round(_sr)
+                # #2096 — a derived number is no dated sample
+                merged.pop("battery_soc_ts_paired", None)
 
     # #2054 — reject an implausible odometer UP-jump BEFORE the monotonic guard
     # below can freeze it forever. INGEST-only: this prevents a new car from
