@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)",
           "skoda_official_api_key": "Officiel Škoda API-nøgle — tilføjer den officielle producent-API som live datakilde (og failover)",
           "clear_skoda_official_key": "Ryd den gemte officielle Škoda API-nøgle (en ny oprettes automatisk, hvis dit login understøtter det)",
-          "skoda_official_mode": "Škoda officiel API-kildetilstand"
+          "skoda_official_mode": "Škoda officiel API-kildetilstand",
+          "switch_vwde_only": "Skift denne post til kun Volkswagen.de (kan ikke fortrydes, kun læsning)"
         },
         "data_description": {
           "stale_threshold_hours": "Hvor gammelt bilens eget optagelsestidspunkt må blive, før \"Data forældet\" og portalstatussen \"Forældet\" slår til. Standard er 72 timer, interval 1 til 168. Aldrig under 8 opdateringsintervaller. Reparationsmeldingen om forældede data beholder sin egen nedre grænse på 72 timer, så en lavere værdi udløser den ikke tidligere.",
@@ -401,6 +402,10 @@
           "username": "E-mailen til din Volkswagen ID- / myVolkswagen-konto.",
           "password": "Din Volkswagen ID-adgangskode. Bruges kun til at forny adgangstokenet på 1 time mod Volkswagens loginserver; logges aldrig og fjernes fra diagnostik."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Skift til kun Volkswagen.de",
+        "description": "Denne post læser herefter kun fra volkswagen.de med det gemte volkswagen.de-login. De andre kanaler, f.eks. EU Data Act-portalen, slås fra. Posten bliver skrivebeskyttet: fjernkommandoer er ikke længere tilgængelige. Dine biler og entiteter forbliver de samme.\n\nDet kan ikke fortrydes her. For at gå tilbage skal du tilføje portalkanalen igen eller oprette posten igen. Det kan ikke fortrydes her: for at gå tilbage til EU Data Act-portalen som hovedkanal skal posten tilføjes igen."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Denne kanal er kun tilgængelig for Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen slog det login fra, som denne kanal brugte, den 2026-08-18, så den kan ikke længere opsættes. Live-aflæsninger virker fortsat via EU Data Act-portalen, og en vedvarende kommandokanal via det klassiske Car-Net-backend er i beta — se issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen slog det login fra, som denne kanal brugte, den 2026-08-18, så den kan ikke længere opsættes. Live-aflæsninger virker fortsat via EU Data Act-portalen, og en vedvarende kommandokanal via det klassiske Car-Net-backend er i beta — se issue #584.",
+      "vwde_only_switch_unavailable": "Denne post kan ikke skiftes: Den kræver en gemt Volkswagen.de-læsekanal."
     }
   },
   "entity": {

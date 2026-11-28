@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "Ta bort VW EU Two-Way (återgå till föregående kanal)",
           "skoda_official_api_key": "Officiell Škoda API-nyckel — lägger till tillverkarens officiella API som live-datakälla (och failover)",
           "clear_skoda_official_key": "Rensa den lagrade officiella Škoda API-nyckeln (en ny skapas automatiskt om din inloggning stöder det)",
-          "skoda_official_mode": "Škoda officiell API-källäge"
+          "skoda_official_mode": "Škoda officiell API-källäge",
+          "switch_vwde_only": "Byt den här posten till enbart Volkswagen.de (kan inte ångras, endast läsning)"
         },
         "data_description": {
           "stale_threshold_hours": "Hur gammal bilens egen registreringstid får bli innan \"Data föråldrade\" och portalstatusen \"Föråldrad\" slår till. Standard är 72 timmar, intervall 1 till 168. Aldrig under 8 uppdateringsintervall. Reparationsmeddelandet om föråldrade data behåller sin egen nedre gräns på 72 timmar, så ett lägre värde utlöser det inte tidigare.",
@@ -401,6 +402,10 @@
           "username": "E-postadressen för ditt Volkswagen ID-/myVolkswagen-konto.",
           "password": "Ditt Volkswagen ID-lösenord. Används endast för att förnya 1-timmes-åtkomsttoken mot Volkswagens inloggningsserver; loggas aldrig och rensas bort från diagnostik."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Byt till enbart Volkswagen.de",
+        "description": "Den här posten läser därefter bara från volkswagen.de, med den sparade volkswagen.de-inloggningen. De andra kanalerna, till exempel EU Data Act-portalen, stängs av. Posten blir skrivskyddad: fjärrkommandon är inte längre tillgängliga. Dina bilar och entiteter förblir desamma.\n\nDet går inte att ångra här. För att gå tillbaka lägger du till portalkanalen igen eller konfigurerar posten på nytt. Det går inte att ångra här: för att gå tillbaka till EU Data Act-portalen som huvudkanal måste posten läggas till igen."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Den här kanalen är endast tillgänglig för Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen inaktiverade den inloggning som den här kanalen använde den 2026-08-18, så den kan inte längre konfigureras. Live-avläsningar fungerar fortfarande via EU Data Act-portalen, och en varaktig kommandokanal via det klassiska Car-Net-backendet är i beta — se issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen inaktiverade den inloggning som den här kanalen använde den 2026-08-18, så den kan inte längre konfigureras. Live-avläsningar fungerar fortfarande via EU Data Act-portalen, och en varaktig kommandokanal via det klassiska Car-Net-backendet är i beta — se issue #584.",
+      "vwde_only_switch_unavailable": "Den här posten kan inte bytas: Den kräver en sparad Volkswagen.de-läskanal."
     }
   },
   "entity": {

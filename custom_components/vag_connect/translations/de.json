@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "VW EU Two-Way entfernen (zurück zum vorherigen Kanal)",
           "skoda_official_api_key": "Offizieller Škoda-API-Schlüssel — nutzt die offizielle Hersteller-API als Live-Datenquelle (und Failover)",
           "clear_skoda_official_key": "Gespeicherten offiziellen Škoda-API-Schlüssel löschen (ein neuer wird automatisch erstellt, falls dein Login das unterstützt)",
-          "skoda_official_mode": "Škoda Offizielle-API-Quellenmodus"
+          "skoda_official_mode": "Škoda Offizielle-API-Quellenmodus",
+          "switch_vwde_only": "Diesen Eintrag nur auf Volkswagen.de umstellen (nicht umkehrbar, nur lesen)"
         },
         "data_description": {
           "stale_threshold_hours": "Wie alt der Erfassungszeitpunkt des Fahrzeugs werden darf, bevor \"Daten veraltet\" und der Portal-Zustand \"Veraltet\" anspringen. Standard 72 Stunden, Bereich 1 bis 168. Nie weniger als 8 Aktualisierungsintervalle. Die Reparatur-Meldung zu veralteten Daten behält ihre eigene Untergrenze von 72 Stunden, ein kleinerer Wert löst sie also nicht früher aus.",
@@ -401,6 +402,10 @@
           "username": "Die E-Mail deines Volkswagen-ID- / myVolkswagen-Kontos.",
           "password": "Dein Volkswagen-ID-Passwort. Wird nur verwendet, um das 1-Stunden-Zugriffstoken gegen Volkswagens Login-Server zu erneuern; wird nie protokolliert und aus Diagnosen entfernt."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Nur noch Volkswagen.de verwenden",
+        "description": "Dieser Eintrag liest danach nur noch von volkswagen.de, mit dem gespeicherten volkswagen.de-Login. Die anderen Kanäle, zum Beispiel das EU-Data-Act-Portal, werden abgeschaltet. Der Eintrag ist dann schreibgeschützt: Fernbefehle sind nicht mehr verfügbar. Fahrzeuge und Entitäten bleiben gleich.\n\nHier lässt sich das nicht rückgängig machen. Um zurückzugehen, fügst du den Portal-Kanal erneut hinzu oder richtest den Eintrag neu ein. Das lässt sich hier nicht rückgängig machen: Um wieder das EU-Data-Act-Portal als Hauptkanal zu nutzen, füge den Eintrag neu hinzu."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Dieser Kanal ist nur für Volkswagen verfügbar.",
-      "vweu_twoway_vw_disabled": "Volkswagen hat den Login, den dieser Kanal nutzte, am 18.08.2026 abgeschaltet — er kann daher nicht mehr eingerichtet werden. Live-Daten laufen weiter über das EU-Data-Act-Portal, und ein dauerhafter Befehlskanal über das klassische Car-Net-Backend ist in der Beta — siehe Issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen hat den Login, den dieser Kanal nutzte, am 18.08.2026 abgeschaltet — er kann daher nicht mehr eingerichtet werden. Live-Daten laufen weiter über das EU-Data-Act-Portal, und ein dauerhafter Befehlskanal über das klassische Car-Net-Backend ist in der Beta — siehe Issue #584.",
+      "vwde_only_switch_unavailable": "Dieser Eintrag lässt sich nicht umstellen: Er braucht einen gespeicherten Volkswagen.de-Lesekanal."
     }
   },
   "entity": {
