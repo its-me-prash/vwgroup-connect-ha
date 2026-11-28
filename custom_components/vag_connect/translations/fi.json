@@ -309,7 +309,8 @@
           "remove_vweu_twoway": "Poista VW EU Two-Way (palaa edelliseen kanavaan)",
           "skoda_official_api_key": "Virallinen Škoda-API-avain — lisää valmistajan virallisen API:n live-tietolähteeksi (ja vikasietona)",
           "clear_skoda_official_key": "Tyhjennä tallennettu virallinen Škoda-API-avain (uusi luodaan automaattisesti, jos kirjautumisesi tukee sitä)",
-          "skoda_official_mode": "Škodan virallisen API:n lähdetila"
+          "skoda_official_mode": "Škodan virallisen API:n lähdetila",
+          "switch_vwde_only": "Vaihda tämä merkintä vain Volkswagen.de:hen (ei peruttavissa, vain luku)"
         },
         "data_description": {
           "stale_threshold_hours": "Kuinka vanha auton oma tallennusaika saa olla, ennen kuin \"Tiedot vanhentuneet\" ja portaalin tila \"Vanhentunut\" kytkeytyvät päälle. Oletus on 72 tuntia, vaihteluväli 1–168. Ei koskaan alle 8 päivitysvälin. Vanhentuneiden tietojen korjausilmoitus säilyttää oman 72 tunnin alarajansa, joten pienempi arvo ei laukaise sitä aiemmin.",
@@ -401,6 +402,10 @@
           "username": "Volkswagen ID- / myVolkswagen-tilisi sähköposti.",
           "password": "Volkswagen ID -salasanasi. Käytetään vain 1 tunnin tunnisteen uusimiseen Volkswagenin kirjautumispalvelinta vasten; ei koskaan lokiin ja peitetään diagnostiikassa."
         }
+      },
+      "switch_vwde_only": {
+        "title": "Vaihda vain Volkswagen.de:hen",
+        "description": "Tämä merkintä lukee jatkossa vain volkswagen.de:stä tallennetulla volkswagen.de-kirjautumisella. Muut kanavat, kuten EU Data Act -portaali, kytketään pois. Merkintä muuttuu vain luku -tilaan: etäkomennot eivät ole enää käytettävissä. Autot ja entiteetit pysyvät ennallaan.\n\nTätä ei voi perua täällä. Palataksesi lisää portaalikanava uudelleen tai ota merkintä uudelleen käyttöön. Tätä ei voi perua täällä: jos haluat palata EU Data Act -portaaliin pääkanavana, merkintä on lisättävä uudelleen."
       }
     },
     "error": {
@@ -429,7 +434,8 @@
     },
     "abort": {
       "not_volkswagen": "Tämä kanava on käytettävissä vain Volkswagenille.",
-      "vweu_twoway_vw_disabled": "Volkswagen poisti käytöstä tämän kanavan käyttämän kirjautumisen 18.8.2026, joten sitä ei voi enää määrittää. Live-lukemat toimivat edelleen EU Data Act -portaalin kautta, ja pysyvä komentokanava klassisen Car-Net-taustajärjestelmän kautta on betavaiheessa — katso issue #584."
+      "vweu_twoway_vw_disabled": "Volkswagen poisti käytöstä tämän kanavan käyttämän kirjautumisen 18.8.2026, joten sitä ei voi enää määrittää. Live-lukemat toimivat edelleen EU Data Act -portaalin kautta, ja pysyvä komentokanava klassisen Car-Net-taustajärjestelmän kautta on betavaiheessa — katso issue #584.",
+      "vwde_only_switch_unavailable": "Tätä merkintää ei voi vaihtaa: se tarvitsee tallennetun Volkswagen.de-lukukanavan."
     }
   },
   "entity": {

@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Hinzugefügt / Added
+
+- **An existing entry can now be switched to the volkswagen.de-only mode in the options (#2138).** A Volkswagen entry that reads the EU Data Act portal and also has the volkswagen.de read channel can be switched in place, so you no longer have to edit the entry data by hand. In the options, tick "Switch this entry to Volkswagen.de only", confirm, and the entry reloads. It keeps your cars, entities, login and update interval, reuses the saved volkswagen.de session, and switches off the portal and the other extra channels. The option only appears on Volkswagen entries that already have the volkswagen.de read channel with a saved session. It is one-way: to go back, add the portal channel again or set the entry up again. The entry becomes read-only, so remote commands are not available in this mode. Covered by `tests/test_2138_vwde_only_switch.py`; not tried with a real account.
+
 ### Behoben / Fixed
 
 - **The map marker and the shared `image_url` attribute no longer show an interior view while an exterior one is there (#2256).** The integration picks one picture of the car for the device tracker on the map and for the `image_url` attribute that its entities share, preferring a side view. Škoda delivers its renders as a list of view points, and on a Škoda Octavia the interior side view came before the exterior side view, so the first view with "side" in its name was the interior and the map showed the rear seats; a Karoq in the same installation listed the exterior first and was fine. Interior views now come last: first a side or profile view from outside, then a front or three-quarter view from outside, then the curated media types, then any other outside view, and only then an interior view. The image entities themselves are unchanged, and each still names its own picture in `source_url`; `image_url` stays the one picture of the car that dashboard cards read. Covered by `tests/test_2256_hero_image_not_interior.py`; not tried on a car. Thanks to @driemeier for the report.
