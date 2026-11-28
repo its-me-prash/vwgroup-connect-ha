@@ -1183,6 +1183,22 @@ class WebsiteAuthProxyConnector:
             self._finalise_login(login_url)
             return "ok"
 
+        # #2138 (@erikbp) — a resume from saved cookies can land straight on the
+        # identity provider's e-mail code page (``/u/mfa-email-challenge``): the
+        # session is known, but the account wants a fresh code. That is the same
+        # challenge the credential POST below can reach, not a dead login, so it
+        # is stashed for ``submit_otp`` instead of failing with "did not reach
+        # the VW identity login". Checked by URL and before the terms check,
+        # which reads the page body and could match a footer link.
+        if "/u/email-challenge" in login_url or "/u/mfa" in login_url:
+            self._otp_url = login_url
+            self._otp_html = login_html
+            self._otp_state = (
+                parse_qs(urlparse(login_url).query).get("state", [""])[0] or None
+            )
+            _LOGGER.debug("Website authproxy: email-OTP challenge on resume")
+            return "otp_required"
+
         # #632 parity — a mandatory terms-and-conditions wall in the resume path
         # is NOT a dead session: the account has to accept an updated VW T&C once,
         # in a browser. Surface that actionable message instead of a generic
